@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Mackes Shell
+GenericName=Settings
+Comment=XFCE control panel and shell manager
+Exec=mackes
+Icon=mackes-shell
+Terminal=false
+Categories=Settings;System;X-XFCE-SettingsDialog;
+Keywords=settings;preferences;control;panel;xfce;shell;
+StartupNotify=true
+StartupWMClass=Mackes Shell

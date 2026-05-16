@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# /etc/grub.d/40_mackes_recovery — adds a "Mackes Recovery" GRUB submenu
+# entry that boots into mackes-recovery.target (multi-user, no graphical
+# session). Designed so the user can recover even when xfce4-session is
+# broken.
+#
+# Install: copy this file to /etc/grub.d/40_mackes_recovery, then run
+# `grub2-mkconfig -o /boot/grub2/grub.cfg`.
+set -e
+
+. /usr/share/grub/grub-mkconfig_lib 2>/dev/null || true
+
+cat <<'EOF'
+submenu 'Mackes Recovery' --class mackes --class gnu-linux --class gnu --class os {
+EOF
+
+# Reuse the most recent kernel entry but add `systemd.unit=mackes-recovery.target`
+KERNEL=$(ls -1 /boot/vmlinuz-* 2>/dev/null | sort -V | tail -n 1 || true)
+INITRD=$(ls -1 /boot/initramfs-*.img 2>/dev/null | sort -V | tail -n 1 || true)
+ROOT_UUID=$(findmnt -no UUID / 2>/dev/null || echo UNKNOWN)
+
+if [[ -n "$KERNEL" && -n "$INITRD" && "$ROOT_UUID" != "UNKNOWN" ]]; then
+cat <<EOF
+    menuentry 'Boot to Mackes recovery shell (TTY)' {
+        linux ${KERNEL} root=UUID=${ROOT_UUID} ro systemd.unit=mackes-recovery.target
+        initrd ${INITRD}
+    }
+EOF
+else
+cat <<'EOF'
+    menuentry '(unavailable — kernel/initramfs/root UUID not detected)' {
+        true
+    }
+EOF
+fi
+
+cat <<'EOF'
+}
+EOF

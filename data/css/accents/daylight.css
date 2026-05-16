@@ -1,0 +1,5 @@
+/* Daylight — cool Adwaita blue, light-mode text. */
+@define-color mackes_accent     #1c71d8;
+@define-color mackes_accent_dim alpha(@mackes_accent, 0.22);
+@define-color mackes_text       #2e3436;
+@define-color mackes_dim        alpha(@mackes_text, 0.6);

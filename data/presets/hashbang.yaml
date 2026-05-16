@@ -1,0 +1,83 @@
+# #! — the default Mackes preset.
+#
+# Spirit-of-CrunchBang, modern stack. Black, monospace, sparse.
+# Modern tools (alacritty, neovim, firefox, mpv) wearing the CrunchBang
+# aesthetic: thin top polybar in tint2-minimalist style, conky as a desktop
+# overlay, rofi root menu. The feeling, not the artifacts.
+#
+# TODO (post-Polybar-Editor): ship a real `hashbang` polybar profile. Until
+# then, this preset falls back to the existing `chupre-custom` profile so
+# apply_polybar doesn't error.
+
+name: hashbang
+display_name: "#!"
+description: >
+  Spirit of CrunchBang, modern stack. Black, monospace, deliberate. Thin top
+  polybar, no dock, rofi as the root menu, conky on the desktop. The first
+  impression of Mackes.
+
+appearance:
+  gtk_theme:      "Adwaita-dark"
+  icon_theme:     "Papirus-Dark"
+  cursor_theme:   "Adwaita"
+  cursor_size:    24
+  font_ui:        "SF Pro Text 10"
+  font_monospace: "JetBrains Mono 10"
+  wallpaper:      "/usr/share/mackes-shell/data/wallpapers/hashbang.png"
+
+shell:
+  apply_chupre_dotfiles: true
+  polybar_profile:    "hashbang"        # generated from upstream hack family
+  rofi_profile:       "hashbang"
+  xfce_panel_enabled: false
+
+devices:
+  display_scaling:    "auto"
+  power_profile:      "balanced"
+  audio_default_sink: "pipewire"
+
+network:
+  qnm_enabled:           false
+  firewall_default_zone: "FedoraWorkstation"
+
+system:
+  workspace_count:       4
+  window_manager_theme:  "Default"
+  notifications_enabled: true
+  autostart_extras:
+    - picom.desktop
+    - conky.desktop
+
+apps:
+  # CrunchBang-spirit minimal-modern set.
+  install:
+    - alacritty
+    - neovim
+    - firefox
+    - mpv
+    - conky
+    - dunst
+
+  # Aggressive bloat removal — CrunchBang was famously sparse.
+  remove_bloat:
+    - gnome-software
+    - gnome-tour
+    - gnome-maps
+    - gnome-weather
+    - gnome-contacts
+    - gnome-clocks
+    - gnome-calendar
+    - gnome-music
+    - totem
+    - "libreoffice-*"
+
+  lean_xfce_remove:
+    - package: xfce4-panel
+      replaced_by: polybar
+    - package: xfce4-appfinder
+      replaced_by: rofi
+    - package: xfce4-notifyd
+      replaced_by: dunst
+
+snapshot:
+  initial_snapshot_name: "hashbang-baseline"

@@ -1,0 +1,69 @@
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  build-rpm:
+    name: build noarch RPM
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        fedora: ["40", "41", "42"]
+    container:
+      image: fedora:${{ matrix.fedora }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            rpm-build rpmdevtools \
+            python3 python3-pip python3-setuptools python3-wheel python3-build \
+            python3-devel python3-pyyaml
+
+      - name: Build sdist
+        run: |
+          python3 -m build --sdist
+          ls -la dist/
+
+      - name: Stage rpmbuild tree
+        run: |
+          mkdir -p rpmbuild/{SOURCES,SPECS,BUILD,RPMS,SRPMS}
+          cp dist/mackes-shell-*.tar.gz rpmbuild/SOURCES/
+          cp packaging/fedora/mackes-shell.spec rpmbuild/SPECS/
+
+      - name: Build RPM
+        run: |
+          rpmbuild --define "_topdir $PWD/rpmbuild" \
+            -ba rpmbuild/SPECS/mackes-shell.spec
+          find rpmbuild/RPMS -name "*.rpm"
+
+      - name: Upload RPM as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-fc${{ matrix.fedora }}
+          path: rpmbuild/RPMS/noarch/*.rpm
+
+  publish-release:
+    name: publish GitHub Release
+    needs: build-rpm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect all RPMs
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-artifacts/**/*.rpm
+            install.sh
+          generate_release_notes: true

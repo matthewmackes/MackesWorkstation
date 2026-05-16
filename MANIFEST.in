@@ -1,0 +1,30 @@
+# Files to ship in the sdist (the source tarball consumed by rpmbuild).
+# These aren't packaged into the Python wheel — the .spec file installs
+# them into /usr/share/mackes-shell/ at RPM build time.
+
+include LICENSE
+include README.md
+include CHANGELOG.md
+include Makefile
+include install.sh
+include uninstall.sh
+include pyproject.toml
+include setup.py
+
+# MAP2 branding (logo placed on About, Wizard welcome, and Dashboard header)
+recursive-include branding *.png *.svg
+
+# Specs and CI
+recursive-include packaging *
+recursive-include install-helpers *.sh
+recursive-include .github *.yml
+
+# Documentation
+recursive-include docs *.md
+
+# Shipped data tree: presets, shell profiles, plank themes, wallpapers,
+# applications/.desktop, icons, overrides
+recursive-include data *
+
+# Tests (shipped so downstream rebuilds can run them)
+recursive-include tests *.py

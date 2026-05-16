@@ -1,0 +1,5 @@
+/* Vanilla — Adwaita default blue (matches Fedora-stock GTK). */
+@define-color mackes_accent     #3584e4;
+@define-color mackes_accent_dim alpha(@mackes_accent, 0.22);
+@define-color mackes_text       #2e3436;
+@define-color mackes_dim        alpha(@mackes_text, 0.6);

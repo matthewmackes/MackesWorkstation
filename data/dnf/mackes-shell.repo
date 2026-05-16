@@ -1,0 +1,12 @@
+[mackes-shell]
+name = Mackes Shell
+# Hosted as a dnf repo on the matthewmackes/MAP2-RELEASES gh-pages branch.
+# Populate with `createrepo_c` on every release tag; see
+# install-helpers/add-mackes-repo.sh and packaging docs.
+baseurl = https://matthewmackes.github.io/MAP2-RELEASES/fedora/$releasever/$basearch
+enabled = 1
+gpgcheck = 1
+gpgkey = https://matthewmackes.github.io/MAP2-RELEASES/RPM-GPG-KEY-mackes-shell
+metadata_expire = 6h
+priority = 50
+skip_if_unavailable = True

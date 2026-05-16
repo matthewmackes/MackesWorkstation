@@ -1,0 +1,24 @@
+# Build outputs
+build/
+dist/
+rpmbuild/
+*.egg-info/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local-only artifacts
+.themes-backup-*/
+
+# Session state
+*.log

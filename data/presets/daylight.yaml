@@ -1,0 +1,77 @@
+# Daylight — cool-light, day-mode productivity.
+#
+# Light theme, productivity-leaning app set (office suite, mail, image
+# editing). Polybar + Plank in a daylight palette. For users who live in
+# the daytime and want a tool set built around documents and communication.
+#
+# TODO (post-Polybar-Editor): ship `daylight` polybar/plank profiles in the
+# correct palette. Today falls back to the chupre profiles, which look wrong
+# against a light GTK theme.
+
+name: daylight
+display_name: "Daylight"
+description: >
+  Cool-light, day-mode. Adwaita light theme, productivity app set
+  (LibreOffice, Thunderbird, GIMP, Inkscape). For people who work in the
+  daytime and care about document fidelity.
+
+appearance:
+  gtk_theme:      "Adwaita"
+  icon_theme:     "Papirus"
+  cursor_theme:   "Adwaita"
+  cursor_size:    24
+  font_ui:        "SF Pro Text 11"
+  font_monospace: "JetBrains Mono 11"
+  wallpaper:      "/usr/share/mackes-shell/data/wallpapers/daylight.png"
+
+shell:
+  apply_chupre_dotfiles: true
+  polybar_profile:    "daylight"        # generated from upstream material family
+  plank_profile:      "daylight"
+  rofi_profile:       "daylight"
+  xfce_panel_enabled: false
+
+devices:
+  display_scaling:    "auto"
+  power_profile:      "balanced"
+  audio_default_sink: "pipewire"
+
+network:
+  qnm_enabled:           false
+  firewall_default_zone: "FedoraWorkstation"
+
+system:
+  workspace_count:       4
+  window_manager_theme:  "Default"
+  notifications_enabled: true
+  autostart_extras: []
+
+apps:
+  install:
+    - firefox
+    - thunderbird
+    - libreoffice
+    - gnumeric
+    - evince
+    - gimp
+    - inkscape
+    - dunst
+
+  # Light bloat removal — keep productivity-adjacent GNOME apps.
+  remove_bloat:
+    - gnome-software
+    - gnome-tour
+    - gnome-maps
+    - gnome-music
+    - totem
+
+  lean_xfce_remove:
+    - package: xfce4-panel
+      replaced_by: polybar
+    - package: xfce4-appfinder
+      replaced_by: rofi
+    - package: xfce4-notifyd
+      replaced_by: dunst
+
+snapshot:
+  initial_snapshot_name: "daylight-baseline"

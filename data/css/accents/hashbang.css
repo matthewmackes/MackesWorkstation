@@ -1,0 +1,5 @@
+/* #! — monochrome white-on-black (CrunchBang tint2 aesthetic). */
+@define-color mackes_accent     #ffffff;
+@define-color mackes_accent_dim alpha(@mackes_accent, 0.18);
+@define-color mackes_text       #e6e6e6;
+@define-color mackes_dim        alpha(@mackes_text, 0.55);

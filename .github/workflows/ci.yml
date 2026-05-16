@@ -1,0 +1,40 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: test (Fedora ${{ matrix.fedora }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ["40", "41", "42"]
+    container:
+      image: fedora:${{ matrix.fedora }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install runtime + test deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            python3 python3-pip python3-pyyaml \
+            python3-gobject gtk3 xfconf \
+            python3-pytest pyflakes
+          # GUI panels won't initialize headlessly; pytest sees only logic modules.
+
+      - name: pyflakes
+        run: pyflakes mackes/ tests/
+
+      - name: pytest
+        run: python3 -m pytest tests/ -v --tb=short
+
+      - name: import smoke
+        run: |
+          python3 -c "import importlib, pkgutil, mackes; \
+[importlib.import_module(n) for _,n,_ in pkgutil.walk_packages(mackes.__path__, prefix='mackes.')]; \
+print('all modules import')"
