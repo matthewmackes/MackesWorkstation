@@ -3,7 +3,21 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.6.2 — Conky perf + panel snapshot + Get Online + Screens + GUI refresh (unreleased)
+## 1.6.2 — Conky perf + panel snapshot + Get Online + Screens + GUI refresh + lazy nav (unreleased)
+
+**Lazy sub-nav panel construction.** Opening "Devices", "System", or
+"Look & Feel" used to instantiate every sub-panel in the group, each
+of which shells out to `xrandr` / `xinput` / `nmcli` / `fc-list` /
+`rpm -q` at `__init__`. Cumulative cost: 600–1200 ms of frozen GTK
+main loop per group open on a stock Fedora 44 box. `_build_subnav_
+container` now accepts `(key, label, factory)` tuples; the factory is
+called on first navigation to its tab, with an empty Box placeholder
+in the meantime. First-paint cost drops to ONE panel × one shell-out
+chain. Same treatment applied to the Maintain hub's 13 sub-panels —
+the hub view (cheap) builds eagerly; each sub-panel materialises on
+first `_go(key)` call.
+
+
 
 **GUI distinctiveness + plain-language explainers.** The Carbon
 surface gained subtle elevation everywhere it was previously flush:

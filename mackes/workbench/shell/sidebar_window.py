@@ -22,7 +22,7 @@ content router only.
 """
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -71,13 +71,60 @@ def _wrap_in_scroller(widget: Gtk.Widget) -> Gtk.Widget:
     return scroller
 
 
-def _build_subnav_container(panels: List[Tuple[str, str, Gtk.Widget]]) -> Gtk.Widget:
-    """Inner sidebar+stack for sections that still have sub-panels (Devices, System, Look&Feel)."""
+def _build_subnav_container(
+    panels: List[Tuple[str, str, "Union[Gtk.Widget, Callable[[], Gtk.Widget]]"]],
+) -> Gtk.Widget:
+    """Inner sidebar+stack for sections that still have sub-panels.
+
+    Each panel entry is (key, label, widget_or_factory). When the entry
+    is a Gtk.Widget it's added immediately (legacy callers). When it's
+    a callable, an empty Box placeholder goes in immediately and the
+    real widget is packed into that Box on first visibility. This
+    keeps a group's first-paint cost to ONE panel (whichever is
+    shown initially) instead of N.
+
+    Why-not the standard "Stack.add_titled(factory_result, …)" — that
+    forces every panel to construct up-front. Many panels shell out at
+    __init__ (xrandr, nmcli, fc-list, rpm -q, …) and the cumulative
+    cost is hundreds of ms per group open, freezing the GTK main loop.
+    """
     stack = Gtk.Stack()
     stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
     stack.set_transition_duration(150)
-    for pid, label, widget in panels:
-        stack.add_titled(_wrap_in_scroller(widget), pid, label)
+
+    # Map: stack child name → (placeholder Box, factory callable)
+    pending: dict[str, Tuple[Gtk.Box, Callable[[], Gtk.Widget]]] = {}
+    for pid, label, item in panels:
+        if callable(item) and not isinstance(item, Gtk.Widget):
+            placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            stack.add_titled(_wrap_in_scroller(placeholder), pid, label)
+            pending[pid] = (placeholder, item)
+        else:
+            stack.add_titled(_wrap_in_scroller(item), pid, label)
+
+    def _maybe_build(name):
+        entry = pending.pop(name, None)
+        if entry is None:
+            return
+        placeholder, factory = entry
+        try:
+            real = factory()
+        except Exception:  # noqa: BLE001
+            # Failed-to-build panel — leave the placeholder and let
+            # other panels keep working rather than crash the nav.
+            import traceback
+            traceback.print_exc()
+            return
+        placeholder.pack_start(real, True, True, 0)
+        placeholder.show_all()
+
+    def _on_visible_child_changed(stk, _pspec):
+        _maybe_build(stk.get_visible_child_name())
+
+    stack.connect("notify::visible-child", _on_visible_child_changed)
+
+    # Build the first panel up-front so the group opens to real content.
+    _maybe_build(stack.get_visible_child_name())
 
     sidebar = Gtk.StackSidebar()
     sidebar.set_stack(stack)
@@ -98,43 +145,75 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         return DashboardView(state, navigate=navigate)
 
     def _look_and_feel():
-        from mackes.workbench.look_and_feel.appearance import AppearancePanel
+        # Lazy panel construction — only Appearance builds on group open.
+        def _appearance():
+            from mackes.workbench.look_and_feel.appearance import AppearancePanel
+            return AppearancePanel()
         return _build_subnav_container([
-            ("appearance", "Appearance", AppearancePanel()),
+            ("appearance", "Appearance", _appearance),
         ])
 
     def _devices():
-        from mackes.workbench.devices.display import DisplayPanel
-        from mackes.workbench.devices.keyboard import KeyboardPanel
-        from mackes.workbench.devices.mouse import MousePanel
-        from mackes.workbench.devices.sound import SoundPanel
-        from mackes.workbench.devices.power import PowerPanel
+        # Each lambda fires only when its sub-tab is clicked the first
+        # time — first-paint cost drops from N panels × N shell-outs to
+        # one panel.
+        def _f_display():
+            from mackes.workbench.devices.display import DisplayPanel
+            return DisplayPanel()
+        def _f_keyboard():
+            from mackes.workbench.devices.keyboard import KeyboardPanel
+            return KeyboardPanel()
+        def _f_mouse():
+            from mackes.workbench.devices.mouse import MousePanel
+            return MousePanel()
+        def _f_sound():
+            from mackes.workbench.devices.sound import SoundPanel
+            return SoundPanel()
+        def _f_power():
+            from mackes.workbench.devices.power import PowerPanel
+            return PowerPanel()
         return _build_subnav_container([
-            ("display", "Display", DisplayPanel()),
-            ("keyboard", "Keyboard", KeyboardPanel()),
-            ("mouse", "Mouse & Touchpad", MousePanel()),
-            ("sound", "Sound", SoundPanel()),
-            ("power", "Power", PowerPanel()),
+            ("display", "Display", _f_display),
+            ("keyboard", "Keyboard", _f_keyboard),
+            ("mouse", "Mouse & Touchpad", _f_mouse),
+            ("sound", "Sound", _f_sound),
+            ("power", "Power", _f_power),
         ])
 
     def _system():
-        from mackes.workbench.system.window_manager import WindowManagerPanel
-        from mackes.workbench.system.workspaces import WorkspacesPanel
-        from mackes.workbench.system.session import SessionPanel
-        from mackes.workbench.system.notifications import NotificationsPanel
-        from mackes.workbench.system.default_apps import DefaultAppsPanel
-        from mackes.workbench.system.removable import RemovablePanel
-        from mackes.workbench.system.datetime import DateTimePanel
-        from mackes.workbench.system.displays import DisplaysPanel
+        def _f_displays():
+            from mackes.workbench.system.displays import DisplaysPanel
+            return DisplaysPanel()
+        def _f_wm():
+            from mackes.workbench.system.window_manager import WindowManagerPanel
+            return WindowManagerPanel()
+        def _f_ws():
+            from mackes.workbench.system.workspaces import WorkspacesPanel
+            return WorkspacesPanel()
+        def _f_session():
+            from mackes.workbench.system.session import SessionPanel
+            return SessionPanel()
+        def _f_notif():
+            from mackes.workbench.system.notifications import NotificationsPanel
+            return NotificationsPanel()
+        def _f_defapps():
+            from mackes.workbench.system.default_apps import DefaultAppsPanel
+            return DefaultAppsPanel()
+        def _f_remov():
+            from mackes.workbench.system.removable import RemovablePanel
+            return RemovablePanel()
+        def _f_dt():
+            from mackes.workbench.system.datetime import DateTimePanel
+            return DateTimePanel()
         return _build_subnav_container([
-            ("displays", "Screens", DisplaysPanel()),
-            ("wm", "Window Manager", WindowManagerPanel()),
-            ("workspaces", "Workspaces", WorkspacesPanel()),
-            ("session", "Session & Startup", SessionPanel()),
-            ("notifications", "Notifications", NotificationsPanel()),
-            ("default_apps", "Default Apps", DefaultAppsPanel()),
-            ("removable", "Removable Media", RemovablePanel()),
-            ("datetime", "Date & Time", DateTimePanel()),
+            ("displays", "Screens", _f_displays),
+            ("wm", "Window Manager", _f_wm),
+            ("workspaces", "Workspaces", _f_ws),
+            ("session", "Session & Startup", _f_session),
+            ("notifications", "Notifications", _f_notif),
+            ("default_apps", "Default Apps", _f_defapps),
+            ("removable", "Removable Media", _f_remov),
+            ("datetime", "Date & Time", _f_dt),
         ])
 
     def _wifi():
@@ -178,29 +257,91 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         return AppsPanel()
 
     def _maintain():
+        # Hub-plus-sub-panels stack. Sub-panels are constructed lazily —
+        # only the hub builds when the group is opened; each sub-panel
+        # builds the first time it's navigated to via _go(key). Avoids
+        # 13 panel __init__s (each shelling out to dnf/fc-list/journalctl/
+        # rpm-q/…) on every "Apps & Maintenance → Maintain" click.
         from mackes.workbench.maintain.hub import MaintainHub
-        from mackes.workbench.maintain.snapshots import SnapshotsPanel
-        from mackes.workbench.maintain.drift import DriftPanel
-        from mackes.workbench.maintain.fonts import FontsPanel
-        from mackes.workbench.maintain.power import PowerPanel as MaintPower
-        from mackes.workbench.maintain.resources import ResourcesPanel
-        from mackes.workbench.maintain.health_check import HealthCheckPanel
-        from mackes.workbench.maintain.dependencies import DependenciesPanel
-        from mackes.workbench.maintain.logs import LogsPanel
-        from mackes.workbench.maintain.repair import RepairPanel
-        from mackes.workbench.maintain.reset_to_preset import ResetToPresetPanel
-        from mackes.workbench.maintain.system_update import SystemUpdatePanel
-        from mackes.workbench.maintain.uninstall import UninstallPanel
-        from mackes.workbench.maintain.debloat import DebloatPanel
 
-        # Inner Gtk.Stack — hub view + sub-panels. Tile clicks call
-        # stack.set_visible_child_name(<key>); a "← Back to Maintain" link
-        # at the top of each sub-panel returns to the hub.
         inner_stack = Gtk.Stack()
         inner_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
         inner_stack.set_transition_duration(120)
 
+        # key → factory (returns the unwrapped sub-panel widget)
+        sub_factories: dict[str, Callable[[], Gtk.Widget]] = {
+            "snapshots": lambda: __import__(
+                "mackes.workbench.maintain.snapshots",
+                fromlist=["SnapshotsPanel"]).SnapshotsPanel(state),
+            "drift": lambda: __import__(
+                "mackes.workbench.maintain.drift",
+                fromlist=["DriftPanel"]).DriftPanel(state),
+            "update": lambda: __import__(
+                "mackes.workbench.maintain.system_update",
+                fromlist=["SystemUpdatePanel"]).SystemUpdatePanel(),
+            "fonts": lambda: __import__(
+                "mackes.workbench.maintain.fonts",
+                fromlist=["FontsPanel"]).FontsPanel(),
+            "power": lambda: __import__(
+                "mackes.workbench.maintain.power",
+                fromlist=["PowerPanel"]).PowerPanel(),
+            "resources": lambda: __import__(
+                "mackes.workbench.maintain.resources",
+                fromlist=["ResourcesPanel"]).ResourcesPanel(),
+            "health": lambda: __import__(
+                "mackes.workbench.maintain.health_check",
+                fromlist=["HealthCheckPanel"]).HealthCheckPanel(),
+            "deps": lambda: __import__(
+                "mackes.workbench.maintain.dependencies",
+                fromlist=["DependenciesPanel"]).DependenciesPanel(),
+            "logs": lambda: __import__(
+                "mackes.workbench.maintain.logs",
+                fromlist=["LogsPanel"]).LogsPanel(),
+            "repair": lambda: __import__(
+                "mackes.workbench.maintain.repair",
+                fromlist=["RepairPanel"]).RepairPanel(state),
+            "reset": lambda: __import__(
+                "mackes.workbench.maintain.reset_to_preset",
+                fromlist=["ResetToPresetPanel"]).ResetToPresetPanel(state),
+            "uninstall": lambda: __import__(
+                "mackes.workbench.maintain.uninstall",
+                fromlist=["UninstallPanel"]).UninstallPanel(),
+            "debloat": lambda: __import__(
+                "mackes.workbench.maintain.debloat",
+                fromlist=["DebloatPanel"]).DebloatPanel(),
+        }
+        # Display labels for the back-link breadcrumb
+        sub_labels = {
+            "snapshots": "Snapshots", "drift": "Drift",
+            "update": "System update", "fonts": "Fonts",
+            "power": "Power", "resources": "Resources",
+            "health": "Health", "deps": "Dependencies",
+            "logs": "Logs", "repair": "Repair",
+            "reset": "Reset to Preset", "uninstall": "Uninstall",
+            "debloat": "Debloat levels",
+        }
+        # Map key → placeholder Box (built on first _go to that key)
+        placeholders: dict[str, Gtk.Box] = {}
+
         def _go(key: str) -> None:
+            # Lazy-build on first nav to a sub-panel
+            if key in sub_factories:
+                placeholder = placeholders.get(key)
+                if placeholder is None:
+                    placeholder = Gtk.Box(orientation=Gtk.Orientation.VERTICAL,
+                                          spacing=0)
+                    inner_stack.add_named(
+                        _wrap_with_back(placeholder, sub_labels[key]), key,
+                    )
+                    placeholders[key] = placeholder
+                if not placeholder.get_children():
+                    try:
+                        real = sub_factories[key]()
+                        placeholder.pack_start(real, True, True, 0)
+                        placeholder.show_all()
+                    except Exception:  # noqa: BLE001
+                        import traceback
+                        traceback.print_exc()
             inner_stack.set_visible_child_name(key)
 
         # Wrap each sub-panel with a back-link header
@@ -225,20 +366,8 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
             box.pack_start(scroll, True, True, 0)
             return box
 
+        # Build the hub eagerly (it's the landing surface; cheap)
         inner_stack.add_named(MaintainHub(on_open=_go, state=state), "__hub")
-        inner_stack.add_named(_wrap_with_back(SnapshotsPanel(state), "Snapshots"), "snapshots")
-        inner_stack.add_named(_wrap_with_back(DriftPanel(state), "Drift"), "drift")
-        inner_stack.add_named(_wrap_with_back(SystemUpdatePanel(), "System update"), "update")
-        inner_stack.add_named(_wrap_with_back(FontsPanel(), "Fonts"), "fonts")
-        inner_stack.add_named(_wrap_with_back(MaintPower(), "Power"), "power")
-        inner_stack.add_named(_wrap_with_back(ResourcesPanel(), "Resources"), "resources")
-        inner_stack.add_named(_wrap_with_back(HealthCheckPanel(), "Health"), "health")
-        inner_stack.add_named(_wrap_with_back(DependenciesPanel(), "Dependencies"), "deps")
-        inner_stack.add_named(_wrap_with_back(LogsPanel(), "Logs"), "logs")
-        inner_stack.add_named(_wrap_with_back(RepairPanel(state), "Repair"), "repair")
-        inner_stack.add_named(_wrap_with_back(ResetToPresetPanel(state), "Reset to Preset"), "reset")
-        inner_stack.add_named(_wrap_with_back(UninstallPanel(), "Uninstall"), "uninstall")
-        inner_stack.add_named(_wrap_with_back(DebloatPanel(), "Debloat levels"), "debloat")
         inner_stack.set_visible_child_name("__hub")
         return inner_stack
 
