@@ -3,7 +3,24 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.6.2 — Conky perf + panel snapshot + new panels + GUI refresh + GTK perf v3 (unreleased)
+## 1.6.2 — Conky perf + panel snapshot + new panels + GUI refresh + GTK perf v3 + coverage panels (unreleased)
+
+**System → Tweaks** (`mackes.workbench.system.tweaks_full`). Full-page
+sibling to the floating Tweaks drawer that exposes every birthright
+toggle: maximize-all (via `systemctl --user is-active mackes-maximizer`),
+mesh clipboard daemon, Thunar autostart, Conky HUD on/off + density +
+monitor. Read/writes share `~/.config/mackes-shell/tweaks.json` with
+the drawer so both stay in sync.
+
+**Apps → Sources & Repos** (`mackes.workbench.apps.sources`). Wraps the
+`apply_flathub` and `apply_third_party_repos` birthright steps in a
+GUI. Threaded probes (cached 30–60 s via probe_cache) for Flathub
+remote, RPM Fusion free + nonfree, fedora-workstation-repositories,
+and the live `dnf repolist --enabled`. Apply buttons route through
+`AdminSession.instance().run()` so the user authenticates once per
+session.
+
+
 
 **GTK perf round 3 + lint-css.sh.** Heaviest panel-construct probes
 moved off the GTK main loop and through `probe_cache`:

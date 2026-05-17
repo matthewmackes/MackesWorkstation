@@ -205,8 +205,12 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         def _f_dt():
             from mackes.workbench.system.datetime import DateTimePanel
             return DateTimePanel()
+        def _f_tweaks():
+            from mackes.workbench.system.tweaks_full import TweaksPanel
+            return TweaksPanel()
         return _build_subnav_container([
             ("displays", "Screens", _f_displays),
+            ("tweaks", "Tweaks", _f_tweaks),
             ("wm", "Window Manager", _f_wm),
             ("workspaces", "Workspaces", _f_ws),
             ("session", "Session & Startup", _f_session),
@@ -255,6 +259,10 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
     def _apps():
         from mackes.workbench.apps.panel import AppsPanel
         return AppsPanel()
+
+    def _app_sources():
+        from mackes.workbench.apps.sources import SourcesPanel
+        return _wrap_in_scroller(SourcesPanel())
 
     def _maintain():
         # Hub-plus-sub-panels stack. Sub-panels are constructed lazily —
@@ -418,6 +426,7 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         ]),
         NavGroup("Apps & Maintenance", [
             NavItem("apps", "Apps", "applications-other-symbolic", _apps),
+            NavItem("app_sources", "Sources & Repos", "applications-internet-symbolic", _app_sources),
             NavItem("maintain", "Maintain", "preferences-system-symbolic", _maintain),
             NavItem("snapshots", "Snapshots", "document-revert-symbolic", _snapshots),
         ]),
@@ -1111,8 +1120,9 @@ _LEGACY_KEY_MAP = {
     "sound": "devices", "power": "devices",
     "wm": "system", "workspaces": "system", "session": "system",
     "notifications": "system", "default_apps": "system", "removable": "system",
-    "datetime": "system", "displays": "system",
+    "datetime": "system", "displays": "system", "tweaks": "system",
     "apps_install": "apps", "apps_remove": "apps", "apps_installed": "apps",
+    "app_sources": "app_sources",
     "drift": "maintain", "update": "maintain", "fonts": "maintain",
     "resources": "maintain", "health": "maintain", "deps": "maintain",
     "logs": "maintain", "repair": "maintain", "reset": "maintain",
