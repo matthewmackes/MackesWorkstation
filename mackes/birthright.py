@@ -321,12 +321,22 @@ def apply_panel_layout(_preset: Preset) -> List[str]:
     # 104 = systray, 105 = clock
     plugin_ids = ["101", "102", "103", "104", "105"]
 
-    # /panels = [0] — the array of panel IDs
-    _set_array("xfce4-panel", "/panels", "int", ["0"])
-    # /panels/panel-0/plugin-ids = [101, 102, 103, 104, 105]
-    _set_array("xfce4-panel", "/panels/panel-0/plugin-ids", "uint", plugin_ids)
+    # v1.5.1 — kill xfce4-panel BEFORE writing any xfconf state so it
+    # doesn't race on partial config and crash (the v1.5.0 install
+    # report). xfconf-query writes flush as we go; if the panel is
+    # listening to xfsettingsd and reads the plugin-ids array before
+    # the plugin types are set, it tries to load plugin-101 = <unset>
+    # and SIGSEGVs.
+    if shutil.which("xfce4-panel"):
+        try:
+            subprocess.run(["xfce4-panel", "--quit"],
+                           capture_output=True, timeout=5)
+            actions.append("panel: xfce4-panel --quit before reconfig")
+        except (OSError, subprocess.TimeoutExpired):
+            pass
 
-    # Always write panel-0 metadata + plugin types (idempotent)
+    # Always write panel-0 metadata + plugin types FIRST so the
+    # plugin-ids array we set last references things that already exist.
     _set("xfce4-panel", "/panels/panel-0/position", "string", "p=8;x=0;y=0")
     _set("xfce4-panel", "/panels/panel-0/length",   "uint",   "100")
     _set("xfce4-panel", "/panels/panel-0/size",     "uint",   "32")
@@ -383,14 +393,24 @@ def apply_panel_layout(_preset: Preset) -> List[str]:
     _set("xfce4-panel", "/plugins/plugin-105/digital-date-format", "string", "%B %d, %Y")
     _set("xfce4-panel", "/plugins/plugin-105/mode", "uint", "2")
 
-    # Restart panel to pick up changes
+    # v1.5.1 — write the panels array + plugin-ids array LAST, after
+    # every plugin's type + config has landed. This avoids the
+    # v1.5.0 crash where xfce4-panel observed `plugin-ids = [101..105]`
+    # before plugin-101's type was written and segfaulted on
+    # `load plugin-101 <unset>`.
+    _set_array("xfce4-panel", "/panels", "int", ["0"])
+    _set_array("xfce4-panel", "/panels/panel-0/plugin-ids", "uint", plugin_ids)
+
+    # Relaunch xfce4-panel — we --quit'd it at the start; spawn it
+    # fresh so the new config is the only thing it ever sees.
     if shutil.which("xfce4-panel"):
         try:
-            subprocess.Popen(["xfce4-panel", "--restart"],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            actions.append("panel: xfce4-panel --restart issued")
+            subprocess.Popen(["xfce4-panel"],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=True)
+            actions.append("panel: xfce4-panel relaunched with new config")
         except OSError as e:
-            actions.append(f"panel: could not restart xfce4-panel: {e}")
+            actions.append(f"panel: could not relaunch xfce4-panel: {e}")
 
     for line in actions:
         log_action(line)

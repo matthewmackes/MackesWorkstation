@@ -595,11 +595,20 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         return bar
 
     def _refresh_status_bar_tick(self) -> bool:
-        self._refresh_status_bar()
+        # v1.5.1 — run the synchronous shell-outs on a background thread
+        # so the GTK main loop doesn't freeze every 30s. Results land
+        # back on the main thread via GLib.idle_add.
+        import threading
+        threading.Thread(target=self._refresh_status_bar,
+                         daemon=True).start()
         return True   # keep firing
 
     def _refresh_status_bar(self) -> None:
-        """Pull live values from service_health / Headscale / drift detector."""
+        """Pull live values from service_health / Headscale / drift detector.
+
+        v1.5.1 — runs on a background thread; UI writes are posted back
+        via GLib.idle_add.
+        """
         try:
             from mackes.state import service_health
             sh = service_health()
@@ -625,29 +634,29 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         except Exception:  # noqa: BLE001
             drift_n = 0
 
-        # Mesh
-        _set_status_item(
-            self._sb_mesh,
-            f"● mesh: {mesh_online}/{mesh_cap or 16}",
-            "ok" if mesh_online > 0 else "warn",
-        )
-        # Services
-        _set_status_item(
-            self._sb_services, f"● services: {services_n}",
-            "ok" if services_n else "warn",
-        )
-        # sshd
+        # All UI writes posted back to the GTK main thread.
         sshd_state = sh.get("sshd", "missing")
-        _set_status_item(
-            self._sb_sshd, f"● sshd",
-            {"ok": "ok", "warn": "warn", "fail": "fail",
-             "missing": "warn"}.get(sshd_state, "warn"),
-        )
-        # Drift
-        _set_status_item(
-            self._sb_drift, f"● drift: {drift_n}",
-            "warn" if drift_n else "ok",
-        )
+        def _apply():
+            _set_status_item(
+                self._sb_mesh,
+                f"● mesh: {mesh_online}/{mesh_cap or 16}",
+                "ok" if mesh_online > 0 else "warn",
+            )
+            _set_status_item(
+                self._sb_services, f"● services: {services_n}",
+                "ok" if services_n else "warn",
+            )
+            _set_status_item(
+                self._sb_sshd, f"● sshd",
+                {"ok": "ok", "warn": "warn", "fail": "fail",
+                 "missing": "warn"}.get(sshd_state, "warn"),
+            )
+            _set_status_item(
+                self._sb_drift, f"● drift: {drift_n}",
+                "warn" if drift_n else "ok",
+            )
+            return False
+        GLib.idle_add(_apply)
 
     # ----- Navigation ------------------------------------------------------
 
@@ -741,7 +750,11 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
     # ---- live nav badges --------------------------------------------------
 
     def _refresh_nav_badges_tick(self) -> bool:
-        self._refresh_nav_badges()
+        # v1.5.1 — same threaded refactor as the status bar; the
+        # underlying queries are slow shell-outs.
+        import threading
+        threading.Thread(target=self._refresh_nav_badges,
+                         daemon=True).start()
         return True
 
     def _refresh_nav_badges(self) -> None:
@@ -779,16 +792,18 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         except Exception:  # noqa: BLE001
             pass
 
-        # Apply to live buttons
-        for key, badge_text in badges.items():
-            btn = self._nav_buttons.get(key)
-            if btn is None:
-                continue
-            self._set_nav_button_badge(btn, badge_text)
-        # Clear badges that are no longer present
-        for key, btn in self._nav_buttons.items():
-            if key not in badges:
-                self._set_nav_button_badge(btn, "")
+        # v1.5.1 — UI writes posted back to the GTK main thread.
+        def _apply():
+            for key, badge_text in badges.items():
+                btn = self._nav_buttons.get(key)
+                if btn is None:
+                    continue
+                self._set_nav_button_badge(btn, badge_text)
+            for key, btn in self._nav_buttons.items():
+                if key not in badges:
+                    self._set_nav_button_badge(btn, "")
+            return False
+        GLib.idle_add(_apply)
 
     @staticmethod
     def _set_nav_button_badge(btn: Gtk.Button, text: str) -> None:

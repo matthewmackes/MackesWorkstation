@@ -3,6 +3,33 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.5.1 — UI lag fix + xfce4-panel crash hotfix (2026-05-17)
+
+Two issues from the v1.5.0 install:
+
+**UI lag.** Every 30 seconds the shell's status bar and side-nav badges
+ran `service_health()` + `headscale_list_peers()` + `load_registry()`
++ `active_preset_drift()` synchronously on the GTK main loop. Each of
+those shells out — easily 200–500ms total per tick — freezing the
+window for that window. Fixed: both refreshers now run on a daemon
+`threading.Thread` and post results back via `GLib.idle_add`. The main
+loop is never blocked.
+
+**xfce4-panel crash.** `apply_panel_layout` wrote `/panels/panel-0/
+plugin-ids = [101..105]` BEFORE writing each plugin's type
+(`/plugins/plugin-101 = whiskermenu`, etc.). If xfce4-panel was
+running and observed the array via xfsettingsd, it tried to load
+`plugin-101 = <unset>` and SIGSEGV'd. Fixed by:
+
+* `xfce4-panel --quit` BEFORE writing any xfconf state.
+* Write plugin types + each plugin's config keys FIRST.
+* Write the `/panels` and `/panels/panel-0/plugin-ids` arrays LAST.
+* `xfce4-panel` (relaunch, not --restart) so the new config is the
+  only thing it ever sees.
+
+**Maximizer poll** bumped 1s → 2s so the second-by-second `wmctrl -l`
++ `xprop` fork-per-window doesn't add a CPU baseline.
+
 ## 1.5.0 — Mesh clipboard (bidirectional sync) (2026-05-17)
 
 The clipboard plumbing is now bidirectional — every system-clipboard
