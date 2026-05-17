@@ -4,6 +4,11 @@ Encoding=UTF-8
 Name=Mackes Mesh Clipboard
 Comment=Distributed clipboard across mesh peers (mesh-sync NATS bucket)
 Icon=edit-paste
-X-XFCE-Internal=FALSE
+# v1.6.2 — xfce4-panel 4.20 requires X-XFCE-API=2.0; without it the
+# panel defaults to v1.0 (Gtk2), logs a CRITICAL "requested the Gtk2
+# API (v1.0), which is no longer supported", refuses to load the
+# plugin, and in some cases crashes the panel mid-load.
+X-XFCE-API=2.0
+X-XFCE-Internal=false
 X-XFCE-Exec=/usr/lib/xfce4/panel/plugins/mackes-clipboard
 X-XFCE-Module-Path=
