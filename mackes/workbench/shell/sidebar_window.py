@@ -244,6 +244,10 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         from mackes.workbench.network.mesh_health import MeshHealthPanel
         return _wrap_in_scroller(MeshHealthPanel())
 
+    def _mesh_performance():
+        from mackes.workbench.network.mesh_performance import MeshPerformancePanel
+        return _wrap_in_scroller(MeshPerformancePanel())
+
     def _mesh_vpn():
         from mackes.workbench.network.mesh_vpn import MeshVpnPanel
         return _wrap_in_scroller(MeshVpnPanel())
@@ -422,6 +426,7 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
             NavItem("qnm", "QNM", "network-workgroup-symbolic", _qnm),
             NavItem("mesh_join", "Get Online", "go-jump-symbolic", _mesh_join, badge="new"),
             NavItem("mesh_health", "Mesh Health", "emblem-ok-symbolic", _mesh_health),
+            NavItem("mesh_performance", "Mesh Performance", "preferences-system-time-symbolic", _mesh_performance),
             NavItem("mesh_vpn", "Mesh VPN", "network-server-symbolic", _mesh_vpn, badge="mesh"),
             NavItem("mesh_ssh", "Mesh SSH", "channel-secure-symbolic", _mesh_ssh),
             NavItem("mesh_services", "Mesh Services", "applications-internet-symbolic", _mesh_services),
@@ -1135,6 +1140,7 @@ _LEGACY_KEY_MAP = {
     "apps_install": "apps", "apps_remove": "apps", "apps_installed": "apps",
     "app_sources": "app_sources",
     "mesh_health": "mesh_health",
+    "mesh_performance": "mesh_performance",
     "drift": "maintain", "update": "maintain", "fonts": "maintain",
     "resources": "maintain", "health": "maintain", "deps": "maintain",
     "logs": "maintain", "repair": "maintain", "reset": "maintain",

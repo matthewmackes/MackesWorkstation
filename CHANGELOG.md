@@ -5,6 +5,28 @@ unreleased; tag versions get a date when they ship.
 
 ## 1.6.2 — 1.6.2 rollup (unreleased)
 
+**Mesh perf #8 + #10 + new panel — Prometheus exporter, Wake-on-LAN,
+Mesh Performance panel.**
+
+* `mackes.mesh_metrics` — wraps `prometheus-wireguard-exporter` (Rust,
+  MIT, github.com/MindFlavor/prometheus_wireguard_exporter). Downloads
+  the v3.6.7 binary to `/usr/local/bin/`, installs a user systemd
+  unit (`mackes-wg-exporter.service` on `:9586`), and on the control
+  peer drops a prometheus scrape config targeting every mesh peer.
+* `mackes.mesh_wol` — pure-Python WoL magic-packet sender + ARP cache
+  ingestion. `wake_peer(name)` resolves MAC from `/proc/net/arp` or
+  `ip neigh`, falls back to a JSON cache at
+  `~/.config/mackes-shell/peer-macs.json` that's refreshed each time
+  the Mesh Performance panel renders.
+* New **Network → Mesh Performance** panel surfaces every perf knob
+  in one place: kernel-WG toggle, MTU + GSO state, sysctl tuning
+  Apply/Remove, metrics exporter Install/Remove, and a peers table
+  with a per-row Wake button for offline machines on the local LAN.
+  Tight 16/16/24/24 margins so the page fits 1366×768 laptops
+  without scroll.
+
+
+
 **Mesh performance round 1 — concurrent probes + kernel WG + MTU.**
 
 * `mackes.mesh.health()` now fans every layer probe out across a
