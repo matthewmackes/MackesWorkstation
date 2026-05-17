@@ -115,7 +115,23 @@ class PowerPanel(Gtk.Box):
         self.add(box)
 
     def _refresh(self) -> bool:
-        profiles, active = _ppd_get_profiles()
+        # Off-thread: powerprofilesctl list + get + tlp-stat all shell
+        # out and serialise.
+        import threading
+        from mackes.probe_cache import cached
+
+        def worker():
+            profiles, active = cached("power.ppd_profiles",
+                                       factory=_ppd_get_profiles, ttl_s=10)
+            tlp = cached("power.tlp_summary",
+                         factory=_tlp_summary, ttl_s=30)
+            GLib.idle_add(self._apply_profiles, profiles, active, tlp)
+
+        self._status.set_text("(checking…)")
+        threading.Thread(target=worker, daemon=True).start()
+        return False
+
+    def _apply_profiles(self, profiles, active, tlp) -> bool:
         self._combo.handler_block_by_func(self._on_changed)
         self._combo.remove_all()
         if profiles:
@@ -124,7 +140,8 @@ class PowerPanel(Gtk.Box):
             if active and active in profiles:
                 self._combo.set_active_id(active)
             self._combo.set_sensitive(True)
-            self._status.set_text(f"power-profiles-daemon: active = {active or '(unknown)'}")
+            self._status.set_text(
+                f"power-profiles-daemon: active = {active or '(unknown)'}")
         else:
             self._combo.set_sensitive(False)
             self._status.set_text(
@@ -132,8 +149,6 @@ class PowerPanel(Gtk.Box):
                 "(install power-profiles-daemon for live switching)."
             )
         self._combo.handler_unblock_by_func(self._on_changed)
-
-        tlp = _tlp_summary()
         self._tlp.set_text(tlp or "(tlp not installed)")
         return False
 
@@ -144,3 +159,6 @@ class PowerPanel(Gtk.Box):
         msg = _ppd_set(profile)
         log_action(f"power: {msg}")
         self._status.set_text(msg)
+        # Bust the cache so the next _refresh shows the actual new state.
+        from mackes.probe_cache import invalidate
+        invalidate("power.ppd_profiles")

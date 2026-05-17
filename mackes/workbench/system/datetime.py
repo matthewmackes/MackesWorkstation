@@ -38,8 +38,14 @@ def _status() -> dict[str, str]:
 
 
 def _list_timezones() -> list[str]:
-    out = _timedatectl("list-timezones")
-    return [line for line in out.splitlines() if line.strip()]
+    # Timezone list is static across the life of a session; cache it
+    # forever so re-opening this panel doesn't shell out to timedatectl
+    # (which is fast but compounds with other panel-construct probes).
+    from mackes.probe_cache import cached
+    def _probe():
+        out = _timedatectl("list-timezones")
+        return [line for line in out.splitlines() if line.strip()]
+    return cached("datetime.timezones", factory=_probe, ttl_s=None)
 
 
 def _set_timezone(tz: str) -> str:

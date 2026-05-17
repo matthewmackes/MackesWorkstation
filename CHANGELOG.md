@@ -5,6 +5,20 @@ unreleased; tag versions get a date when they ship.
 
 ## 1.6.2 — 1.6.2 rollup (unreleased)
 
+**GTK perf round 4.** Five more panel-construct probes moved to
+`probe_cache`:
+
+* `maintain/power.py` — `powerprofilesctl list` + `get` + `tlp-stat`
+  now run on a daemon thread, cached 10–30s. Profile change
+  invalidates the cache so the new active value is shown immediately.
+* `system/datetime.py` — `timedatectl list-timezones` (~400 entries)
+  cached for the life of the session.
+* `devices/mouse.py` — `xinput --list` cached 30s.
+* `devices/sound.py` — `pactl` sinks / sources / defaults cached
+  10–20s.
+
+
+
 **System → Boot & Login** (`mackes.workbench.system.boot_login`). Wraps
 the `apply_plymouth` + `apply_lightdm` birthright steps in a GUI:
 Plymouth theme picker (lists every theme in `/usr/share/plymouth/

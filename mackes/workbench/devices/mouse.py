@@ -14,12 +14,18 @@ from mackes.workbench._common import (
 
 
 def _list_pointer_devices() -> list[str]:
-    try:
-        out = subprocess.check_output(["xinput", "--list", "--name-only"],
-                                      text=True, stderr=subprocess.DEVNULL)
-    except (FileNotFoundError, subprocess.CalledProcessError):
-        return []
-    return [n for n in out.splitlines() if n and not n.startswith("Virtual core")]
+    # Pointer device list is stable until something is hotplugged; cache
+    # for 30s so the xinput shell-out doesn't fire on every panel open.
+    from mackes.probe_cache import cached
+    def _probe():
+        try:
+            out = subprocess.check_output(["xinput", "--list", "--name-only"],
+                                          text=True, stderr=subprocess.DEVNULL)
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            return []
+        return [n for n in out.splitlines()
+                if n and not n.startswith("Virtual core")]
+    return cached("devices.pointer_devices", factory=_probe, ttl_s=30)
 
 
 class MousePanel(Gtk.Box):

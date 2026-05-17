@@ -25,31 +25,43 @@ def _pactl(*args: str) -> str:
 
 
 def _list_sinks() -> list[tuple[str, str]]:
-    raw = _pactl("list", "short", "sinks")
-    out: list[tuple[str, str]] = []
-    for line in raw.splitlines():
-        parts = line.split("\t")
-        if len(parts) >= 2:
-            out.append((parts[1], parts[1]))  # name, label
-    return out
+    # pactl sink list is stable until hotplug; cache 20s. Same for
+    # sources and the default-sink/source queries.
+    from mackes.probe_cache import cached
+    def _probe():
+        raw = _pactl("list", "short", "sinks")
+        out: list[tuple[str, str]] = []
+        for line in raw.splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 2:
+                out.append((parts[1], parts[1]))
+        return out
+    return cached("sound.sinks", factory=_probe, ttl_s=20)
 
 
 def _list_sources() -> list[tuple[str, str]]:
-    raw = _pactl("list", "short", "sources")
-    out: list[tuple[str, str]] = []
-    for line in raw.splitlines():
-        parts = line.split("\t")
-        if len(parts) >= 2 and not parts[1].endswith(".monitor"):
-            out.append((parts[1], parts[1]))
-    return out
+    from mackes.probe_cache import cached
+    def _probe():
+        raw = _pactl("list", "short", "sources")
+        out: list[tuple[str, str]] = []
+        for line in raw.splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 2 and not parts[1].endswith(".monitor"):
+                out.append((parts[1], parts[1]))
+        return out
+    return cached("sound.sources", factory=_probe, ttl_s=20)
 
 
 def _default_sink() -> str:
-    return _pactl("get-default-sink")
+    from mackes.probe_cache import cached
+    return cached("sound.default_sink",
+                  factory=lambda: _pactl("get-default-sink"), ttl_s=10)
 
 
 def _default_source() -> str:
-    return _pactl("get-default-source")
+    from mackes.probe_cache import cached
+    return cached("sound.default_source",
+                  factory=lambda: _pactl("get-default-source"), ttl_s=10)
 
 
 def _set_default_sink(name: str) -> None:
