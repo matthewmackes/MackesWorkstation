@@ -289,6 +289,9 @@ install -d %{buildroot}%{_userunitdir}
 install -m 0644 data/systemd/mackes-maximizer.service        %{buildroot}%{_userunitdir}/
 # Mesh clipboard daemon (v1.5.0) — XA_CLIPBOARD watcher
 install -m 0644 data/systemd/mackes-clipboard-daemon.service %{buildroot}%{_userunitdir}/
+# Remmina auto-populate (v1.6.2) — user-level timer + oneshot service
+install -m 0644 data/systemd/mackes-remmina-sync.service     %{buildroot}%{_userunitdir}/
+install -m 0644 data/systemd/mackes-remmina-sync.timer       %{buildroot}%{_userunitdir}/
 # Sudoers drop-in (v1.4.1) — grants NOPASSWD on Mackes-managed commands
 install -D -m 0440 data/sudoers.d/mackes-shell               %{buildroot}/etc/sudoers.d/mackes-shell
 # Maximizer binary
@@ -385,6 +388,8 @@ fi
 %{_userunitdir}/mackes-gvfsd-mesh.service
 %{_userunitdir}/mackes-maximizer.service
 %{_userunitdir}/mackes-clipboard-daemon.service
+%{_userunitdir}/mackes-remmina-sync.service
+%{_userunitdir}/mackes-remmina-sync.timer
 %config(noreplace) /etc/sudoers.d/mackes-shell
 # C panel plugin + its descriptor
 %{_libdir}/xfce4/panel/plugins/mackes-clipboard

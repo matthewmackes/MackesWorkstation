@@ -5,6 +5,35 @@ unreleased; tag versions get a date when they ship.
 
 ## 1.6.2 — 1.6.2 rollup (unreleased)
 
+**Remmina auto-populate.** New `mackes.remmina_sync` module that fills
+the Remmina remote-desktop client with every detected SSH (:22), RDP
+(:3389), and VNC (:5900) service on the mesh. Design locked via a
+5-question survey 2026-05-17:
+
+* **Trigger:** explicit button (in Tweaks → Remote desktop) + every
+  5-minute systemd user timer + change-on-peer-event (via the timer
+  cadence). All three paths converge on `sync()`.
+* **Discovery:** live TCP probe of each peer's three ports, cached
+  5 min via `probe_cache`.
+* **Auth:** SSH entries use `~/.ssh/mackes_mesh_ed25519` with
+  `ssh_auth=3` (public-key). RDP/VNC password fields are blank — the
+  user fills in once, Remmina's keyring takes over.
+* **Cleanup:** every auto-generated entry has `group=Mesh Peers`.
+  Files inside that group are reconciled (added, updated, deleted as
+  detection changes). Files outside the group are NEVER touched —
+  hard guarantee, tested.
+* **UI:** headless by default. System → Tweaks gains a "Remote
+  desktop (Remmina)" section with an enable toggle + "Sync now"
+  button. CLI: `mackes remmina-sync [--enable|--disable|--status|
+  --once]`.
+
+Ships two new systemd-user units:
+`/usr/lib/systemd/user/mackes-remmina-sync.{service,timer}`. Enabling
+in Tweaks installs them to `~/.config/systemd/user/` and starts the
+timer (`OnUnitActiveSec=5min`, `OnBootSec=30s`).
+
+
+
 **Mesh test coverage.** Five new `tests/test_mesh*.py` files cover the
 state machines and parsers in the mesh stack — zero tests existed
 across 8 mesh modules before this. Coverage:

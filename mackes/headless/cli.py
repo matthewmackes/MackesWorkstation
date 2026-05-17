@@ -135,6 +135,18 @@ def _build_parser() -> argparse.ArgumentParser:
     mesh_sub.add_parser("elect-control")
     mesh_sub.add_parser("snapshot")
 
+    # remmina-sync — auto-populate Remmina with detected SSH/RDP/VNC
+    # services on the mesh. Design lock at mackes/remmina_sync.py.
+    p_rem = sub.add_parser(
+        "remmina-sync",
+        help="auto-populate Remmina with mesh SSH/RDP/VNC services",
+    )
+    p_rem.add_argument("--enable",  action="store_true")
+    p_rem.add_argument("--disable", action="store_true")
+    p_rem.add_argument("--status",  action="store_true")
+    p_rem.add_argument("--once",    action="store_true",
+                       help="run one sync and exit (default)")
+
     # daemon
     sub.add_parser("daemon", help="run the mesh-node daemon (used by systemd)")
 
@@ -421,6 +433,25 @@ def main(argv: Optional[list[str]] = None) -> int:
             for line in snapshot_state():
                 print(line)
             return 0
+
+    # ---- remmina-sync ----
+    if cmd == "remmina-sync":
+        from mackes import remmina_sync as rs
+        if args.enable:
+            rs.enable()
+            print("Remmina auto-sync enabled — timer fires every 5 min.")
+            return 0
+        if args.disable:
+            rs.disable()
+            print("Remmina auto-sync disabled.")
+            return 0
+        if args.status:
+            print(f"enabled: {rs.is_enabled()}")
+            print(f"managed entries: {len(rs._existing_managed_files())}")
+            return 0
+        # default: run one sync
+        print(str(rs.sync()))
+        return 0
 
     # ---- daemon ----
     if cmd == "daemon":

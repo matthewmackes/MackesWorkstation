@@ -135,6 +135,7 @@ class TweaksPanel(Gtk.Box):
         outer.pack_start(self._build_window_section(), False, False, 0)
         outer.pack_start(self._build_clipboard_section(), False, False, 0)
         outer.pack_start(self._build_thunar_section(), False, False, 0)
+        outer.pack_start(self._build_remmina_section(), False, False, 0)
         outer.pack_start(self._build_hud_section(), False, False, 0)
         outer.pack_start(self._build_shortcut_section(), False, False, 0)
 
@@ -190,6 +191,70 @@ class TweaksPanel(Gtk.Box):
         )
         box.pack_start(row, False, False, 0)
         return box
+
+    def _build_remmina_section(self) -> Gtk.Widget:
+        box = panel_box()
+        box.pack_start(section_header("Remote desktop (Remmina)"), False, False, 0)
+        box.pack_start(section_description(
+            "Add every detected SSH, RDP, and VNC service on your mesh "
+            "to Remmina automatically. Auto-managed entries live in a "
+            "'Mesh Peers' group; your other Remmina connections are "
+            "never touched."
+        ), False, False, 0)
+
+        from mackes import remmina_sync as rs
+
+        # Status line shows current enabled state + entry count
+        self._remmina_status = Gtk.Label(label="(checking…)")
+        self._remmina_status.set_xalign(0)
+        box.pack_start(self._remmina_status, False, False, 0)
+
+        # Toggle row
+        row = self._switch_row(
+            label="Sync automatically (every 5 minutes)",
+            initial=rs.is_enabled(),
+            on_change=self._toggle_remmina_sync,
+        )
+        box.pack_start(row, False, False, 0)
+
+        # "Sync now" button
+        sync_now = Gtk.Button(label="Sync now")
+        sync_now.connect("clicked", lambda *_: self._run_remmina_sync_now())
+        sync_now.set_halign(Gtk.Align.START)
+        sync_now.set_margin_top(4)
+        box.pack_start(sync_now, False, False, 0)
+
+        # Populate status on a thread so panel-construct stays fast
+        import threading
+        threading.Thread(target=self._refresh_remmina_status,
+                         daemon=True).start()
+        return box
+
+    def _refresh_remmina_status(self) -> None:
+        from mackes import remmina_sync as rs
+        managed = rs._existing_managed_files()
+        text = (f"✓ Auto-sync on · {len(managed)} managed entr"
+                + ("ies" if len(managed) != 1 else "y")
+                if rs.is_enabled() else
+                f"Auto-sync off · {len(managed)} entr"
+                + ("ies" if len(managed) != 1 else "y") + " present")
+        GLib.idle_add(self._remmina_status.set_text, text)
+
+    def _toggle_remmina_sync(self, enabled: bool) -> None:
+        import threading
+        from mackes import remmina_sync as rs
+        def worker():
+            (rs.enable if enabled else rs.disable)()
+            self._refresh_remmina_status()
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _run_remmina_sync_now(self) -> None:
+        import threading
+        from mackes import remmina_sync as rs
+        def worker():
+            report = rs.sync()
+            GLib.idle_add(self._remmina_status.set_text, str(report))
+        threading.Thread(target=worker, daemon=True).start()
 
     def _build_hud_section(self) -> Gtk.Widget:
         box = panel_box()
