@@ -465,6 +465,19 @@ class MeshJoinPage(Gtk.Box):
             self._rows_box.pack_start(p.build_row(), False, False, 0)
         left.pack_start(self._rows_box, False, False, 0)
 
+        # Cross-link to the unified Mesh Health view — the wizard
+        # focuses on getting you online; once you are, this is where
+        # you check every layer end-to-end.
+        try:
+            health_btn = Gtk.LinkButton.new_with_label(
+                "mackes://network/mesh_health", "View full mesh health →")
+            health_btn.set_margin_top(12)
+            health_btn.set_margin_start(16); health_btn.set_margin_end(16)
+            health_btn.set_halign(Gtk.Align.START)
+            left.pack_start(health_btn, False, False, 0)
+        except Exception:  # noqa: BLE001
+            pass
+
         body.pack_start(left, False, False, 0)
 
         # RIGHT — action area + log

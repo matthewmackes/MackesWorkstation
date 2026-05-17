@@ -5,6 +5,31 @@ unreleased; tag versions get a date when they ship.
 
 ## 1.6.2 — 1.6.2 rollup (unreleased)
 
+**Mesh rock-solid pass — unified health surface.** New module
+`mackes.mesh` exposes `health()` returning a `LayerHealth` per layer
+(`vpn`, `ssh`, `services`, `fs`, `sync`, `notifications`, `browser`,
+`thumbnailer`) with `state` (ok/warn/fail/missing), `label`, `detail`,
+optional `latency_ms`, and an actionable `hint` when not OK.
+`overall_state()`, `summary()`, and `diagnose()` compose it for the
+Conky HUD, the Get Online wizard, and a new Mesh Health panel. The
+module also exposes `with_retry()` for transient probes
+(network partition, headscale flap, sshd-on-reboot). Each layer cache
+TTLs 5–300 s through `probe_cache`.
+
+**Network → Mesh Health** (`mackes.workbench.network.mesh_health`).
+Per-layer status grid: glyph + label + state pill + detail + hint per
+row. Header actions: Re-check (forces every probe ignoring cache),
+Copy diagnostics, Save report (writes a timestamped file to
+`~/QNM-Drop/mesh-health-*.txt`). Auto-refreshes every 15 s while
+visible; stops on `unmap` so it doesn't burn cycles in the background.
+
+**Conky HUD mesh row** now reads `mackes.mesh.health()` via the
+updated `data/conky/helpers/mesh.sh` — the HUD reports the same state
+the GUI shows. Get Online wizard gains a "View full mesh health →"
+cross-link to the new panel.
+
+
+
 **GTK perf round 5 — single rpm -qa for membership tests.** Two panels
 (`maintain/dependencies` and `apps/panel`) used to call `rpm -q` once
 per package in their catalogue. On a 30-package preset that's 30 forks
