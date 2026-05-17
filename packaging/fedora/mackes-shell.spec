@@ -5,7 +5,7 @@
 %global debug_package %{nil}
 
 Name:           mackes-shell
-Version:        1.0.5
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        Mackes Shell — XFCE control panel and shell manager for Fedora
 
@@ -49,6 +49,13 @@ Requires:       xfce4-power-manager
 
 # SSH enabled by default on every Mackes install
 Requires:       openssh-server
+
+# Plymouth boot splash — Mackes ships its own theme (data/plymouth/mackes/)
+Requires:       plymouth
+Requires:       plymouth-scripts
+
+# Flatpak — birthright wizard adds the Flathub remote per-user
+Recommends:     flatpak
 
 # Mesh fabric (§8.11–§8.14): WireGuard via Tailscale + self-hosted Headscale
 Requires:       tailscale
@@ -148,6 +155,11 @@ install -d %{buildroot}%{_datadir}/themes
 cp -r data/themes/PadOS   %{buildroot}%{_datadir}/themes/
 install -d %{buildroot}%{_datadir}/icons
 cp -r data/icons/Carbon   %{buildroot}%{_datadir}/icons/
+# Plymouth Mackes boot theme — installed but NOT activated at %post; the
+# wizard's birthright step (mackes.birthright.apply_plymouth) activates it
+# only when the user opts in (initrd rebuild is heavy and disruptive).
+install -d %{buildroot}%{_datadir}/plymouth/themes
+cp -r data/plymouth/mackes %{buildroot}%{_datadir}/plymouth/themes/
 # C plugin install (compiled in %%build above). Pass libdir explicitly
 # so on 64-bit the binary lands at %{_libdir}=/usr/lib64, not /usr/lib.
 make -C data/panel-plugins/mackes-clipboard install \
@@ -279,6 +291,9 @@ fi
 %{_datadir}/themes/PadOS/
 # Vendored Carbon GTK icon theme
 %{_datadir}/icons/Carbon/
+# Plymouth Mackes boot theme (theme files only; not activated at install
+# time — activation happens in the wizard's birthright step)
+%{_datadir}/plymouth/themes/mackes/
 
 %changelog
 * Sat May 16 2026 Matt Mackes <matthewmackes@gmail.com> - 0.2.0-1

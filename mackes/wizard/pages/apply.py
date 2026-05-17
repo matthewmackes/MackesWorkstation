@@ -9,6 +9,10 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
+from mackes.birthright import (
+    apply_apps, apply_dnf_update, apply_flathub, apply_fonts,
+    apply_panel_layout, apply_plymouth, apply_themes, apply_third_party_repos,
+)
 from mackes.presets import (
     Preset, apply_appearance, apply_devices, apply_mesh, apply_network,
     apply_panel, apply_system,
@@ -92,16 +96,26 @@ class ApplyPage(Gtk.Box):
         )
 
         steps = [
-            ("Snapshot",   self._step_snapshot),
-            ("Appearance", lambda: apply_appearance(merged)),
-            ("Devices",    lambda: apply_devices(merged)),
-            ("System",     lambda: apply_system(merged)),
-            ("Network",    lambda: apply_network(merged)),
-            ("Panel",      lambda: apply_panel(merged)),
-            ("Mesh",       lambda: apply_mesh(merged)),
-            ("VPN import", self._step_vpn),
-            ("Menu",       self._step_menu),
-            ("Finalize",   lambda: self._step_finalize(merged)),
+            ("Snapshot",       self._step_snapshot),
+            ("Appearance",     lambda: apply_appearance(merged)),
+            ("Devices",        lambda: apply_devices(merged)),
+            ("System",         lambda: apply_system(merged)),
+            ("Network",        lambda: apply_network(merged)),
+            ("Panel",          lambda: apply_panel(merged)),
+            # ---- Birthright fold (v1.1.0) ---------------------------------
+            ("Themes",            lambda: apply_themes(merged)),
+            ("Fonts",             lambda: apply_fonts(merged)),
+            ("Apps",              lambda: apply_apps(merged)),
+            ("Panel layout",      lambda: apply_panel_layout(merged)),
+            ("Boot splash",       lambda: apply_plymouth(merged)),
+            ("System update",     lambda: apply_dnf_update(merged)),
+            ("Third-party repos", lambda: apply_third_party_repos(merged)),
+            ("Flathub",           lambda: apply_flathub(merged)),
+            # ---------------------------------------------------------------
+            ("Mesh",              lambda: apply_mesh(merged)),
+            ("VPN import",     self._step_vpn),
+            ("Menu",           self._step_menu),
+            ("Finalize",       lambda: self._step_finalize(merged)),
         ]
         total = len(steps)
         for i, (name, fn) in enumerate(steps, start=1):

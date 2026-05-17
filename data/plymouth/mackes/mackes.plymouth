@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=Mackes
+Description=Mackes Shell boot splash — centered logo on Carbon Gray 100.
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/mackes
+ScriptFile=/usr/share/plymouth/themes/mackes/mackes.script

@@ -63,8 +63,44 @@ class MeshVpnPanel(Gtk.Box):
             actions_box.pack_start(b, False, False, 0)
         box.pack_start(actions_box, False, False, 0)
 
-        # ---- Peer DataTable ----
-        box.pack_start(section_header("Peers"), False, False, 0)
+        # ---- Peers (view toggle: topology graph | data table) ----
+        head_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        head_row.pack_start(section_header("Peers"), True, True, 0)
+        # Carbon-style tab toggle
+        self._view_buttons = {}
+        for view_name, label in (("topology", "Topology"), ("table", "Table")):
+            b = Gtk.ToggleButton(label=label)
+            b.get_style_context().add_class("mackes-tab")
+            b.set_relief(Gtk.ReliefStyle.NONE)
+            b.connect("toggled", self._on_view_toggle, view_name)
+            self._view_buttons[view_name] = b
+            head_row.pack_end(b, False, False, 0)
+        self._view_buttons["topology"].set_active(True)
+        box.pack_start(head_row, False, False, 0)
+
+        # Stack: topology view <-> table view
+        self._peers_stack = Gtk.Stack()
+        self._peers_stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._peers_stack.set_transition_duration(120)
+        self._peers_stack.set_size_request(-1, 420)
+        box.pack_start(self._peers_stack, True, True, 0)
+
+        # Topology (Cairo)
+        from mackes.workbench.network.mesh_topology import MeshTopologyArea
+        self._topology = MeshTopologyArea()
+        self._topology.get_style_context().add_class("mackes-topo")
+        self._topology.connect("peer-clicked", self._on_peer_clicked)
+        topo_wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        topo_wrap.pack_start(self._topology, True, True, 0)
+        # Right detail drawer (initially hidden)
+        self._peer_detail = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self._peer_detail.set_size_request(280, -1)
+        self._peer_detail.set_margin_start(16)
+        self._peer_detail.set_no_show_all(True)
+        topo_wrap.pack_start(self._peer_detail, False, False, 0)
+        self._peers_stack.add_named(topo_wrap, "topology")
+
+        # Table
         self._peers_table = DataTable(
             columns=[
                 Column(name="name",      title="Hostname", width=160),
@@ -76,8 +112,8 @@ class MeshVpnPanel(Gtk.Box):
             ],
             searchable=True,
         )
-        self._peers_table.set_size_request(-1, 280)
-        box.pack_start(self._peers_table, True, True, 0)
+        self._peers_stack.add_named(self._peers_table, "table")
+        self._peers_stack.set_visible_child_name("topology")
 
         # ---- Control-node info ----
         box.pack_start(section_header("Control node"), False, False, 0)
@@ -126,6 +162,34 @@ class MeshVpnPanel(Gtk.Box):
             })
         self._peers_table.set_rows(rows)
 
+        # Topology peers (separate model — Cairo widget needs TopoPeer)
+        from mackes.workbench.network.mesh_topology import TopoPeer
+        topo_peers = []
+        # control node first
+        if state.is_control:
+            topo_peers.append(TopoPeer(
+                name=state.control_peer_id or "this",
+                ip=ts.get("mesh_ip", "") or "",
+                role="control",
+                status="ok",
+            ))
+        elif state.control_peer_id:
+            topo_peers.append(TopoPeer(
+                name=state.control_peer_id, role="control",
+                status="ok",
+            ))
+        for p in peers:
+            if state.is_control and p.name == (state.control_peer_id or "this"):
+                continue
+            topo_peers.append(TopoPeer(
+                name=p.name,
+                ip=p.mesh_ip or "",
+                role="peer",
+                status="ok" if p.online else "offline",
+                via_derp=(p.route == "derp"),
+            ))
+        self._topology.set_peers(topo_peers)
+
         # Control-node label
         if state.is_control:
             self._control_label.set_text(
@@ -137,6 +201,52 @@ class MeshVpnPanel(Gtk.Box):
                 f"Held by: {state.control_peer_id or '(unknown)'}  ·  "
                 "This peer is eligible for failover if it disappears > 120s."
             )
+
+    # ---- view toggle + peer-click handlers ----------------------------
+
+    def _on_view_toggle(self, btn: Gtk.ToggleButton, view_name: str) -> None:
+        if not btn.get_active():
+            return
+        self._peers_stack.set_visible_child_name(view_name)
+        # Mutual-exclusion across the toggle group
+        for k, b in self._view_buttons.items():
+            if k != view_name and b.get_active():
+                b.set_active(False)
+
+    def _on_peer_clicked(self, _topo, name: str) -> None:
+        # Populate detail drawer
+        for c in list(self._peer_detail.get_children()):
+            self._peer_detail.remove(c)
+        title = Gtk.Label(label=name)
+        title.set_xalign(0)
+        title.get_style_context().add_class("mackes-section-title")
+        self._peer_detail.pack_start(title, False, False, 0)
+        # Pull row for this peer
+        try:
+            peers = headscale_list_peers()
+            match = next((p for p in peers if p.name == name), None)
+        except Exception:  # noqa: BLE001
+            match = None
+        if match is not None:
+            for label, value in (
+                ("Mesh IP", match.mesh_ip or "—"),
+                ("Route",   match.route or "—"),
+                ("RTT",     f"{match.rtt_ms}ms" if match.rtt_ms is not None else "—"),
+                ("Status",  "online" if match.online else "offline"),
+            ):
+                row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+                lk = Gtk.Label(label=label); lk.set_xalign(0)
+                lk.get_style_context().add_class("dim-label")
+                lv = Gtk.Label(label=str(value)); lv.set_xalign(1)
+                row.pack_start(lk, True, True, 0)
+                row.pack_end(lv, False, False, 0)
+                self._peer_detail.pack_start(row, False, False, 0)
+        else:
+            note = Gtk.Label(label="(no details)")
+            note.set_xalign(0); note.get_style_context().add_class("dim-label")
+            self._peer_detail.pack_start(note, False, False, 0)
+        self._peer_detail.set_no_show_all(False)
+        self._peer_detail.show_all()
 
     @staticmethod
     def _fmt_age(epoch: float) -> str:

@@ -1,0 +1,622 @@
+"""Carbon UI Shell — sidebar-grouped workbench window (v1.1.0).
+
+Replaces the v1.0 top-tab Notebook layout with the design's Carbon UI Shell:
+
+    +--------------------------------------------------------------+
+    |  brand        | Workbench  Recovery  CLI   ...   user@host  | header (48)
+    +---------------+----------------------------------------------+
+    | WORKBENCH     |                                              |
+    | • Dashboard   |                                              |
+    | CONFIGURATION |                                              |
+    | • Look & Feel |             content (Gtk.Stack)              |
+    | • Devices     |                                              |
+    | NETWORK       |                                              |
+    | • Mesh VPN    |                                              |
+    | • ...         |                                              |
+    +---------------+----------------------------------------------+
+    | mesh: 5/16   services: 12   sshd ✓  drift: 3   ...           | status (24)
+    +--------------------------------------------------------------+
+
+Existing panel widgets are reused as-is — this module owns the chrome and the
+content router only.
+"""
+from __future__ import annotations
+
+from typing import Callable, Dict, List, Optional, Tuple
+
+import gi
+gi.require_version("Gtk", "3.0")
+gi.require_version("Gdk", "3.0")
+from gi.repository import Gdk, GLib, Gtk  # noqa: E402
+
+from mackes.state import MackesState
+from mackes import __version__
+
+
+# ---------------------------------------------------------------------------
+# Navigation model
+# ---------------------------------------------------------------------------
+
+
+class NavItem:
+    __slots__ = ("key", "label", "icon", "badge", "builder")
+
+    def __init__(self, key: str, label: str, icon: str,
+                 builder: Callable[[], Gtk.Widget], *, badge: str = "") -> None:
+        self.key = key
+        self.label = label
+        self.icon = icon  # Gtk icon-name (symbolic)
+        self.badge = badge
+        self.builder = builder  # lazily instantiates the panel widget
+
+
+class NavGroup:
+    __slots__ = ("title", "items")
+
+    def __init__(self, title: str, items: List[NavItem]) -> None:
+        self.title = title
+        self.items = items
+
+
+# ---------------------------------------------------------------------------
+# Lazy panel builders — each closes over the application state.
+# Panels are instantiated on first activation, then cached in the Gtk.Stack.
+# ---------------------------------------------------------------------------
+
+
+def _wrap_in_scroller(widget: Gtk.Widget) -> Gtk.Widget:
+    scroller = Gtk.ScrolledWindow()
+    scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+    scroller.add(widget)
+    return scroller
+
+
+def _build_subnav_container(panels: List[Tuple[str, str, Gtk.Widget]]) -> Gtk.Widget:
+    """Inner sidebar+stack for sections that still have sub-panels (Devices, System, Look&Feel)."""
+    stack = Gtk.Stack()
+    stack.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+    stack.set_transition_duration(150)
+    for pid, label, widget in panels:
+        stack.add_titled(_wrap_in_scroller(widget), pid, label)
+
+    sidebar = Gtk.StackSidebar()
+    sidebar.set_stack(stack)
+    sidebar.set_size_request(200, -1)
+
+    pane = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+    pane.pack_start(sidebar, False, False, 0)
+    pane.pack_start(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL), False, False, 0)
+    pane.pack_start(stack, True, True, 0)
+    return pane
+
+
+def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavGroup]:
+    """Define the sidebar nav model. Lambdas defer panel imports until activated."""
+
+    def _dashboard():
+        from mackes.workbench.dashboard import DashboardView
+        return DashboardView(state, navigate=navigate)
+
+    def _look_and_feel():
+        from mackes.workbench.look_and_feel.appearance import AppearancePanel
+        return _build_subnav_container([
+            ("appearance", "Appearance", AppearancePanel()),
+        ])
+
+    def _devices():
+        from mackes.workbench.devices.display import DisplayPanel
+        from mackes.workbench.devices.keyboard import KeyboardPanel
+        from mackes.workbench.devices.mouse import MousePanel
+        from mackes.workbench.devices.sound import SoundPanel
+        from mackes.workbench.devices.power import PowerPanel
+        return _build_subnav_container([
+            ("display", "Display", DisplayPanel()),
+            ("keyboard", "Keyboard", KeyboardPanel()),
+            ("mouse", "Mouse & Touchpad", MousePanel()),
+            ("sound", "Sound", SoundPanel()),
+            ("power", "Power", PowerPanel()),
+        ])
+
+    def _system():
+        from mackes.workbench.system.window_manager import WindowManagerPanel
+        from mackes.workbench.system.workspaces import WorkspacesPanel
+        from mackes.workbench.system.session import SessionPanel
+        from mackes.workbench.system.notifications import NotificationsPanel
+        from mackes.workbench.system.default_apps import DefaultAppsPanel
+        from mackes.workbench.system.removable import RemovablePanel
+        from mackes.workbench.system.datetime import DateTimePanel
+        return _build_subnav_container([
+            ("wm", "Window Manager", WindowManagerPanel()),
+            ("workspaces", "Workspaces", WorkspacesPanel()),
+            ("session", "Session & Startup", SessionPanel()),
+            ("notifications", "Notifications", NotificationsPanel()),
+            ("default_apps", "Default Apps", DefaultAppsPanel()),
+            ("removable", "Removable Media", RemovablePanel()),
+            ("datetime", "Date & Time", DateTimePanel()),
+        ])
+
+    def _wifi():
+        from mackes.workbench.network.wifi import WifiPanel
+        return _wrap_in_scroller(WifiPanel())
+
+    def _vpn():
+        from mackes.workbench.network.vpn import VpnPanel
+        return _wrap_in_scroller(VpnPanel())
+
+    def _qnm():
+        from mackes.workbench.network.qnm import QnmPanel
+        return _wrap_in_scroller(QnmPanel())
+
+    def _mesh_vpn():
+        from mackes.workbench.network.mesh_vpn import MeshVpnPanel
+        return _wrap_in_scroller(MeshVpnPanel())
+
+    def _mesh_ssh():
+        from mackes.workbench.network.mesh_ssh import MeshSshPanel
+        return _wrap_in_scroller(MeshSshPanel())
+
+    def _mesh_services():
+        from mackes.workbench.network.mesh_services import MeshServicesPanel
+        return _wrap_in_scroller(MeshServicesPanel())
+
+    def _firewall():
+        from mackes.workbench.network.firewall import FirewallPanel
+        return _wrap_in_scroller(FirewallPanel())
+
+    def _apps():
+        from mackes.workbench.apps.install import AppsInstallPanel
+        from mackes.workbench.apps.remove import AppsRemovePanel
+        from mackes.workbench.apps.installed import AppsInstalledPanel
+        return _build_subnav_container([
+            ("apps_install", "Install", AppsInstallPanel()),
+            ("apps_remove", "Remove", AppsRemovePanel()),
+            ("apps_installed", "Installed", AppsInstalledPanel()),
+        ])
+
+    def _maintain():
+        from mackes.workbench.maintain.snapshots import SnapshotsPanel
+        from mackes.workbench.maintain.drift import DriftPanel
+        from mackes.workbench.maintain.fonts import FontsPanel
+        from mackes.workbench.maintain.power import PowerPanel as MaintPower
+        from mackes.workbench.maintain.resources import ResourcesPanel
+        from mackes.workbench.maintain.health_check import HealthCheckPanel
+        from mackes.workbench.maintain.dependencies import DependenciesPanel
+        from mackes.workbench.maintain.logs import LogsPanel
+        from mackes.workbench.maintain.repair import RepairPanel
+        from mackes.workbench.maintain.reset_to_preset import ResetToPresetPanel
+        from mackes.workbench.maintain.system_update import SystemUpdatePanel
+        from mackes.workbench.maintain.uninstall import UninstallPanel
+        return _build_subnav_container([
+            ("snapshots", "Snapshots", SnapshotsPanel(state)),
+            ("drift", "Drift", DriftPanel(state)),
+            ("update", "System Update", SystemUpdatePanel()),
+            ("fonts", "Fonts", FontsPanel()),
+            ("power", "Power", MaintPower()),
+            ("resources", "Resources", ResourcesPanel()),
+            ("health", "Health Check", HealthCheckPanel()),
+            ("deps", "Dependencies", DependenciesPanel()),
+            ("logs", "Logs", LogsPanel()),
+            ("repair", "Repair", RepairPanel(state)),
+            ("reset", "Reset to Preset", ResetToPresetPanel(state)),
+            ("uninstall", "Uninstall", UninstallPanel()),
+        ])
+
+    def _snapshots():
+        from mackes.workbench.maintain.snapshots import SnapshotsPanel
+        return _wrap_in_scroller(SnapshotsPanel(state))
+
+    def _help():
+        from mackes.workbench.help import HelpPanel
+        return HelpPanel()
+
+    return [
+        NavGroup("Workbench", [
+            NavItem("dashboard", "Dashboard", "view-grid-symbolic", _dashboard),
+        ]),
+        NavGroup("Configuration", [
+            NavItem("look_and_feel", "Look & Feel", "applications-graphics-symbolic", _look_and_feel),
+            NavItem("devices", "Devices", "preferences-desktop-peripherals-symbolic", _devices),
+            NavItem("system", "System", "computer-symbolic", _system),
+        ]),
+        NavGroup("Network", [
+            NavItem("wifi", "Wi-Fi & Ethernet", "network-wireless-symbolic", _wifi),
+            NavItem("vpn", "VPN", "network-vpn-symbolic", _vpn),
+            NavItem("qnm", "QNM", "network-workgroup-symbolic", _qnm),
+            NavItem("mesh_vpn", "Mesh VPN", "network-server-symbolic", _mesh_vpn, badge="mesh"),
+            NavItem("mesh_ssh", "Mesh SSH", "channel-secure-symbolic", _mesh_ssh),
+            NavItem("mesh_services", "Mesh Services", "applications-internet-symbolic", _mesh_services),
+            NavItem("firewall", "Firewall", "network-firewall-symbolic", _firewall),
+        ]),
+        NavGroup("Apps & Maintenance", [
+            NavItem("apps", "Apps", "applications-other-symbolic", _apps),
+            NavItem("maintain", "Maintain", "preferences-system-symbolic", _maintain),
+            NavItem("snapshots", "Snapshots", "document-revert-symbolic", _snapshots),
+        ]),
+        NavGroup("Reference", [
+            NavItem("help", "Help", "help-browser-symbolic", _help),
+        ]),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Main window
+# ---------------------------------------------------------------------------
+
+
+class WorkbenchWindow(Gtk.ApplicationWindow):
+    """Carbon UI Shell window. Single visual root for the whole app."""
+
+    def __init__(self, application: Gtk.Application, state: MackesState) -> None:
+        super().__init__(application=application)
+        self.set_default_size(1280, 800)
+        self.set_title("Mackes Shell")
+        self.state = state
+
+        # CSS-class root marker so accent files can scope rules to the app
+        # window when needed.
+        self.get_style_context().add_class("mackes-app-window")
+        if state.active_preset:
+            self.get_style_context().add_class(f"preset-{state.active_preset}")
+
+        self._nav: List[NavGroup] = _build_nav(state, navigate=self.go_to)
+        self._nav_buttons: Dict[str, Gtk.Button] = {}
+        self._panel_widgets: Dict[str, Gtk.Widget] = {}
+        self._tweaks = _load_tweaks()
+
+        # ---- 3-zone layout (header / body / status) -----------------------
+        root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        root.pack_start(self._build_header(), False, False, 0)
+        body = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        body.pack_start(self._build_sidenav(), False, False, 0)
+        self._content = Gtk.Stack()
+        self._content.set_transition_type(Gtk.StackTransitionType.CROSSFADE)
+        self._content.set_transition_duration(120)
+        body.pack_start(self._content, True, True, 0)
+        root.pack_start(body, True, True, 0)
+        self._status_bar = self._build_status_bar()
+        root.pack_start(self._status_bar, False, False, 0)
+        self.add(root)
+
+        # ---- Floating Tweaks button (anchored bottom-right) ---------------
+        # Use a GtkOverlay so the button floats above the body without
+        # eating layout space.
+        overlay_holder = self.get_child()
+        # We've already added root to self; rewrap with an overlay.
+        self.remove(root)
+        self._overlay = Gtk.Overlay()
+        self._overlay.add(root)
+        try:
+            from mackes.workbench.shell.tweaks_panel import TweaksOverlay
+            self._tweaks_overlay = TweaksOverlay(self, self._tweaks, on_change=self._on_tweaks_change)
+            self._overlay.add_overlay(self._tweaks_overlay)
+        except Exception:  # noqa: BLE001
+            # Don't block window creation if tweaks panel import fails.
+            self._tweaks_overlay = None
+        self.add(self._overlay)
+
+        # Apply initial tweaks (chrome / status bar visibility).
+        self._apply_tweaks(self._tweaks)
+
+        # ---- Activate initial panel ---------------------------------------
+        initial = self._tweaks.get("active_panel") or "dashboard"
+        self.go_to(initial)
+
+    # ----- Build helpers ---------------------------------------------------
+
+    def _build_header(self) -> Gtk.Widget:
+        header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        header.get_style_context().add_class("mackes-shell-header")
+        header.set_size_request(-1, 48)
+
+        # Brand block — same width as sidenav (256), right-bordered
+        brand = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        brand.set_size_request(256, -1)
+        brand.set_margin_start(16); brand.set_margin_end(16)
+        # logo dot
+        logo = Gtk.Image.new_from_icon_name("preferences-desktop-symbolic", Gtk.IconSize.LARGE_TOOLBAR)
+        logo.get_style_context().add_class("mackes-dot")
+        logo.get_style_context().add_class("accent")
+        brand.pack_start(logo, False, False, 0)
+        # text label "Mackes Shell" with two-tone weight
+        text = Gtk.Label()
+        text.set_markup(
+            '<span weight="600">Mackes</span><span weight="400" alpha="80%"> Shell</span>'
+        )
+        text.get_style_context().add_class("mackes-brand-text")
+        brand.pack_start(text, False, False, 0)
+        # Right border via separator
+        header.pack_start(brand, False, False, 0)
+        header.pack_start(_vsep(), False, False, 0)
+
+        # Mode buttons (Workbench / Recovery / CLI) — only Workbench is
+        # active today; the others are visual stubs that surface their
+        # planned function on hover via tooltip.
+        for label, tip, active in (
+            ("Workbench", "The main control plane (active)", True),
+            ("Recovery", "Snapshots & restore — see Snapshots", False),
+            ("CLI", "Drop to a shell with mesh env preloaded", False),
+        ):
+            b = Gtk.Button(label=label)
+            b.get_style_context().add_class("mackes-header-action")
+            b.get_style_context().add_class("mackes-header-action-flush")
+            if active:
+                b.get_style_context().add_class("checked")
+            b.set_tooltip_text(tip)
+            b.set_relief(Gtk.ReliefStyle.NONE)
+            header.pack_start(b, False, False, 0)
+
+        # Spacer
+        spacer = Gtk.Box()
+        header.pack_start(spacer, True, True, 0)
+
+        # Right-aligned actions: preset chip, user
+        preset_label = (self.state.active_preset or "mackes").title()
+        chip = Gtk.Button(label=preset_label)
+        chip.get_style_context().add_class("mackes-header-action")
+        chip.set_tooltip_text("Active preset — switch via Tweaks → Preset")
+        chip.set_relief(Gtk.ReliefStyle.NONE)
+        chip.connect("clicked", self._on_preset_chip)
+        header.pack_end(chip, False, False, 0)
+
+        import getpass, socket
+        try:
+            user = getpass.getuser()
+        except Exception:  # noqa: BLE001
+            user = "user"
+        try:
+            host = socket.gethostname()
+        except Exception:  # noqa: BLE001
+            host = "host"
+        ident = Gtk.Button(label=f"{user}@{host}")
+        ident.get_style_context().add_class("mackes-header-action")
+        ident.set_relief(Gtk.ReliefStyle.NONE)
+        ident.set_tooltip_text("Active user @ hostname")
+        header.pack_end(ident, False, False, 0)
+
+        # Help button (one-click access)
+        help_btn = Gtk.Button()
+        help_btn.set_image(Gtk.Image.new_from_icon_name("help-browser-symbolic", Gtk.IconSize.BUTTON))
+        help_btn.get_style_context().add_class("mackes-header-action")
+        help_btn.set_relief(Gtk.ReliefStyle.NONE)
+        help_btn.set_tooltip_text("Help")
+        help_btn.connect("clicked", lambda *_: self.go_to("help"))
+        header.pack_end(help_btn, False, False, 0)
+
+        return header
+
+    def _build_sidenav(self) -> Gtk.Widget:
+        outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        outer.set_size_request(256, -1)
+        outer.get_style_context().add_class("mackes-side-nav")
+
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        scroller.add(inner)
+        outer.pack_start(scroller, True, True, 0)
+
+        for group in self._nav:
+            # group title row
+            title = Gtk.Label(label=group.title)
+            title.set_xalign(0)
+            title.get_style_context().add_class("mackes-side-nav-group-title")
+            title.set_margin_top(8)
+            inner.pack_start(title, False, False, 0)
+            for item in group.items:
+                btn = self._make_nav_button(item)
+                self._nav_buttons[item.key] = btn
+                inner.pack_start(btn, False, False, 0)
+            # spacer between groups
+            spacer = Gtk.Box()
+            spacer.set_size_request(-1, 4)
+            inner.pack_start(spacer, False, False, 0)
+
+        return outer
+
+    def _make_nav_button(self, item: NavItem) -> Gtk.Button:
+        btn = Gtk.Button()
+        btn.set_relief(Gtk.ReliefStyle.NONE)
+        btn.get_style_context().add_class("mackes-side-nav-item")
+        btn.set_size_request(-1, 40)
+
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        row.set_margin_start(16); row.set_margin_end(16)
+
+        icon = Gtk.Image.new_from_icon_name(item.icon, Gtk.IconSize.MENU)
+        row.pack_start(icon, False, False, 0)
+
+        label = Gtk.Label(label=item.label)
+        label.set_xalign(0)
+        row.pack_start(label, True, True, 0)
+
+        if item.badge:
+            badge = Gtk.Label(label=item.badge)
+            badge.get_style_context().add_class("mackes-sn-badge")
+            row.pack_end(badge, False, False, 0)
+
+        btn.add(row)
+        btn.connect("clicked", lambda *_: self.go_to(item.key))
+        return btn
+
+    def _build_status_bar(self) -> Gtk.Widget:
+        bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24)
+        bar.get_style_context().add_class("mackes-status-bar")
+        bar.set_size_request(-1, 24)
+        bar.set_margin_start(16); bar.set_margin_end(16)
+
+        def _item(text: str, kind: Optional[str] = None) -> Gtk.Widget:
+            lab = Gtk.Label(label=text)
+            lab.set_xalign(0)
+            lab.get_style_context().add_class("mackes-status-bar-item")
+            if kind:
+                lab.get_style_context().add_class(kind)
+            return lab
+
+        bar.pack_start(_item("● mesh", "ok"), False, False, 0)
+        bar.pack_start(_item("● services", "ok"), False, False, 0)
+        bar.pack_start(_item("● sshd", "ok"), False, False, 0)
+        bar.pack_start(_item("● drift", "warn"), False, False, 0)
+
+        # right side
+        right = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24)
+        right.pack_end(_item(f"v{__version__}"), False, False, 0)
+        right.pack_end(_item(f"preset: {self.state.active_preset or '—'}"), False, False, 0)
+        bar.pack_end(right, True, True, 0)
+
+        return bar
+
+    # ----- Navigation ------------------------------------------------------
+
+    def go_to(self, key: str) -> None:
+        """Activate the panel with the given nav key, lazily building it."""
+        # Find the nav item
+        item = self._find_item(key)
+        if item is None:
+            # Backward-compat: some callers pass legacy panel keys like
+            # "appearance" (which now lives under look_and_feel inner stack).
+            # Map them to the parent group.
+            legacy = _LEGACY_KEY_MAP.get(key)
+            if legacy:
+                self.go_to(legacy)
+            return
+
+        # Lazy-build the panel
+        if item.key not in self._panel_widgets:
+            try:
+                widget = item.builder()
+            except Exception as e:  # noqa: BLE001
+                widget = _make_error_placeholder(item.label, str(e))
+            self._panel_widgets[item.key] = widget
+            self._content.add_named(widget, item.key)
+            widget.show_all()
+        self._content.set_visible_child_name(item.key)
+
+        # Update nav button visual state
+        for k, btn in self._nav_buttons.items():
+            ctx = btn.get_style_context()
+            if k == item.key:
+                ctx.add_class("active")
+            else:
+                ctx.remove_class("active")
+
+        # Persist active panel
+        self._tweaks["active_panel"] = item.key
+        _save_tweaks(self._tweaks)
+
+    def _find_item(self, key: str) -> Optional[NavItem]:
+        for g in self._nav:
+            for it in g.items:
+                if it.key == key:
+                    return it
+        return None
+
+    # ----- Tweaks integration ---------------------------------------------
+
+    def _on_tweaks_change(self, tweaks: dict) -> None:
+        self._tweaks = tweaks
+        _save_tweaks(tweaks)
+        self._apply_tweaks(tweaks)
+
+    def _apply_tweaks(self, tweaks: dict) -> None:
+        # status bar visibility
+        if tweaks.get("show_status_bar", True):
+            self._status_bar.show_all()
+        else:
+            self._status_bar.hide()
+        # preset swap — reload preset CSS, restyle root class
+        new_preset = tweaks.get("preset")
+        if new_preset and new_preset != self.state.active_preset:
+            from mackes.app import _install_css
+            ctx = self.get_style_context()
+            if self.state.active_preset:
+                ctx.remove_class(f"preset-{self.state.active_preset}")
+            ctx.add_class(f"preset-{new_preset}")
+            self.state.active_preset = new_preset
+            self.state.save()
+            _install_css(new_preset)
+
+    def _on_preset_chip(self, *_) -> None:
+        if self._tweaks_overlay is not None:
+            self._tweaks_overlay.open()
+
+
+# ---------------------------------------------------------------------------
+# Tweaks persistence — light JSON in ~/.config/mackes-shell/tweaks.json
+# ---------------------------------------------------------------------------
+
+
+def _tweaks_path():
+    from mackes.state import CONFIG_DIR
+    return CONFIG_DIR / "tweaks.json"
+
+
+def _load_tweaks() -> dict:
+    import json
+    p = _tweaks_path()
+    defaults = {
+        "preset": None,             # picked up from MackesState
+        "density": "cozy",          # compact / cozy / comfortable
+        "show_status_bar": True,
+        "show_xfce_frame": True,    # client-side; XFCE frame is OS-managed but we keep the flag
+        "active_panel": "dashboard",
+    }
+    if not p.exists():
+        return defaults
+    try:
+        loaded = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return defaults
+    defaults.update({k: v for k, v in loaded.items() if k in defaults})
+    return defaults
+
+
+def _save_tweaks(tweaks: dict) -> None:
+    import json
+    p = _tweaks_path()
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(tweaks, indent=2, sort_keys=True), encoding="utf-8")
+    except OSError:
+        pass
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _vsep() -> Gtk.Widget:
+    s = Gtk.Separator(orientation=Gtk.Orientation.VERTICAL)
+    return s
+
+
+def _make_error_placeholder(name: str, err: str) -> Gtk.Widget:
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+    box.set_margin_top(40); box.set_margin_start(40)
+    box.set_margin_end(40); box.set_margin_bottom(40)
+    title = Gtk.Label(label=f"{name} failed to load")
+    title.set_xalign(0)
+    title.get_style_context().add_class("mackes-page-title")
+    body = Gtk.Label(label=err)
+    body.set_xalign(0)
+    body.set_line_wrap(True)
+    body.get_style_context().add_class("mackes-page-subtitle")
+    box.pack_start(title, False, False, 0)
+    box.pack_start(body, False, False, 0)
+    return box
+
+
+# Legacy nav keys → new nav keys (so Dashboard quick-action links keep working).
+_LEGACY_KEY_MAP = {
+    "appearance": "look_and_feel",
+    "display": "devices", "keyboard": "devices", "mouse": "devices",
+    "sound": "devices", "power": "devices",
+    "wm": "system", "workspaces": "system", "session": "system",
+    "notifications": "system", "default_apps": "system", "removable": "system",
+    "datetime": "system",
+    "apps_install": "apps", "apps_remove": "apps", "apps_installed": "apps",
+    "drift": "maintain", "update": "maintain", "fonts": "maintain",
+    "resources": "maintain", "health": "maintain", "deps": "maintain",
+    "logs": "maintain", "repair": "maintain", "reset": "maintain",
+    "uninstall": "maintain",
+}

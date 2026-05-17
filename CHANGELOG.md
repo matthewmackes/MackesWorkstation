@@ -3,6 +3,90 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.1.0 — Carbon refresh + birthright fold (2026-05-17)
+
+A major release. Two large changes bundled into one cut:
+
+### 1. Carbon refresh — sidebar shell + per-preset accents
+
+Mackes' chrome was rebuilt to match the design at
+`docs/design/v1.1.0-carbon-refresh/`. The old top-tab Notebook is gone;
+in its place is a Carbon UI Shell with:
+
+- 48px header strip (brand block + Workbench/Recovery/CLI mode buttons +
+  preset chip + user@host)
+- 256px grouped sidebar (Workbench / Configuration / Network / Apps &
+  Maintenance / Reference) with badges and live-active highlighting
+- Bottom 24px status bar (mesh/services/sshd/drift/version/preset)
+- A floating **Tweaks** panel (bottom-right) for live preset swap,
+  density (compact/cozy/comfortable), chrome toggles, and "Re-open
+  Wizard" — state persists to `~/.config/mackes-shell/tweaks.json`.
+
+The Dashboard is now Carbon stat tiles (mesh peers / services / sshd /
+drift), a service-health grid, a Carbon notification for drift, a 2x2
+hardware tile grid, six tertiary-style quick-action buttons, and a
+mono-styled recent-activity log.
+
+The **Mesh VPN panel** got a new Cairo-drawn topology view — control
+node at center, peers in a ring around it, animated edge pulses
+travelling along, dashed lines for DERP-relayed edges, click any peer
+for a right-rail detail drawer. A toggle next to the section header
+swaps between the topology view and the Carbon DataTable variant.
+
+A 5th accent preset, **Node** (Carbon Green 50 #42be65), was added for
+headless / server installs.
+
+New files: `data/css/carbon-layout.css` (sidebar / topology / tile /
+modal / topology / tweaks classes), `mackes/workbench/shell/`
+(sidebar_window.py + tweaks_panel.py),
+`mackes/workbench/network/mesh_topology.py` (Cairo widget),
+`data/css/accents/node.css`.
+
+### 2. Birthright fold — 8 new wizard apply steps
+
+The audit in conversation 2026-05-17 found 7 items the wizard *should*
+do at first run but didn't. They're now wired in. The wizard's apply
+pipeline went from 10 steps to 18:
+
+  Snapshot → Appearance → Devices → System → Network → Panel →
+  **Themes → Fonts → Apps → Panel layout → Boot splash → System update →
+  Third-party repos → Flathub** → Mesh → VPN import → Menu → Finalize
+
+- **Themes**: copy `data/themes/PadOS/` and `data/icons/Carbon/` to
+  `/usr/share/themes/` and `/usr/share/icons/`; rebuild GTK icon cache.
+- **Fonts**: dnf install `ibm-plex-sans-fonts` + `ibm-plex-mono-fonts`;
+  rebuild fontconfig cache.
+- **Apps**: process `preset.apps.install` (install_curated_set) and
+  `preset.apps.remove_bloat` (remove_packages). These lists already
+  existed in every preset YAML but were never run.
+- **Panel layout**: write the Mackes default xfce4-panel xfconf layout
+  — Whisker Menu + Docklike + spacer + systray + IBM Plex clock — and
+  `xfce4-panel --restart`.
+- **Boot splash**: install + activate the Mackes Plymouth theme
+  (centered logo on Carbon Gray 100 with an accent progress strip);
+  regenerates initrd via `plymouth-set-default-theme mackes -R`.
+- **System update**: `dnf upgrade -y --refresh` (heaviest step).
+- **Third-party repos**: install `fedora-workstation-repositories`
+  (Chrome/Steam/NVIDIA repo files, disabled by default) plus enable
+  RPM Fusion free + nonfree for the detected Fedora version.
+- **Flathub**: add the per-user Flathub remote via
+  `flatpak remote-add --if-not-exists --user flathub …`.
+
+All 8 are idempotent (re-runnable via Maintain → Reset to Preset) and
+live in the new `mackes/birthright.py` module.
+
+### Fixes
+
+- `xfconf_bridge.XfconfBridge.set` int/float coercion (1.0.4
+  hotfix folded in): subprocess.check_call won't accept non-string argv
+  members, so int/float values now stringify before the subprocess call.
+- App installer's per-app output now reads `App: installed (npm)` /
+  `App: FAILED (rc=N) (npm)` instead of the always-on `rc={rc}` form.
+- Cursor's stale `download.cursor.sh` URL replaced with a runtime
+  resolver against `cursor.com/api/download`.
+- `neofetch` (archived upstream) is installed as `fastfetch` (its
+  maintained successor) under the same catalog name.
+
 ## 1.0.5 — fix Cursor + neofetch installs, clearer output (2026-05-17)
 
 App installer fixes after observing the wizard-time install output:

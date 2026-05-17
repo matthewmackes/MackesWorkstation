@@ -50,6 +50,23 @@
 @define-color cds_support_warning  #f1c21b;
 @define-color cds_support_info     #4589ff;
 
+/* status backgrounds (for tags, notifications) */
+@define-color cds_support_error_bg     #441f1d;
+@define-color cds_support_success_bg   #133c1c;
+@define-color cds_support_warning_bg   #463c12;
+@define-color cds_support_info_bg      #1c2b44;
+
+/* explicit "on-color" — text drawn on top of the accent fill */
+@define-color cds_text_on_color    #ffffff;
+
+/* field surfaces */
+@define-color cds_field_01         #262626;
+@define-color cds_field_02         #393939;
+
+/* hover layer (one step lighter than the surface below) */
+@define-color cds_layer_hover_01   #333333;
+@define-color cds_layer_hover_02   #474747;
+
 @define-color cds_overlay          alpha(#000000, 0.65);
 @define-color cds_skeleton         #353535;
 
@@ -60,6 +77,7 @@
 @define-color mackes_accent_hover  alpha(@mackes_accent, 0.85);
 @define-color mackes_accent_active alpha(@mackes_accent, 0.70);
 @define-color mackes_accent_dim    alpha(@mackes_accent, 0.20);
+@define-color mackes_accent_soft   alpha(@mackes_accent, 0.14);   /* design's --accent-soft */
 @define-color mackes_accent_focus  @mackes_accent;
 
 

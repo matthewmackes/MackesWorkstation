@@ -56,10 +56,13 @@ def _install_css(active_preset: Optional[str]) -> None:
     base = _resolve_css("mackes.css")
     if base is not None:
         _load(base, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 1)
+    layout = _resolve_css("carbon-layout.css")
+    if layout is not None:
+        _load(layout, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
     if active_preset:
         accent = _resolve_css("accents", f"{active_preset}.css")
         if accent is not None:
-            _load(accent, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 2)
+            _load(accent, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION + 3)
 
 
 def _make_gui_app():
@@ -106,7 +109,7 @@ def _make_gui_app():
                 from mackes.wizard.window import WizardWindow
                 win = WizardWindow(application=self, state=state)
             else:
-                from mackes.workbench.window import WorkbenchWindow
+                from mackes.workbench.shell.sidebar_window import WorkbenchWindow
                 win = WorkbenchWindow(application=self, state=state)
             win.connect("destroy", lambda *_: self.quit())
             win.show_all()

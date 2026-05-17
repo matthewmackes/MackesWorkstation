@@ -1,0 +1,485 @@
+/* Mackes Shell — Carbon refresh layout (v1.1.0).
+ *
+ * Loaded AFTER tokens.css + mackes.css. Defines the new sidebar shell,
+ * the Carbon component classes the v1.1.0 panels rely on (stat-tile, tag,
+ * data-table, modal, notif, code, toast, topo, preset-grid), and the
+ * Tweaks drawer.
+ *
+ * Token references resolve through tokens.css (@cds_* / @mackes_*).
+ *
+ * GTK CSS notes:
+ *   - GTK has no CSS custom properties, no `var()`, no `calc()`, no
+ *     percent-of-parent flexbox. Sizes are explicit px.
+ *   - Layout is done in Python (Gtk.Box pack_start, etc.); this file only
+ *     supplies cosmetic styling. Don't try to enforce grid columns here.
+ *   - GTK's class selectors match Gtk widgets that have add_class("name")
+ *     applied via StyleContext. Compound selectors (.parent .child) work
+ *     but only as widget-descendant, not arbitrary DOM.
+ */
+
+
+/* =========================================================================
+   Shell — header strip
+   ========================================================================= */
+
+.mackes-shell-header {
+    background-color: @cds_bg_default;
+    border-bottom: 1px solid @cds_border_subtle_00;
+    min-height: 48px;
+}
+
+.mackes-brand-text {
+    font-weight: 600;
+    font-size: 16px;
+    color: @cds_text_primary;
+    letter-spacing: 0.01em;
+}
+
+.mackes-brand-light {
+    color: @cds_text_secondary;
+    font-weight: 400;
+}
+
+.mackes-header-action {
+    background-color: transparent;
+    border: none;
+    border-left: 1px solid @cds_border_subtle_00;
+    color: @cds_text_secondary;
+    padding: 0 16px;
+    min-height: 48px;
+    border-radius: 0;
+    font-size: 14px;
+}
+
+.mackes-header-action:hover {
+    background-color: @cds_layer_hover_01;
+    color: @cds_text_primary;
+}
+
+.mackes-header-action.checked, .mackes-header-action:checked {
+    color: @cds_text_primary;
+    background-color: @cds_bg_layer_02;
+}
+
+.mackes-header-action.mackes-header-action-flush {
+    border-left: 0;
+}
+
+
+/* =========================================================================
+   Shell — side nav
+   ========================================================================= */
+
+.mackes-side-nav {
+    background-color: @cds_bg_default;
+    border-right: 1px solid @cds_border_subtle_00;
+    min-width: 256px;
+}
+
+.mackes-side-nav-group-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: @cds_text_helper;
+    padding: 4px 16px;
+}
+
+.mackes-side-nav-item {
+    background-color: transparent;
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    color: @cds_text_secondary;
+    padding: 0 16px;
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.mackes-side-nav-item label {
+    color: @cds_text_secondary;
+}
+
+.mackes-side-nav-item:hover {
+    background-color: @cds_layer_hover_01;
+    color: @cds_text_primary;
+}
+
+.mackes-side-nav-item:hover label { color: @cds_text_primary; }
+
+.mackes-side-nav-item.active,
+.mackes-side-nav-item:checked {
+    background-color: @cds_bg_layer_01;
+    color: @cds_text_primary;
+    border-left-color: @mackes_accent;
+}
+
+.mackes-side-nav-item.active label,
+.mackes-side-nav-item:checked label {
+    color: @cds_text_primary;
+}
+
+.mackes-sn-badge {
+    background-color: @mackes_accent_soft;
+    color: @mackes_accent;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    padding: 1px 6px;
+}
+
+
+/* =========================================================================
+   Shell — status bar
+   ========================================================================= */
+
+.mackes-status-bar {
+    background-color: @cds_bg_default;
+    border-top: 1px solid @cds_border_subtle_00;
+    min-height: 24px;
+    padding: 0 16px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: @cds_text_helper;
+}
+
+.mackes-status-bar-item {
+    color: @cds_text_helper;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+}
+
+.mackes-status-bar-item.ok    { color: @cds_support_success; }
+.mackes-status-bar-item.warn  { color: @cds_support_warning; }
+.mackes-status-bar-item.fail  { color: @cds_support_error; }
+
+
+/* =========================================================================
+   Content frame
+   ========================================================================= */
+
+.mackes-content {
+    background-color: @cds_bg_default;
+    padding: 32px 40px;
+}
+
+.mackes-page-title {
+    font-size: 32px;
+    line-height: 40px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: @cds_text_primary;
+}
+
+.mackes-page-subtitle {
+    font-size: 16px;
+    line-height: 24px;
+    color: @cds_text_secondary;
+    margin-bottom: 24px;
+}
+
+.mackes-breadcrumb {
+    font-size: 12px;
+    color: @cds_text_helper;
+}
+
+
+/* =========================================================================
+   Carbon components — Tile / Stat tile / Tag / Data table / Modal / Code
+   ========================================================================= */
+
+.mackes-stat-tile {
+    background-color: @cds_bg_layer_01;
+    border-bottom: 2px solid transparent;
+    padding: 16px;
+}
+
+.mackes-stat-tile.accent {
+    border-bottom-color: @mackes_accent;
+}
+
+.mackes-stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: @cds_text_helper;
+}
+
+.mackes-stat-value {
+    font-size: 32px;
+    font-weight: 300;
+    color: @cds_text_primary;
+    letter-spacing: -0.01em;
+}
+
+.mackes-stat-foot {
+    font-size: 11px;
+    color: @cds_text_helper;
+}
+
+.mackes-tag {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 12px;
+}
+
+.mackes-tag.accent  { background-color: @mackes_accent_soft;     color: @mackes_accent; }
+.mackes-tag.success { background-color: @cds_support_success_bg; color: @cds_support_success; }
+.mackes-tag.warning { background-color: @cds_support_warning_bg; color: @cds_support_warning; }
+.mackes-tag.error   { background-color: @cds_support_error_bg;   color: @cds_support_error; }
+.mackes-tag.info    { background-color: @cds_support_info_bg;    color: @cds_support_info; }
+.mackes-tag.neutral { background-color: @cds_bg_layer_02;        color: @cds_text_secondary; }
+
+
+/* DataTable */
+.mackes-dt {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+}
+
+.mackes-dt-toolbar {
+    background-color: @cds_bg_layer_01;
+    border-bottom: 1px solid @cds_border_subtle_00;
+    min-height: 48px;
+    padding: 0 16px;
+}
+
+.mackes-dt treeview, .mackes-dt list {
+    background-color: @cds_bg_layer_01;
+    color: @cds_text_primary;
+    border: 0;
+}
+
+.mackes-dt treeview header button,
+.mackes-dt list .header {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    font-weight: 600;
+    border-bottom: 1px solid @cds_border_subtle_01;
+    border-radius: 0;
+    padding: 8px 12px;
+}
+
+.mackes-dt row {
+    color: @cds_text_primary;
+    padding: 8px 12px;
+    border-bottom: 1px solid @cds_border_subtle_00;
+}
+
+.mackes-dt row:hover    { background-color: @cds_layer_hover_01; }
+.mackes-dt row:selected { background-color: @mackes_accent_soft; color: @cds_text_primary; }
+
+
+/* Notification panel */
+.mackes-notif {
+    background-color: @cds_bg_layer_01;
+    border-left: 3px solid @mackes_accent;
+    padding: 16px;
+}
+
+.mackes-notif.info    { border-left-color: @cds_support_info; }
+.mackes-notif.success { border-left-color: @cds_support_success; }
+.mackes-notif.warning { border-left-color: @cds_support_warning; }
+.mackes-notif.error   { border-left-color: @cds_support_error; }
+
+.mackes-notif-title { font-weight: 600; color: @cds_text_primary; }
+.mackes-notif-body  { color: @cds_text_secondary; }
+
+
+/* Toast */
+.mackes-toast {
+    background-color: @cds_bg_layer_01;
+    border-left: 3px solid @mackes_accent;
+    color: @cds_text_primary;
+    padding: 12px 16px;
+}
+.mackes-toast.success { border-left-color: @cds_support_success; }
+.mackes-toast.error   { border-left-color: @cds_support_error; }
+
+
+/* Code block */
+.mackes-code {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    background-color: @cds_bg_default;
+    border: 1px solid @cds_border_subtle_00;
+    padding: 12px 16px;
+    color: @cds_text_secondary;
+}
+
+
+/* Tabs (in-page) */
+.mackes-tabs {
+    border-bottom: 1px solid @cds_border_subtle_00;
+    min-height: 40px;
+}
+
+.mackes-tab {
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    color: @cds_text_secondary;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.mackes-tab:hover { color: @cds_text_primary; }
+
+.mackes-tab.active, .mackes-tab:checked {
+    color: @cds_text_primary;
+    border-bottom-color: @mackes_accent;
+    background-color: transparent;
+}
+
+
+/* Topology canvas frame */
+.mackes-topo {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    min-height: 420px;
+}
+
+
+/* Modal */
+.mackes-modal {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_01;
+}
+
+.mackes-modal-title { font-size: 20px; color: @cds_text_primary; }
+.mackes-modal-sub   { color: @cds_text_secondary; }
+
+
+/* Section header */
+.mackes-section-title {
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 400;
+    color: @cds_text_primary;
+}
+
+.mackes-section-meta {
+    font-size: 11px;
+    color: @cds_text_helper;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+
+/* Preset card (used in wizard preset-pick) */
+.mackes-preset-card {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+}
+
+.mackes-preset-card:hover { border-color: @cds_border_strong_01; }
+
+.mackes-preset-card.selected {
+    border-color: @mackes_accent;
+}
+
+.mackes-preset-name { font-size: 20px; color: @cds_text_primary; }
+.mackes-preset-voice { color: @cds_text_secondary; }
+
+
+/* Tweaks drawer */
+.mackes-tweaks-button {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    border: 1px solid @cds_border_subtle_01;
+    border-radius: 0;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+}
+.mackes-tweaks-button:hover { background-color: @cds_layer_hover_02; }
+
+.mackes-tweaks-drawer {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_01;
+    min-width: 280px;
+    padding: 16px;
+}
+
+.mackes-tweaks-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: @cds_text_helper;
+}
+
+
+/* App store card */
+.mackes-app-card {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid transparent;
+    padding: 16px;
+}
+
+.mackes-app-card:hover {
+    background-color: @cds_layer_hover_01;
+    border-color: @cds_border_subtle_01;
+}
+
+.mackes-app-icon {
+    background-color: @cds_bg_layer_02;
+    color: @mackes_accent;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.mackes-app-name { font-size: 16px; font-weight: 600; color: @cds_text_primary; }
+.mackes-app-desc { color: @cds_text_secondary; }
+.mackes-app-meta { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: @cds_text_helper; }
+
+
+/* Help — markdown rendering */
+.mackes-md-h1 { font-size: 28px; line-height: 36px; font-weight: 400; color: @cds_text_primary; }
+.mackes-md-h2 { font-size: 20px; line-height: 28px; font-weight: 400; color: @cds_text_primary; }
+.mackes-md-p  { font-size: 16px; line-height: 24px; color: @cds_text_secondary; }
+.mackes-md-li { color: @cds_text_secondary; }
+.mackes-md-code-inline {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    background-color: @cds_bg_layer_01;
+    color: @mackes_accent;
+    padding: 1px 6px;
+}
+.mackes-md-pre {
+    font-family: "IBM Plex Mono", monospace;
+    background-color: @cds_bg_default;
+    border-left: 3px solid @mackes_accent;
+    color: @cds_text_secondary;
+    padding: 12px;
+}
+
+
+/* Wizard chrome */
+.mackes-wizard-step {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: @cds_text_helper;
+}
+
+.mackes-wizard-step.active { color: @mackes_accent; }
+.mackes-wizard-step .num {
+    min-width: 20px; min-height: 20px;
+    border: 1px solid @cds_text_helper;
+    color: @cds_text_helper;
+}
+.mackes-wizard-step.active .num { border-color: @mackes_accent; color: @mackes_accent; }
+
+
+/* Status dots — inline use anywhere */
+.mackes-dot         { font-size: 12px; color: @cds_text_helper; }
+.mackes-dot.ok      { color: @cds_support_success; }
+.mackes-dot.warn    { color: @cds_support_warning; }
+.mackes-dot.fail    { color: @cds_support_error; }
+.mackes-dot.muted   { color: @cds_text_helper; }
+.mackes-dot.accent  { color: @mackes_accent; }

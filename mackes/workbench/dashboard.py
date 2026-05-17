@@ -1,15 +1,18 @@
-"""Dashboard — the daily landing view (Q5 lock: live status dashboard).
+"""Dashboard — Carbon refresh (v1.1.0).
 
-Sections, top to bottom:
-  1. Status strip       — service health badges + active preset + last snapshot
-  2. Drift card         — shown only when current state diverges from active preset
-  3. Hardware summary   — hostname / CPU / RAM / OS
-  4. Quick actions      — six big buttons for the most-used operations
-  5. Recent actions     — last 5 Mackes-applied changes (read from mackes.log)
+Layout, top to bottom (matches docs/design/v1.1.0-carbon-refresh/project/panels-a.jsx:6):
+
+  Page title + subtitle
+  Stat tiles row (4)         — mesh peers / services / sshd / drift
+  Service health grid
+  Drift card                 — conditional, Carbon notification (warning)
+  Hardware summary           — 2x2 stat tiles
+  Recent activity
+  Quick actions
 """
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Callable, List, Optional, Tuple
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -29,7 +32,6 @@ from mackes.state import (
 
 
 def _hero_logo_path() -> Optional[Path]:
-    """Return the Mackes Shell hero logo path if shipped; None otherwise."""
     candidates = [
         Path("/usr/share/mackes-shell/branding/MACKES-XFCE-LOGO.png"),
         Path(__file__).resolve().parents[2] / "branding" / "MACKES-XFCE-LOGO.png",
@@ -40,53 +42,124 @@ def _hero_logo_path() -> Optional[Path]:
     return None
 
 
-_STATUS_DOTS = {
-    "ok": "●",
-    "warn": "●",
-    "fail": "●",
-    "missing": "○",
-}
-_STATUS_CLASSES = {
+_STATUS_TAG_KIND = {
     "ok": "success",
     "warn": "warning",
     "fail": "error",
-    "missing": "dim-label",
+    "missing": "neutral",
 }
 
 
-def _section(title: str) -> tuple[Gtk.Box, Gtk.Box]:
-    """Return (outer, content) — content is where you pack the section body."""
-    outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
-    head = Gtk.Label(label=title.upper())
-    head.set_xalign(0)
-    ctx = head.get_style_context()
-    ctx.add_class("title-4")
-    ctx.add_class("mackes-section-header")
-    outer.pack_start(head, False, False, 0)
+# ---------------------------------------------------------------------------
+# Carbon component helpers
+# ---------------------------------------------------------------------------
 
-    frame = Gtk.Frame()
-    frame.set_shadow_type(Gtk.ShadowType.NONE)
-    frame.get_style_context().add_class("view")
-    content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-    content.set_margin_top(12); content.set_margin_bottom(12)
-    content.set_margin_start(14); content.set_margin_end(14)
-    frame.add(content)
-    outer.pack_start(frame, False, False, 0)
-    return outer, content
+
+def _page_title(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0)
+    lab.get_style_context().add_class("mackes-page-title")
+    return lab
+
+
+def _page_subtitle(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0)
+    lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-page-subtitle")
+    return lab
+
+
+def _section_title(text: str) -> Gtk.Widget:
+    head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+    head.set_margin_top(32); head.set_margin_bottom(12)
+    title = Gtk.Label(label=text)
+    title.set_xalign(0)
+    title.get_style_context().add_class("mackes-section-title")
+    head.pack_start(title, True, True, 0)
+    return head
+
+
+def _stat_tile(label: str, value: str, foot: str = "", *,
+               accent: bool = False) -> Gtk.Widget:
+    """Match docs/design/.../tokens.css .stat-tile."""
+    tile = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+    tile.get_style_context().add_class("mackes-stat-tile")
+    if accent:
+        tile.get_style_context().add_class("accent")
+    tile.set_margin_top(0); tile.set_margin_bottom(0)
+    tile.set_size_request(-1, 110)
+
+    lab = Gtk.Label(label=label.upper())
+    lab.set_xalign(0)
+    lab.get_style_context().add_class("mackes-stat-label")
+    tile.pack_start(lab, False, False, 0)
+
+    val = Gtk.Label(label=str(value))
+    val.set_xalign(0)
+    val.get_style_context().add_class("mackes-stat-value")
+    tile.pack_start(val, True, True, 0)
+
+    foot_lbl = Gtk.Label(label=foot)
+    foot_lbl.set_xalign(0)
+    foot_lbl.get_style_context().add_class("mackes-stat-foot")
+    tile.pack_start(foot_lbl, False, False, 0)
+    return tile
+
+
+def _tag(text: str, kind: str = "neutral") -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.get_style_context().add_class("mackes-tag")
+    lab.get_style_context().add_class(kind)
+    return lab
+
+
+def _notification(kind: str, title: str, body: str,
+                  actions: Optional[List[Tuple[str, Callable[[], None]]]] = None) -> Gtk.Widget:
+    notif = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+    notif.get_style_context().add_class("mackes-notif")
+    notif.get_style_context().add_class(kind)
+
+    t = Gtk.Label(label=title)
+    t.set_xalign(0)
+    t.get_style_context().add_class("mackes-notif-title")
+    notif.pack_start(t, False, False, 0)
+
+    b = Gtk.Label(label=body)
+    b.set_xalign(0); b.set_line_wrap(True)
+    b.get_style_context().add_class("mackes-notif-body")
+    notif.pack_start(b, False, False, 0)
+
+    if actions:
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        row.set_margin_top(8)
+        for label, fn in actions:
+            btn = Gtk.Button(label=label)
+            btn.get_style_context().add_class("cds-button-tertiary")
+            btn.connect("clicked", lambda _b, f=fn: f())
+            row.pack_start(btn, False, False, 0)
+        notif.pack_start(row, False, False, 0)
+    return notif
+
+
+# ---------------------------------------------------------------------------
+# Dashboard view
+# ---------------------------------------------------------------------------
 
 
 class DashboardView(Gtk.Box):
     def __init__(self, state: MackesState,
                  navigate: Optional[Callable[[str], None]] = None) -> None:
-        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self.state = state
         self.navigate = navigate or (lambda _t: None)
-        self.set_margin_top(20); self.set_margin_bottom(20)
-        self.set_margin_start(20); self.set_margin_end(20)
 
+        # Scrolled content with Carbon page padding (32 / 40)
         scroller = Gtk.ScrolledWindow()
         scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
-        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        inner.set_margin_top(32); inner.set_margin_bottom(32)
+        inner.set_margin_start(40); inner.set_margin_end(40)
         scroller.add(inner)
         self.pack_start(scroller, True, True, 0)
 
@@ -96,71 +169,92 @@ class DashboardView(Gtk.Box):
     def _render(self) -> None:
         for child in list(self._inner.get_children()):
             self._inner.remove(child)
-        hero = self._hero_image()
-        if hero is not None:
-            self._inner.pack_start(hero, False, False, 0)
-        self._inner.pack_start(self._status_strip(), False, False, 0)
+
+        self._inner.pack_start(_page_title("Dashboard"), False, False, 0)
+        sub = (
+            f"Preset: {(self.state.active_preset or '—').title()}.  "
+            "Everything you control today."
+        )
+        self._inner.pack_start(_page_subtitle(sub), False, False, 0)
+
+        # ---- Stat tiles row -------------------------------------------
+        self._inner.pack_start(self._stat_row(), False, False, 0)
+
+        # ---- Service health grid --------------------------------------
+        self._inner.pack_start(_section_title("Service health"), False, False, 0)
+        self._inner.pack_start(self._service_grid(), False, False, 0)
+
+        # ---- Drift (conditional notification) -------------------------
         drift = self._drift_card()
         if drift is not None:
             self._inner.pack_start(drift, False, False, 0)
-        self._inner.pack_start(self._hardware_card(), False, False, 0)
+
+        # ---- Hardware -------------------------------------------------
+        self._inner.pack_start(_section_title("This machine"), False, False, 0)
+        self._inner.pack_start(self._hardware_grid(), False, False, 0)
+
+        # ---- Quick actions --------------------------------------------
+        self._inner.pack_start(_section_title("Quick actions"), False, False, 0)
         self._inner.pack_start(self._quick_actions(), False, False, 0)
+
+        # ---- Recent activity ------------------------------------------
+        self._inner.pack_start(_section_title("Recent activity"), False, False, 0)
         self._inner.pack_start(self._recent_actions(), False, False, 0)
+
         self._inner.show_all()
 
+    # ---- Stat tiles -------------------------------------------------------
 
-    def _hero_image(self) -> Optional[Gtk.Widget]:
-        from gi.repository import GdkPixbuf
-        logo = _hero_logo_path()
-        if logo is None:
-            return None
+    def _stat_row(self) -> Gtk.Widget:
+        row = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
+        row.set_margin_top(16)
+        sh = service_health()
+        ok_services = sum(1 for v in sh.values() if v == "ok")
+        total_services = len(sh)
         try:
-            pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(
-                str(logo), width=420, height=-1, preserve_aspect_ratio=True,
-            )
+            from mackes.mesh_vpn import tailscale_status
+            mesh_n = len(tailscale_status().get("peers", []) or [])
         except Exception:  # noqa: BLE001
-            return None
-        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        img = Gtk.Image.new_from_pixbuf(pixbuf)
-        img.set_halign(Gtk.Align.CENTER)
-        box.pack_start(img, True, True, 0)
-        return box
+            mesh_n = 0
+        try:
+            _preset, drift_items = active_preset_drift()
+            drift_n = len(drift_items or [])
+        except Exception:  # noqa: BLE001
+            drift_n = 0
+        sshd = sh.get("sshd", "missing")
 
-    # ---- Section 1: status strip -----------------------------------------
+        row.attach(_stat_tile("Mesh peers",  str(mesh_n),
+                              "16 max · cap from spec", accent=True), 0, 0, 1, 1)
+        row.attach(_stat_tile("Services",    f"{ok_services} / {total_services}",
+                              "ok / total"), 1, 0, 1, 1)
+        row.attach(_stat_tile("sshd",        "running" if sshd == "ok" else "down",
+                              "see Services"), 2, 0, 1, 1)
+        row.attach(_stat_tile("Drift",       str(drift_n),
+                              "items differ from preset"), 3, 0, 1, 1)
+        return row
 
-    def _status_strip(self) -> Gtk.Widget:
-        outer, content = _section("Status")
-        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=18)
-        for name, status in service_health().items():
-            cell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-            dot = Gtk.Label(label=_STATUS_DOTS[status])
-            dot.get_style_context().add_class(_STATUS_CLASSES[status])
-            cell.pack_start(dot, False, False, 0)
-            cell.pack_start(Gtk.Label(label=name), False, False, 0)
-            row.pack_start(cell, False, False, 0)
-        content.pack_start(row, False, False, 0)
+    # ---- Service health grid ---------------------------------------------
 
-        meta = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=24)
-        preset_label = Gtk.Label(label=f"Active preset: {self.state.active_preset or 'none'}")
-        preset_label.set_xalign(0)
-        meta.pack_start(preset_label, False, False, 0)
+    def _service_grid(self) -> Gtk.Widget:
+        grid = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
+        services = service_health()
+        items = list(services.items())
+        for i, (name, status) in enumerate(items):
+            cell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+            cell.get_style_context().add_class("mackes-stat-tile")
+            cell.set_margin_top(0); cell.set_margin_bottom(0)
+            cell.set_size_request(-1, 56)
+            name_lbl = Gtk.Label(label=name)
+            name_lbl.set_xalign(0)
+            cell.pack_start(name_lbl, True, True, 0)
+            cell.pack_end(_tag(status, _STATUS_TAG_KIND.get(status, "neutral")),
+                          False, False, 0)
+            grid.attach(cell, i % 4, i // 4, 1, 1)
+        return grid
 
-        snap = last_snapshot()
-        snap_text = "Last snapshot: none yet"
-        if snap is not None:
-            name, when = snap
-            snap_text = f"Last snapshot: {when:%Y-%m-%d %H:%M} — {name}"
-        snap_label = Gtk.Label(label=snap_text)
-        snap_label.set_xalign(0)
-        snap_label.get_style_context().add_class("dim-label")
-        meta.pack_start(snap_label, False, False, 0)
+    # ---- Drift card -------------------------------------------------------
 
-        content.pack_start(meta, False, False, 0)
-        return outer
-
-    # ---- Section 2: drift card (conditional) -----------------------------
-
-    def _drift_card(self) -> Gtk.Widget | None:
+    def _drift_card(self) -> Optional[Gtk.Widget]:
         if not self.state.active_preset:
             return None
         try:
@@ -169,117 +263,89 @@ class DashboardView(Gtk.Box):
             return None
         if preset is None or not items:
             return None
-
-        outer, content = _section(f"Drift from preset \"{preset.display_name}\"")
-        head = Gtk.Label(label=(
-            f"⚠  {len(items)} item(s) differ from the preset's declared values."
-        ))
-        head.set_xalign(0); head.set_line_wrap(True)
-        head.get_style_context().add_class("warning")
-        content.pack_start(head, False, False, 0)
-
-        for it in items[:8]:
-            line = Gtk.Label(label=f"  • {it.section}.{it.field}: "
-                                   f"preset={it.expected!r}  live={it.actual!r}")
-            line.set_xalign(0); line.set_line_wrap(True)
-            content.pack_start(line, False, False, 0)
-        if len(items) > 8:
-            more = Gtk.Label(label=f"  …and {len(items) - 8} more.")
-            more.set_xalign(0); more.get_style_context().add_class("dim-label")
-            content.pack_start(more, False, False, 0)
-
-        btns = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        review_btn = Gtk.Button(label="Open Maintain → Reset")
-        review_btn.connect("clicked", lambda *_: self.navigate("reset"))
-        btns.pack_start(review_btn, False, False, 0)
-        snap_btn = Gtk.Button(label="Snapshot first")
-        snap_btn.connect("clicked", lambda *_: (create_snapshot("pre-drift-review"),
-                                                self._render()))
-        btns.pack_start(snap_btn, False, False, 0)
-        content.pack_start(btns, False, False, 0)
-        return outer
-
-    # ---- Section 3: hardware -------------------------------------------
-
-    def _hardware_card(self) -> Gtk.Widget:
-        outer, content = _section("This machine")
-        grid = Gtk.Grid(column_spacing=24, row_spacing=4)
-        info = hardware_summary()
-        rows = [
-            ("Hostname", info.get("hostname", "")),
-            ("OS",       info.get("os", "")),
-            ("CPU",      info.get("cpu", "")),
-            ("RAM",      info.get("ram", "")),
+        body_lines = [
+            f"  • {it.section}.{it.field}: preset={it.expected!r}  live={it.actual!r}"
+            for it in items[:6]
         ]
-        for i, (k, v) in enumerate(rows):
-            lk = Gtk.Label(label=k); lk.set_xalign(0); lk.get_style_context().add_class("dim-label")
-            lv = Gtk.Label(label=str(v)); lv.set_xalign(0)
-            grid.attach(lk, 0, i, 1, 1)
-            grid.attach(lv, 1, i, 1, 1)
-        content.pack_start(grid, False, False, 0)
-        return outer
+        if len(items) > 6:
+            body_lines.append(f"  …and {len(items) - 6} more")
+        body = "\n".join(body_lines)
+        wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        wrap.set_margin_top(16)
+        wrap.pack_start(_notification(
+            "warning",
+            f"{len(items)} item(s) drifted from preset \"{preset.display_name}\"",
+            body,
+            actions=[
+                ("Open Maintain → Reset", lambda: self.navigate("maintain")),
+                ("Snapshot first", self._on_snapshot),
+            ],
+        ), False, False, 0)
+        return wrap
 
-    # ---- Section 4: quick actions ---------------------------------------
+    # ---- Hardware grid ---------------------------------------------------
+
+    def _hardware_grid(self) -> Gtk.Widget:
+        grid = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
+        info = hardware_summary()
+        items = [
+            ("Hostname", info.get("hostname", "—"), ""),
+            ("OS",       info.get("os", "—"),       "version"),
+            ("CPU",      info.get("cpu", "—"),      "cores"),
+            ("RAM",      info.get("ram", "—"),      "installed"),
+        ]
+        for i, (k, v, foot) in enumerate(items):
+            grid.attach(_stat_tile(k, str(v), foot), i % 4, i // 4, 1, 1)
+        return grid
+
+    # ---- Quick actions ----------------------------------------------------
 
     def _quick_actions(self) -> Gtk.Widget:
-        outer, content = _section("Quick actions")
-        grid = Gtk.Grid(column_spacing=10, row_spacing=10,
-                        column_homogeneous=True)
-        actions: list[tuple[str, str, Callable[[], None]]] = [
-            ("Open Appearance",        "preferences-desktop",
-             lambda: self.navigate("appearance")),
-            ("Open Display",           "preferences-desktop-display",
-             lambda: self.navigate("display")),
-            ("Open Network",           "network-wired",
-             lambda: self.navigate("network")),
-            ("Create Snapshot",        "document-save",
-             self._on_snapshot),
-            ("Health Check",           "emblem-system",
-             lambda: self.navigate("health")),
-            ("Open Log",               "text-x-generic",
-             lambda: self.navigate("logs")),
+        wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        wrap.set_margin_top(0)
+        actions: List[Tuple[str, Callable[[], None]]] = [
+            ("Appearance",     lambda: self.navigate("look_and_feel")),
+            ("Display",        lambda: self.navigate("devices")),
+            ("Network",        lambda: self.navigate("wifi")),
+            ("Create snapshot", self._on_snapshot),
+            ("Health check",   lambda: self.navigate("maintain")),
+            ("Open log",       lambda: self.navigate("maintain")),
         ]
-        for i, (label, icon, fn) in enumerate(actions):
-            btn = Gtk.Button()
-            btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            btn_box.set_margin_top(4); btn_box.set_margin_bottom(4)
-            btn_box.set_margin_start(6); btn_box.set_margin_end(6)
-            img = Gtk.Image.new_from_icon_name(icon, Gtk.IconSize.LARGE_TOOLBAR)
-            btn_box.pack_start(img, False, False, 0)
-            btn_box.pack_start(Gtk.Label(label=label), False, False, 0)
-            btn.add(btn_box)
+        for label, fn in actions:
+            btn = Gtk.Button(label=label)
+            btn.get_style_context().add_class("cds-button-tertiary")
+            btn.set_size_request(-1, 40)
             btn.connect("clicked", lambda _b, f=fn: f())
-            grid.attach(btn, i % 3, i // 3, 1, 1)
-        content.pack_start(grid, False, False, 0)
-        return outer
+            wrap.pack_start(btn, True, True, 0)
+        return wrap
 
     def _on_snapshot(self) -> None:
-        snap = create_snapshot("dashboard-quick-snapshot",
-                               source_preset=self.state.active_preset)
+        try:
+            create_snapshot("dashboard-quick-snapshot",
+                            source_preset=self.state.active_preset)
+        except Exception:  # noqa: BLE001
+            pass
         self._render()
 
-    # ---- Section 5: recent actions --------------------------------------
+    # ---- Recent activity -------------------------------------------------
 
     def _recent_actions(self) -> Gtk.Widget:
-        outer, content = _section("Recent activity")
+        wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        wrap.get_style_context().add_class("mackes-code")
+        wrap.set_margin_top(0)
+
         log = LOG_DIR / "mackes.log"
-        if not log.exists():
-            empty = Gtk.Label(label="No activity yet.")
-            empty.set_xalign(0)
-            empty.get_style_context().add_class("dim-label")
-            content.pack_start(empty, False, False, 0)
-            return outer
-
-        lines: list[str] = []
-        try:
-            for line in log.read_text(encoding="utf-8", errors="ignore").splitlines()[-8:]:
-                lines.append(line)
-        except OSError:
-            pass
-
-        for line in lines or ["No activity yet."]:
+        lines: List[str] = []
+        if log.exists():
+            try:
+                lines = log.read_text(encoding="utf-8", errors="ignore").splitlines()[-8:]
+            except OSError:
+                pass
+        if not lines:
+            lines = ["(no activity yet)"]
+        for line in lines:
             lbl = Gtk.Label(label=line)
-            lbl.set_xalign(0)
-            lbl.set_line_wrap(True)
-            content.pack_start(lbl, False, False, 0)
-        return outer
+            lbl.set_xalign(0); lbl.set_line_wrap(False)
+            lbl.set_max_width_chars(140); lbl.set_ellipsize(__import__("gi").repository.Pango.EllipsizeMode.END)
+            wrap.pack_start(lbl, False, False, 0)
+        return wrap

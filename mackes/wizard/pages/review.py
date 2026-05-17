@@ -42,6 +42,16 @@ def build(ctx) -> Gtk.Widget:
     summary.append(f"Initial snapshot: {ctx.create_initial_snapshot} "
                    f"(label={ctx.snapshot_label!r})")
     summary.append("")
+    summary.append("--- v1.1.0 birthright (always runs) ---")
+    summary.append("  Themes:              copy PadOS + Carbon icons to /usr/share")
+    summary.append("  Fonts:               dnf install ibm-plex-sans-fonts + ibm-plex-mono-fonts")
+    summary.append("  Apps:                install preset.apps.install / remove preset.apps.remove_bloat")
+    summary.append("  Panel layout:        write Mackes default xfce4-panel layout")
+    summary.append("  Boot splash:         install + activate Mackes Plymouth theme (rebuilds initrd)")
+    summary.append("  System update:       dnf upgrade -y --refresh (may take several minutes)")
+    summary.append("  Third-party repos:   install fedora-workstation-repositories + RPM Fusion")
+    summary.append("  Flathub:             add per-user Flathub flatpak remote")
+    summary.append("")
     if ctx.missing_packages:
         summary.append("WARNING: missing required binaries: " + ", ".join(ctx.missing_packages))
     summary.append("Click Apply to commit.")

@@ -1,0 +1,84 @@
+// Mackes Plymouth theme — centered logo on Carbon Gray 100.
+//
+// Plymouth's "script" module draws a frame at a time; the theme is
+// kept deliberately minimal to match the rest of the brand.
+//
+// Background: Carbon Gray 100 (#161616 = 22/22/22 normalized = 0.0863).
+// Logo: branding/MACKES-XFCE-LOGO.png (8.5MP RGBA; Plymouth scales it).
+// Progress: 4px-tall accent strip 24px under the logo, animates while
+//           the system finishes boot.
+
+# ---- Background (Carbon Gray 100) ----------------------------------------
+Window.SetBackgroundTopColor (0.086, 0.086, 0.086);
+Window.SetBackgroundBottomColor (0.086, 0.086, 0.086);
+
+# ---- Logo ----------------------------------------------------------------
+logo.image = Image ("logo.png");
+
+# Scale the logo to fit ~22% of the screen width while preserving aspect.
+screen_w = Window.GetWidth ();
+screen_h = Window.GetHeight ();
+target_w = screen_w * 0.22;
+scale = target_w / logo.image.GetWidth ();
+logo.image_s = logo.image.Scale (target_w, logo.image.GetHeight () * scale);
+
+logo.sprite = Sprite (logo.image_s);
+logo.x = (screen_w - logo.image_s.GetWidth ()) / 2;
+logo.y = (screen_h - logo.image_s.GetHeight ()) / 2 - 16;
+logo.sprite.SetPosition (logo.x, logo.y, 0);
+
+# ---- Progress strip (subtle accent line that fills while booting) ---------
+bar.width  = logo.image_s.GetWidth ();
+bar.height = 4;
+bar.x = logo.x;
+bar.y = logo.y + logo.image_s.GetHeight () + 24;
+
+# Background rail (carbon gray-80 ≈ 57/57/57 = 0.2235)
+bar.bg = Rectangle (0.223, 0.223, 0.223, 1.0).Scale (bar.width, bar.height);
+bar.bg.SetPosition (bar.x, bar.y, 0);
+
+# Fill — Mackes accent (Carbon orange 60 #f1853d ≈ 241/133/61).
+bar.fill = Rectangle (0.945, 0.522, 0.239, 1.0).Scale (1, bar.height);
+bar.fill.SetPosition (bar.x, bar.y, 1);
+
+fun progress_callback (duration, progress)
+{
+    bar.fill.SetX (bar.x);
+    bar.fill = bar.fill.Scale (bar.width * progress, bar.height);
+}
+
+Plymouth.SetBootProgressFunction (progress_callback);
+
+# ---- Optional message line (low-priority centered helper text) ------------
+status = "";
+
+fun status_message_callback (text)
+{
+    status = text;
+}
+
+Plymouth.SetUpdateStatusFunction (status_message_callback);
+
+fun display_message_callback (text)
+{
+    if (message != NULL)
+        message.Image = NULL;
+    if (text == "")
+        return;
+    message_image = Image.Text (text, 0.78, 0.78, 0.78);
+    message = Sprite (message_image);
+    message.SetPosition (
+        (screen_w - message_image.GetWidth ()) / 2,
+        bar.y + 24,
+        2);
+}
+
+Plymouth.SetDisplayMessageFunction (display_message_callback);
+
+# Hide the message line for password prompts; let plymouthd handle them.
+fun hide_message_callback ()
+{
+    if (message != NULL)
+        message.Image = NULL;
+}
+Plymouth.SetHideMessageFunction (hide_message_callback);
