@@ -93,8 +93,25 @@ class LogsPanel(Gtk.Box):
         box.pack_start(scroll2, True, True, 0)
 
         self.add(box)
+        # Visibility-gated poll: only tick the file-stat refresh while the
+        # panel is actually shown. Saves a per-2s wake on every other panel.
+        self._poll_id: int | None = None
+        self.connect("map",   lambda *_: self._start_poll())
+        self.connect("unmap", lambda *_: self._stop_poll())
+        # First paint happens right after add(), force a refresh now so the
+        # views aren't empty when the user first lands.
         self._refresh(force=True)
-        self._poll_id = GLib.timeout_add_seconds(2, lambda: (self._refresh(), True)[1])
+
+    def _start_poll(self) -> None:
+        if self._poll_id is None:
+            self._refresh(force=True)
+            self._poll_id = GLib.timeout_add_seconds(
+                2, lambda: (self._refresh(), True)[1])
+
+    def _stop_poll(self) -> None:
+        if self._poll_id is not None:
+            GLib.source_remove(self._poll_id)
+            self._poll_id = None
 
     def _refresh(self, *, force: bool = False) -> None:
         try:

@@ -147,16 +147,36 @@ class SystemUpdatePanel(Gtk.Box):
         self._output.scroll_to_mark(mark, 0.0, False, 0.0, 1.0)
 
     def _refresh_summary(self) -> bool:
-        # quick, non-privileged availability check (no metadata refresh)
-        try:
-            out = subprocess.check_output(
-                ["dnf", "list", "--upgrades", "-q"],
-                stderr=subprocess.STDOUT, text=True, timeout=15,
-            )
-            count = max(0, sum(1 for ln in out.splitlines()
-                               if ln and not ln.startswith(("Last metadata", "Available", "Upgrad"))))
-            self._summary.set_text(f"{count} package(s) have upgrades available."
-                                   if count else "Up to date.")
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as e:
-            self._summary.set_text(f"(couldn't check: {e})")
+        # Off-thread availability check. `dnf list --upgrades` can take
+        # 1–15 seconds depending on cached metadata; running it on the
+        # GTK main loop freezes the whole shell. Cache the parsed result
+        # in probe_cache so repeat panel opens are instant for 60s.
+        import threading
+        from mackes.probe_cache import cached
+
+        def _probe() -> str:
+            def _shell():
+                out = subprocess.check_output(
+                    ["dnf", "list", "--upgrades", "-q"],
+                    stderr=subprocess.STDOUT, text=True, timeout=15,
+                )
+                count = max(0, sum(
+                    1 for ln in out.splitlines()
+                    if ln and not ln.startswith(
+                        ("Last metadata", "Available", "Upgrad"))))
+                return (f"{count} package(s) have upgrades available."
+                        if count else "Up to date.")
+            try:
+                return cached("dnf.upgrades_summary",
+                              factory=_shell, ttl_s=60)
+            except (subprocess.CalledProcessError,
+                    subprocess.TimeoutExpired, OSError) as e:
+                return f"(couldn't check: {e})"
+
+        def worker():
+            text = _probe()
+            GLib.idle_add(self._summary.set_text, text)
+
+        self._summary.set_text("(checking…)")
+        threading.Thread(target=worker, daemon=True).start()
         return False

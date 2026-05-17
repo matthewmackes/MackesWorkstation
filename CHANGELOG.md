@@ -3,7 +3,20 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.6.2 — Conky perf + panel snapshot + Get Online + Screens + GUI refresh + lazy nav (unreleased)
+## 1.6.2 — Conky perf + panel snapshot + new panels + GUI refresh + GTK perf (unreleased)
+
+**GTK perf round 2.** Two more main-loop blockers fixed:
+
+* `maintain/logs.py` now visibility-gates its 2-second poll — the
+  timer starts on `map` and stops on `unmap`, so the 2s file-stat
+  wake-up no longer fires while the panel is hidden.
+* `maintain/system_update.py:_refresh_summary` moved off the GTK
+  main loop. The `dnf list --upgrades -q` shell-out (1–15s depending
+  on cached metadata) runs on a daemon thread and posts back via
+  `GLib.idle_add`. Result memoized in `probe_cache` for 60s so
+  re-opening the panel within that window is instant.
+
+
 
 **Lazy sub-nav panel construction.** Opening "Devices", "System", or
 "Look & Feel" used to instantiate every sub-panel in the group, each
