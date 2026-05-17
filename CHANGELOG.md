@@ -5,6 +5,19 @@ unreleased; tag versions get a date when they ship.
 
 ## 1.6.2 — 1.6.2 rollup (unreleased)
 
+**Mesh perf round verification — tests + spec wiring.**
+
+* `tests/test_mesh_perf.py`, `test_mesh_wol.py`, `test_mesh_metrics.py`
+  cover the new module surfaces — tweak round-trip, MAC parsing, WoL
+  magic-packet bytes (102-byte packet to UDP/9 + UDP/7), Prometheus
+  metric parsing.
+* Spec `Recommends:` adds `python3-{zeroconf,fusepy,paramiko,diskcache,
+  nats-py}` and `wireguard-tools`. Every dep is optional; modules
+  detect absence and degrade gracefully (the Mesh Performance panel
+  shows which packages to `dnf install` for full coverage).
+
+
+
 **Mesh perf #5 + #6 — NATS JetStream + mesh-fs FUSE.**
 
 * `mackes.mesh_nats` — embedded `nats-server` (Apache 2.0,

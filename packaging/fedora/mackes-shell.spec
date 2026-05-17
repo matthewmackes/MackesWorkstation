@@ -137,6 +137,19 @@ Requires:       gvfs-fuse
 # mDNS bridge (§8.13 Layer 5)
 Recommends:     avahi
 Recommends:     avahi-tools
+# v1.6.2 — push-based service discovery (mackes.mesh_mdns listener)
+Recommends:     python3-zeroconf
+# v1.6.2 — mesh perf round (every dep is optional; the modules
+# degrade gracefully when absent and report so in the Mesh
+# Performance panel)
+Recommends:     python3-fusepy
+Recommends:     python3-paramiko
+Recommends:     python3-diskcache
+Recommends:     python3-nats-py
+Recommends:     wireguard-tools
+# Wake-on-LAN tools are optional — mackes.mesh_wol uses pure Python
+# for the magic packet but reads ARP via `ip neigh` (in iproute2,
+# already a hard dep) so no extra Recommends needed.
 
 # Mesh-services unified gateway (§8.13 Layer 3) — optional, opt-in via UI
 Recommends:     caddy
