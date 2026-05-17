@@ -3,7 +3,19 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.6.2 — Conky perf + panel snapshot + new panels + GUI refresh + GTK perf v3 + coverage panels (unreleased)
+## 1.6.2 — 1.6.2 rollup (unreleased)
+
+**System → Boot & Login** (`mackes.workbench.system.boot_login`). Wraps
+the `apply_plymouth` + `apply_lightdm` birthright steps in a GUI:
+Plymouth theme picker (lists every theme in `/usr/share/plymouth/
+themes/`; `plymouth-set-default-theme -R <name>` via AdminSession),
+auto-login toggle that rewrites `[Seat:*] autologin-user=` in
+`/etc/lightdm/lightdm.conf` via a temp-file + `install -D` through
+AdminSession, and a read-only summary of the LightDM greeter config.
+The multi-monitor "where to show the greeter" setting stays in System
+→ Screens (already wired there).
+
+
 
 **System → Tweaks** (`mackes.workbench.system.tweaks_full`). Full-page
 sibling to the floating Tweaks drawer that exposes every birthright

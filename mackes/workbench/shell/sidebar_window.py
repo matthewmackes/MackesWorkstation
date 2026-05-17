@@ -208,9 +208,13 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         def _f_tweaks():
             from mackes.workbench.system.tweaks_full import TweaksPanel
             return TweaksPanel()
+        def _f_boot():
+            from mackes.workbench.system.boot_login import BootLoginPanel
+            return BootLoginPanel()
         return _build_subnav_container([
             ("displays", "Screens", _f_displays),
             ("tweaks", "Tweaks", _f_tweaks),
+            ("boot_login", "Boot & Login", _f_boot),
             ("wm", "Window Manager", _f_wm),
             ("workspaces", "Workspaces", _f_ws),
             ("session", "Session & Startup", _f_session),
@@ -1121,6 +1125,7 @@ _LEGACY_KEY_MAP = {
     "wm": "system", "workspaces": "system", "session": "system",
     "notifications": "system", "default_apps": "system", "removable": "system",
     "datetime": "system", "displays": "system", "tweaks": "system",
+    "boot_login": "system",
     "apps_install": "apps", "apps_remove": "apps", "apps_installed": "apps",
     "app_sources": "app_sources",
     "drift": "maintain", "update": "maintain", "fonts": "maintain",
