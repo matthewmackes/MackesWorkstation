@@ -98,6 +98,24 @@ Cmnd_Alias MACKES_GATEWAY = \
 Cmnd_Alias MACKES_CURL = \
     /usr/bin/curl *
 
+# Headscale + Tailscale binaries (v1.4.3) — mesh fabric setup invokes
+# these as root to manage users, nodes, API keys, and the control-node
+# config in /etc/headscale/. Previously fell through to a pkexec prompt
+# storm; now NOPASSWD via this allowlist.
+Cmnd_Alias MACKES_HEADSCALE = \
+    /usr/bin/headscale *, \
+    /usr/sbin/headscale *
+
+Cmnd_Alias MACKES_TAILSCALE = \
+    /usr/bin/tailscale *, \
+    /usr/sbin/tailscale *
+
+# Headscale config file management — the wizard writes
+# /etc/headscale/config.yaml via `bash -c "mkdir -p /etc/headscale && cat > …"`.
+Cmnd_Alias MACKES_HEADSCALE_CONFIG = \
+    /usr/bin/tee /etc/headscale/*, \
+    /usr/bin/bash -c mkdir\ -p\ /etc/headscale*
+
 
 # --- The grant ------------------------------------------------------------
 
@@ -107,7 +125,10 @@ Cmnd_Alias MACKES_CURL = \
                             MACKES_NETWORK, \
                             MACKES_DESKTOP, \
                             MACKES_GATEWAY, \
-                            MACKES_CURL
+                            MACKES_CURL, \
+                            MACKES_HEADSCALE, \
+                            MACKES_TAILSCALE, \
+                            MACKES_HEADSCALE_CONFIG
 
 
 # --- Bash chunks Mackes shells out as a single command -------------------

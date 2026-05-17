@@ -133,11 +133,23 @@ def _run(cmd: list[str], *, timeout: int = 30, capture: bool = True) -> tuple[in
 
 
 def _pkexec_run(cmd: list[str], *, timeout: int = 60) -> tuple[int, str, str]:
-    if _have("pkexec"):
-        return _run(["pkexec", *cmd], timeout=timeout)
-    if _have("sudo"):
-        return _run(["sudo", *cmd], timeout=timeout)
-    return _run(cmd, timeout=timeout)
+    """Run a command with admin privileges.
+
+    v1.4.3: routes through AdminSession so the sudoers drop-in's
+    NOPASSWD coverage on headscale / tailscale / systemctl is honored.
+    Falls back to pkexec only when sudo isn't available at all.
+    """
+    try:
+        from mackes.admin_session import AdminSession
+        rc, out = AdminSession.instance().run(cmd, timeout=timeout)
+        return rc, out, ""
+    except Exception:  # noqa: BLE001
+        # Last-resort fallback to the legacy pkexec / sudo / raw chain.
+        if _have("pkexec"):
+            return _run(["pkexec", *cmd], timeout=timeout)
+        if _have("sudo"):
+            return _run(["sudo", *cmd], timeout=timeout)
+        return _run(cmd, timeout=timeout)
 
 
 # ---------------------------------------------------------------------------

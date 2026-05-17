@@ -3,6 +3,36 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.4.3 — Headscale + Tailscale prompt-storm hotfix (2026-05-17)
+
+The v1.4.2 sudoers drop-in eliminated the pkexec prompt storm for
+`dnf`, `systemctl`, and the other Mackes-managed commands — but
+**headscale** and **tailscale** invocations kept prompting because:
+
+  1. Those binaries weren't in the sudoers allowlist.
+  2. `mesh_vpn.py:_pkexec_run` was a legacy wrapper that always used
+     raw `pkexec` instead of routing through `AdminSession.run()` like
+     birthright / debloat / remote_desktop / caddy_gateway.
+
+Both fixed:
+
+* **Sudoers extended** — `data/sudoers.d/mackes-shell` gains three
+  new aliases: `MACKES_HEADSCALE`, `MACKES_TAILSCALE`, and
+  `MACKES_HEADSCALE_CONFIG` (covering `tee /etc/headscale/*` plus
+  the `bash -c "mkdir -p /etc/headscale && cat > …"` chunk the
+  wizard uses to write `config.yaml`). All NOPASSWD for the `wheel`
+  group. Validated by `visudo -c` in `%post`.
+
+* **`mesh_vpn.py:_pkexec_run` refactored** to route through
+  `AdminSession.instance().run(cmd)` — matches the v1.4.0 call-site
+  migration pattern. The sudoers NOPASSWD short-circuit fires and
+  the user never sees a polkit prompt during mesh setup. Falls back
+  to the legacy `pkexec` / `sudo` / raw chain only if AdminSession
+  is unimportable (paranoia path).
+
+`mesh_ssh.py` already used `_pkexec_run` for its `headscale policy
+set` call, so it inherits the fix automatically.
+
 ## 1.4.2 — Fedora 44 dep hotfix + fit-to-resolution windows (2026-05-17)
 
 **Fedora 44 dep hotfix.** `xorg-x11-utils` was renamed/split out of
