@@ -51,6 +51,8 @@ def build(ctx) -> Gtk.Widget:
     summary.append("  System update:       dnf upgrade -y --refresh (may take several minutes)")
     summary.append("  Third-party repos:   install fedora-workstation-repositories + RPM Fusion")
     summary.append("  Flathub:             add per-user Flathub flatpak remote")
+    summary.append("  Remote desktop:      xrdp + x11vnc + guacd + tomcat + Guacamole")
+    summary.append("                       (mesh-only; no Guacamole login)")
     summary.append("")
     if ctx.missing_packages:
         summary.append("WARNING: missing required binaries: " + ", ".join(ctx.missing_packages))

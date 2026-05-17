@@ -3,6 +3,75 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.2.0 — Mesh Remote Desktop (2026-05-17)
+
+Every Mackes node now ships browser-accessible remote desktop. Five
+design decisions locked via the 1.2.0 question survey:
+
+  1. Backends: **xrdp + x11vnc on every peer** (both protocols)
+  2. Topology: **every peer runs guacd + Guacamole**
+  3. Auth: **none on the mesh** (firewall + mesh CA are the trust)
+  4. Connection discovery: **Headscale roster auto + Mackes overrides**
+  5. Enablement: **birthright — always on**
+
+### What was added
+
+**9th birthright step** `apply_remote_desktop` in `mackes/birthright.py`:
+  - dnf install: xrdp, xrdp-selinux, x11vnc, guacd, tomcat, curl
+  - Downloads guacamole-1.6.0.war from the Apache archive into
+    /var/lib/tomcat/webapps/
+  - Installs the noauth extension jar at /etc/guacamole/extensions/
+  - Writes /etc/guacamole/guacamole.properties + a seed
+    /etc/guacamole/noauth-config.xml
+  - Installs an x11vnc@.service systemd template that binds to the
+    mesh IP only (live :0 mirror)
+  - Installs mackes-remote-sync.service (regenerates the noauth
+    connection list from the Headscale peer roster every 30s)
+  - Opens firewalld ports 3389 / 5900 / 8080 on the trusted zone only
+  - Enables + starts: xrdp, xrdp-sesman, x11vnc@:0, guacd, tomcat,
+    mackes-remote-sync
+
+**Connection sync** `mackes/remote_desktop.py`:
+  - `active_connections()` returns RDP + VNC entries per Headscale peer,
+    layered with `~/.config/mackes-shell/remote-overrides.json`
+    (favorite / hide / rename)
+  - `rebuild_connections()` writes /etc/guacamole/noauth-config.xml
+  - `sync_daemon_main()` is the systemd-managed polling loop
+  - CLI: `python -m mackes.remote_desktop --list / --rebuild / --daemon`
+
+**Caddy gateway** route added in `mackes/caddy_gateway.py`:
+  `https://media.mesh/desktop/  →  http://127.0.0.1:8080/guacamole/`
+
+**Mesh Remote panel** `mackes/workbench/network/remote_desktop.py` —
+a full first-class configuration GUI matching the Carbon panel
+patterns:
+  - Breadcrumb + page title + subtitle + live status Notification
+  - Local services grid (xrdp / x11vnc / guacd / tomcat)
+  - **Display sharing** tile: enable/disable x11vnc, X display picker,
+    view-only mode toggle
+  - **RDP server** tile: enable/disable xrdp, Xorg vs Xvnc backend,
+    max concurrent sessions
+  - **Gateway** tile: Tomcat toggle + Open-in-browser button + code
+    block showing the effective Caddy route
+  - **Connections** Carbon DataTable with per-row Favorite / Hide /
+    Rename buttons (Rename opens a Carbon Modal)
+  - **Auto-discovery** tile: sync interval (10-600s) + last-sync
+    timestamp display
+  - **Diagnostics** tile: `systemctl status` text for all five units +
+    Refresh button
+  - Persists per-user prefs to `~/.config/mackes-shell/remote-desktop.json`
+
+**Sidebar nav** gains a "Mesh Remote" entry under Network.
+
+**Wizard** apply pipeline is now 19 steps (added "Remote desktop"
+between Flathub and Mesh); review page lists the new step.
+
+### Spec requires
+
+The RPM now Requires xrdp / xrdp-selinux / x11vnc / guacd / tomcat /
+curl. The guacamole.war + noauth jar are fetched from the Apache
+archive at first-wizard-run; the RPM itself doesn't carry them.
+
 ## 1.1.1 — Carbon panel rebuilds (the rest of the design) (2026-05-17)
 
 Picks up where 1.1.0 left off — the seven panels that were deferred at

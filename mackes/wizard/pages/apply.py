@@ -11,7 +11,8 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from mackes.logging import log_action
 from mackes.birthright import (
     apply_apps, apply_dnf_update, apply_flathub, apply_fonts,
-    apply_panel_layout, apply_plymouth, apply_themes, apply_third_party_repos,
+    apply_panel_layout, apply_plymouth, apply_remote_desktop,
+    apply_themes, apply_third_party_repos,
 )
 from mackes.presets import (
     Preset, apply_appearance, apply_devices, apply_mesh, apply_network,
@@ -111,6 +112,7 @@ class ApplyPage(Gtk.Box):
             ("System update",     lambda: apply_dnf_update(merged)),
             ("Third-party repos", lambda: apply_third_party_repos(merged)),
             ("Flathub",           lambda: apply_flathub(merged)),
+            ("Remote desktop",    lambda: apply_remote_desktop(merged)),
             # ---------------------------------------------------------------
             ("Mesh",              lambda: apply_mesh(merged)),
             ("VPN import",     self._step_vpn),

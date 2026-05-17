@@ -90,6 +90,16 @@ def generate_caddyfile(hits: Iterable[ServiceHit]) -> str:
             f"    }}",
         ])
 
+    # ---- Remote desktop (v1.2.0 birthright) ---------------------------
+    # /desktop/ → local Tomcat-hosted Guacamole web app
+    lines.extend([
+        "",
+        "    # Remote desktop — local Guacamole web app",
+        "    handle_path /desktop/* {",
+        "        reverse_proxy http://127.0.0.1:8080/guacamole/",
+        "    }",
+    ])
+
     # Catch-all index page (lists discovered services)
     lines.extend([
         "",

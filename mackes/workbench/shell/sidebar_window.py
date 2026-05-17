@@ -163,6 +163,10 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         from mackes.workbench.network.firewall import FirewallPanel
         return _wrap_in_scroller(FirewallPanel())
 
+    def _remote_desktop():
+        from mackes.workbench.network.remote_desktop import RemoteDesktopPanel
+        return _wrap_in_scroller(RemoteDesktopPanel())
+
     def _apps():
         from mackes.workbench.apps.panel import AppsPanel
         return AppsPanel()
@@ -254,6 +258,7 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
             NavItem("mesh_vpn", "Mesh VPN", "network-server-symbolic", _mesh_vpn, badge="mesh"),
             NavItem("mesh_ssh", "Mesh SSH", "channel-secure-symbolic", _mesh_ssh),
             NavItem("mesh_services", "Mesh Services", "applications-internet-symbolic", _mesh_services),
+            NavItem("mesh_remote", "Mesh Remote", "video-display-symbolic", _remote_desktop),
             NavItem("firewall", "Firewall", "network-firewall-symbolic", _firewall),
         ]),
         NavGroup("Apps & Maintenance", [

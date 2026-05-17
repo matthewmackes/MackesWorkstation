@@ -3,7 +3,7 @@
 Each function is idempotent (safe to re-run via Maintain → Reset to Preset)
 and returns a `list[str]` of action lines for the wizard's apply page log.
 
-These are the eight "birthright" items the v1.1.0 wizard runs in addition
+These are the nine "birthright" items the v1.2.0 wizard runs in addition
 to the v1.0.x xfconf-only apply pipeline:
 
   1. apply_themes              — deploy PadOS GTK theme + Carbon icon theme files
@@ -14,8 +14,10 @@ to the v1.0.x xfconf-only apply pipeline:
   6. apply_dnf_update          — dnf upgrade -y --refresh (full system update)
   7. apply_third_party_repos   — install fedora-workstation-repositories (Chrome, RPM Fusion, etc.)
   8. apply_flathub             — add the Flathub flatpak remote (per-user)
+  9. apply_remote_desktop      — xrdp + x11vnc + guacd + tomcat + Guacamole web app
+                                  + mackes-remote-sync (Headscale→Guacamole config)
 
-All eight are wired into mackes/wizard/pages/apply.py between Panel and Mesh.
+All nine are wired into mackes/wizard/pages/apply.py between Panel and Mesh.
 """
 from __future__ import annotations
 
@@ -511,6 +513,196 @@ def _detect_fedora_version() -> str | None:
 # ---------------------------------------------------------------------------
 # 8. Flathub — add the per-user remote
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# 9. Remote desktop — xrdp + x11vnc + guacd + tomcat + Guacamole web
+# ---------------------------------------------------------------------------
+
+
+_GUACAMOLE_WAR_VERSION = "1.6.0"
+_GUACAMOLE_WAR_URL = (
+    f"https://archive.apache.org/dist/guacamole/{_GUACAMOLE_WAR_VERSION}/"
+    f"binary/guacamole-{_GUACAMOLE_WAR_VERSION}.war"
+)
+_TOMCAT_WEBAPPS  = Path("/var/lib/tomcat/webapps")
+_GUAC_ETC        = Path("/etc/guacamole")
+_NOAUTH_EXT_URL  = (
+    f"https://archive.apache.org/dist/guacamole/{_GUACAMOLE_WAR_VERSION}/"
+    f"binary/guacamole-auth-noauth-{_GUACAMOLE_WAR_VERSION}.tar.gz"
+)
+
+
+def apply_remote_desktop(_preset: Preset) -> List[str]:
+    """Install xrdp + x11vnc + guacd + tomcat + Guacamole web app.
+
+    Locks the noauth design path (Q3 v1.2.0): no Guacamole login screen,
+    mesh-firewall trust only. Connections are populated by mackes-remote-sync.
+    """
+    actions: List[str] = []
+    if shutil.which("dnf") is None:
+        actions.append("remote-desktop: dnf not available — skipping")
+        return actions
+
+    # ---- 1. Install Fedora packages ----------------------------------
+    fedora_pkgs = ["xrdp", "xrdp-selinux", "x11vnc", "guacd", "tomcat", "curl"]
+    missing = [p for p in fedora_pkgs if _run(["rpm", "-q", p])[0] != 0]
+    if missing:
+        actions.append(f"remote-desktop: installing {', '.join(missing)} via dnf")
+        rc, out = _run_root(["dnf", "install", "-y", *missing], timeout=900)
+        if rc != 0:
+            last = out.strip().splitlines()[-1] if out.strip() else f"rc={rc}"
+            actions.append(f"remote-desktop: dnf install failed: {last}")
+            return actions
+    else:
+        actions.append("remote-desktop: Fedora packages already installed")
+
+    # ---- 2. Download Guacamole web app (.war) ------------------------
+    war_target = _TOMCAT_WEBAPPS / "guacamole.war"
+    if war_target.exists() and war_target.stat().st_size > 1_000_000:
+        actions.append(f"remote-desktop: guacamole.war already at {war_target}")
+    else:
+        actions.append(f"remote-desktop: downloading guacamole-{_GUACAMOLE_WAR_VERSION}.war")
+        rc, out = _run_root(
+            ["curl", "-fsSL", _GUACAMOLE_WAR_URL, "-o", str(war_target)],
+            timeout=300,
+        )
+        if rc != 0:
+            actions.append(f"remote-desktop: download failed: rc={rc}")
+            return actions
+        _run_root(["chown", "tomcat:tomcat", str(war_target)])
+
+    # ---- 3. Download + install noauth extension ----------------------
+    ext_dir = _GUAC_ETC / "extensions"
+    noauth_jar = ext_dir / f"guacamole-auth-noauth-{_GUACAMOLE_WAR_VERSION}.jar"
+    if noauth_jar.exists():
+        actions.append("remote-desktop: noauth extension already installed")
+    else:
+        actions.append("remote-desktop: installing noauth extension")
+        _run_root(["mkdir", "-p", str(ext_dir)])
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            tar_path = Path(td) / "noauth.tar.gz"
+            rc, _ = _run(["curl", "-fsSL", _NOAUTH_EXT_URL,
+                          "-o", str(tar_path)], timeout=120)
+            if rc != 0:
+                actions.append("remote-desktop: noauth extension download failed")
+                return actions
+            _run(["tar", "xzf", str(tar_path), "-C", td])
+            # The tarball contains a jar at guacamole-auth-noauth-<ver>/*.jar
+            for jar in Path(td).rglob("*.jar"):
+                _run_root(["cp", str(jar), str(noauth_jar)])
+                break
+
+    # ---- 4. /etc/guacamole config ------------------------------------
+    actions.append("remote-desktop: writing /etc/guacamole config")
+    _run_root(["mkdir", "-p", str(_GUAC_ETC), str(ext_dir)])
+    props = (
+        "# Mackes Shell — Guacamole config (v1.2.0 birthright)\n"
+        "# noauth: no Guacamole login; mesh firewall + private CA are the trust.\n"
+        "guacd-hostname: 127.0.0.1\n"
+        "guacd-port:     4822\n"
+        "noauth-config:  /etc/guacamole/noauth-config.xml\n"
+    )
+    _write_root_file(_GUAC_ETC / "guacamole.properties", props)
+
+    # Seed the connection list before the sync daemon takes over
+    try:
+        from mackes.remote_desktop import render_noauth_xml, active_connections
+        seed_xml = render_noauth_xml(active_connections())
+    except Exception:  # noqa: BLE001
+        seed_xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                    '<user-mapping>\n  <authorize username="" password=""/>\n'
+                    '</user-mapping>\n')
+    _write_root_file(_GUAC_ETC / "noauth-config.xml", seed_xml)
+
+    # ---- 5. systemd services + x11vnc@:0 template --------------------
+    actions.append("remote-desktop: writing x11vnc@.service template")
+    x11vnc_unit = (
+        "[Unit]\n"
+        "Description=x11vnc mirror of X display %i (mesh-only bind)\n"
+        "After=display-manager.service\n"
+        "Wants=display-manager.service\n"
+        "\n"
+        "[Service]\n"
+        # Bind to the mesh IP only — falls back to localhost if mesh not up.
+        # The active display owner (DISPLAY :0) is read via X11 cookie.
+        "ExecStart=/usr/bin/x11vnc -display %i -auth guess -forever "
+        "-shared -rfbport 5900 -noxdamage -nopw "
+        "-listen ${MESH_BIND:-127.0.0.1}\n"
+        "Environment=MESH_BIND=127.0.0.1\n"
+        "Restart=on-failure\n"
+        "RestartSec=5\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=graphical.target\n"
+    )
+    _write_root_file(Path("/etc/systemd/system/x11vnc@.service"), x11vnc_unit)
+
+    # mackes-remote-sync.service — regenerate Guacamole config every 30s
+    sync_unit = (
+        "[Unit]\n"
+        "Description=Mackes Shell — sync Headscale peers to Guacamole config\n"
+        "After=network-online.target headscale.service\n"
+        "\n"
+        "[Service]\n"
+        "Type=simple\n"
+        "ExecStart=/usr/bin/python3 -m mackes.remote_desktop --daemon\n"
+        "Restart=on-failure\n"
+        "RestartSec=10\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+    )
+    _write_root_file(Path("/etc/systemd/system/mackes-remote-sync.service"),
+                     sync_unit)
+
+    _run_root(["systemctl", "daemon-reload"])
+
+    # ---- 6. Firewall — open ports on the mesh-trusted zone only ------
+    if shutil.which("firewall-cmd"):
+        actions.append("remote-desktop: opening firewall ports on mesh-trusted zone")
+        for port in ("3389/tcp", "5900/tcp", "8080/tcp"):
+            _run_root([
+                "firewall-cmd", "--permanent",
+                "--zone=trusted", f"--add-port={port}",
+            ])
+        _run_root(["firewall-cmd", "--reload"])
+
+    # ---- 7. Enable + start ------------------------------------------
+    actions.append("remote-desktop: enabling + starting daemons")
+    for unit in ("xrdp.service", "xrdp-sesman.service",
+                 "x11vnc@:0.service", "guacd.service",
+                 "tomcat.service", "mackes-remote-sync.service"):
+        rc, _ = _run_root(["systemctl", "enable", "--now", unit], timeout=60)
+        if rc == 0:
+            actions.append(f"  {unit}: enabled + started")
+        else:
+            actions.append(f"  {unit}: enable failed (rc={rc})")
+
+    actions.append(
+        "remote-desktop: ready — open https://media.mesh/desktop/ "
+        "on any peer to access the connection picker"
+    )
+    for line in actions:
+        log_action(line)
+    return actions
+
+
+def _write_root_file(path: Path, content: str) -> None:
+    """Write `content` to `path` with root privileges."""
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".tmp", delete=False) as tf:
+        tf.write(content)
+        tmp_path = tf.name
+    try:
+        _run_root(["mkdir", "-p", str(path.parent)])
+        _run_root(["install", "-m", "0644", tmp_path, str(path)])
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
 
 def apply_flathub(_preset: Preset) -> List[str]:

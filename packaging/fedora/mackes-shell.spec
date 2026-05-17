@@ -5,7 +5,7 @@
 %global debug_package %{nil}
 
 Name:           mackes-shell
-Version:        1.1.1
+Version:        1.2.0
 Release:        1%{?dist}
 Summary:        Mackes Shell — XFCE control panel and shell manager for Fedora
 
@@ -56,6 +56,17 @@ Requires:       plymouth-scripts
 
 # Flatpak — birthright wizard adds the Flathub remote per-user
 Recommends:     flatpak
+
+# Remote desktop birthright (v1.2.0) — every node serves xrdp + x11vnc and
+# runs a local Tomcat-hosted Guacamole web app behind the Caddy gateway.
+# The web .war is fetched from the Apache archive during the wizard's
+# Remote desktop step (not vendored to keep the RPM size sane).
+Requires:       xrdp
+Requires:       xrdp-selinux
+Requires:       x11vnc
+Requires:       guacd
+Requires:       tomcat
+Requires:       curl
 
 # Mesh fabric (§8.11–§8.14): WireGuard via Tailscale + self-hosted Headscale
 Requires:       tailscale
