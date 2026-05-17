@@ -16,7 +16,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from mackes.workbench._common import info_label, panel_box, section_header, title_label
+from mackes.workbench._common import info_label, panel_box, section_description, section_header, title_label
 
 
 _REFRESH_MS = 1500
@@ -124,9 +124,12 @@ class ResourcesPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Resources"), False, False, 0)
         box.pack_start(info_label(
-            "CPU, memory, and root-filesystem usage. Refreshes every 1.5 s "
-            "while this panel is visible. For deeper process inspection, "
-            "use htop or btop."
+            "A live look at how busy your machine is — how much "
+            "processor, memory, and disk space you're using right now."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Updates a couple of times per second. If a number stays "
+            "near 100%, something heavy is running."
         ), False, False, 0)
 
         box.pack_start(section_header("Live"), False, False, 0)

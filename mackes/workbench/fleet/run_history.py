@@ -67,6 +67,13 @@ def _section_title(text: str, *, meta: str = "") -> Gtk.Widget:
     return row
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 # ---- panel ----------------------------------------------------------------
 
 
@@ -87,8 +94,13 @@ class FleetRunHistoryPanel(Gtk.Box):
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Run history"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Every ansible-pull (timer-driven) and ansible-playbook (ad-hoc "
-            "push) run across the mesh. Records auto-prune after 30 days."
+            "Every playbook that ran on every peer, with whether it "
+            "succeeded and what it changed. Click a row for the full "
+            "report."
+        ), False, False, 0)
+        outer.pack_start(_section_description(
+            "Old records are cleaned up after 30 days to keep things "
+            "tidy."
         ), False, False, 0)
 
         # Top stats

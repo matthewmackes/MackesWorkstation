@@ -102,8 +102,9 @@ class MaintainHub(Gtk.Box):
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Maintain"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Snapshots, drift, repair, logs, and reset paths. Mackes never "
-            "auto-modifies; every change runs from here."
+            "Tools for keeping your machine healthy: back up your "
+            "settings, install updates, see what's running, and undo "
+            "anything that goes wrong."
         ), False, False, 0)
 
         # 12-tile grid (3 cols)

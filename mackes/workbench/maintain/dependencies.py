@@ -16,7 +16,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -78,10 +78,13 @@ class DependenciesPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Dependencies"), False, False, 0)
         box.pack_start(info_label(
-            "Required and recommended Fedora packages for Mackes Shell. "
-            "Missing required packages prevent panels from working; missing "
-            "recommended ones disable specific features (theme/font defaults, "
-            "firewall, audio device picker)."
+            "Extra system packages Mackes needs to do its job. Missing "
+            "ones turn off the panels they power."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Required items are mandatory — install those first. "
+            "Recommended ones unlock specific features like firewall "
+            "tools or the audio device picker."
         ), False, False, 0)
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)

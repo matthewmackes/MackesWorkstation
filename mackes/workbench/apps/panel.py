@@ -115,6 +115,13 @@ def _tag(text: str, kind: str = "neutral") -> Gtk.Widget:
     return lab
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 # ---- main panel -----------------------------------------------------------
 
 
@@ -136,8 +143,13 @@ class AppsPanel(Gtk.Box):
         outer.pack_start(_page_title("Apps"), False, False, 0)
         n_installed = sum(1 for app in CATALOG.values() if _is_installed(app))
         outer.pack_start(_page_subtitle(
-            f"Curated app catalog per preset. Install, remove, and inspect "
-            f"the {n_installed} packages currently on this machine."
+            f"Install or remove apps from the Mackes catalog. You "
+            f"currently have {n_installed} apps installed."
+        ), False, False, 0)
+        outer.pack_start(_section_description(
+            "Use the tabs below to switch between installing new apps, "
+            "removing pre-installed bloat, and reviewing what's already "
+            "on your machine."
         ), False, False, 0)
 
         # ---- Tabs ----

@@ -27,8 +27,8 @@ class NotificationsPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Notifications"), False, False, 0)
         box.pack_start(info_label(
-            "Notification banner appearance and behavior. Backed by the "
-            "xfce4-notifyd channel."
+            "Where pop-up notifications appear on your screen, how "
+            "long they stick around, and how transparent they look."
         ), False, False, 0)
 
         try:

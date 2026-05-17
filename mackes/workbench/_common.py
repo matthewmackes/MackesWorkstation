@@ -119,3 +119,18 @@ def title_label(text: str) -> Gtk.Widget:
     ctx.add_class("title-2")
     ctx.add_class("mackes-panel-title")
     return lbl
+
+
+def section_description(text: str) -> Gtk.Widget:
+    """Plain-language explainer that sits above a section's content.
+
+    Mirrors `.mackes-section-description` in carbon-layout.css. Two
+    sentences max, written at a 9th-grade reading level, describing
+    what the section does in user terms — never a technical caption.
+    """
+    lbl = Gtk.Label(label=text)
+    lbl.set_xalign(0)
+    lbl.set_line_wrap(True)
+    ctx = lbl.get_style_context()
+    ctx.add_class("mackes-section-description")
+    return lbl

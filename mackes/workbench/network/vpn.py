@@ -15,7 +15,7 @@ from gi.repository import Gtk, GLib  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -59,8 +59,13 @@ class VpnPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("VPN"), False, False, 0)
         box.pack_start(info_label(
-            "NetworkManager VPN connections. Import .ovpn (OpenVPN) or .conf "
-            "(WireGuard) files; activate from the list."
+            "Connect to a private network through a third-party VPN. "
+            "Import a config file you got from your VPN provider, then "
+            "switch it on or off here."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "This is for commercial or work VPNs (OpenVPN, WireGuard). "
+            "For Mackes' own mesh, use the Mesh VPN panel instead."
         ), False, False, 0)
 
         if not _nmcli("--version"):

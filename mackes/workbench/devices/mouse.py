@@ -31,8 +31,9 @@ class MousePanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Mouse & Touchpad"), False, False, 0)
         box.pack_start(info_label(
-            "Pointer acceleration, double-click timing, and per-device toggles "
-            "(xfconf: pointers channel)."
+            "How fast your cursor moves, how forgiving double-click "
+            "timing is, and whether to enable any extras on each "
+            "pointing device."
         ), False, False, 0)
 
         try:

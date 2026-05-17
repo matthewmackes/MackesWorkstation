@@ -14,7 +14,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.state import LOG_DIR
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -58,8 +58,13 @@ class LogsPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Logs"), False, False, 0)
         box.pack_start(info_label(
-            "Mackes log and the user xfsettingsd journal. Tails the last "
-            f"{TAIL_LINES} lines of each. Auto-refreshes every 2 seconds."
+            "Recent activity from Mackes and your desktop settings "
+            "service. Useful when something went wrong and you want to "
+            "see why."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            f"Shows the last {TAIL_LINES} lines of each log and "
+            "refreshes itself every couple of seconds."
         ), False, False, 0)
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)

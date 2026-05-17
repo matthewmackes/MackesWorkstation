@@ -9,7 +9,7 @@ from gi.repository import Gtk, GLib  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_header, title_label,
+    info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -61,7 +61,13 @@ class FirewallPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Firewall"), False, False, 0)
         box.pack_start(info_label(
-            "firewalld zone and allowed services. Changes require sudo and may prompt."
+            "Control what other computers are allowed to reach on this "
+            "machine. The firewall blocks everything by default — flip "
+            "on only the services you trust."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Changes need an admin password. If unsure, leave the "
+            "default settings — they're safe for most home networks."
         ), False, False, 0)
 
         if not _fw("--version"):

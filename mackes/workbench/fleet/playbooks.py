@@ -74,6 +74,13 @@ def _tag(text: str, kind: str = "neutral") -> Gtk.Widget:
     return lab
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _format_age(ts: Optional[float]) -> str:
     if ts is None:
         return "never"
@@ -101,9 +108,13 @@ class FleetPlaybooksPanel(Gtk.Box):
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Playbooks"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Curated Ansible roles, replicated across the mesh via "
-            "QNM-Shared/.qnm-sync/playbooks/. Edit any tasks/main.yml in "
-            "your preferred editor — changes propagate automatically."
+            "Ready-made scripts that configure your mesh peers. Run "
+            "one against a peer to apply its changes, or edit the "
+            "underlying file to customize what it does."
+        ), False, False, 0)
+        outer.pack_start(_section_description(
+            "Playbooks live in a shared folder visible to every peer, "
+            "so an edit on one machine reaches them all."
         ), False, False, 0)
 
         # Top notification — playbook source location

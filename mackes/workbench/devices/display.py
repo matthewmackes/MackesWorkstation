@@ -41,8 +41,9 @@ class DisplayPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Display"), False, False, 0)
         box.pack_start(info_label(
-            "Monitor arrangement is handled by the X server. Mackes shows the active "
-            "layout and exposes the xfconf-backed preferences here."
+            "See which monitors are plugged in, and pick how much "
+            "windows and text should scale up on a high-resolution "
+            "screen."
         ), False, False, 0)
 
         try:

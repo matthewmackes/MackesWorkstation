@@ -23,7 +23,8 @@ class WorkspacesPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Workspaces"), False, False, 0)
         box.pack_start(info_label(
-            "Number of virtual workspaces and switching behavior."
+            "Virtual desktops let you spread out your windows. Choose "
+            "how many you want and how to switch between them."
         ), False, False, 0)
 
         try:

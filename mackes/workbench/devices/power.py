@@ -24,7 +24,8 @@ class PowerPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Power"), False, False, 0)
         box.pack_start(info_label(
-            "Power profile, lid-close behavior, idle suspend timers."
+            "What should happen when you close the laptop lid or step "
+            "away, and which power profile to keep."
         ), False, False, 0)
 
         try:

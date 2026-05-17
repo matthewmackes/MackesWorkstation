@@ -65,6 +65,13 @@ def _section_title(text: str, *, meta: str = "") -> Gtk.Widget:
     return row
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _tag(text: str, kind: str = "neutral") -> Gtk.Widget:
     lab = Gtk.Label(label=text)
     lab.get_style_context().add_class("mackes-tag")
@@ -90,10 +97,13 @@ class DebloatPanel(Gtk.Box):
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Debloat levels"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Five tiers of XFCE-desktop slimming. Each tier is cumulative — "
-            "applying L3 means L1 + L2 + L3 packages all come off. Each "
-            "package removal is idempotent and fully reversible via "
-            "`dnf install <pkg>` afterwards."
+            "Strip out the apps and helpers Fedora ships with that you "
+            "probably don't use. Pick a level to see exactly what comes "
+            "off before you commit."
+        ), False, False, 0)
+        outer.pack_start(_section_description(
+            "Higher levels remove more. Anything you remove can be put "
+            "back later with one command — nothing here is permanent."
         ), False, False, 0)
 
         # Warning notification — this is destructive

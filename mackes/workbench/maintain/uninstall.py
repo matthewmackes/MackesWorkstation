@@ -14,7 +14,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.uninstall import run_uninstall, schedule_logout
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -38,14 +38,16 @@ class UninstallPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Uninstall Mackes Shell"), False, False, 0)
         warn = info_label(
-            "This removes Mackes Shell and every change it made to your "
-            "system. A pre-uninstall snapshot will be written to "
-            "~/Desktop/ as a tarball — that is the only artifact you can "
-            "restore from. The standard XFCE shell (xfce4-panel, xfdesktop, "
-            "Whisker Menu, etc.) keeps running afterwards."
+            "Remove Mackes Shell and undo every change it made to your "
+            "system. Your regular XFCE desktop will keep working "
+            "afterwards."
         )
         warn.get_style_context().add_class("warning")
         box.pack_start(warn, False, False, 0)
+        box.pack_start(section_description(
+            "A backup tarball will land on your Desktop before anything "
+            "is removed — keep it if you might want Mackes back."
+        ), False, False, 0)
 
         box.pack_start(section_header("Plan"), False, False, 0)
         for line in _PLAN_LINES:

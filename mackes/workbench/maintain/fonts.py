@@ -22,7 +22,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_header, title_label,
+    info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -65,9 +65,12 @@ class FontsPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Fonts"), False, False, 0)
         box.pack_start(info_label(
-            "Browse installed fonts with a live preview, or install a few "
-            "curated favorites with one click. Files placed in "
-            "~/.local/share/fonts/ are picked up after rebuilding fc-cache."
+            "See every font on your machine with a live preview, or "
+            "install popular extras with one click."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Newly added font files go into ~/.local/share/fonts/. "
+            "Mackes rebuilds the font cache for you."
         ), False, False, 0)
 
         # ---- Browse ---------------------------------------------------

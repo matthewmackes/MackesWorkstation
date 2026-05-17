@@ -18,7 +18,7 @@ from mackes.mesh_vpn import (
     generate_join_link, tailscale_status,
 )
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -32,10 +32,14 @@ class MeshVpnPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Mesh VPN"), False, False, 0)
         box.pack_start(info_label(
-            "Self-hosted Headscale control plane + Tailscale clients. "
-            "Cross-network peers find the mesh via the Tailscale-bootstrap "
-            "presence (only the seed peer is registered there). Up to 16 "
-            "peers per mesh."
+            "Your private network. Up to 16 of your computers can talk "
+            "to each other through Mackes, even when they're on "
+            "different Wi-Fi networks or behind home routers."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "The mesh keeps your traffic between machines off the open "
+            "internet. New peers join by scanning a one-time link from "
+            "an existing peer."
         ), False, False, 0)
 
         # ---- Status tile ----

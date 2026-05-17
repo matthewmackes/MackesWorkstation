@@ -17,7 +17,7 @@ from mackes.state import (
     HOME, LOG_DIR, SNAPSHOT_DIR, have, service_health,
 )
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -97,8 +97,12 @@ class HealthCheckPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Health Check"), False, False, 0)
         box.pack_start(info_label(
-            "Combined preflight and validate. Each check classifies a "
-            "dependency, service or path as ok / warn / fail."
+            "Runs a series of safety checks on your machine. Click Run "
+            "all checks and see anything that needs fixing."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Green is good. Yellow is a warning — usually harmless. Red "
+            "means something needs your attention."
         ), False, False, 0)
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)

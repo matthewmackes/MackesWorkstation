@@ -20,7 +20,7 @@ from gi.repository import Gtk  # noqa: E402
 from mackes.logging import log_action
 from mackes.state import HOME
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_header, title_label,
+    info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -129,9 +129,12 @@ class DefaultAppsPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Default Apps"), False, False, 0)
         box.pack_start(info_label(
-            "Pick the application for each MIME category. Writes to "
-            "~/.config/mimeapps.list (XDG standard). Discovers installed handlers "
-            "from system and user .desktop files."
+            "Choose which app opens when you double-click a web link, "
+            "image, video, or other file type."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Only apps already installed on your machine show up here. "
+            "Install new ones from the Apps panel."
         ), False, False, 0)
 
         handlers = _discover_handlers()

@@ -10,7 +10,7 @@ from gi.repository import Gtk, GLib  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -52,7 +52,12 @@ class WifiPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Wi-Fi & Ethernet"), False, False, 0)
         box.pack_start(info_label(
-            "Status from NetworkManager. Connect/disconnect via nmcli."
+            "Pick a Wi-Fi network to join, or see which wired or "
+            "wireless connections are active right now."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Mackes uses your system's network manager under the hood. "
+            "Changes here apply the moment you click."
         ), False, False, 0)
 
         if not _nmcli("--version"):

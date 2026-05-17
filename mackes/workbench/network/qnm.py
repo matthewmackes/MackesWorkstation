@@ -11,7 +11,7 @@ from gi.repository import Gtk, GLib  # noqa: E402
 
 from mackes import qnm_bridge
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_header, title_label,
+    info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -24,8 +24,13 @@ class QnmPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Quick Network Mesh"), False, False, 0)
         box.pack_start(info_label(
-            "QNM is a standalone daemon. Mackes proxies the controls — start/stop/restart "
-            "and a launcher for the QNM GUI."
+            "Run, stop, and check on the QNM background helper. "
+            "QNM has its own window — Mackes just makes it easy to "
+            "reach from here."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Most people won't need this panel. Open the QNM window "
+            "below to actually use QNM."
         ), False, False, 0)
 
         if not qnm_bridge.have_qnm():

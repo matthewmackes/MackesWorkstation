@@ -80,6 +80,14 @@ def _section_title(text: str) -> Gtk.Widget:
     return head
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    """Plain-language explainer below a section title."""
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _stat_tile(label: str, value: str, foot: str = "", *,
                accent: bool = False) -> Gtk.Widget:
     """Match docs/design/.../tokens.css .stat-tile."""
@@ -176,12 +184,21 @@ class DashboardView(Gtk.Box):
             "Everything you control today."
         )
         self._inner.pack_start(_page_subtitle(sub), False, False, 0)
+        self._inner.pack_start(_section_description(
+            "This page shows how healthy your machine is at a glance. "
+            "Green means everything is working; yellow or red means "
+            "something needs your attention."
+        ), False, False, 0)
 
         # ---- Stat tiles row -------------------------------------------
         self._inner.pack_start(self._stat_row(), False, False, 0)
 
         # ---- Service health grid --------------------------------------
         self._inner.pack_start(_section_title("Service health"), False, False, 0)
+        self._inner.pack_start(_section_description(
+            "The background programs your machine needs to stay healthy. "
+            "If any are stopped, related panels won't work right."
+        ), False, False, 0)
         self._inner.pack_start(self._service_grid(), False, False, 0)
 
         # ---- Drift (conditional notification) -------------------------
@@ -191,14 +208,24 @@ class DashboardView(Gtk.Box):
 
         # ---- Hardware -------------------------------------------------
         self._inner.pack_start(_section_title("This machine"), False, False, 0)
+        self._inner.pack_start(_section_description(
+            "A quick look at the hardware Mackes is running on."
+        ), False, False, 0)
         self._inner.pack_start(self._hardware_grid(), False, False, 0)
 
         # ---- Quick actions --------------------------------------------
         self._inner.pack_start(_section_title("Quick actions"), False, False, 0)
+        self._inner.pack_start(_section_description(
+            "Shortcuts to the panels you'll reach for most often."
+        ), False, False, 0)
         self._inner.pack_start(self._quick_actions(), False, False, 0)
 
         # ---- Recent activity ------------------------------------------
         self._inner.pack_start(_section_title("Recent activity"), False, False, 0)
+        self._inner.pack_start(_section_description(
+            "The last few things Mackes did on your behalf — useful when "
+            "you're tracking down what changed."
+        ), False, False, 0)
         self._inner.pack_start(self._recent_actions(), False, False, 0)
 
         self._inner.show_all()

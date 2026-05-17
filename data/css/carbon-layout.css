@@ -76,17 +76,24 @@
     min-width: 256px;
 }
 
+/* Sidebar group — subtle elevation lifts each navigation group off
+ * the sidebar surface (Carbon UI Shell pattern). Active groups gain
+ * a right-edge accent via the .mackes-side-nav-item.active styling.
+ */
 .mackes-side-nav-group-title {
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: @cds_text_helper;
-    padding: 4px 16px;
+    padding: 12px 16px 4px 16px;
+    background-color: @cds_bg_layer_01;
+    border-top: 1px solid @cds_border_subtle_00;
+    border-bottom: 1px solid @cds_border_subtle_00;
 }
 
 .mackes-side-nav-item {
-    background-color: transparent;
+    background-color: @cds_bg_layer_01;
     border: none;
     border-left: 3px solid transparent;
     border-radius: 0;
@@ -109,9 +116,10 @@
 
 .mackes-side-nav-item.active,
 .mackes-side-nav-item:checked {
-    background-color: @cds_bg_layer_01;
+    background-color: @cds_bg_layer_02;
     color: @cds_text_primary;
     border-left-color: @mackes_accent;
+    border-right: 1px solid @mackes_accent_dim;
 }
 
 .mackes-side-nav-item.active label,
@@ -132,9 +140,12 @@
    Shell — status bar
    ========================================================================= */
 
+/* Status strip — distinct from the page background so the live mesh /
+ * service / sshd / drift counters read as their own zone rather than
+ * floating in the content. */
 .mackes-status-bar {
-    background-color: @cds_bg_default;
-    border-top: 1px solid @cds_border_subtle_00;
+    background-color: @cds_bg_layer_01;
+    border-top: 1px solid @cds_border_subtle_01;
     min-height: 24px;
     padding: 0 16px;
     font-family: "IBM Plex Mono", monospace;
@@ -177,6 +188,21 @@
     margin-bottom: 24px;
 }
 
+/* Plain-language explainer that sits above a panel or under a section
+ * title. Reads as supporting copy — slightly larger than helper text,
+ * dimmer than the page title, with a left-edge accent rail so the user
+ * registers it as guidance, not as content.
+ */
+.mackes-section-description {
+    font-size: 14px;
+    line-height: 20px;
+    color: @cds_text_secondary;
+    background-color: @cds_bg_layer_01;
+    border-left: 2px solid @mackes_accent_soft;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+}
+
 .mackes-breadcrumb {
     font-size: 12px;
     color: @cds_text_helper;
@@ -187,9 +213,15 @@
    Carbon components — Tile / Stat tile / Tag / Data table / Modal / Code
    ========================================================================= */
 
+/* Stat tile — Carbon's standard data tile. v1.6.2 visual hierarchy
+ * adds a thin border + 4px radius so each tile reads as its own card
+ * against the page surface, rather than as a flush background block.
+ */
 .mackes-stat-tile {
     background-color: @cds_bg_layer_01;
-    border-bottom: 2px solid transparent;
+    border: 1px solid @cds_border_subtle_00;
+    border-bottom: 2px solid @cds_border_subtle_00;
+    border-radius: 4px;
     padding: 16px;
 }
 
@@ -233,10 +265,24 @@
 .mackes-tag.neutral { background-color: @cds_bg_layer_02;        color: @cds_text_secondary; }
 
 
-/* DataTable */
+/* DataTable — gets a visible border + radius and gentle alternating
+ * row backgrounds so each row reads as a distinct entry instead of a
+ * flush list.
+ */
 .mackes-dt {
     background-color: @cds_bg_layer_01;
     border: 1px solid @cds_border_subtle_00;
+    border-radius: 4px;
+}
+
+/* GTK TreeView fallback for striped rows — Gtk.TreeView responds to
+ * .cell:nth-child if rules-hint is on; our DataTable widget instead
+ * relies on the listbox-style stripe below. */
+.mackes-dt row:nth-child(even) {
+    background-color: @cds_bg_layer_02;
+}
+.mackes-dt row:nth-child(odd) {
+    background-color: @cds_bg_layer_01;
 }
 
 .mackes-dt-toolbar {
@@ -272,11 +318,16 @@
 .mackes-dt row:selected { background-color: @mackes_accent_soft; color: @cds_text_primary; }
 
 
-/* Notification panel */
+/* Notification panel — borders all four sides plus a left accent rail
+ * give it a proper card silhouette. */
 .mackes-notif {
     background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
     border-left: 3px solid @mackes_accent;
+    border-radius: 4px;
     padding: 16px;
+    margin-top: 8px;
+    margin-bottom: 8px;
 }
 
 .mackes-notif.info    { border-left-color: @cds_support_info; }
@@ -440,9 +491,14 @@
 }
 .mackes-tweaks-button:hover { background-color: @cds_layer_hover_02; }
 
+/* Floating Tweaks drawer — reads as an actual elevated surface, not
+ * a flush panel. Uses bg_layer_02 (one step lighter than the cards
+ * around it) plus a stronger border and radius to lift it off the
+ * content. */
 .mackes-tweaks-drawer {
-    background-color: @cds_bg_layer_01;
-    border: 1px solid @cds_border_subtle_01;
+    background-color: @cds_bg_layer_02;
+    border: 1px solid @cds_border_subtle_02;
+    border-radius: 4px;
     min-width: 280px;
     padding: 16px;
 }
@@ -456,16 +512,20 @@
 }
 
 
-/* App store card */
+/* App store card / Maintain-hub tile — gains a visible border + radius
+ * + a brighter accent rail on hover so the user always sees which tile
+ * is under the pointer.
+ */
 .mackes-app-card {
     background-color: @cds_bg_layer_01;
-    border: 1px solid transparent;
+    border: 1px solid @cds_border_subtle_00;
+    border-radius: 4px;
     padding: 16px;
 }
 
 .mackes-app-card:hover {
     background-color: @cds_layer_hover_01;
-    border-color: @cds_border_subtle_01;
+    border-color: @mackes_accent_dim;
 }
 
 .mackes-app-icon {

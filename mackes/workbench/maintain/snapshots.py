@@ -70,6 +70,13 @@ def _section_title(text: str, *, meta: str = "") -> Gtk.Widget:
     return row
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _dir_size_bytes(path) -> int:
     total = 0
     try:
@@ -111,13 +118,17 @@ class SnapshotsPanel(Gtk.Box):
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Snapshots"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Restore points capture your live config (xfconf channels + "
-            "xfce4-panel + theme stack + mesh state + ~/.config/mackes-shell/) "
-            "into a timestamped directory. Take a snapshot before risky changes."
+            "A snapshot is a saved copy of your settings. Take one "
+            "before you change something risky, so you can roll back "
+            "if it goes wrong."
         ), False, False, 0)
 
         # ---- Create section ----
         outer.pack_start(_section_title("Create"), False, False, 0)
+        outer.pack_start(_section_description(
+            "Give the snapshot an optional name (so future-you knows "
+            "why you took it) and click Create."
+        ), False, False, 0)
         create_tile = Tile()
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._label = Gtk.Entry()
@@ -145,6 +156,10 @@ class SnapshotsPanel(Gtk.Box):
         # ---- Existing section ----
         self._snap_meta = _section_title("Existing", meta="loading…")
         outer.pack_start(self._snap_meta, False, False, 0)
+        outer.pack_start(_section_description(
+            "Every snapshot you've taken, newest first. Click Restore "
+            "to roll your settings back to that point."
+        ), False, False, 0)
 
         self._table = DataTable(
             columns=[

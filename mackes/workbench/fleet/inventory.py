@@ -77,6 +77,13 @@ def _tag(text: str, kind: str = "neutral") -> Gtk.Widget:
     return lab
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _format_age(ts: Optional[float]) -> str:
     if ts is None:
         return "never"
@@ -108,9 +115,13 @@ class FleetInventoryPanel(Gtk.Box):
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Inventory"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Every peer in the mesh and its fleet-management posture. "
-            "Each peer runs ansible-pull on a 30-min timer; this panel adds "
-            "ad-hoc SSH-push to selected peers for one-off runs."
+            "Every computer in your mesh and how it's doing. Select "
+            "one or more to run a playbook on them right now."
+        ), False, False, 0)
+        outer.pack_start(_section_description(
+            "Peers automatically check for new settings every 30 "
+            "minutes. Use the buttons here to push out changes "
+            "immediately."
         ), False, False, 0)
 
         # ---- Live status notification ----

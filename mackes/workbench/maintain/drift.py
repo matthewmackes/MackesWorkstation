@@ -28,7 +28,7 @@ from mackes.presets import (
 )
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 from mackes.xfconf_bridge import XfconfError, get_bridge
 
@@ -48,9 +48,14 @@ class DriftPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Drift"), False, False, 0)
         box.pack_start(info_label(
-            "Where your live system differs from the active preset. Use the "
-            "buttons to bring them back into alignment, or to record a "
-            "deliberate change as the new contract."
+            "Settings on your machine that no longer match your chosen "
+            "preset. Roll them back to match, or keep them as your new "
+            "default."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Most drift is harmless — you tweaked something on purpose. "
+            "Big drift lists usually mean an app changed a setting "
+            "behind your back."
         ), False, False, 0)
 
         box.pack_start(section_header("Divergences"), False, False, 0)

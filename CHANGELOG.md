@@ -3,7 +3,24 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.6.2 — Conky HUD perf + panel snapshot + Get Online + Screens (unreleased)
+## 1.6.2 — Conky perf + panel snapshot + Get Online + Screens + GUI refresh (unreleased)
+
+**GUI distinctiveness + plain-language explainers.** The Carbon
+surface gained subtle elevation everywhere it was previously flush:
+sidebar nav groups + items lift onto `@cds_bg_layer_01` with a
+right-edge accent rail on the active item; stat tiles, app cards, and
+DataTable rows get 1px `@cds_border_subtle_00` borders with hover
+states; the Tweaks drawer floats on `@cds_bg_layer_02`; notifications
+read as cards instead of banners. A new `.mackes-section-description`
+class (background layer-01, left rail `@mackes_accent_soft`, 14/20
+muted body) styles short 9th-grade-level explainers that every major
+panel now carries above its first section. Tone is second-person,
+present-tense, mentioning the user's intent first and the mechanism
+second. Helper added: `mackes.workbench._common.section_description()`.
+Affects ~40 panels across `dashboard`, `apps`, `fleet`, `devices`,
+`look_and_feel`, `maintain`, `network`, `system`.
+
+
 
 **Network → Get Online** (`mackes.workbench.network.mesh_join`,
 `mackes.wizard.pages.mesh_join`). A one-button onboarding wizard that

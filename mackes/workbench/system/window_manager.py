@@ -38,7 +38,9 @@ class WindowManagerPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Window Manager"), False, False, 0)
         box.pack_start(info_label(
-            "xfwm4 theme, focus model, and title-bar button layout."
+            "How your windows look and behave: title-bar style, which "
+            "window gets the keyboard when you move your mouse around, "
+            "and where the close button lives."
         ), False, False, 0)
 
         try:

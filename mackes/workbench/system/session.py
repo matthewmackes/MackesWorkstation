@@ -19,7 +19,7 @@ from mackes.logging import log_action
 from mackes.state import HOME
 from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    error_label, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -131,8 +131,13 @@ class SessionPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Session & Startup"), False, False, 0)
         box.pack_start(info_label(
-            "Logout behavior and autostart entries. Backed by the xfce4-session "
-            "xfconf channel and ~/.config/autostart/."
+            "Decide what happens when you log out, and choose which "
+            "apps launch automatically when you log in."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Autostart entries you don't recognize were likely added "
+            "by an app you installed. Switching them off won't break "
+            "the app — only its auto-launch."
         ), False, False, 0)
 
         # Session behavior

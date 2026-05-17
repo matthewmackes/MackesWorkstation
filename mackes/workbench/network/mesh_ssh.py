@@ -76,6 +76,14 @@ def _section_title(text: str, *, meta: str = "") -> Gtk.Widget:
     return row
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    """Plain-language explainer below a section title."""
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _fingerprint(host_id: str) -> str:
     """Cosmetic fingerprint display — the real fingerprint comes from ssh-keygen -lf."""
     h = host_id or ""
@@ -100,9 +108,9 @@ class MeshSshPanel(Gtk.Box):
                          False, False, 0)
         outer.pack_start(_page_title("Mesh SSH"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Identity-based zero-config SSH between every mesh peer. "
-            "Ed25519 keys auto-distributed via Headscale Tailscale-SSH. "
-            "ACLs live in /etc/headscale/acls.hujson."
+            "Open a secure terminal on any other machine in your mesh "
+            "with one click. No passwords, no key juggling — Mackes "
+            "shares the right keys for you."
         ), False, False, 0)
 
         # ---- Live status notification ----
@@ -113,6 +121,10 @@ class MeshSshPanel(Gtk.Box):
 
         # ---- Peers ----
         outer.pack_start(_section_title("Peers reachable via SSH"), False, False, 0)
+        outer.pack_start(_section_description(
+            "Other computers in your mesh that you can SSH into right "
+            "now. Double-click one to open a terminal session."
+        ), False, False, 0)
         self._peers_table = DataTable(
             columns=[
                 Column(name="dot",         title="",            width=24),
@@ -133,6 +145,11 @@ class MeshSshPanel(Gtk.Box):
         outer.pack_start(_section_title("Access control",
                                        meta="acls.hujson"),
                          False, False, 0)
+        outer.pack_start(_section_description(
+            "Rules that say which users on which peers may SSH into "
+            "which other peers. Edit carefully — a bad rule can lock "
+            "you out."
+        ), False, False, 0)
         acl_tile = Tile()
         # Read-only code view by default; toggleable to editor
         self._policy_view = Gtk.TextView()
@@ -164,6 +181,10 @@ class MeshSshPanel(Gtk.Box):
 
         # ---- Key distribution ----
         outer.pack_start(_section_title("Key distribution"), False, False, 0)
+        outer.pack_start(_section_description(
+            "Manage the SSH keys that prove who you are to every peer. "
+            "Re-send your key if a new machine joined the mesh."
+        ), False, False, 0)
         kd_tile = Tile()
         self._key_status = Gtk.Label(label="(loading…)")
         self._key_status.set_xalign(0)
@@ -183,6 +204,10 @@ class MeshSshPanel(Gtk.Box):
 
         # ---- Audit log ----
         outer.pack_start(_section_title("Audit log"), False, False, 0)
+        outer.pack_start(_section_description(
+            "A running list of every SSH session opened between mesh "
+            "peers. Use this to spot connections you didn't expect."
+        ), False, False, 0)
         self._audit_table = DataTable(
             columns=[
                 Column(name="timestamp",   title="When",      width=160, monospace=True),

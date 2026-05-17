@@ -13,7 +13,7 @@ from mackes.presets import apply_preset, list_presets, load_preset
 from mackes.snapshots import create_snapshot
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    error_label, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -27,9 +27,12 @@ class ResetToPresetPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Reset to Preset"), False, False, 0)
         box.pack_start(info_label(
-            "Apply a preset to the live system in full. A snapshot is taken "
-            "automatically before the apply so you can roll back from Maintain "
-            "→ Snapshots if you change your mind."
+            "Wipe your settings back to one of the built-in presets — "
+            "the same look and feel you'd get on a fresh install."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Mackes saves a snapshot first, so you can undo the reset "
+            "from Maintain → Snapshots if you change your mind."
         ), False, False, 0)
 
         box.pack_start(section_header("Preset"), False, False, 0)

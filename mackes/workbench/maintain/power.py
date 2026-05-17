@@ -19,7 +19,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_header, title_label,
+    info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -83,9 +83,13 @@ class PowerPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Power"), False, False, 0)
         box.pack_start(info_label(
-            "Switch between power profiles. Uses power-profiles-daemon "
-            "(GNOME / Fedora default). If tlp is installed instead, this "
-            "panel shows its summary read-only."
+            "Choose how your machine balances speed and battery life. "
+            "Switch to Performance when you need everything, "
+            "Power-saver when you don't."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Most laptops should stay on Balanced. Performance can run "
+            "fans harder; Power-saver may slow heavy apps."
         ), False, False, 0)
 
         box.pack_start(section_header("Profile"), False, False, 0)

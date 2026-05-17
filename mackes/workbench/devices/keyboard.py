@@ -22,8 +22,8 @@ class KeyboardPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Keyboard"), False, False, 0)
         box.pack_start(info_label(
-            "Repeat behavior, layout switching, and the shortcut launcher. "
-            "Backed by the keyboards / keyboard-layout xfconf channels."
+            "Set how fast a held-down key repeats, switch between "
+            "keyboard layouts, and check the global shortcuts you have."
         ), False, False, 0)
 
         try:

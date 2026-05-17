@@ -18,7 +18,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
-from mackes.workbench._common import info_label, panel_box, section_header, title_label
+from mackes.workbench._common import info_label, panel_box, section_description, section_header, title_label
 
 
 class SystemUpdatePanel(Gtk.Box):
@@ -35,9 +35,13 @@ class SystemUpdatePanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("System Update"), False, False, 0)
         box.pack_start(info_label(
-            "Foreground dnf-based update. You'll be prompted for your password "
-            "via polkit. Cancel any time — partial updates are dnf's job to "
-            "resume on next run."
+            "Install the latest fixes and updates for your machine. "
+            "This may take a few minutes."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "You'll be asked for your password before any change is "
+            "made. You can cancel at any time — updates will pick up "
+            "where they left off."
         ), False, False, 0)
 
         box.pack_start(section_header("Summary"), False, False, 0)

@@ -71,8 +71,8 @@ class SoundPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Sound"), False, False, 0)
         box.pack_start(info_label(
-            "Default output and input device. Backed by pactl (works with PulseAudio "
-            "and PipeWire's PA shim)."
+            "Pick which speakers or headphones play sound, and which "
+            "microphone records it."
         ), False, False, 0)
 
         if not _pactl("info"):

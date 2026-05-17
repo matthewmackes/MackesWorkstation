@@ -348,6 +348,7 @@ scrollbar slider:hover { background-color: @cds_text_helper; }
 .cds-tile {
     background-color: @cds_bg_layer_01;
     border: 1px solid @cds_border_subtle_00;
+    border-radius: 4px;
     padding: 16px;
 }
 

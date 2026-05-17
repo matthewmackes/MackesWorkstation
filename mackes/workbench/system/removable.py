@@ -45,8 +45,8 @@ class RemovablePanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Removable Media"), False, False, 0)
         box.pack_start(info_label(
-            "What happens when storage, cameras, audio CDs and other removable "
-            "media are attached. Backed by the thunar-volman channel."
+            "What your machine should do when you plug in a USB drive, "
+            "camera, audio CD, or other removable device."
         ), False, False, 0)
 
         try:

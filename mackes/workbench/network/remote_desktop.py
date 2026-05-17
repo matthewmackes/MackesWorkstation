@@ -87,6 +87,14 @@ def _section_title(text: str, *, meta: str = "") -> Gtk.Widget:
     return row
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    """Plain-language explainer below a section title."""
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _tag(text: str, kind: str = "neutral") -> Gtk.Widget:
     lab = Gtk.Label(label=text)
     lab.get_style_context().add_class("mackes-tag")
@@ -203,9 +211,8 @@ class RemoteDesktopPanel(Gtk.Box):
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Mesh Remote"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Drive any mesh peer's desktop from your browser. Each peer runs "
-            "xrdp + x11vnc + guacd + Guacamole behind the media.mesh gateway. "
-            "Picker is reachable at https://media.mesh/desktop/ from any peer."
+            "See and control any of your mesh computers from your "
+            "browser, as if you were sitting in front of it."
         ), False, False, 0)
 
         # 1) Status notification + service health
@@ -234,6 +241,10 @@ class RemoteDesktopPanel(Gtk.Box):
         outer.pack_start(action_row, False, False, 0)
 
         outer.pack_start(_section_title("Local services"), False, False, 0)
+        outer.pack_start(_section_description(
+            "The four background helpers that power remote desktop. If "
+            "any are stopped, peers won't be able to connect to you."
+        ), False, False, 0)
         self._svc_grid = Gtk.Grid(column_spacing=8, row_spacing=8,
                                    column_homogeneous=True)
         outer.pack_start(self._svc_grid, False, False, 0)
@@ -242,6 +253,10 @@ class RemoteDesktopPanel(Gtk.Box):
         outer.pack_start(_section_title(
             "Display sharing", meta="x11vnc — mirrors your live X session"),
             False, False, 0)
+        outer.pack_start(_section_description(
+            "Share whatever is on your screen right now with a viewer "
+            "on another peer. They see exactly what you see."
+        ), False, False, 0)
         ds_tile = Tile()
 
         self._x11vnc_switch = Gtk.Switch()
@@ -276,6 +291,10 @@ class RemoteDesktopPanel(Gtk.Box):
         outer.pack_start(_section_title(
             "RDP server", meta="xrdp — serves a separate XFCE session"),
             False, False, 0)
+        outer.pack_start(_section_description(
+            "Let someone log in remotely to a fresh desktop session — "
+            "without disturbing what's on your monitor."
+        ), False, False, 0)
         rdp_tile = Tile()
 
         self._xrdp_switch = Gtk.Switch()
@@ -310,6 +329,10 @@ class RemoteDesktopPanel(Gtk.Box):
         outer.pack_start(_section_title(
             "Gateway", meta="https://media.mesh/desktop/"),
             False, False, 0)
+        outer.pack_start(_section_description(
+            "The web page peers visit to pick which desktop to connect "
+            "to. Open it from any mesh device."
+        ), False, False, 0)
         gw_tile = Tile()
         gw_head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
 

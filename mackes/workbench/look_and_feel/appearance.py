@@ -164,12 +164,20 @@ class AppearancePanel(Gtk.Box):
         outer.pack_start(page_title, False, False, 0)
 
         page_sub = Gtk.Label(label=(
-            "Theme, icons, cursor, fonts, and wallpaper — all backed by xfconf. "
-            "Changes apply immediately."
+            "Change how your desktop looks: theme colors, icons, "
+            "cursor, fonts, and wallpaper. Changes show up the moment "
+            "you make them."
         ))
         page_sub.set_xalign(0); page_sub.set_line_wrap(True)
         page_sub.get_style_context().add_class("mackes-page-subtitle")
         outer.pack_start(page_sub, False, False, 0)
+        page_desc = Gtk.Label(label=(
+            "Watch the Live preview panel on the right to see your "
+            "tweaks before you commit to them."
+        ))
+        page_desc.set_xalign(0); page_desc.set_line_wrap(True)
+        page_desc.get_style_context().add_class("mackes-section-description")
+        outer.pack_start(page_desc, False, False, 0)
 
         # Two-column layout (settings | live preview)
         grid = Gtk.Grid(column_spacing=32, row_spacing=0)

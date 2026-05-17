@@ -75,6 +75,14 @@ def _section_title(text: str, *, meta: str = "") -> Gtk.Widget:
     return row
 
 
+def _section_description(text: str) -> Gtk.Widget:
+    """Plain-language explainer below a section title."""
+    lab = Gtk.Label(label=text)
+    lab.set_xalign(0); lab.set_line_wrap(True)
+    lab.get_style_context().add_class("mackes-section-description")
+    return lab
+
+
 def _tag(text: str, kind: str = "neutral") -> Gtk.Widget:
     lab = Gtk.Label(label=text)
     lab.get_style_context().add_class("mackes-tag")
@@ -114,9 +122,9 @@ class MeshServicesPanel(Gtk.Box):
                          False, False, 0)
         outer.pack_start(_page_title("Mesh Services"), False, False, 0)
         outer.pack_start(_page_subtitle(
-            "Discover HTTP services across every mesh peer. Open in browser, "
-            "launch native clients, or expose everything under a single "
-            "https://media.mesh URL."
+            "Find the web apps and shared tools running on every other "
+            "computer in your mesh. Click one to open it in your "
+            "browser or its native client."
         ), False, False, 0)
 
         # ---- Action row ----
@@ -147,6 +155,10 @@ class MeshServicesPanel(Gtk.Box):
 
         # ---- Discovered services grid ----
         outer.pack_start(_section_title("Discovered services"), False, False, 0)
+        outer.pack_start(_section_description(
+            "Web apps and tools currently running on your peers. Use "
+            "the peer chips above to filter the list."
+        ), False, False, 0)
         self._svc_grid = Gtk.FlowBox()
         self._svc_grid.set_valign(Gtk.Align.START)
         self._svc_grid.set_max_children_per_line(3)
@@ -161,6 +173,10 @@ class MeshServicesPanel(Gtk.Box):
         outer.pack_start(_section_title("Unified gateway",
                                        meta="https://media.mesh"),
                          False, False, 0)
+        outer.pack_start(_section_description(
+            "Turn this peer into one easy-to-remember address that "
+            "points to every service in the mesh. Optional, but handy."
+        ), False, False, 0)
         gw_tile = Tile()
         gw_head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         # Body
@@ -217,6 +233,11 @@ class MeshServicesPanel(Gtk.Box):
         outer.pack_start(_section_title("mDNS bridge",
                                        meta="relay announcements across the mesh"),
                          False, False, 0)
+        outer.pack_start(_section_description(
+            "Forwards 'auto-discovery' announcements between peers so "
+            "your apps (file shares, printers, casting) find each other "
+            "across networks."
+        ), False, False, 0)
         mdns_tile = Tile()
         mdns_head = Gtk.Label(label="Service types currently relayed:")
         mdns_head.set_xalign(0); mdns_head.get_style_context().add_class("dim-label")

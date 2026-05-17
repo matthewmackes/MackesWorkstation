@@ -15,7 +15,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_header, title_label,
+    info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -63,8 +63,12 @@ class DateTimePanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Date & Time"), False, False, 0)
         box.pack_start(info_label(
-            "Timezone and NTP state. Setting the time manually is not exposed "
-            "here; if you need it, run `timedatectl set-time` from a shell."
+            "Pick your timezone and decide whether your machine should "
+            "keep itself in sync with the internet."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "If your clock looks wrong, the easiest fix is to turn on "
+            "Network time below."
         ), False, False, 0)
 
         try:

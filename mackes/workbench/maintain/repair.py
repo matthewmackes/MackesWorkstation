@@ -20,7 +20,7 @@ from mackes.menu_integration import (
 from mackes.presets import apply_preset, load_preset
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -47,9 +47,13 @@ class RepairPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Repair"), False, False, 0)
         box.pack_start(info_label(
-            "Recovery operations. Each is non-destructive on its own — but "
-            "Reset to Preset is the one that overwrites local changes, so use "
-            "this panel first if you're not sure."
+            "Safe, one-click fixes for common problems with the "
+            "desktop, panel, and Mackes itself. Try these before "
+            "anything more drastic."
+        ), False, False, 0)
+        box.pack_start(section_description(
+            "Each repair runs on its own — none of them will wipe your "
+            "personal files."
         ), False, False, 0)
 
         box.pack_start(section_header("Output"), False, False, 0)
