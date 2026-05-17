@@ -3,6 +3,20 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.5.2 — QNM as 14th birthright (2026-05-17)
+
+`apply_qnm` joins the apply pipeline between Mesh clipboard and Mesh.
+Behavior:
+
+1. `dnf install -y qnm` (graceful — logs a clear "not available in
+   your repos" message if QNM isn't packaged for your Fedora set).
+2. `qnmctl init` (idempotent).
+3. `systemctl enable --now qnm.service`.
+4. `set_qnm_enabled(True)` so the Mackes UI knows QNM is live.
+
+Respects `preset.network.qnm_enabled = false` — opting out at preset
+time still works. Review page lists the new step.
+
 ## 1.5.1 — UI lag fix + xfce4-panel crash hotfix (2026-05-17)
 
 Two issues from the v1.5.0 install:

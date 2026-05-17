@@ -3,7 +3,7 @@
 Each function is idempotent (safe to re-run via Maintain → Reset to Preset)
 and returns a `list[str]` of action lines for the wizard's apply page log.
 
-These are the thirteen "birthright" items the v1.5.0 wizard runs in
+These are the fourteen "birthright" items the v1.5.2 wizard runs in
 addition to the v1.0.x xfconf-only apply pipeline:
 
   1. apply_themes              — deploy PadOS GTK theme + Carbon icon theme files
@@ -27,8 +27,11 @@ addition to the v1.0.x xfconf-only apply pipeline:
  13. apply_clipboard_daemon    — mesh clipboard daemon: bidirectional sync
                                   between XA_CLIPBOARD and QNM-Shared
                                   clipboard bucket (v1.5.0 lock)
+ 14. apply_qnm                 — Quick Network Mesh: dnf install qnm,
+                                  enable qnm.service, run qnmctl init
+                                  (v1.5.2 lock)
 
-All thirteen are wired into mackes/wizard/pages/apply.py between Panel and Mesh.
+All fourteen are wired into mackes/wizard/pages/apply.py between Panel and Mesh.
 """
 from __future__ import annotations
 
@@ -1041,6 +1044,82 @@ def apply_clipboard_daemon(_preset: Preset) -> List[str]:
     actions.append(
         "clipboard: ready — open Mesh Clipboard from the panel or "
         "`mackes-clipboard` from a terminal to see peer history"
+    )
+    for line in actions:
+        log_action(line)
+    return actions
+
+
+# ---------------------------------------------------------------------------
+# 14. Quick Network Mesh (QNM) — install + enable (v1.5.2 birthright)
+# ---------------------------------------------------------------------------
+
+
+def apply_qnm(preset: Preset) -> List[str]:
+    """Install QNM via dnf, run qnmctl init, enable qnm.service.
+
+    QNM may not be in stock Fedora repos — when `dnf install qnm` fails
+    the step logs a clear "not available in current repos" message and
+    returns. Birthright is graceful: installing QNM later via the Apps
+    panel finishes the wiring.
+    """
+    actions: List[str] = []
+    if shutil.which("dnf") is None:
+        actions.append("qnm: dnf not available — skipping")
+        return actions
+
+    # Honor the preset's network.qnm_enabled flag — if the preset
+    # explicitly opts out we don't install.
+    qnm_pref = (preset.network or {}).get("qnm_enabled", True)
+    if not qnm_pref:
+        actions.append("qnm: preset has qnm_enabled=false — skipping")
+        return actions
+
+    # ---- 1. Install qnm (best-effort, may not be in stock repos) ----
+    if shutil.which("qnmctl") is None:
+        actions.append("qnm: installing via dnf")
+        rc, out = _run_root(["dnf", "install", "-y", "qnm"], timeout=300)
+        if rc != 0:
+            last = out.strip().splitlines()[-1] if out.strip() else f"rc={rc}"
+            actions.append(
+                f"qnm: dnf install failed: {last}. "
+                "QNM may not be in your repo set — install manually via "
+                "Apps panel or `dnf install qnm` once the repo is available."
+            )
+            for line in actions:
+                log_action(line)
+            return actions
+    else:
+        actions.append("qnm: qnmctl already installed")
+
+    # ---- 2. qnmctl init (idempotent — does nothing if already set up) ----
+    if shutil.which("qnmctl"):
+        rc, out = _run_root(["qnmctl", "init"], timeout=60)
+        if rc == 0:
+            actions.append("qnm: qnmctl init OK")
+        else:
+            last = out.strip().splitlines()[-1] if out.strip() else f"rc={rc}"
+            actions.append(f"qnm: qnmctl init: {last}")
+
+    # ---- 3. Enable + start the qnm system service --------------------
+    rc, out = _run_root(["systemctl", "enable", "--now", "qnm.service"],
+                        timeout=30)
+    if rc == 0:
+        actions.append("qnm: qnm.service enabled + started")
+    else:
+        last = out.strip().splitlines()[-1] if out.strip() else f"rc={rc}"
+        actions.append(f"qnm: service enable: {last}")
+
+    # ---- 4. Set the preset-level qnm flag on so the Mackes UI knows --
+    try:
+        from mackes.qnm_bridge import set_qnm_enabled
+        actions.extend(set_qnm_enabled(True))
+    except Exception as e:  # noqa: BLE001
+        actions.append(f"qnm: set_qnm_enabled fallback: {e}")
+
+    actions.append(
+        "qnm: ready — open Network → Quick Network Mesh (QNM) for the "
+        "control panel, or run `qnmctl status` from a terminal."
     )
     for line in actions:
         log_action(line)

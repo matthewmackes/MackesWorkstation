@@ -59,6 +59,10 @@ def build(ctx) -> Gtk.Widget:
     summary.append("                       (mesh / fleet / drift / services live, autostart)")
     summary.append("  Maximize windows:    every new top-level window starts maximized")
     summary.append("                       (mackes-maximizer.service + wmctrl)")
+    summary.append("  Mesh clipboard:      bidirectional XA_CLIPBOARD ↔ QNM-Shared sync")
+    summary.append("                       (mackes-clipboard-daemon.service)")
+    summary.append("  Quick Network Mesh:  dnf install qnm + qnmctl init + qnm.service")
+    summary.append("                       (skipped gracefully if qnm is not in your repos)")
     summary.append("")
     if ctx.missing_packages:
         summary.append("WARNING: missing required binaries: " + ", ".join(ctx.missing_packages))

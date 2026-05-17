@@ -52,15 +52,18 @@ class Notification(Gtk.Box):
         text_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         text_box.set_margin_top(8); text_box.set_margin_bottom(8)
         text_box.set_margin_start(0); text_box.set_margin_end(0)
-        title_lbl = Gtk.Label(label=title); title_lbl.set_xalign(0)
-        title_lbl.get_style_context().add_class("cds-heading-01")
-        title_lbl.set_line_wrap(True)
-        text_box.pack_start(title_lbl, False, False, 0)
+        self._title_lbl = Gtk.Label(label=title); self._title_lbl.set_xalign(0)
+        self._title_lbl.get_style_context().add_class("cds-heading-01")
+        self._title_lbl.set_line_wrap(True)
+        text_box.pack_start(self._title_lbl, False, False, 0)
+        self._body_lbl = Gtk.Label(label=body or "")
+        self._body_lbl.set_xalign(0)
+        self._body_lbl.set_line_wrap(True)
+        self._body_lbl.get_style_context().add_class("cds-body-compact-01")
+        self._body_lbl.set_no_show_all(not bool(body))
         if body:
-            body_lbl = Gtk.Label(label=body); body_lbl.set_xalign(0)
-            body_lbl.set_line_wrap(True)
-            body_lbl.get_style_context().add_class("cds-body-compact-01")
-            text_box.pack_start(body_lbl, False, False, 0)
+            self._body_lbl.show()
+        text_box.pack_start(self._body_lbl, False, False, 0)
         self.pack_start(text_box, True, True, 0)
 
         if dismissible:
@@ -75,3 +78,21 @@ class Notification(Gtk.Box):
                 self.get_parent() and self.get_parent().remove(self),
             ))
             self.pack_end(close_btn, False, False, 0)
+
+    # v1.5.2 — mutation accessors so panels can update a Notification
+    # in place instead of tearing down + rebuilding (Mesh SSH crash).
+    def set_title(self, text: str) -> None:
+        self._title_lbl.set_text(text)
+
+    def set_body(self, text: str) -> None:
+        self._body_lbl.set_text(text or "")
+        self._body_lbl.set_visible(bool(text))
+
+    def set_kind(self, kind) -> None:
+        ctx = self.get_style_context()
+        for v in ("info", "success", "warning", "error"):
+            ctx.remove_class(v)
+        try:
+            ctx.add_class(kind.value)
+        except AttributeError:
+            ctx.add_class(str(kind))
