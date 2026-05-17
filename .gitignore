@@ -22,3 +22,6 @@ __pycache__/
 
 # Session state
 *.log
+
+# Claude Code harness state — transient, not part of source
+.claude/
