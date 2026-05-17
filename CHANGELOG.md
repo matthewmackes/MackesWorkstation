@@ -3,7 +3,33 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.6.2 — Conky HUD perf + xfce-panel snapshot (unreleased)
+## 1.6.2 — Conky HUD perf + panel snapshot + Get Online + Screens (unreleased)
+
+**Network → Get Online** (`mackes.workbench.network.mesh_join`,
+`mackes.wizard.pages.mesh_join`). A one-button onboarding wizard that
+gets a peer onto a usable network and joined to the Mackes mesh.
+Off-thread probes (NetworkManager, tailscaled, Headscale, MeshState,
+QNM) populate a Carbon checklist; a single "Get me online" button runs
+the missing chain end-to-end (Wi-Fi pick → `nmcli connection up` →
+`systemctl enable --now tailscaled` → `tailscale up
+--login-server=<headscale>` with the auth URL surfaced as copyable text
++ optional QR code → `qnmctl init`). All privileged calls route through
+`AdminSession`. Idempotent re-entry: if every probe is green the
+button becomes "Already online" with a Re-check link.
+
+**System → Displays** (`mackes.displays`,
+`mackes.workbench.system.displays`). New panel that wraps the
+xfsettings `displays` xfconf channel — the actual source of truth on
+Fedora's LightDM + xfce4-settings stack. Drag-to-arrange monitor canvas
+with edge-snap, per-output expanders (active, primary, resolution,
+scale 1.0–2.0, rotation 0/90/180/270, refresh rate), profile save /
+load / delete (xfconf named profiles), and a 15-second "Keep this
+layout?" preview before revert. Per-monitor wallpaper picker writes
+`xfce4-desktop:/backdrop/screen0/monitor<NAME>/workspace<N>/last-image`
+across all workspaces. LightDM greeter "active-monitor" section edits
+`/etc/lightdm/lightdm-gtk-greeter.conf` via `AdminSession`. When the
+active layout changes, the Conky HUD re-pins via SIGUSR1 if its
+configured monitor moved.
 
 **Conky HUD rewritten for speed + height.** The v1.4.0 "⅔ screen height,
 10-section" lock is retired. The HUD now auto-sizes to content, ships

@@ -125,7 +125,9 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
         from mackes.workbench.system.default_apps import DefaultAppsPanel
         from mackes.workbench.system.removable import RemovablePanel
         from mackes.workbench.system.datetime import DateTimePanel
+        from mackes.workbench.system.displays import DisplaysPanel
         return _build_subnav_container([
+            ("displays", "Screens", DisplaysPanel()),
             ("wm", "Window Manager", WindowManagerPanel()),
             ("workspaces", "Workspaces", WorkspacesPanel()),
             ("session", "Session & Startup", SessionPanel()),
@@ -146,6 +148,10 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
     def _qnm():
         from mackes.workbench.network.qnm import QnmPanel
         return _wrap_in_scroller(QnmPanel())
+
+    def _mesh_join():
+        from mackes.workbench.network.mesh_join import MeshJoinPanel
+        return _wrap_in_scroller(MeshJoinPanel())
 
     def _mesh_vpn():
         from mackes.workbench.network.mesh_vpn import MeshVpnPanel
@@ -269,6 +275,7 @@ def _build_nav(state: MackesState, navigate: Callable[[str], None]) -> List[NavG
             NavItem("wifi", "Wi-Fi & Ethernet", "network-wireless-symbolic", _wifi),
             NavItem("vpn", "VPN", "network-vpn-symbolic", _vpn),
             NavItem("qnm", "QNM", "network-workgroup-symbolic", _qnm),
+            NavItem("mesh_join", "Get Online", "go-jump-symbolic", _mesh_join, badge="new"),
             NavItem("mesh_vpn", "Mesh VPN", "network-server-symbolic", _mesh_vpn, badge="mesh"),
             NavItem("mesh_ssh", "Mesh SSH", "channel-secure-symbolic", _mesh_ssh),
             NavItem("mesh_services", "Mesh Services", "applications-internet-symbolic", _mesh_services),
@@ -975,7 +982,7 @@ _LEGACY_KEY_MAP = {
     "sound": "devices", "power": "devices",
     "wm": "system", "workspaces": "system", "session": "system",
     "notifications": "system", "default_apps": "system", "removable": "system",
-    "datetime": "system",
+    "datetime": "system", "displays": "system",
     "apps_install": "apps", "apps_remove": "apps", "apps_installed": "apps",
     "drift": "maintain", "update": "maintain", "fonts": "maintain",
     "resources": "maintain", "health": "maintain", "deps": "maintain",
