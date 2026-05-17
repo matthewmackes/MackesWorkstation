@@ -164,12 +164,44 @@ def apply_appearance(preset: Preset) -> list[str]:
         except XfconfError as e:
             actions.append(f"failed {channel}{prop}: {e}")
     wp = preset.appearance.get("wallpaper")
+    # v1.4.6: fall back to the bundled standard-wallpaper if the preset's
+    # declared path is missing. Stops a fresh install ending with a black
+    # desktop because the preset's wallpaper path didn't survive.
+    if wp and not Path(str(wp)).exists():
+        for fallback in (
+            "/usr/share/mackes-shell/branding/standard-wallpaper.png",
+            str(Path(__file__).resolve().parent.parent
+                / "branding" / "standard-wallpaper.png"),
+        ):
+            if Path(fallback).exists():
+                actions.append(
+                    f"wallpaper: {wp} missing, falling back to {fallback}"
+                )
+                wp = fallback
+                break
     if wp and Path(str(wp)).exists():
         try:
             xf.set(*WALLPAPER_KEY, str(wp), type_hint="string")
             actions.append(f"set wallpaper -> {wp}")
+            # Also stamp common per-monitor keys — XFCE 4.18+ reads
+            # /backdrop/screen0/monitor<NAME>/workspace0/last-image
+            # before the canonical key on some builds.
+            for alt_prop in (
+                "/backdrop/screen0/monitorVGA-1/workspace0/last-image",
+                "/backdrop/screen0/monitorHDMI-1/workspace0/last-image",
+                "/backdrop/screen0/monitorHDMI-A-1/workspace0/last-image",
+                "/backdrop/screen0/monitoreDP-1/workspace0/last-image",
+                "/backdrop/screen0/monitorLVDS-1/workspace0/last-image",
+            ):
+                try:
+                    xf.set("xfce4-desktop", alt_prop, str(wp),
+                           type_hint="string")
+                except XfconfError:
+                    pass
         except XfconfError as e:
             actions.append(f"failed wallpaper: {e}")
+    elif wp:
+        actions.append(f"wallpaper: {wp} not found on disk, skipped")
 
     # LightDM greeter — mirror the preset's look on the login screen.
     if preset.appearance:

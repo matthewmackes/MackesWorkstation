@@ -283,32 +283,47 @@ def apply_panel_layout(_preset: Preset) -> List[str]:
         actions.append("panel layout: xfconf-query not installed — skipping")
         return actions
 
-    # Helper: set a key only if it differs
+    # Helper: set a single-value key
     def _set(channel: str, prop: str, type_hint: str, value: str) -> None:
         rc, out = _run(["xfconf-query", "--channel", channel, "--property", prop,
                         "--create", "--type", type_hint, "--set", value], timeout=10)
         if rc == 0:
             actions.append(f"panel: set {channel}{prop} = {value}")
         else:
-            actions.append(f"panel: failed to set {prop}: {out.strip().splitlines()[-1] if out.strip() else rc}")
+            actions.append(f"panel: failed to set {prop}: "
+                           f"{out.strip().splitlines()[-1] if out.strip() else rc}")
 
-    panels_array_set = False
-    rc, out = _run(["xfconf-query", "--channel", "xfce4-panel", "--property", "/panels"])
-    if rc == 0 and out.strip():
-        # array already exists; don't replace
-        panels_array_set = True
+    # Helper: set an array key. xfconf-query needs every value flagged
+    # individually as `-t TYPE -s VALUE`, plus `-n -a` to declare the
+    # array. We always reset+create the array because mixing existing
+    # plugin-ids with ours causes overlap (v1.4.6 bug).
+    def _set_array(channel: str, prop: str, type_hint: str,
+                   values: list[str]) -> None:
+        # Wipe any prior array first so the size shrinks/expands cleanly.
+        _run(["xfconf-query", "--channel", channel, "--property", prop,
+              "--reset"], timeout=10)
+        cmd = ["xfconf-query", "--channel", channel, "--property", prop,
+               "--create", "--force-array"]
+        for v in values:
+            cmd.extend(["--type", type_hint, "--set", v])
+        rc, out = _run(cmd, timeout=10)
+        if rc == 0:
+            actions.append(f"panel: set {prop}[] = {values}")
+        else:
+            actions.append(f"panel: failed array {prop}: "
+                           f"{out.strip().splitlines()[-1] if out.strip() else rc}")
 
     # Plugin IDs we own (chosen to avoid collisions with default 1/2/3)
-    # plugin-101 = whiskermenu, 102 = docklike, 103 = spacer, 104 = systray, 105 = clock
+    # plugin-101 = whiskermenu, 102 = docklike, 103 = separator,
+    # 104 = systray, 105 = clock
     plugin_ids = ["101", "102", "103", "104", "105"]
 
-    if not panels_array_set:
-        # Define a single panel (id=0) with our plugins.
-        _set("xfce4-panel", "/panels", "int", "0")
-        _set("xfce4-panel", "/panels/panel-0/plugin-ids",
-             "uint", "")  # placeholder — xfconf-query has trouble with array sets via CLI
+    # /panels = [0] — the array of panel IDs
+    _set_array("xfce4-panel", "/panels", "int", ["0"])
+    # /panels/panel-0/plugin-ids = [101, 102, 103, 104, 105]
+    _set_array("xfce4-panel", "/panels/panel-0/plugin-ids", "uint", plugin_ids)
 
-    # Always write plugin types + plugin-ids (idempotent)
+    # Always write panel-0 metadata + plugin types (idempotent)
     _set("xfce4-panel", "/panels/panel-0/position", "string", "p=8;x=0;y=0")
     _set("xfce4-panel", "/panels/panel-0/length",   "uint",   "100")
     _set("xfce4-panel", "/panels/panel-0/size",     "uint",   "32")
@@ -318,6 +333,41 @@ def apply_panel_layout(_preset: Preset) -> List[str]:
 
     # Plugins
     _set("xfce4-panel", "/plugins/plugin-101", "string", "whiskermenu")
+    # v1.4.6: Mackes-branded Whisker menu config (button title, icon,
+    # search prompt, layout). xfce4-whiskermenu-plugin reads these from
+    # the xfce4-panel xfconf channel automatically.
+    _set("xfce4-panel", "/plugins/plugin-101/button-title",
+         "string", "Mackes")
+    _set("xfce4-panel", "/plugins/plugin-101/button-icon",
+         "string", "mackes-shell")
+    _set("xfce4-panel", "/plugins/plugin-101/show-button-title",
+         "bool",   "true")
+    _set("xfce4-panel", "/plugins/plugin-101/show-button-icon",
+         "bool",   "true")
+    _set("xfce4-panel", "/plugins/plugin-101/launcher-show-name",
+         "bool",   "true")
+    _set("xfce4-panel", "/plugins/plugin-101/launcher-show-description",
+         "bool",   "true")
+    _set("xfce4-panel", "/plugins/plugin-101/category-icon-size",
+         "int",    "1")
+    _set("xfce4-panel", "/plugins/plugin-101/item-icon-size",
+         "int",    "2")
+    _set("xfce4-panel", "/plugins/plugin-101/menu-width",
+         "int",    "440")
+    _set("xfce4-panel", "/plugins/plugin-101/menu-height",
+         "int",    "560")
+    _set("xfce4-panel", "/plugins/plugin-101/menu-opacity",
+         "int",    "100")
+    _set("xfce4-panel", "/plugins/plugin-101/position-search-alternate",
+         "bool",   "true")
+    _set("xfce4-panel", "/plugins/plugin-101/position-categories-alternate",
+         "bool",   "true")
+    _set("xfce4-panel", "/plugins/plugin-101/search-actions-enabled",
+         "bool",   "true")
+    _set("xfce4-panel", "/plugins/plugin-101/recent-items-max",
+         "int",    "10")
+    _set("xfce4-panel", "/plugins/plugin-101/favorites",
+         "string", "mackes-shell.desktop")
     _set("xfce4-panel", "/plugins/plugin-102", "string", "docklike")
     _set("xfce4-panel", "/plugins/plugin-103", "string", "separator")
     _set("xfce4-panel", "/plugins/plugin-103/expand", "bool", "true")
