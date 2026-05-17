@@ -207,9 +207,16 @@ class MeshVpnPanel(Gtk.Box):
     def _on_view_toggle(self, btn: Gtk.ToggleButton, view_name: str) -> None:
         if not btn.get_active():
             return
-        self._peers_stack.set_visible_child_name(view_name)
+        # Guard against early firing during _build: the toggle button's
+        # set_active(True) call fires `toggled` before _peers_stack /
+        # _view_buttons exist. The post-build refresh sets the correct
+        # state anyway.
+        stack = getattr(self, "_peers_stack", None)
+        if stack is None:
+            return
+        stack.set_visible_child_name(view_name)
         # Mutual-exclusion across the toggle group
-        for k, b in self._view_buttons.items():
+        for k, b in getattr(self, "_view_buttons", {}).items():
             if k != view_name and b.get_active():
                 b.set_active(False)
 

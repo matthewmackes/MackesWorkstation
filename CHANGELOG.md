@@ -3,6 +3,43 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.4.5 — Toggle-button init-order crashes (2026-05-17)
+
+Two `AttributeError` traceback surfaced during the first-run wizard
+after v1.4.4 reached the Dashboard:
+
+    AttributeError: 'MeshVpnPanel' object has no attribute '_peers_stack'
+    AttributeError: 'AppsPanel' object has no attribute '_chips_box'
+
+Root cause: the topology/table toggle on Mesh VPN and the
+Install/Remove/Installed tabs on Apps both `set_active(True)` on
+their default button **during** `_build()`. That fires the `toggled`
+signal before the rest of the panel state (the Gtk.Stack the toggle
+flips, the FlowBox of category chips) is constructed.
+
+Fix: both handlers now `getattr(..., None)` for the dependent state
+and return early if it's missing. The post-build refresh sets the
+correct state afterwards — the early firing is a harmless no-op now.
+
+## 1.4.4 — LightDM hang hotfix (2026-05-17)
+
+The wizard's final step "Becoming Mackes…" hung indefinitely with the
+log line `lightdm config: <…>` because `mackes/lightdm.py` had its own
+`_pkexec_write` / `_pkexec_mkdir` helpers that bypassed AdminSession —
+the NOPASSWD short-circuit never fired, so the calls prompted polkit
+and either timed out or got dismissed.
+
+Same fix pattern as the v1.4.3 headscale fix:
+
+* `_pkexec_write` rewritten — when AdminSession is unlocked, stages
+  the config to a tempfile and runs `install -D -m 0644 tmpfile
+  target` via the cached sudo creds. Falls back to legacy
+  stdin-piped `pkexec tee` only if AdminSession is unimportable.
+* `_pkexec_mkdir` routes through `AdminSession.run(["mkdir", "-p", ...])`.
+* Sudoers `MACKES_GATEWAY` extended to cover
+  `/usr/bin/tee /etc/lightdm/*` and `/etc/lightdm/lightdm.conf.d/*`.
+* Legacy `tee`-with-stdin timeout bumped 10s → 30s.
+
 ## 1.4.3 — Headscale + Tailscale prompt-storm hotfix (2026-05-17)
 
 The v1.4.2 sudoers drop-in eliminated the pkexec prompt storm for

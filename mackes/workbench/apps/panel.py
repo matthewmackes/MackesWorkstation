@@ -211,7 +211,13 @@ class AppsPanel(Gtk.Box):
     def _on_tab_toggled(self, btn: Gtk.ToggleButton, key: str) -> None:
         if not btn.get_active():
             return
-        for k, b in self._tab_buttons.items():
+        # Guard against early firing during _build: the tab button's
+        # set_active(True) call fires `toggled` before _chips_box /
+        # _grid exist. The post-build refresh sets the correct state.
+        if getattr(self, "_chips_box", None) is None:
+            self._active_tab = key
+            return
+        for k, b in getattr(self, "_tab_buttons", {}).items():
             if k != key and b.get_active():
                 b.set_active(False)
         self._active_tab = key
