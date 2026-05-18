@@ -116,6 +116,79 @@ fn exec_basename(exec: &str) -> &str {
         .map_or(exec, |first| first.rsplit('/').next().unwrap_or(first))
 }
 
+/// Raise (activate) the window with the given X11 id via
+/// `wmctrl -i -a`. Used by Phase 5.3 to focus an existing window
+/// when the user clicks a running app's dock entry.
+pub fn activate_window(window_id: &str) {
+    if let Err(e) = Command::new("wmctrl").args(["-i", "-a", window_id]).spawn() {
+        eprintln!("mackes-panel: wmctrl -i -a {window_id} failed: {e}");
+    }
+}
+
+/// Toggle: if `window_id` is active, minimize it via `xdotool
+/// windowminimize`; otherwise activate it. Phase 5.3 second-click
+/// behavior. Falls back to plain activate when xdotool is missing.
+pub fn toggle_window(window_id: &str) {
+    let active = active_window_id();
+    if active.as_deref() == Some(window_id) {
+        if Command::new("xdotool")
+            .args(["windowminimize", window_id])
+            .spawn()
+            .is_err()
+        {
+            // Fallback: re-activate; the user can use the WM's own
+            // minimize shortcut.
+            activate_window(window_id);
+        }
+    } else {
+        activate_window(window_id);
+    }
+}
+
+fn active_window_id() -> Option<String> {
+    // wmctrl -a / -r need the title; for "what's active" we'd use
+    // xprop -root _NET_ACTIVE_WINDOW. Parse that.
+    let output = Command::new("xprop")
+        .args(["-root", "_NET_ACTIVE_WINDOW"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    // Format: "_NET_ACTIVE_WINDOW(WINDOW): window id # 0x3a00007"
+    text.lines()
+        .find_map(|l| l.rsplit('#').next().map(str::trim))
+        .map(|hex| {
+            // Normalize: wmctrl shows 0x03a00007, xprop shows 0x3a00007
+            // — pad with leading zeros to the canonical wmctrl width.
+            let bare = hex.trim_start_matches("0x");
+            format!("0x{bare:0>8}")
+        })
+}
+
+/// Locate the first open window owned by the given app. Returns the
+/// `window_id` if found — caller passes it to `activate_window` or
+/// `toggle_window`.
+#[must_use]
+pub fn find_window_for_app(
+    desktop_name: &str,
+    exec: &str,
+    windows: &[OpenWindow],
+) -> Option<String> {
+    let needle_name = desktop_name.to_ascii_lowercase();
+    let needle_cmd = exec_basename(exec).to_ascii_lowercase();
+    windows
+        .iter()
+        .find(|w| {
+            let t = w.title.to_ascii_lowercase();
+            t.contains(&needle_name)
+                || t.contains(&needle_cmd)
+                || pid_command_matches(w.pid, &needle_cmd)
+        })
+        .map(|w| w.window_id.clone())
+}
+
 fn pid_command_matches(pid: u32, needle: &str) -> bool {
     let path = format!("/proc/{pid}/comm");
     std::fs::read_to_string(&path)

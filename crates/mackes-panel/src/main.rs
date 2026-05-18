@@ -251,9 +251,18 @@ fn build_dock_strip(cfg: &mackes_config::PanelConfig) -> gtk::Box {
                     let module = app_module::AppModule::new(entry.clone());
                     let widget = dock::render_module(&module);
                     let exec = entry.exec.clone();
+                    let name = entry.name.clone();
                     let terminal = entry.terminal;
                     widget.connect_button_release_event(move |_, _| {
-                        top_bar::launch_exec(&exec, terminal);
+                        // Phase 5.3: if a window for this app is already
+                        // open, raise (and toggle minimize on second
+                        // click). Otherwise spawn the Exec line.
+                        let open = windows::list_open_windows();
+                        if let Some(window_id) = windows::find_window_for_app(&name, &exec, &open) {
+                            windows::toggle_window(&window_id);
+                        } else {
+                            top_bar::launch_exec(&exec, terminal);
+                        }
                         glib::Propagation::Stop
                     });
                     strip.pack_start(&widget, false, false, 0);
