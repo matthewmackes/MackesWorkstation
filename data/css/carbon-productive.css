@@ -1,3 +1,31 @@
+/* v1.6.3 — global 8pt override. User-requested density preset.
+ * Wins over the Carbon Productive 14/12/10 scale below via !important
+ * because this sheet is loaded LAST and the override targets every
+ * widget rather than only `.mackes-productive *`. Headers, labels,
+ * buttons, entries, menus, tooltips — everything sized to 8pt. */
+.mackes-app-window,
+.mackes-app-window *,
+.mackes-productive,
+.mackes-productive *,
+.mackes-popover,
+.mackes-popover *,
+.mackes-tweaks-drawer,
+.mackes-tweaks-drawer * {
+    font-size: 8pt;
+}
+
+.mackes-tweaks-close {
+    font-family: "Hack Nerd Font Mono";
+    font-size: 12pt;
+    padding: 2px 6px;
+    color: @cds_text_secondary;
+}
+.mackes-tweaks-close:hover {
+    background: alpha(@cds_text_secondary, 0.08);
+    color: @cds_text_primary;
+}
+
+
 /* Carbon Productive type scale — applied to .mackes-productive root.
  *
  * Q6 lock (2026-05-17): redesign uses IBM Carbon's productive scale

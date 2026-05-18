@@ -72,10 +72,19 @@ class TweaksOverlay(Gtk.Box):
         drawer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
         drawer.get_style_context().add_class("mackes-tweaks-drawer")
 
+        # Header row: title on the left, close X on the right
+        head_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         head = Gtk.Label(label="Tweaks")
         head.set_xalign(0)
         head.get_style_context().add_class("mackes-section-title")
-        drawer.pack_start(head, False, False, 0)
+        head_row.pack_start(head, True, True, 0)
+        close_btn = Gtk.Button(label="✕")
+        close_btn.set_relief(Gtk.ReliefStyle.NONE)
+        close_btn.set_tooltip_text("Close")
+        close_btn.get_style_context().add_class("mackes-tweaks-close")
+        close_btn.connect("clicked", lambda *_: self.close())
+        head_row.pack_end(close_btn, False, False, 0)
+        drawer.pack_start(head_row, False, False, 0)
 
         # ---- Preset ------------------------------------------------------
         drawer.pack_start(_section_title("Preset"), False, False, 0)
