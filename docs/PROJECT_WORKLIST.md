@@ -60,7 +60,7 @@ blocked until fixed. See Phase 9.4 below.
 ## Phase 4 — Notification Drawer integration (2 weeks)
 
 - [ ] **4.1 Drawer IPC** — define a `mackes-drawer` D-Bus interface so the new Rust panel can open/close the existing Python drawer window. (Or: port the drawer to Rust — decide in 4.1a planning task.)
-- [ ] **4.2 Status-cluster click → Drawer open** — clicking anywhere in the right-side status cluster fires `Drawer::open` over D-Bus / direct call (Q28).
+- [✓] **4.2 Status-cluster click → Drawer open** — each of the 6 status buttons shells out to `mackes --drawer --drawer-focus <slug>` so the existing Python drawer opens with the right section pre-selected. D-Bus interface (4.1) lives in a follow-up if startup latency becomes a concern.
 - [ ] **4.3 Drawer port to mackes-panel module** *(if 4.1a == port)* — bring `mackes/drawer.py` into `crates/mackes-panel/src/modules/drawer/` as Rust, using gtk-rs.
 - [ ] **4.4 Quick-toggle behaviors** — Mesh on/off, Bluetooth, Do-Not-Disturb, Caffeine all driven from the drawer's existing Python wiring (or ported in 4.3).
 

@@ -267,8 +267,17 @@ fn status_item(slug: &str, icon_name: &str) -> gtk::Button {
 
     let slug_owned = slug.to_owned();
     button.connect_clicked(move |_| {
-        // Phase 4.2: replace with `Drawer::open()` signal.
-        eprintln!("mackes-panel: status item {slug_owned} clicked (stub)");
+        // Per Q28 every status-cluster click opens the v2.2.0
+        // Notification Drawer. Until Phase 4.3 ports the drawer into
+        // mackes-panel itself, we invoke the existing Python drawer
+        // via `mackes --drawer`. The drawer focuses its own section
+        // based on the slug (`--drawer-focus <slug>`).
+        if let Err(e) = Command::new("mackes")
+            .args(["--drawer", "--drawer-focus", &slug_owned])
+            .spawn()
+        {
+            eprintln!("mackes-panel: drawer launch failed ({slug_owned}): {e}");
+        }
     });
 
     button
