@@ -3,6 +3,42 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.6.5 — GUI refine pass: compact, professional, functional (2026-05-17)
+
+Three-round refinement of the GUI surface:
+
+**Compactness**
+- WorkbenchWindow drops the maximize-on-realize default. Opens at
+  1280×720 (capped to fit small laptops), centered on the primary
+  monitor; the user can still maximize themselves.
+- Every workbench panel's outer margins trimmed:
+  `set_margin_top(32) → 12`, `set_margin_start(40) → 16` across 25
+  files. `_common.section_header()` from 28/8 to 12/4. Net ≈ 10–15
+  extra content rows visible at the same window size.
+- Left sidebar rail from 256 → 220 px (still room for the longest
+  group title at 8pt).
+
+**Professional**
+- New high-specificity CSS overrides at the top of
+  `carbon-productive.css`:
+  - Tighter page-title / page-subtitle / section-title / section-
+    description / breadcrumb spacing
+  - 7pt breadcrumb (was 8pt) — denser hierarchy
+  - Standardised `.mackes-pill-{ok,warn,fail,neutral}` ruleset so
+    every panel renders status pills identically: alpha-tinted
+    background, 7pt bold, 2px radius, semantic color tokens.
+
+**Functional**
+- Removed both Tweaks UIs (full-page System → Tweaks + floating
+  gear-drawer overlay; −664 LOC). Per-feature toggles still
+  read+written via tweaks.json + the per-module CLIs.
+- Preset chip in the header was a no-op after the Tweaks-drawer
+  removal. Rewired to `_on_open_wizard` so chip → Setup Wizard
+  (preset_pick page) is the canonical preset-swap surface now.
+- Dropped the dead `_on_preset_chip` method and the `tweaks`
+  legacy-key-map entry. Popover Manage tab loses its Tweaks
+  sub-tab; now Fleet / Screens / Boot only.
+
 ## 1.6.4 — Tweaks drawer close button + 8pt density (2026-05-17)
 
 **Tweaks drawer close ✕.** The right-side sliding Tweaks overlay had
