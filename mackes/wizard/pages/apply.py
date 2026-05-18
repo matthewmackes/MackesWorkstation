@@ -10,9 +10,9 @@ Layout:
   +----------------------------+------------------------------------+
   |  ✓ Snapshot           0.2s |  ▎  Themes                          |
   |  ✓ Appearance         1.4s |                                      |
-  |  ✓ Devices            0.3s |  ─ Installing PadOS theme…           |
-  |  ✓ System             0.5s |  ─ Done · /usr/share/themes/PadOS    |
-  |  ✓ Network            0.2s |  ─ Installing Carbon icons (2522)    |
+  |  ✓ Devices            0.3s |  ─ Installing Orchis-Dark theme…     |
+  |  ✓ System             0.5s |  ─ Done · /usr/share/themes/Orchis-Dark |
+  |  ✓ Network            0.2s |  ─ Installing Black-Sun icons…       |
   |  ✓ Panel              0.4s |  ─ Rebuilding gtk icon cache…        |
   |  ◐ Themes             3.1s |                                      |
   |  ⋯ Fonts                 — |                                      |
@@ -587,7 +587,7 @@ _STEP_SUBTITLES = {
     "System":           "Workspace count · WM theme · notifications toggle.",
     "Network":          "QNM toggle · firewall zone hint.",
     "Panel":            "Clock plugin format · font · layout.",
-    "Themes":           "Copying PadOS theme + Carbon icons to /usr/share/{themes,icons}.",
+    "Themes":           "Copying Orchis-Dark + Shiki-Statler + Black-Sun to /usr/share/{themes,icons}.",
     "LightDM greeter":  "Mackes-themed login screen — wallpaper / theme / icons / fonts.",
     "Fonts":            "Installing IBM Plex Sans + Mono via dnf.",
     "Apps":             "Installing preset.apps.install + removing apps.remove_bloat.",

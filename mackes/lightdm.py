@@ -1,7 +1,7 @@
 """LightDM greeter configuration (§8 lock — silent greeter setup).
 
 Writes /etc/lightdm/lightdm-gtk-greeter.conf via pkexec so the login
-screen mirrors the active preset: PadOS theme, Carbon icons, IBM Plex
+screen mirrors the active preset: Orchis-Dark theme, Black-Sun icons, IBM Plex
 Sans, standard wallpaper, default-preset accent color.
 
 Called from `apply_preset` (mackes.presets) after the appearance section

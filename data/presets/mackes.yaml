@@ -6,8 +6,8 @@
 name: mackes
 display_name: "Mackes"
 description: >
-  The house style — warm-dark, polished. PadOS theme, IBM Plex typography,
-  curated development tool set. Standard XFCE shell.
+  The house style — warm-dark, polished. Orchis-Dark GTK + IBM Plex
+  typography, curated development tool set. Standard XFCE shell.
 
 appearance:
   gtk_theme:      "Orchis-Dark"

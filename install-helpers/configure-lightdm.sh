@@ -24,8 +24,8 @@ declare -A ACCENT=(
 ACCENT_HEX="${ACCENT[$PRESET]:-#fa4d56}"
 
 WALLPAPER="/usr/share/mackes-shell/branding/standard-wallpaper.png"
-GTK_THEME="PadOS"
-ICON_THEME="Carbon"
+GTK_THEME="Orchis-Dark"
+ICON_THEME="Black-Sun"
 FONT="IBM Plex Sans 11"
 
 CONF_DIR="/etc/lightdm"

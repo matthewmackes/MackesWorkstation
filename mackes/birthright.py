@@ -6,7 +6,7 @@ and returns a `list[str]` of action lines for the wizard's apply page log.
 These are the fourteen "birthright" items the v1.5.2 wizard runs in
 addition to the v1.0.x xfconf-only apply pipeline:
 
-  1. apply_themes              — deploy PadOS GTK theme + Carbon icon theme files
+  1. apply_themes              — deploy Orchis-Dark + Shiki-Statler GTK + Black-Sun icon
   2. apply_fonts               — install IBM Plex Sans + Mono via dnf
   3. apply_apps                — install preset.apps.install / remove preset.apps.remove_bloat
   4. apply_panel_layout        — write the Mackes default xfce4-panel layout
@@ -100,134 +100,46 @@ def _run(cmd: list[str], *, timeout: int = 60) -> tuple[int, str]:
 
 
 # ---------------------------------------------------------------------------
-# 1. Themes — copy PadOS GTK theme + Carbon icon theme into system dirs
+# 1. Themes — deploy the vendored Orchis-Dark + Shiki-Statler GTK themes
+#    and the Black-Sun icon theme to /usr/share/{themes,icons}/.
 # ---------------------------------------------------------------------------
 
 
-def apply_themes(_preset: Preset) -> List[str]:
-    """Deploy PadOS GTK + Carbon + Black-Sun icon themes to
-    /usr/share/{themes,icons}/ and refresh caches.
+_VENDORED_THEMES: tuple[tuple[str, str, str, int], ...] = (
+    # (subdir, name,             upstream comment for the action log,    cp timeout)
+    ("themes", "Orchis-Dark",    "github.com/vinceliuice/Orchis-theme", 120),
+    ("themes", "Shiki-Statler",  "sourceforge.net/projects/archbangretro", 60),
+    ("icons",  "Black-Sun",      "github.com/SethStormR/Black-Sun",     300),
+)
 
-    Source: data/themes/PadOS/, data/icons/Carbon/, data/icons/Black-Sun/
-    (all shipped by the RPM). Black-Sun is the default icon theme per
-    v1.6.2 — Carbon stays installed as an alternative.
-    Idempotent: skips if the destination is newer than the source.
-    """
+
+def apply_themes(_preset: Preset) -> List[str]:
+    """Deploy every vendored theme to /usr/share/{themes,icons}/ and
+    refresh icon caches. Idempotent — skips a theme when the destination
+    dir's mtime is at-or-newer than the source's."""
     actions: List[str] = []
 
-    pad_src = _find_data("themes", "PadOS")
-    shiki_src = _find_data("themes", "Shiki-Statler")
-    orchis_src = _find_data("themes", "Orchis-Dark")
-    carbon_src = _find_data("icons", "Carbon")
-    blacksun_src = _find_data("icons", "Black-Sun")
-    pad_dst = Path("/usr/share/themes/PadOS")
-    shiki_dst = Path("/usr/share/themes/Shiki-Statler")
-    orchis_dst = Path("/usr/share/themes/Orchis-Dark")
-    carbon_dst = Path("/usr/share/icons/Carbon")
-    blacksun_dst = Path("/usr/share/icons/Black-Sun")
-
-    # PadOS GTK theme ---------------------------------------------------
-    if pad_src is None:
-        actions.append("themes: PadOS source missing in data/themes/PadOS — skipping")
-    elif _newer_than(pad_dst, pad_src):
-        actions.append(f"themes: PadOS already installed at {pad_dst} (up to date)")
-    else:
-        rc, out = _run_root(
-            ["cp", "-rT", str(pad_src), str(pad_dst)],
-            timeout=120,
-        )
-        if rc == 0:
-            actions.append(f"themes: installed PadOS to {pad_dst}")
-        else:
-            actions.append(f"themes: PadOS install failed: {out.strip().splitlines()[-1] if out.strip() else 'rc='+str(rc)}")
-
-    # Orchis-Dark — github.com/vinceliuice/Orchis-theme (GPL-3.0)
-    if orchis_src is None:
-        actions.append("themes: Orchis-Dark source missing — skipping")
-    elif _newer_than(orchis_dst, orchis_src):
-        actions.append(f"themes: Orchis-Dark already installed at {orchis_dst} (up to date)")
-    else:
-        rc, out = _run_root(
-            ["cp", "-rT", str(orchis_src), str(orchis_dst)],
-            timeout=120,
-        )
-        if rc == 0:
-            actions.append(f"themes: installed Orchis-Dark to {orchis_dst}")
-        else:
+    for subdir, name, _upstream, timeout in _VENDORED_THEMES:
+        src = _find_data(subdir, name)
+        dst = Path(f"/usr/share/{subdir}/{name}")
+        if src is None:
+            actions.append(f"themes: {name} source missing — skipping")
+            continue
+        if _newer_than(dst, src):
+            actions.append(f"themes: {name} already installed (up to date)")
+            continue
+        rc, out = _run_root(["cp", "-rT", str(src), str(dst)],
+                             timeout=timeout)
+        if rc != 0:
             last = (out.strip().splitlines()[-1]
                     if out.strip() else f"rc={rc}")
-            actions.append(f"themes: Orchis-Dark install failed: {last}")
-
-    # Shiki-Statler — gtk-2.0/xfwm4/openbox-3 only; modern GTK3+ apps
-    # fall back to their inherited theme. Kept as an alternative for
-    # users who want the classic Murrine look.
-    # Upstream: https://sourceforge.net/projects/archbangretro/files/
-    #   Shiki-Statler.tar.xz (GPL, md5 98ce6f2e0e3588107f6dc6330ed524b5)
-    # Ships gtk-2.0/ + xfwm4/ + openbox-3/ only — GTK3+ apps fall back
-    # to their inherited theme. We ship it for window-border styling +
-    # GTK2 app compatibility; modern apps stay on their own defaults.
-    if shiki_src is None:
-        actions.append("themes: Shiki-Statler source missing — skipping")
-    elif _newer_than(shiki_dst, shiki_src):
-        actions.append(f"themes: Shiki-Statler already installed at {shiki_dst} (up to date)")
-    else:
-        rc, out = _run_root(
-            ["cp", "-rT", str(shiki_src), str(shiki_dst)],
-            timeout=60,
-        )
-        if rc == 0:
-            actions.append(f"themes: installed Shiki-Statler to {shiki_dst}")
-        else:
-            last = (out.strip().splitlines()[-1]
-                    if out.strip() else f"rc={rc}")
-            actions.append(f"themes: Shiki-Statler install failed: {last}")
-
-    # Carbon icon theme -------------------------------------------------
-    if carbon_src is None:
-        actions.append("themes: Carbon source missing in data/icons/Carbon — skipping")
-    elif _newer_than(carbon_dst, carbon_src):
-        actions.append(f"themes: Carbon already installed at {carbon_dst} (up to date)")
-    else:
-        rc, out = _run_root(
-            ["cp", "-rT", str(carbon_src), str(carbon_dst)],
-            timeout=300,
-        )
-        if rc == 0:
-            actions.append(f"themes: installed Carbon to {carbon_dst}")
-            # Refresh icon cache
-            if shutil.which("gtk-update-icon-cache"):
-                _run_root(["gtk-update-icon-cache", "-f", "-t", str(carbon_dst)], timeout=60)
-                actions.append("themes: rebuilt Carbon icon cache")
-        else:
-            actions.append(f"themes: Carbon install failed: {out.strip().splitlines()[-1] if out.strip() else 'rc='+str(rc)}")
-
-    # Black-Sun — github.com/SethStormR/Black-Sun (GPL-3.0)
-    # Upstream: https://github.com/SethStormR/Black-Sun (GPL-3.0)
-    # Vendored at data/icons/Black-Sun/ in the repo so RPM builds
-    # don't need network access. The theme inherits from Papirus-Dark
-    # / breeze-dark / Cosmic / Adwaita / hicolor; missing icons fall
-    # through the chain.
-    if blacksun_src is None:
-        actions.append("themes: Black-Sun source missing — skipping")
-    elif _newer_than(blacksun_dst, blacksun_src):
-        actions.append(f"themes: Black-Sun already installed at {blacksun_dst} (up to date)")
-    else:
-        rc, out = _run_root(
-            ["cp", "-rT", str(blacksun_src), str(blacksun_dst)],
-            timeout=300,
-        )
-        if rc == 0:
-            actions.append(f"themes: installed Black-Sun to {blacksun_dst}")
-            if shutil.which("gtk-update-icon-cache"):
-                _run_root(
-                    ["gtk-update-icon-cache", "-f", "-t", str(blacksun_dst)],
-                    timeout=60,
-                )
-                actions.append("themes: rebuilt Black-Sun icon cache")
-        else:
-            last = (out.strip().splitlines()[-1]
-                    if out.strip() else f"rc={rc}")
-            actions.append(f"themes: Black-Sun install failed: {last}")
+            actions.append(f"themes: {name} install failed: {last}")
+            continue
+        actions.append(f"themes: installed {name} to {dst}")
+        if subdir == "icons" and shutil.which("gtk-update-icon-cache"):
+            _run_root(["gtk-update-icon-cache", "-f", "-t", str(dst)],
+                       timeout=60)
+            actions.append(f"themes: rebuilt {name} icon cache")
 
     for line in actions:
         log_action(line)

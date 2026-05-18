@@ -36,11 +36,13 @@ class BirthrightItem:
 
 
 def _check_themes() -> BirthrightItem:
-    pad = Path("/usr/share/themes/PadOS")
-    carbon = Path("/usr/share/icons/Carbon")
-    ok = pad.is_dir() and carbon.is_dir()
+    orchis = Path("/usr/share/themes/Orchis-Dark")
+    shiki = Path("/usr/share/themes/Shiki-Statler")
+    blacksun = Path("/usr/share/icons/Black-Sun")
+    ok = orchis.is_dir() and shiki.is_dir() and blacksun.is_dir()
     return BirthrightItem(
-        key="themes", name="Themes (PadOS GTK + Carbon icons)",
+        key="themes",
+        name="Themes (Orchis-Dark GTK + Shiki-Statler xfwm + Black-Sun icons)",
         detail="Re-run Setup Wizard → Themes step",
         ok=ok,
     )

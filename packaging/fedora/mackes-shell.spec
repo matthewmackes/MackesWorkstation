@@ -245,15 +245,11 @@ fi
 install -D -m 0644 data/applications/mackes-conky.desktop \
     %{buildroot}%{_datadir}/applications/mackes-conky.desktop
 cp -r data/systemd        %{buildroot}%{_datadir}/%{name}/data/
-# Vendored PadOS GTK theme + Carbon + Black-Sun icon themes —
-# system-wide install. Black-Sun is the v1.6.2 default; Carbon stays
-# bundled as an alternative.
+# Vendored GTK themes + icon theme — system-wide install
 install -d %{buildroot}%{_datadir}/themes
-cp -r data/themes/PadOS   %{buildroot}%{_datadir}/themes/
-cp -r data/themes/Shiki-Statler %{buildroot}%{_datadir}/themes/
 cp -r data/themes/Orchis-Dark   %{buildroot}%{_datadir}/themes/
+cp -r data/themes/Shiki-Statler %{buildroot}%{_datadir}/themes/
 install -d %{buildroot}%{_datadir}/icons
-cp -r data/icons/Carbon   %{buildroot}%{_datadir}/icons/
 cp -r data/icons/Black-Sun %{buildroot}%{_datadir}/icons/
 # Plymouth Mackes boot theme — installed but NOT activated at %post; the
 # wizard's birthright step (mackes.birthright.apply_plymouth) activates it
@@ -293,7 +289,6 @@ for helper in \
     add-mackes-repo.sh install-recovery.sh \
     capture-xfce-baseline.sh apply-xfce-baseline.sh \
     configure-lightdm.sh create-mackes-user.sh \
-    install-carbon-icons.sh \
     mesh-ca-trust.sh register-gvfs-mesh.sh ; do
     install -m 0755 install-helpers/$helper \
         %{buildroot}%{_datadir}/%{name}/install-helpers/
@@ -382,8 +377,7 @@ systemctl daemon-reload || :
 # never break the host's sudo behavior.
 visudo -c -f /etc/sudoers.d/mackes-shell >/dev/null 2>&1 \
     || rm -f /etc/sudoers.d/mackes-shell
-# Rebuild the GTK icon cache for the vendored icon themes
-gtk-update-icon-cache -f -t %{_datadir}/icons/Carbon    2>/dev/null || :
+# Rebuild the GTK icon cache for the vendored icon theme
 gtk-update-icon-cache -f -t %{_datadir}/icons/Black-Sun 2>/dev/null || :
 
 %preun
@@ -430,18 +424,11 @@ fi
 # tray + Super+M). Click → spawns `mackes --popover`.
 %{_libdir}/xfce4/panel/plugins/mackes-launcher
 %{_datadir}/xfce4/panel/plugins/mackes-launcher.desktop
-# Vendored PadOS GTK theme
-%{_datadir}/themes/PadOS/
-# Vendored Shiki-Statler GTK2 + xfwm4 theme (1.6.2 default)
-# Upstream: archbangretro on SourceForge (GPL)
-%{_datadir}/themes/Shiki-Statler/
-# Vendored Orchis-Dark Material-design GTK theme (1.6.6 default)
-# Upstream: github.com/vinceliuice/Orchis-theme (GPL-3.0)
+# Vendored GTK themes: Orchis-Dark (gtk-2/3/4 + xfwm) is the default;
+# Shiki-Statler provides the classic xfwm4 window borders.
 %{_datadir}/themes/Orchis-Dark/
-# Vendored Carbon GTK icon theme
-%{_datadir}/icons/Carbon/
-# Vendored Black-Sun GTK icon theme (v1.6.2 default)
-# Upstream: https://github.com/SethStormR/Black-Sun (GPL-3.0)
+%{_datadir}/themes/Shiki-Statler/
+# Vendored Black-Sun icon theme (GPL-3.0, github.com/SethStormR/Black-Sun)
 %{_datadir}/icons/Black-Sun/
 # Plymouth Mackes boot theme (theme files only; not activated at install
 # time — activation happens in the wizard's birthright step)
