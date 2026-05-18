@@ -68,16 +68,18 @@ def labeled_row(label_text: str, widget: Gtk.Widget) -> Gtk.Widget:
     return row
 
 
-def panel_box(margin: int = 0) -> Gtk.Box:
-    """Top-level page container with Carbon page padding (32/40).
+def panel_box(margin: int = 12) -> Gtk.Box:
+    """Top-level page container with the compact Mackes panel margins.
 
-    The `margin` argument is ignored — Carbon panels use fixed 32px top /
-    40px sides as locked in `[[project_v1_1_0_design]]`. The argument is
-    kept in the signature to avoid breaking callers that pass it.
+    `margin` controls top/bottom; left/right use ⌈margin·4/3⌉ so the
+    side gutters stay wider than the vertical breathing room (the
+    visual hierarchy every other Mackes panel uses). Pass `margin=0`
+    for embedded sub-panels that have their own outer container.
     """
+    side = (margin * 4 + 2) // 3
     box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-    box.set_margin_top(12); box.set_margin_bottom(12)
-    box.set_margin_start(16); box.set_margin_end(16)
+    box.set_margin_top(margin); box.set_margin_bottom(margin)
+    box.set_margin_start(side); box.set_margin_end(side)
     return box
 
 

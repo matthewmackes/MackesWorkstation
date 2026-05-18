@@ -33,6 +33,9 @@ from mackes.state import MackesState
 from mackes import __version__
 
 
+SIDENAV_WIDTH = 220
+
+
 # ---------------------------------------------------------------------------
 # Navigation model
 # ---------------------------------------------------------------------------
@@ -493,13 +496,11 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         root.pack_start(body, True, True, 0)
         self._status_bar = self._build_status_bar()
         root.pack_start(self._status_bar, False, False, 0)
-        self.add(root)
 
-        # ---- Floating overlay host (toasts only — Tweaks drawer removed v1.6.5) -
-        self.remove(root)
+        # Wrap in Gtk.Overlay so the toast host can float over the
+        # whole shell. (Tweaks drawer used to live here too; gone v1.6.5.)
         self._overlay = Gtk.Overlay()
         self._overlay.add(root)
-        self._tweaks_overlay = None
         try:
             from mackes.workbench.shell.toasts import install_host
             install_host(self._overlay)
@@ -530,7 +531,7 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
 
         # Brand block — same width as sidenav (256), right-bordered
         brand = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        brand.set_size_request(220, -1)
+        brand.set_size_request(SIDENAV_WIDTH, -1)
         brand.set_margin_start(16); brand.set_margin_end(16)
         # logo dot
         logo = Gtk.Image.new_from_icon_name("preferences-desktop-symbolic", Gtk.IconSize.LARGE_TOOLBAR)
@@ -669,7 +670,7 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
 
     def _build_sidenav(self) -> Gtk.Widget:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        outer.set_size_request(220, -1)
+        outer.set_size_request(SIDENAV_WIDTH, -1)
         outer.get_style_context().add_class("mackes-side-nav")
 
         scroller = Gtk.ScrolledWindow()
@@ -847,9 +848,10 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
             else:
                 ctx.remove_class("active")
 
-        # Persist active panel
-        self._tweaks["active_panel"] = item.key
-        _save_tweaks(self._tweaks)
+        # Persist active panel — skip the disk write if unchanged.
+        if self._tweaks.get("active_panel") != item.key:
+            self._tweaks["active_panel"] = item.key
+            _save_tweaks(self._tweaks)
 
     def _find_item(self, key: str) -> Optional[NavItem]:
         for g in self._nav:
@@ -921,41 +923,52 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         return True
 
     def _refresh_nav_badges(self) -> None:
-        """Update peer/service/fleet/drift counts on the side-nav badges."""
-        badges: dict[str, str] = {}
-        try:
+        """Update peer/service/fleet/drift counts on the side-nav badges.
+
+        Each probe shells out (headscale, fleet log scan, drift compute);
+        run them concurrently so the worst-case tick is bounded by the
+        slowest single probe rather than the sum.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _probe_mesh_peers():
             from mackes.mesh_vpn import headscale_list_peers
-            peers = headscale_list_peers()
-            online = sum(1 for p in peers if p.online)
-            if online:
-                badges["mesh_vpn"] = str(online)
-        except Exception:  # noqa: BLE001
-            pass
-        try:
+            online = sum(1 for p in headscale_list_peers() if p.online)
+            return ("mesh_vpn", str(online) if online else "")
+
+        def _probe_services():
             from mackes.mesh_services import load_registry
             n = len(load_registry())
-            if n:
-                badges["mesh_services"] = str(n)
-        except Exception:  # noqa: BLE001
-            pass
-        try:
+            return ("mesh_services", str(n) if n else "")
+
+        def _probe_fleet_failures():
+            import time
             from mackes.fleet import list_runs
-            recent = list_runs(limit=200, since=__import__("time").time() - 86400)
+            recent = list_runs(limit=200, since=time.time() - 86400)
             failures = sum(1 for r in recent if r.exit_code != 0)
-            if failures:
-                badges["fleet_runs"] = str(failures)
-        except Exception:  # noqa: BLE001
-            pass
-        try:
+            return ("fleet_runs", str(failures) if failures else "")
+
+        def _probe_drift():
             from mackes.presets import active_preset_drift
             _preset, items = active_preset_drift()
             n = len(items or [])
-            if n:
-                badges["maintain"] = str(n)
-        except Exception:  # noqa: BLE001
-            pass
+            return ("maintain", str(n) if n else "")
 
-        # v1.5.1 — UI writes posted back to the GTK main thread.
+        badges: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=4,
+                                 thread_name_prefix="nav-badges") as ex:
+            futures = [ex.submit(p) for p in (_probe_mesh_peers,
+                                              _probe_services,
+                                              _probe_fleet_failures,
+                                              _probe_drift)]
+            for fut in futures:
+                try:
+                    key, val = fut.result(timeout=10)
+                    if val:
+                        badges[key] = val
+                except Exception:  # noqa: BLE001
+                    continue
+
         def _apply():
             for key, badge_text in badges.items():
                 btn = self._nav_buttons.get(key)
@@ -970,21 +983,26 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
 
     @staticmethod
     def _set_nav_button_badge(btn: Gtk.Button, text: str) -> None:
-        """Replace any existing trailing badge label on a side-nav button."""
+        """Update the trailing badge label on a side-nav button.
+
+        The badge is created once and cached on the button as
+        `_mackes_badge` — subsequent calls just .set_text() it, so the
+        30s nav-refresh tick doesn't tear down and rebuild a Label
+        widget every time when the count hasn't actually changed.
+        """
         row = btn.get_child()
         if not isinstance(row, Gtk.Box):
             return
-        # Remove existing badge (last child with .mackes-sn-badge class)
-        for child in row.get_children():
-            classes = child.get_style_context().list_classes() if hasattr(
-                child.get_style_context(), "list_classes") else []
-            if "mackes-sn-badge" in classes:
-                row.remove(child)
-        if text:
-            badge = Gtk.Label(label=text)
+        badge = getattr(btn, "_mackes_badge", None)
+        if badge is None:
+            badge = Gtk.Label()
             badge.get_style_context().add_class("mackes-sn-badge")
             row.pack_end(badge, False, False, 0)
-        row.show_all()
+            btn._mackes_badge = badge   # type: ignore[attr-defined]
+        if badge.get_text() == text:
+            return
+        badge.set_text(text)
+        badge.set_visible(bool(text))
 
     # ---- admin session auto-lock on close ---------------------------------
 

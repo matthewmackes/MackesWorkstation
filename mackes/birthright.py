@@ -41,7 +41,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import List, Optional
 
 from mackes.logging import log_action
 from mackes.presets import Preset
@@ -141,11 +141,7 @@ def apply_themes(_preset: Preset) -> List[str]:
         else:
             actions.append(f"themes: PadOS install failed: {out.strip().splitlines()[-1] if out.strip() else 'rc='+str(rc)}")
 
-    # Orchis-Dark GTK theme (v1.6.6 default) ----------------------------
-    # Upstream: https://github.com/vinceliuice/Orchis-theme (GPL-3.0)
-    # Material-design dark theme covering gtk-2.0 + gtk-3.0 + gtk-4.0
-    # + xfwm4 + cinnamon + metacity. Replaces Shiki-Statler as the
-    # default; Shiki stays bundled as an alternative.
+    # Orchis-Dark — github.com/vinceliuice/Orchis-theme (GPL-3.0)
     if orchis_src is None:
         actions.append("themes: Orchis-Dark source missing — skipping")
     elif _newer_than(orchis_dst, orchis_src):
@@ -162,7 +158,9 @@ def apply_themes(_preset: Preset) -> List[str]:
                     if out.strip() else f"rc={rc}")
             actions.append(f"themes: Orchis-Dark install failed: {last}")
 
-    # Shiki-Statler GTK2 + xfwm4 theme (v1.6.2 default) ----------------
+    # Shiki-Statler — gtk-2.0/xfwm4/openbox-3 only; modern GTK3+ apps
+    # fall back to their inherited theme. Kept as an alternative for
+    # users who want the classic Murrine look.
     # Upstream: https://sourceforge.net/projects/archbangretro/files/
     #   Shiki-Statler.tar.xz (GPL, md5 98ce6f2e0e3588107f6dc6330ed524b5)
     # Ships gtk-2.0/ + xfwm4/ + openbox-3/ only — GTK3+ apps fall back
@@ -203,7 +201,7 @@ def apply_themes(_preset: Preset) -> List[str]:
         else:
             actions.append(f"themes: Carbon install failed: {out.strip().splitlines()[-1] if out.strip() else 'rc='+str(rc)}")
 
-    # Black-Sun icon theme (v1.6.2 default) -----------------------------
+    # Black-Sun — github.com/SethStormR/Black-Sun (GPL-3.0)
     # Upstream: https://github.com/SethStormR/Black-Sun (GPL-3.0)
     # Vendored at data/icons/Black-Sun/ in the repo so RPM builds
     # don't need network access. The theme inherits from Papirus-Dark
@@ -237,35 +235,18 @@ def apply_themes(_preset: Preset) -> List[str]:
 
 
 def _newer_than(dst: Path, src: Path) -> bool:
-    """Return True iff dst exists and is at least as new as the newest file in src."""
+    """Skip-already-installed check: compare top-level directory mtimes
+    only. Walking every file is `os.stat()` per icon — on themes like
+    Black-Sun (~2.5k SVGs) or Orchis (~3k files) that's seconds of
+    stat() per apply. The top-level dir's mtime is updated by `cp -rT`
+    when the contents change, so it's a sufficient invalidation signal.
+    """
     if not dst.exists():
         return False
     try:
-        dst_mtime = max(_walk_mtimes(dst), default=0.0)
-        src_mtime = max(_walk_mtimes(src), default=0.0)
-        return dst_mtime >= src_mtime
+        return dst.stat().st_mtime >= src.stat().st_mtime
     except OSError:
         return False
-
-
-def _walk_mtimes(path: Path) -> Iterable[float]:
-    if path.is_file():
-        try:
-            yield path.stat().st_mtime
-        except OSError:
-            pass
-        return
-    if not path.is_dir():
-        return
-    try:
-        for root, _dirs, files in os.walk(path):
-            for f in files:
-                try:
-                    yield os.stat(os.path.join(root, f)).st_mtime
-                except OSError:
-                    continue
-    except OSError:
-        return
 
 
 # ---------------------------------------------------------------------------
@@ -477,33 +458,13 @@ def _xfconf_str(ty: str, value) -> str:
 
 
 def apply_panel_layout(_preset: Preset) -> List[str]:
-    """Write a Windows 2000-style standard xfce4-panel layout.
+    """Write a classic bottom xfce4-panel layout via xfconf-query.
 
-    v1.6.6 — Per user direction, REMOVED the Mackes-specific panel
-    branding (whiskermenu rebranded as "Mackes", mackes-launcher,
-    mackes-clipboard in panel) and shipped a clean, classic
-    bottom-panel layout that mirrors Windows 2000 / classic XFCE:
-
-      Bottom panel, full width, 30px tall
-        applicationsmenu        — left "Start"-style menu
-        separator               — small gap
-        tasklist                — flat-button taskbar
-        separator-expand        — push the rest to the right edge
-        systray
-        clock (digital)
-
-    No more apply_panel_layout writing Mackes-only plugins
-    (mackes-launcher + mackes-clipboard are still installed by the
-    RPM; users can right-click the panel → Add New Items if they
-    want them on the panel).
-
-    Apply ordering (v1.5.1 race-fix preserved):
-      1. xfce4-panel --quit before any xfconf writes
-      2. write plugin types + per-plugin properties
-      3. write panel-0 metadata
-      4. write /panels array
-      5. write /panels/panel-0/plugin-ids LAST
-      6. xfce4-panel relaunch
+    Plugin types are written before /panels/panel-0/plugin-ids so the
+    panel never observes a plugin-id pointing at an unset type — the
+    v1.5.0 source of "(null) plugin could not be loaded" crashes.
+    Reset+create on the arrays is also load-bearing: --force-array
+    alone doesn't shrink an existing longer array.
     """
     actions: List[str] = []
     if shutil.which("xfconf-query") is None:
@@ -561,20 +522,17 @@ def apply_panel_layout(_preset: Preset) -> List[str]:
     _set("/panels/panel-0/background-style", "uint",   "0")
     _set("/panels/panel-0/enable-struts",    "bool",   "true")
 
-    # Standard XFCE Applications menu — acts as the "Start" button
     _set("/plugins/plugin-1", "string", "applicationsmenu")
-    _set("/plugins/plugin-1/show-button-title", "bool", "true")
-    _set("/plugins/plugin-1/button-title",      "string", "Start")
-    _set("/plugins/plugin-1/show-generic-names", "bool", "false")
-    _set("/plugins/plugin-1/show-menu-icons",   "bool", "true")
-    _set("/plugins/plugin-1/show-tooltips",     "bool", "true")
+    _set("/plugins/plugin-1/show-button-title",  "bool",   "true")
+    _set("/plugins/plugin-1/button-title",       "string", "Start")
+    _set("/plugins/plugin-1/show-generic-names", "bool",   "false")
+    _set("/plugins/plugin-1/show-menu-icons",    "bool",   "true")
+    _set("/plugins/plugin-1/show-tooltips",      "bool",   "true")
 
-    # Small visual gap between Start and the taskbar
     _set("/plugins/plugin-2", "string", "separator")
-    _set("/plugins/plugin-2/style",  "uint", "0")  # transparent
+    _set("/plugins/plugin-2/style",  "uint", "0")
     _set("/plugins/plugin-2/expand", "bool", "false")
 
-    # Classic flat-button taskbar (Win2K shape: rectangular buttons)
     _set("/plugins/plugin-3", "string", "tasklist")
     _set("/plugins/plugin-3/flat-buttons",         "bool", "false")
     _set("/plugins/plugin-3/show-handle",          "bool", "false")
@@ -583,29 +541,20 @@ def apply_panel_layout(_preset: Preset) -> List[str]:
     _set("/plugins/plugin-3/show-wireframes",      "bool", "false")
     _set("/plugins/plugin-3/grouping",             "uint", "0")
 
-    # Expanding separator pushes systray + clock to the right edge
     _set("/plugins/plugin-4", "string", "separator")
     _set("/plugins/plugin-4/style",  "uint", "0")
     _set("/plugins/plugin-4/expand", "bool", "true")
 
-    # System tray
     _set("/plugins/plugin-5", "string", "systray")
 
-    # Clock — digital, 24h-ish format like classic Win2K systray
     _set("/plugins/plugin-6", "string", "clock")
     _set("/plugins/plugin-6/mode",                "uint",   "2")
     _set("/plugins/plugin-6/digital-time-format", "string", "%I:%M %p")
     _set("/plugins/plugin-6/digital-date-format", "string", "%a %b %d")
 
-    # v1.5.1 — /panels array + /panels/panel-0/plugin-ids written LAST,
-    # AFTER every plugin's type has landed. xfce4-panel only loads a
-    # plugin when its plugin-N type is set; writing plugin-ids before
-    # the types caused the v1.5.0 "(null)" plugin-load dialogs.
-    _set_array("/panels",                       "int",  ["0"])
-    _set_array("/panels/panel-0/plugin-ids",    "uint", plugin_ids)
+    _set_array("/panels",                    "int",  ["0"])
+    _set_array("/panels/panel-0/plugin-ids", "uint", plugin_ids)
 
-    # Relaunch xfce4-panel — we --quit'd it at the start; spawn fresh
-    # so it sees the new config from scratch.
     if shutil.which("xfce4-panel"):
         try:
             subprocess.Popen(["xfce4-panel"],

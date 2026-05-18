@@ -39,11 +39,20 @@
     min-height: 0;
 }
 
-/* Standardised status pills — single ruleset every panel uses */
-.mackes-pill-ok      { background: alpha(@success_color, 0.18); color: @success_color; padding: 0 6px; border-radius: 2px; font-size: 7pt; font-weight: 600; }
-.mackes-pill-warn    { background: alpha(@warning_color, 0.20); color: @warning_color; padding: 0 6px; border-radius: 2px; font-size: 7pt; font-weight: 600; }
-.mackes-pill-fail    { background: alpha(@error_color,   0.22); color: @error_color;   padding: 0 6px; border-radius: 2px; font-size: 7pt; font-weight: 600; }
-.mackes-pill-neutral { background: alpha(@cds_text_helper, 0.15); color: @cds_text_secondary; padding: 0 6px; border-radius: 2px; font-size: 7pt; font-weight: 600; }
+/* Status pills — shape once, color per semantic state */
+.mackes-pill-ok,
+.mackes-pill-warn,
+.mackes-pill-fail,
+.mackes-pill-neutral {
+    padding: 0 6px;
+    border-radius: 2px;
+    font-size: 7pt;
+    font-weight: 600;
+}
+.mackes-pill-ok      { background: alpha(@success_color,   0.18); color: @success_color; }
+.mackes-pill-warn    { background: alpha(@warning_color,   0.20); color: @warning_color; }
+.mackes-pill-fail    { background: alpha(@error_color,     0.22); color: @error_color; }
+.mackes-pill-neutral { background: alpha(@cds_text_helper, 0.15); color: @cds_text_secondary; }
 
 
 /* v1.6.3 — global 8pt override. User-requested density preset.
