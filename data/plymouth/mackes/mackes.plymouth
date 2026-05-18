@@ -1,6 +1,6 @@
 [Plymouth Theme]
 Name=Mackes
-Description=Mackes Shell boot splash — centered logo on Carbon Gray 100.
+Description=Mackes XFCE Workstation boot splash — centered logo + 20 px bottom progress strip.
 ModuleName=script
 
 [script]
