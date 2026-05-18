@@ -3,22 +3,111 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.0.0-rc1 — Mackes XFCE Workstation, preview cut (2026-05-18)
+## 1.0.0 — Mackes XFCE Workstation (2026-05-18)
 
-First tagged preview of the v1.0.0 rebrand. RPM name flips from
-`mackes-shell` to `mackes-xfce-workstation`; `Obsoletes: mackes-shell
-< 3.0` so `dnf upgrade` auto-replaces 2.x installs. Filesystem paths
-(`~/.config/mackes-shell/`, `/usr/share/mackes-shell/`, `mackes/`
-Python package) stay unchanged so existing user data keeps working —
-the rename is brand + package surface only per Q44 of the design
-lock.
+The Mackes Shell line graduates from the 2.x XFCE-control-panel
+framing to a unified product: **Mackes XFCE Workstation**. The RPM
+renames from `mackes-shell` to `mackes-xfce-workstation` (with
+`Obsoletes: mackes-shell < 3.0` so `dnf upgrade` is automatic), and
+the desktop ships its own panel, dock, and wallpaper layer written
+fresh in Rust. Filesystem paths (`~/.config/mackes-shell/`,
+`/usr/share/mackes-shell/`, the `mackes/` Python package) stay
+unchanged so 2.x installations carry forward.
 
-This is a **preview release**. Final 1.0.0 ships once the M1 items
-still marked open in `docs/PROJECT_WORKLIST.md` land (libwnck-driven
-running-app/window-mgmt, Phase 4.3 drawer port, Phase 9 test pyramid,
-LightDM/Plymouth chrome).
+Full design lock: `docs/design/v3.0.0-mackes-xfce-workstation.md`
+(50-question survey, locked 2026-05-18).
 
-## Unreleased — Mackes XFCE Workstation 1.0.0 (continuing)
+### What's new
+
+**Mackes-Carbon icon theme** — symbolic, single-color icon set
+derived from IBM Carbon Design System (Apache 2.0). 2,617 SVGs
+across the freedesktop categories with `fill="currentColor"`
+injected so GTK and the Mackes panel CSS recolor uniformly. New
+default for every preset. App-icon mapping table covers ~45 common
+apps (Firefox → earth, Thunar → folder--open, vim → terminal …);
+fallthrough is `applications-other-symbolic`.
+
+**mackes-panel** — `/usr/bin/mackes-panel`, a new Rust binary that
+renders the top status bar + bottom dock + wallpaper. Replaces
+xfdesktop (and via Phase 8.3 autostart, takes over from
+xfce4-panel on Mackes sessions).
+
+  - **Top bar (20 px)** — Apple-menu button on the left, HH:MM
+    clock in the center (wall-clock synced), 6-glyph status cluster
+    on the right (mesh / clipboard / volume / battery / notifications
+    / user). Each cluster click opens the v2.2.0 Notification Drawer
+    with section focus. PatternFly dark surface, monochrome
+    Mackes-Carbon glyphs.
+  - **Apple menu** — real `gtk::Menu` dropdown: About / Settings /
+    Software Update / Recent Items → / Applications → (categorized
+    by `.desktop` Categories into Internet / Multimedia / Graphics
+    / Office / Development / Games / System / Utilities / Other) /
+    Force Quit / Sleep / Restart / Shut Down / Lock / Sign Out.
+    System actions go through `loginctl` and `xfce4-session-logout`.
+  - **Bottom dock (80 px)** — primary monitor only. Reads
+    `~/.config/mackes-panel/panel.toml`, renders pinned apps + mesh
+    resources interleaved per Q10. Clicking a running app raises
+    its window via `wmctrl -i -a`; second click minimises with
+    `xdotool windowminimize`. Mesh peers expose a six-button action
+    popover: Files / SSH / RDP / VNC / Services / Send file.
+  - **Wallpaper layer** — third Desktop-hint window owns the root
+    background, sourced from `~/.config/mackes-shell/state.json`
+    or the branded fallback.
+
+**Config + mesh sync** — `panel.toml` lives in TOML at
+`~/.config/mackes-panel/panel.toml`, mesh-replicated whole-file to
+`~/.qnm-sync/mackes-panel/panel.toml`, hot-reloaded via inotify
+(`gio::FileMonitor`), drift-detected against peers via SHA-256.
+Look & Feel → Panel surfaces the sync status.
+
+**Boot-to-desktop continuity** — Plymouth rebuilt (centered logo +
+20 px progress strip pinned to the bottom edge), LightDM greeter
+mirrors the panel's top bar (`panel-position = top`, `clock-format
+= %H:%M`, slim indicator cluster), mackes-panel takes over after
+login. Single visual language from power-on through running session.
+
+**Performance** — measured under Xvfb (commit 99e2680):
+
+      cold start  5 ms      (target < 200 ms, 40× under)
+      RSS         85 MB     (target ≤ 150 MB,  43% under)
+      idle CPU    0.0 %     (target < 1 %,     far under)
+
+    `install-helpers/bench-panel.sh` is the perf gate — runs it,
+    returns non-zero on regression.
+
+**Workspaces dropped** — every preset ships `workspace_count: 1`.
+Single desktop, Cmd+Tab app-switch model.
+
+### Post-1.0 roadmap
+
+The 50-question lock anticipated more than 1.0 lands in one cut.
+The following items are tracked in `docs/PROJECT_WORKLIST.md` and
+ship in follow-up minor releases:
+
+- Global hotkey grabs (Super+Space / Super+Tab / Super+L / Super+V
+  / Super+E / F3 etc.) via x11rb — the panel currently relies on
+  xfconf-bound xfwm4 actions, so most macOS-style shortcuts work
+  via xfwm4's own keybinding system; full Mackes-side grabs land
+  in 1.1.
+- Cmd+Tab app-switcher overlay and Exposé grid (need a window-
+  thumbnails overlay layer).
+- Notification Drawer port from Python to Rust (currently invoked
+  via `mackes --drawer`).
+- Full GTK widget + xdotool E2E test pyramid (workspace currently
+  has 58 unit tests).
+- First-launch migration wizard for 2.x → 1.0 user data.
+- Root right-click menu (`Change wallpaper / Open mesh share /
+  Send file to peer / Display settings`) — Phase 8.4.
+
+### Migration from 2.x
+
+`dnf upgrade` does the work. The new RPM `Obsoletes: mackes-shell
+< 3.0` so the old package is replaced. Existing config in
+`~/.config/mackes-shell/` is untouched. `~/.config/xfce4/panel/` is
+archived to `~/.config/mackes-panel/legacy-xfce-panel/` on first
+run for safekeeping. The birthright apply sequence brings up
+mackes-panel, then quits xfce4-panel and xfdesktop, then rebinds
+Super-key shortcuts to `mackes-panel --apple-menu`.
 
 Foundation for the v3.0.0 / 1.0.0 rebrand per
 `docs/design/v3.0.0-mackes-xfce-workstation.md`. Tracked in

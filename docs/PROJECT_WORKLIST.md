@@ -106,8 +106,8 @@ blocked until fixed. See Phase 9.4 below.
 - [✓] **10.1 RPM rename** — `Name: mackes-xfce-workstation`, `Provides: mackes-shell = %{version}-%{release}`, `Obsoletes: mackes-shell < 3.0`. Source tarball still ships under the legacy `mackes-shell-%{version}.tar.gz` filename so the build pipeline doesn't need a rename. Verified: `make rpm` produces `mackes-xfce-workstation-1.0.0-0.1.rc1.fc44.x86_64.rpm`; `rpm -q --obsoletes` shows the Obsoletes line. Filesystem paths intentionally unchanged (Q44 brand-only rename).
 - [ ] **10.2 First-launch wizard** — detect `~/.config/mackes-shell/` leftovers from 2.x; import preset + active wallpaper + pinned apps into `~/.config/mackes-panel/panel.toml`. Show what's being migrated.
 - [✓] **10.3 Brand surfacing** — `data/applications/mackes-shell.desktop:Name` now "Mackes XFCE Workstation" (was "Mackes Shell"). Plymouth Description updated to v1.0.0 wording (Phase 8.2). RPM Summary line updated (Phase 10.1). About dialog and greeter banner will pick up the new label via these same strings. About-dialog text lives in `mackes/workbench/help.py` — already pulls from `__version__`, so the 1.0.0 bump cascades through.
-- [ ] **10.4 CHANGELOG 1.0.0 section** — write the user-visible summary referencing the design doc.
-- [ ] **10.5 Cut release 1.0.0** — follow the standard cut-release flow (CLAUDE.md §0.6) but with renamed RPM and version reset.
+- [✓] **10.4 CHANGELOG 1.0.0 section** — `CHANGELOG.md` carries the full "1.0.0 — Mackes XFCE Workstation (2026-05-18)" entry: what's new (icon theme, panel + dock + wallpaper, config + mesh sync, boot continuity, perf gates, workspaces dropped), post-1.0 roadmap (global hotkeys via x11rb, Cmd+Tab/Exposé overlays, drawer Rust port, GTK widget + E2E test pyramid, first-launch wizard, root right-click menu), migration story.
+- [>] **10.5 Cut release 1.0.0** — RPM `Release: 1` (was `0.1.rc1`). `make rpm` produces `mackes-xfce-workstation-1.0.0-1.fc44.x86_64.rpm`. CHANGELOG + tag below complete the cut.
 
 ### 10.6 — Birthright removal sequence (replaces incumbent panel + desktop)
 

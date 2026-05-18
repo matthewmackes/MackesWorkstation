@@ -6,7 +6,7 @@
 
 Name:           mackes-xfce-workstation
 Version:        1.0.0
-Release:        0.1.rc1%{?dist}
+Release:        1%{?dist}
 Summary:        Mackes XFCE Workstation — unified shell, panel, dock, and mesh for Fedora
 
 License:        GPL-3.0
