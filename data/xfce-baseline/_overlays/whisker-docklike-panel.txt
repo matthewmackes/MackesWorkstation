@@ -73,10 +73,10 @@
 /plugins/plugin-4/appearance             1
 /plugins/plugin-4/items                  [+lock-screen,+logout]
 
-# 8: Clock (IBM Plex Sans, two-line date + time)
+# 8: Clock (Red Hat Text, two-line date + time)
 /plugins/plugin-8                        clock
 /plugins/plugin-8/digital-layout         1
 /plugins/plugin-8/digital-date-format    %B %d, %Y
-/plugins/plugin-8/digital-date-font      IBM Plex Sans 10
+/plugins/plugin-8/digital-date-font      Red Hat Text 10
 /plugins/plugin-8/digital-time-format    %I:%M %p
-/plugins/plugin-8/digital-time-font      IBM Plex Sans Bold 12
+/plugins/plugin-8/digital-time-font      Red Hat Display Bold 12

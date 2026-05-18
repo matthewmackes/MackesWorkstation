@@ -135,7 +135,7 @@ def _design_lock_notification() -> Gtk.Widget:
     from mackes.carbon import Notification, NotificationKind
     return Notification(
         "Carbon Design System locks",
-        body=("Q-CB1 Gray 100 palette · Q-CB3 IBM Plex typography · Q-CB5 "
+        body=("Q-CB1 Gray 100 palette · Q-CB3 Red Hat typography · Q-CB5 "
               "Carbon icons. Per-preset accent replaces Carbon blue but "
               "everything else is fixed."),
         kind=NotificationKind.INFO,

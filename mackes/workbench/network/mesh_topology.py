@@ -278,7 +278,7 @@ class MeshTopologyArea(Gtk.DrawingArea):
         # Name + IP — text layout via Pango
         from gi.repository import Pango, PangoCairo
         layout = PangoCairo.create_layout(cr)
-        layout.set_font_description(Pango.FontDescription("IBM Plex Mono 10"))
+        layout.set_font_description(Pango.FontDescription("Red Hat Mono 10"))
         if is_control:
             text = f"<span foreground='#f4f4f4'>{_esc(peer.name)}</span>"
         else:
@@ -291,7 +291,7 @@ class MeshTopologyArea(Gtk.DrawingArea):
         # IP (right-aligned, helper color)
         if peer.ip:
             layout2 = PangoCairo.create_layout(cr)
-            layout2.set_font_description(Pango.FontDescription("IBM Plex Mono 9"))
+            layout2.set_font_description(Pango.FontDescription("Red Hat Mono 9"))
             layout2.set_text(peer.ip, -1)
             ink, logical = layout2.get_pixel_extents()
             cr.set_source_rgb(*_TEXT_HELPER)

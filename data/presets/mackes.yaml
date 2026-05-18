@@ -6,16 +6,16 @@
 name: mackes
 display_name: "Mackes"
 description: >
-  The house style — warm-dark, polished. Orchis-Dark GTK + IBM Plex
-  typography, curated development tool set. Standard XFCE shell.
+  The house style — warm-dark, polished. Orchis-Dark GTK + Red Hat
+  typography (PatternFly v6), curated development tool set. Standard XFCE shell.
 
 appearance:
   gtk_theme:      "Orchis-Dark"
   icon_theme:     "Black-Sun"
   cursor_theme:   "Adwaita"
   cursor_size:    24
-  font_ui:        "IBM Plex Sans 11"
-  font_monospace: "IBM Plex Mono 11"
+  font_ui:        "Red Hat Text 11"
+  font_monospace: "Red Hat Mono 11"
   wallpaper:      "/usr/share/mackes-shell/branding/standard-wallpaper.png"
 
 devices:
@@ -38,9 +38,9 @@ panel:
   clock:
     digital-layout:      1
     digital-date-format: "%B %d, %Y"
-    digital-date-font:   "IBM Plex Sans 10"
+    digital-date-font:   "Red Hat Text 10"
     digital-time-format: "%I:%M %p"
-    digital-time-font:   "IBM Plex Sans Bold 12"
+    digital-time-font:   "Red Hat Display Bold 12"
 
 apps:
   install:

@@ -62,9 +62,9 @@ menulibre
 dnf-plugins-core
 flatpak
 mackes-shell
-# Typography — Carbon Design System (IBM Plex)
-ibm-plex-sans-fonts
-ibm-plex-mono-fonts
+# Typography — Carbon Design System (Red Hat)
+redhat-text-fonts
+redhat-mono-fonts
 %end
 
 # ---- Post-install ------------------------------------------------------

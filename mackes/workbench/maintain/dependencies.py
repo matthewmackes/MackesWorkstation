@@ -40,8 +40,8 @@ PACKAGES: list[tuple[str, str, bool]] = [
     # Audio
     ("pulseaudio-utils",        "pactl — Sound panel backend",      False),
     # Typography defaults — Carbon Design System
-    ("ibm-plex-sans-fonts",     "IBM Plex Sans (UI)",               False),
-    ("ibm-plex-mono-fonts",     "IBM Plex Mono (monospace)",        False),
+    ("redhat-text-fonts",     "Red Hat Text (UI)",               False),
+    ("redhat-mono-fonts",     "Red Hat Mono (monospace)",        False),
 ]
 
 

@@ -61,7 +61,7 @@ _CARDS = [
     ("update",       "System update",   "system-software-update-symbolic",
      "dnf upgrade and Mackes self-update.", ""),
     ("fonts",        "Fonts",           "preferences-desktop-font-symbolic",
-     "Install IBM Plex, JetBrains Mono, Nerd Fonts.", ""),
+     "Install Red Hat, JetBrains Mono, Nerd Fonts.", ""),
     ("power",        "Power profiles",  "weather-clear-symbolic",
      "Balanced / Performance / Power-saver.", ""),
     ("resources",    "Resources",       "utilities-system-monitor-symbolic",

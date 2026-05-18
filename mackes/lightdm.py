@@ -1,8 +1,8 @@
 """LightDM greeter configuration (§8 lock — silent greeter setup).
 
 Writes /etc/lightdm/lightdm-gtk-greeter.conf via pkexec so the login
-screen mirrors the active preset: Orchis-Dark theme, Black-Sun icons, IBM Plex
-Sans, standard wallpaper, default-preset accent color.
+screen mirrors the active preset: Orchis-Dark theme, Black-Sun icons,
+Red Hat Text, standard wallpaper, default-preset accent color.
 
 Called from `apply_preset` (mackes.presets) after the appearance section
 runs. Idempotent: re-running with the same preset produces no diff.
@@ -102,7 +102,7 @@ def configure_greeter(
     *,
     gtk_theme: str = "Orchis-Dark",
     icon_theme: str = "Black-Sun",
-    font_name: str = "IBM Plex Sans 11",
+    font_name: str = "Red Hat Text 11",
     wallpaper: Optional[Path] = None,
     accent_color: str = "#fa4d56",
 ) -> list[str]:

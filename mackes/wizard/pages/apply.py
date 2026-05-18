@@ -605,7 +605,7 @@ _STEP_SUBTITLES = {
     "Panel":            "Clock plugin format · font · layout.",
     "Themes":           "Copying Orchis-Dark + Shiki-Statler + Black-Sun to /usr/share/{themes,icons}.",
     "LightDM greeter":  "Mackes-themed login screen — wallpaper / theme / icons / fonts.",
-    "Fonts":            "Installing IBM Plex Sans + Mono via dnf.",
+    "Fonts":            "Installing Red Hat Text + Mono via dnf.",
     "Apps":             "Installing preset.apps.install + removing apps.remove_bloat.",
     "Panel layout":     "Writing Mackes default xfce4-panel layout (Whisker + Docklike + clock).",
     "Boot splash":      "Installing + activating the Mackes Plymouth theme (regenerates initrd — slow).",

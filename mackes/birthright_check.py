@@ -50,17 +50,17 @@ def _check_themes() -> BirthrightItem:
 
 def _check_fonts() -> BirthrightItem:
     if shutil.which("rpm") is None:
-        return BirthrightItem("fonts", "IBM Plex fonts",
+        return BirthrightItem("fonts", "Red Hat fonts",
                               "rpm not available", ok=False)
     try:
-        r = subprocess.run(["rpm", "-q", "ibm-plex-sans-fonts",
-                             "ibm-plex-mono-fonts"],
+        r = subprocess.run(["rpm", "-q", "redhat-text-fonts",
+                             "redhat-mono-fonts"],
                             capture_output=True, timeout=4)
         ok = r.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         ok = False
     return BirthrightItem(
-        key="fonts", name="IBM Plex fonts",
+        key="fonts", name="Red Hat fonts",
         detail="Re-run Setup Wizard → Fonts step",
         ok=ok,
     )

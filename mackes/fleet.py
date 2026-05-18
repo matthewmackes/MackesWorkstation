@@ -187,7 +187,7 @@ def _fleet_peer_with_run_meta(name: str, mesh_ip: str, online: bool) -> FleetPee
 _PLAYBOOK_DESCRIPTIONS = {
     "system-update":              "dnf upgrade -y --refresh — full system update",
     "bloat-removal":              "Apply preset.apps.remove_bloat (idempotent)",
-    "apps-install":               "Apply preset.apps.install + ensure IBM Plex fonts",
+    "apps-install":               "Apply preset.apps.install + ensure Red Hat fonts",
     "xfconf-baseline":            "Re-apply the active preset's xfconf state — corrects drift",
     "mesh-state-snapshot":        "Capture a Mackes snapshot on every peer",
     "selinux-permissive-toggle":  "Toggle SELinux between enforcing and permissive",

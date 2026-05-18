@@ -3,7 +3,7 @@
 Implements the locks Q-CB1..Q-CB10:
   - Gray 100 palette (in data/css/tokens.css)
   - Carbon UI Shell layout (header + side nav + content + status bar)
-  - IBM Plex Sans / IBM Plex Mono typography
+  - Red Hat Text / Red Hat Mono typography
   - Per-preset accent (replaces Carbon blue #0f62fe)
   - Carbon Icons (vendored via /usr/share/icons/Carbon/)
   - Strict 8px spacing grid (--cds-spacing-01..13)

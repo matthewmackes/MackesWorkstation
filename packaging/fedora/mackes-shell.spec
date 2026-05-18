@@ -5,7 +5,7 @@
 %global debug_package %{nil}
 
 Name:           mackes-shell
-Version:        1.7.0
+Version:        2.0.0
 Release:        1%{?dist}
 Summary:        Mackes Shell — XFCE control panel and shell manager for Fedora
 
@@ -173,9 +173,10 @@ Requires:       NetworkManager
 Recommends:     firewalld
 Recommends:     pulseaudio-utils
 
-# Typography defaults — Carbon Design System (IBM Plex)
-Recommends:     ibm-plex-sans-fonts
-Recommends:     ibm-plex-mono-fonts
+# Typography defaults — PatternFly v6 (Red Hat Display + Text + Mono)
+Recommends:     redhat-display-fonts
+Recommends:     redhat-text-fonts
+Recommends:     redhat-mono-fonts
 
 # QNM is detected at runtime; soft dep so users without QNM still get
 # Network → QNM panel with an install prompt (C2/Q38 lock).

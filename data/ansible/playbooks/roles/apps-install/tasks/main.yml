@@ -25,7 +25,7 @@
     preset_doc: "{{ preset_blob.content | b64decode | from_yaml }}"
   when: preset_blob is defined and preset_blob.content is defined
 
-- name: Install IBM Plex fonts (always)
+- name: Install Red Hat fonts (always)
   ansible.builtin.dnf:
     name: "{{ mackes_fonts_required }}"
     state: present

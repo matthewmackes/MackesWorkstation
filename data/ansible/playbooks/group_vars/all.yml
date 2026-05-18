@@ -10,8 +10,8 @@ mackes_preset_dir: /usr/share/mackes-shell/data/presets
 
 # Fonts that should always be present (matches the wizard's apply_fonts).
 mackes_fonts_required:
-  - ibm-plex-sans-fonts
-  - ibm-plex-mono-fonts
+  - redhat-text-fonts
+  - redhat-mono-fonts
 
 # Container runtime stack (Fedora-native; per reference material).
 mackes_container_runtimes:

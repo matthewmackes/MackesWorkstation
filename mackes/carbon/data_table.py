@@ -77,7 +77,7 @@ class DataTable(Gtk.Box):
         for idx, col in enumerate(self._columns):
             renderer = Gtk.CellRendererText()
             if col.monospace:
-                renderer.set_property("family", "IBM Plex Mono")
+                renderer.set_property("family", "Red Hat Mono")
             tv_col = Gtk.TreeViewColumn(col.title, renderer, text=idx)
             if col.width > 0:
                 tv_col.set_fixed_width(col.width)

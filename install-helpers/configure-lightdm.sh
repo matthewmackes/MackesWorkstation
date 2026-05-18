@@ -26,7 +26,7 @@ ACCENT_HEX="${ACCENT[$PRESET]:-#fa4d56}"
 WALLPAPER="/usr/share/mackes-shell/branding/standard-wallpaper.png"
 GTK_THEME="Orchis-Dark"
 ICON_THEME="Black-Sun"
-FONT="IBM Plex Sans 11"
+FONT="Red Hat Text 11"
 
 CONF_DIR="/etc/lightdm"
 GREETER_CONF="${CONF_DIR}/lightdm-gtk-greeter.conf"

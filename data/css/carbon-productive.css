@@ -105,12 +105,12 @@
 .mackes-productive label,
 .mackes-productive button,
 .mackes-productive entry {
-    font-family: "IBM Plex Sans", "Inter", "Cantarell", sans-serif;
+    font-family: "Red Hat Text", "Inter", "Cantarell", sans-serif;
     font-size: 14px;
 }
 
 .mackes-productive .mackes-popover-title {
-    font-family: "IBM Plex Sans", sans-serif;
+    font-family: "Red Hat Text", sans-serif;
     font-weight: 600;
     font-size: 14px;
 }

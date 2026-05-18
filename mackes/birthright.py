@@ -7,7 +7,7 @@ These are the fourteen "birthright" items the v1.5.2 wizard runs in
 addition to the v1.0.x xfconf-only apply pipeline:
 
   1. apply_themes              — deploy Orchis-Dark + Shiki-Statler GTK + Black-Sun icon
-  2. apply_fonts               — install IBM Plex Sans + Mono via dnf
+  2. apply_fonts               — install Red Hat Text + Mono via dnf
   3. apply_apps                — install preset.apps.install / remove preset.apps.remove_bloat
   4. apply_panel_layout        — write the Mackes default xfce4-panel layout
   5. apply_plymouth            — install + activate the Mackes Plymouth boot theme
@@ -162,11 +162,20 @@ def _newer_than(dst: Path, src: Path) -> bool:
 
 
 # ---------------------------------------------------------------------------
-# 2. Fonts — dnf install IBM Plex Sans + Mono
+# 2. Fonts — dnf install Red Hat Display + Text + Mono (PF v6 stack)
 # ---------------------------------------------------------------------------
 
 
-_PLEX_PACKAGES = ("ibm-plex-sans-fonts", "ibm-plex-mono-fonts")
+# v2.0.0 — PatternFly's official font stack is Red Hat Display (headings),
+# Red Hat Text (body), Red Hat Mono (code). All three are on Fedora main.
+# Red Hat stays as a CSS fallback in data/css/tokens.css for hosts that
+# haven't yet run this birthright step (e.g. on-the-fly developer
+# workstations) — the apply pipeline replaces them at first-run.
+_FONT_PACKAGES = (
+    "redhat-display-fonts",
+    "redhat-text-fonts",
+    "redhat-mono-fonts",
+)
 
 # Hack Nerd Font — installed from upstream because Fedora doesn't
 # package any nerd-font (only the base hack-fonts without PUA glyphs).
@@ -180,8 +189,8 @@ _NERD_FONT_DEST = Path("/usr/local/share/fonts/HackNerdFont")
 
 
 def apply_fonts(_preset: Preset) -> List[str]:
-    """Install IBM Plex Sans + Mono via dnf, plus Hack Nerd Font from
-    upstream. Idempotent."""
+    """Install Red Hat Display + Text + Mono via dnf, plus Hack Nerd Font
+    from upstream. Idempotent."""
     actions: List[str] = []
     if shutil.which("dnf") is None:
         actions.append("fonts: dnf not available — skipping")
@@ -189,19 +198,19 @@ def apply_fonts(_preset: Preset) -> List[str]:
 
     # Skip if already installed
     needed = []
-    for pkg in _PLEX_PACKAGES:
+    for pkg in _FONT_PACKAGES:
         rc, _ = _run(["rpm", "-q", pkg])
         if rc != 0:
             needed.append(pkg)
     if not needed:
-        actions.append("fonts: IBM Plex already installed")
+        actions.append("fonts: Red Hat font stack already installed")
     else:
         rc, out = _run_root(["dnf", "install", "-y", *needed], timeout=600)
         if rc == 0:
             actions.append(f"fonts: installed {', '.join(needed)}")
         else:
             last = out.strip().splitlines()[-1] if out.strip() else f"rc={rc}"
-            actions.append(f"fonts: Plex install failed: {last}")
+            actions.append(f"fonts: Red Hat fonts install failed: {last}")
 
     actions.extend(_apply_nerd_font())
 

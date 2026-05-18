@@ -130,7 +130,7 @@
 .mackes-sn-badge {
     background-color: @mackes_accent_soft;
     color: @mackes_accent;
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     font-size: 11px;
     padding: 1px 6px;
 }
@@ -148,14 +148,14 @@
     border-top: 1px solid @cds_border_subtle_01;
     min-height: 24px;
     padding: 0 16px;
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     font-size: 11px;
     color: @cds_text_helper;
 }
 
 .mackes-status-bar-item {
     color: @cds_text_helper;
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     font-size: 11px;
 }
 
@@ -251,7 +251,7 @@
 .mackes-tag {
     background-color: @cds_bg_layer_02;
     color: @cds_text_primary;
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     font-size: 11px;
     padding: 1px 8px;
     border-radius: 12px;
@@ -395,7 +395,7 @@
 
 /* Code block */
 .mackes-code {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     font-size: 13px;
     background-color: @cds_bg_default;
     border: 1px solid @cds_border_subtle_00;
@@ -539,7 +539,7 @@
 
 .mackes-app-name { font-size: 16px; font-weight: 600; color: @cds_text_primary; }
 .mackes-app-desc { color: @cds_text_secondary; }
-.mackes-app-meta { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: @cds_text_helper; }
+.mackes-app-meta { font-family: "Red Hat Mono", monospace; font-size: 11px; color: @cds_text_helper; }
 
 
 /* Help — markdown rendering */
@@ -548,14 +548,14 @@
 .mackes-md-p  { font-size: 16px; line-height: 24px; color: @cds_text_secondary; }
 .mackes-md-li { color: @cds_text_secondary; }
 .mackes-md-code-inline {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     font-size: 12px;
     background-color: @cds_bg_layer_01;
     color: @mackes_accent;
     padding: 1px 6px;
 }
 .mackes-md-pre {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     background-color: @cds_bg_default;
     border-left: 3px solid @mackes_accent;
     color: @cds_text_secondary;
@@ -565,7 +565,7 @@
 
 /* Wizard chrome */
 .mackes-wizard-step {
-    font-family: "IBM Plex Mono", monospace;
+    font-family: "Red Hat Mono", monospace;
     font-size: 11px;
     color: @cds_text_helper;
 }

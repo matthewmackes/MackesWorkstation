@@ -329,7 +329,7 @@ class LayoutCanvas(Gtk.DrawingArea):
             if friendly:
                 label_lines.insert(1, friendly[:28])
             cr.set_source_rgba(1, 1, 1, 0.92 if active else 0.55)
-            cr.select_font_face("IBM Plex Sans",
+            cr.select_font_face("Red Hat Text",
                                 0, 0)  # normal / normal
             cr.set_font_size(12)
             for i, line in enumerate(label_lines):

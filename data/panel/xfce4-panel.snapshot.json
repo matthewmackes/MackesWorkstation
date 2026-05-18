@@ -158,7 +158,7 @@
   },
   "/plugins/plugin-7/digital-time-font": {
     "type": "string",
-    "value": "IBM Plex Sans Bold 12"
+    "value": "Red Hat Display Bold 12"
   },
   "/plugins/plugin-7/digital-time-format": {
     "type": "string",
@@ -166,7 +166,7 @@
   },
   "/plugins/plugin-7/digital-date-font": {
     "type": "string",
-    "value": "IBM Plex Sans 10"
+    "value": "Red Hat Text 10"
   },
   "/plugins/plugin-7/digital-date-format": {
     "type": "string",

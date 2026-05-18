@@ -24,8 +24,8 @@ _DEFAULTS = (
     ("Window borders", "Shiki-Statler"),
     ("Icon theme",     "Black-Sun"),
     ("Cursor theme",   "Adwaita (24px)"),
-    ("Interface font", "IBM Plex Sans 11"),
-    ("Monospace font", "IBM Plex Mono 11"),
+    ("Interface font", "Red Hat Text 11"),
+    ("Monospace font", "Red Hat Mono 11"),
     ("Wallpaper",      "Mackes standard wallpaper"),
 )
 

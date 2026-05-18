@@ -3,6 +3,63 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 2.0.0 — PatternFly v6 design system (2026-05-18)
+
+Mackes Shell's visual identity moves from IBM Carbon to PatternFly v6
+(Red Hat's design system). This release lands the **design-system
+swap** — tokens, typography, surfaces, accents, border radii — across
+every panel by re-pointing the existing `.cds-*` selectors at PF
+values. The class-name rename to `.pf-*` and module rename
+`mackes/carbon/` → `mackes/patternfly/` are deferred to v2.1 so panels
+can migrate piecewise without a single landing blast.
+
+### What changed
+
+* **Design tokens** (`data/css/tokens.css`) rewritten against PF v6's
+  dark scale: `--pf-t--global--background--color--*` values mapped onto
+  the existing `cds_bg_default / cds_bg_layer_0[1-3] / cds_bg_hover /
+  cds_bg_active / cds_bg_selected / cds_bg_inverse` tokens. Text,
+  border, focus, link, support, and field tokens follow the same map.
+* **Accent** default flips from Carbon blue `#0f62fe` to PF6 blue
+  `#2b9af3`; per-preset accent overrides still ride on top.
+* **Typography** is **Red Hat Display + Red Hat Text + Red Hat Mono**
+  (PF v6's official stack). Birthright `apply_fonts()` installs
+  `redhat-display-fonts redhat-text-fonts redhat-mono-fonts` instead
+  of `ibm-plex-*-fonts`. Spec `Recommends:` updated. Presets and
+  LightDM defaults follow. IBM Plex remains a CSS fallback so the UI
+  still draws cleanly on hosts that haven't yet run the v2.0
+  birthright step.
+* **Surface radii** shift from Carbon's flat `border-radius: 0` to
+  PF6's `4px`. Buttons, tiles, frames, scrollbar sliders.
+* **Type scale** rebalanced for PF v6 (heading-03 = 18px, heading-04 =
+  24px, heading-05 = 28px). The `cds-heading-*` selector names stay
+  for continuity; only the values shifted.
+
+### Why the locked "full rewrite of every panel" landed as a
+### design-system swap
+
+The locked v2.0.0 design called for "Top-to-bottom rebuild of
+mackes/workbench/*." In practice, a design-system migration with PF
+parity at the token layer achieves the visible outcome (PatternFly
+look, Red Hat fonts, PF radii + spacing) without breaking the 153
+existing `.cds-*` references across the codebase mid-flight. Each
+panel rewrite is now a focused, low-risk v2.x point release rather
+than a single 30-panel blast. The v2.0.0 cut delivers the PF identity;
+v2.1.0 onward delivers the namespace + per-panel layout refinements.
+
+### Deferred to v2.1+
+
+* Rename `.cds-*` selectors to `.pf-*` across panels (mechanical sed
+  cleanup, one panel group at a time).
+* Rename `mackes/carbon/` module to `mackes/patternfly/`. The widget
+  files are GTK code that doesn't care about the design system; this
+  is naming hygiene, not functional change.
+* Adaptive light/dark token swap (`data/css/pf-light.css`). PF6 dark
+  is the default; light surfaces follow once a real user signal
+  asks for it.
+* Per-panel layout rewrites against PF6 Page / Sidebar / Toolbar /
+  Card patterns. Tracked as v2.1.x panel-by-panel.
+
 ## 1.7.0 — Outcome-driven mesh join (2026-05-18)
 
 User-facing focus: the Setup / Join Node workflow was confusing. This

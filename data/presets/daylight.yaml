@@ -7,7 +7,7 @@
 name: daylight
 display_name: "Daylight"
 description: >
-  Cool-light, day-mode. Orchis-Dark GTK + IBM Plex typography, productivity app set
+  Cool-light, day-mode. Orchis-Dark GTK + Red Hat typography, productivity app set
   (LibreOffice, Thunderbird, GIMP, Inkscape). For people who work in the
   daytime and care about document fidelity.
 
@@ -16,8 +16,8 @@ appearance:
   icon_theme:     "Black-Sun"
   cursor_theme:   "Adwaita"
   cursor_size:    24
-  font_ui:        "IBM Plex Sans 11"
-  font_monospace: "IBM Plex Mono 11"
+  font_ui:        "Red Hat Text 11"
+  font_monospace: "Red Hat Mono 11"
   wallpaper:      "/usr/share/mackes-shell/branding/standard-wallpaper.png"
 
 devices:
@@ -40,9 +40,9 @@ panel:
   clock:
     digital-layout:      1
     digital-date-format: "%B %d, %Y"
-    digital-date-font:   "IBM Plex Sans 10"
+    digital-date-font:   "Red Hat Text 10"
     digital-time-format: "%I:%M %p"
-    digital-time-font:   "IBM Plex Sans Bold 12"
+    digital-time-font:   "Red Hat Display Bold 12"
 
 apps:
   install:

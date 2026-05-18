@@ -67,7 +67,7 @@ conky.config = {
   uppercase                 = false,
   use_spacer                = 'none',
   use_xft                   = true,
-  font                      = 'IBM Plex Sans:size=10',
+  font                      = 'Red Hat Text:size=10',
   xftalpha                  = 1.0,
   pad_percents              = 2,
   -- Cairo draw hook for the left-edge accent stripe (replaces the
@@ -81,7 +81,7 @@ conky.config = {
 -- Helpers. Plain Lua string concatenation — no string.format, no
 -- execpi-printf hacks. Hack Nerd Font is used for icon glyphs and is
 -- installed by apply_nerd_font in mackes/birthright.py. The body text
--- is IBM Plex Sans (Carbon Design System).
+-- is Red Hat Text (Carbon Design System).
 local A    = mackes.accent
 local TP   = mackes.text_primary
 local TH   = mackes.text_helper
@@ -96,12 +96,12 @@ local function show_in(tier)
   if DENSITY == 'compact'  then return tier == 'core' end
   return true
 end
--- Section header. Glyph in Hack Nerd Font, label in IBM Plex Sans Bold.
+-- Section header. Glyph in Hack Nerd Font, label in Red Hat Display Bold.
 local function section(glyph, label)
   return '${voffset 4}${color ' .. A .. '}'
       .. '${font Hack Nerd Font:bold:size=10}'
       .. glyph
-      .. '  ${font IBM Plex Sans Bold:size=8}'
+      .. '  ${font Red Hat Display Bold:size=8}'
       .. label:upper()
       .. '${font}${color}${voffset 2}\n'
 end
@@ -146,8 +146,8 @@ local parts = {}
 -- Header band -----------------------------------------------------------------
 parts[#parts+1] =
     '${color ' .. A  .. '}${font Hack Nerd Font:bold:size=14}' .. NF.shell
- .. '  ${font IBM Plex Sans Bold:size=14}${color ' .. TP .. '}Mackes '
- .. '${font IBM Plex Sans:size=14}Shell${font}${color}\n'
+ .. '  ${font Red Hat Display Bold:size=14}${color ' .. TP .. '}Mackes '
+ .. '${font Red Hat Text:size=14}Shell${font}${color}\n'
  .. IND .. '${color ' .. TH .. '}v{version}  ·  '
  .. '${font Hack Nerd Font:size=9}' .. NF.preset .. '${font} '
  .. '${color ' .. A .. '}'
