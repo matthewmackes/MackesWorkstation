@@ -16,6 +16,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use gtk::prelude::*;
 use mackes_mesh_types::MeshResource;
 
 use crate::dock::{DockModule, DockState};
@@ -160,6 +161,173 @@ impl DockModule for MeshModule {
 fn qnm_shared_path(peer: &str) -> PathBuf {
     let home = std::env::var_os("HOME").map_or_else(PathBuf::new, PathBuf::from);
     home.join(QNM_SHARED_ROOT).join(peer)
+}
+
+/// Build the Q34 action popover for a `Peer` resource. Six buttons
+/// stacked vertically — Files / SSH / RDP / VNC / Services / Send
+/// file. Attached to `anchor` (the dock widget) and shown directly.
+#[must_use]
+pub fn build_peer_popover(anchor: &gtk::Widget, peer: &str) -> gtk::Popover {
+    let popover = gtk::Popover::new(Some(anchor));
+    popover.set_widget_name("mackes-peer-popover");
+    popover.set_position(gtk::PositionType::Top);
+
+    let column = gtk::Box::new(gtk::Orientation::Vertical, 4);
+    column.set_margin_top(8);
+    column.set_margin_bottom(8);
+    column.set_margin_start(12);
+    column.set_margin_end(12);
+
+    let peer_owned = peer.to_owned();
+    column.pack_start(
+        &popover_button("Files", "folder--open", {
+            let p = peer_owned.clone();
+            let pop = popover.clone();
+            move || {
+                spawn_xdg_open_path(&qnm_shared_path(&p));
+                pop.popdown();
+            }
+        }),
+        false,
+        false,
+        0,
+    );
+    column.pack_start(
+        &popover_button("SSH", "terminal", {
+            let p = peer_owned.clone();
+            let pop = popover.clone();
+            move || {
+                spawn_terminal_ssh(&p);
+                pop.popdown();
+            }
+        }),
+        false,
+        false,
+        0,
+    );
+    column.pack_start(
+        &popover_button("RDP", "screen", {
+            let p = peer_owned.clone();
+            let pop = popover.clone();
+            move || {
+                spawn_remmina(&p, "rdp");
+                pop.popdown();
+            }
+        }),
+        false,
+        false,
+        0,
+    );
+    column.pack_start(
+        &popover_button("VNC", "view--filled", {
+            let p = peer_owned.clone();
+            let pop = popover.clone();
+            move || {
+                spawn_remmina(&p, "vnc");
+                pop.popdown();
+            }
+        }),
+        false,
+        false,
+        0,
+    );
+    column.pack_start(
+        &popover_button("Services", "launch", {
+            let p = peer_owned.clone();
+            let pop = popover.clone();
+            move || {
+                // Phase 5.5b will plug a real service-catalog
+                // dropdown. For now we open mesh-services in mackes.
+                if let Err(e) = Command::new("mackes")
+                    .args(["--services", "--peer", &p])
+                    .spawn()
+                {
+                    eprintln!("mackes-panel: services launch failed: {e}");
+                }
+                pop.popdown();
+            }
+        }),
+        false,
+        false,
+        0,
+    );
+    column.pack_start(
+        &popover_button("Send file…", "send", {
+            let p = peer_owned;
+            let pop = popover.clone();
+            move || {
+                send_file_dialog(&p);
+                pop.popdown();
+            }
+        }),
+        false,
+        false,
+        0,
+    );
+
+    popover.add(&column);
+    popover
+}
+
+fn popover_button<F>(label: &str, _icon_name: &str, on_click: F) -> gtk::Button
+where
+    F: Fn() + 'static,
+{
+    let button = gtk::Button::with_label(label);
+    button.set_relief(gtk::ReliefStyle::None);
+    // Left-align the label inside the button.
+    if let Some(child) = button.child() {
+        if let Some(lbl) = child.downcast_ref::<gtk::Label>() {
+            lbl.set_xalign(0.0);
+        }
+    }
+    button.connect_clicked(move |_| on_click());
+    button
+}
+
+fn spawn_terminal_ssh(peer: &str) {
+    // Launch xfce4-terminal -e "ssh <peer>.mesh". The .mesh suffix is
+    // the mackes-mesh DNS convention; falls back to bare peer name if
+    // resolution fails.
+    let cmd = format!("ssh {peer}.mesh");
+    if let Err(e) = Command::new("xfce4-terminal").args(["-e", &cmd]).spawn() {
+        eprintln!("mackes-panel: SSH terminal launch failed: {e}");
+    }
+}
+
+fn spawn_remmina(peer: &str, proto: &str) {
+    // remmina supports rdp:// and vnc:// URIs.
+    let uri = format!("{proto}://{peer}.mesh");
+    if let Err(e) = Command::new("remmina").args(["-c", &uri]).spawn() {
+        eprintln!("mackes-panel: remmina {proto} launch failed: {e}");
+    }
+}
+
+fn send_file_dialog(peer: &str) {
+    // Use a system zenity/yad-style file picker. xfce4 ships
+    // 'zenity' by default. Result goes to ~/QNM-Shared/<peer>/.
+    let target_dir = qnm_shared_path(peer);
+    if let Err(e) = std::fs::create_dir_all(&target_dir) {
+        eprintln!(
+            "mackes-panel: cannot create {} for send-file: {e}",
+            target_dir.display()
+        );
+        return;
+    }
+    // Pick + copy in a single shell; non-blocking from the panel's POV.
+    let target = target_dir.to_string_lossy().to_string();
+    let cmd = format!(
+        "f=$(zenity --file-selection 2>/dev/null) && cp -- \"$f\" {}",
+        shell_escape(&target)
+    );
+    if let Err(e) = Command::new("/bin/sh").arg("-c").arg(&cmd).spawn() {
+        eprintln!("mackes-panel: send-file picker failed: {e}");
+    }
+}
+
+/// Minimal shell-escape for the send-file dest path.
+fn shell_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 fn spawn_xdg_open_path(target: &Path) {

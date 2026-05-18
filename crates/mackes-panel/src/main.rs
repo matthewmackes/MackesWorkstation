@@ -261,13 +261,27 @@ fn build_dock_strip(cfg: &mackes_config::PanelConfig) -> gtk::Box {
             }
             mackes_config::DockItem::Mesh { id } => {
                 if let Some(resource) = mesh_module::parse_id(id) {
-                    let module = mesh_module::MeshModule::new(resource);
+                    let module = mesh_module::MeshModule::new(resource.clone());
                     let widget = dock::render_module(&module);
                     let module_for_click = module.clone();
+                    let widget_for_anchor = widget.clone();
                     widget.connect_button_release_event(move |_, _| {
-                        // Bring the trait into scope for the method call.
                         use dock::DockModule;
-                        module_for_click.on_click();
+                        // Peer resources get the Q34 action popover;
+                        // shares + services keep the simple click
+                        // behavior (open the share / launch the URL).
+                        if let mackes_mesh_types::MeshResource::Peer { name, .. } =
+                            module_for_click.resource()
+                        {
+                            let popover = mesh_module::build_peer_popover(
+                                widget_for_anchor.upcast_ref::<gtk::Widget>(),
+                                name,
+                            );
+                            popover.show_all();
+                            popover.popup();
+                        } else {
+                            module_for_click.on_click();
+                        }
                         glib::Propagation::Stop
                     });
                     strip.pack_start(&widget, false, false, 0);
