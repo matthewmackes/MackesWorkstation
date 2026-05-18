@@ -3,6 +3,22 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.6.4 — Tweaks drawer close button + 8pt density (2026-05-17)
+
+**Tweaks drawer close ✕.** The right-side sliding Tweaks overlay had
+no obvious dismissal — only re-clicking the gear button (often hidden
+underneath the drawer's content on small screens). Added an explicit
+✕ button in the drawer's header row that calls `TweaksOverlay.close()`
+directly.
+
+**Global 8pt text density.** User-requested compact preset for
+high-data-density viewing. New high-specificity override at the top
+of `data/css/carbon-productive.css` forces `font-size: 8pt` on every
+descendant of `.mackes-app-window`, `.mackes-productive`,
+`.mackes-popover`, and `.mackes-tweaks-drawer`. The Carbon Productive
+14/12/10 scale rules below still apply for spacing/weight/family —
+only the size is forced down.
+
 ## 1.6.3 — Hotfix: xfce4-panel crash on wizard apply (2026-05-17)
 
 **`apply_panel_layout` REVERTED to the v1.5.x-style hardcoded
