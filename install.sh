@@ -141,24 +141,42 @@ phase_ok "Fedora $fedora_ver · $arch"
 
 # ---- Phase 2: resolve latest ----------------------------------------------
 phase_start 2 $TOTAL "Resolve latest release"
-tag="$(curl -fsSL "$GH_API" 2>"$LOG" | grep -oP '"tag_name":\s*"\K[^"]+' | head -1 || true)"
+# Pull the full /releases/latest JSON once and use the assets list it ships
+# so we don't have to guess the RPM filename. The Phase 10.1 rename
+# (mackes-shell → mackes-xfce-workstation) moved the package name, and any
+# future rename would break a hardcoded URL again. Parsing assets[].name
+# keeps the installer working across renames.
+release_json="$(curl -fsSL "$GH_API" 2>"$LOG" || true)"
+tag="$(printf '%s' "$release_json" | grep -oP '"tag_name":\s*"\K[^"]+' | head -1 || true)"
 if [ -z "$tag" ]; then
     phase_fail "no release tag for $REPO"
     err "Could not resolve latest release tag — see $LOG"
 fi
 version="${tag#v}"
-rpm_url="https://github.com/$REPO/releases/download/$tag/mackes-shell-${version}-1.fc${fedora_ver}.${arch}.rpm"
-phase_ok "$tag"
+
+# Look up the matching x86_64 RPM by suffix so the package can rename
+# without breaking the installer. Accepts either the legacy mackes-shell-
+# prefix or the renamed mackes-xfce-workstation- prefix.
+rpm_name="$(printf '%s' "$release_json" \
+    | grep -oP '"name":\s*"\K[^"]+\.fc'"$fedora_ver"'\.'"$arch"'\.rpm' \
+    | grep -v '\.src\.rpm$' \
+    | head -1 || true)"
+if [ -z "$rpm_name" ]; then
+    phase_fail "no .fc${fedora_ver}.${arch} RPM in $tag"
+    err "Latest release ($tag) ships no fc${fedora_ver}.${arch} RPM — see $LOG"
+fi
+rpm_url="https://github.com/$REPO/releases/download/$tag/$rpm_name"
+phase_ok "$tag · $rpm_name"
 
 # ---- Phase 3: download RPM ------------------------------------------------
 phase_start 3 $TOTAL "Download RPM"
 run_with_spinner "$LOG" "downloading $tag…" -- \
-    curl -fL --silent --show-error -o "$TMP/mackes-shell.rpm" "$rpm_url"
-if [ ! -f "$TMP/mackes-shell.rpm" ] || [ ! -s "$TMP/mackes-shell.rpm" ]; then
+    curl -fL --silent --show-error -o "$TMP/$rpm_name" "$rpm_url"
+if [ ! -f "$TMP/$rpm_name" ] || [ ! -s "$TMP/$rpm_name" ]; then
     phase_fail "download failed"
     err "$(tail -n 3 "$LOG" 2>/dev/null)"
 fi
-size="$(du -h "$TMP/mackes-shell.rpm" | cut -f1)"
+size="$(du -h "$TMP/$rpm_name" | cut -f1)"
 phase_ok "$size"
 
 # ---- Phase 4: dnf install -------------------------------------------------
@@ -166,7 +184,7 @@ phase_start 4 $TOTAL "Install RPM (dnf — can take a few minutes)"
 printf '\n'                # newline before live tail
 
 (
-    sudo dnf install -y "$TMP/mackes-shell.rpm" 2>&1 | tee "$LOG" \
+    sudo dnf install -y "$TMP/$rpm_name" 2>&1 | tee "$LOG" \
         | while IFS= read -r line; do
             # Print in a Carbon-dimmed style, truncated to ~72 chars
             printf '    %b%s%b\n' "$C_DIM" "${line:0:72}" "$C_RESET"
