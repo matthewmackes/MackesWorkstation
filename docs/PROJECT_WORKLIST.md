@@ -109,6 +109,24 @@ blocked until fixed. See Phase 9.4 below.
 - [ ] **10.4 CHANGELOG 1.0.0 section** — write the user-visible summary referencing the design doc.
 - [ ] **10.5 Cut release 1.0.0** — follow the standard cut-release flow (CLAUDE.md §0.6) but with renamed RPM and version reset.
 
+### 10.6 — Birthright removal sequence (replaces incumbent panel + desktop)
+
+Per Q2 / Q5 / Q29 / Q39 we replace xfce4-panel, xfdesktop, the
+Whisker-menu plugin, and the legacy mackes-shell Python entry points
+with the unified mackes-panel binary. Order matters — a peer can't
+lose its panel before the replacement is running. Each substep is a
+new birthright step in `mackes.birthright` (placed after the existing
+14 v1.x steps so legacy installs still wash through them cleanly):
+
+- [ ] **10.6.1 Install + start mackes-panel** (first new birthright step, runs *before* any removal). `systemctl --user enable --now mackes-panel.service`. **Gate:** `loginctl show-session -p Type` returns x11 AND `pidof mackes-panel` non-empty AND `xprop -root _NET_WORKAREA` reflects the strut. If the gate fails, abort the whole removal sequence with a recovery hint.
+- [ ] **10.6.2 Stop + disable xfce4-panel** (only after 10.6.1 gate passes). `xfce4-panel --quit` then `systemctl --user mask xfce4-panel.service` (XFCE doesn't ship one by default — also drop `~/.config/autostart/xfce4-panel.desktop` if present, and any per-session autostart). **Why before uninstall:** stopping cleanly preserves the user's panel layout snapshot for the migration wizard to read in 10.2.
+- [ ] **10.6.3 Stop + disable xfdesktop** (after 10.6.2). `xfdesktop --quit`; remove autostart entry. mackes-panel already owns wallpaper rendering by this point (Phase 0.6) so the wallpaper survives the swap.
+- [ ] **10.6.4 Unregister the Whisker-menu launcher binding** (after 10.6.3). The Super-key xfconf binding gets swapped from `xfce4-popup-whiskermenu` to `mackes-panel --apple-menu`. Backup any conflicting bindings to `~/.config/mackes-panel/keybindings.backup.toml` (Q35).
+- [ ] **10.6.5 Remove xfwm4 workspaces** (after 10.6.4). `xfconf-query --channel xfwm4 --property /general/workspace_count --set 1` (Q29). Quiet, no UX change required.
+- [ ] **10.6.6 Uninstall the now-orphaned packages** (final removal step, only after 10.6.1–10.6.5 succeed). Single dnf call: `dnf remove -y xfce4-panel xfdesktop xfce4-whiskermenu-plugin xfce4-docklike-plugin xfce4-pulseaudio-plugin xfce4-power-manager-plugin`. Side effect: the legacy mackes-launcher / mackes-clipboard / mackes-drawer C plugin RPMs (which BuildRequire xfce4-panel-devel) are obsoleted by the renamed mackes-xfce-workstation RPM in 10.1.
+- [ ] **10.6.7 Clean leftover xfce4-panel-profiles snapshots** (after 10.6.6). Remove `/usr/share/xfce4-panel-profiles/layouts/` we shipped in 2.x; archive the user's `~/.config/xfce4/panel/` to `~/.config/mackes-panel/legacy-xfce-panel/` for diagnostics. Surface in the first-launch wizard's "what was migrated" summary.
+- [ ] **10.6.8 Rollback path** — every removal step writes a `~/.config/mackes-panel/rollback/<step>.json` with the previous state. If `mackes-panel` segfaults or the daemon-stop wedges, `mackes-panel --recover` reads the most-recent rollback and reverses everything in 10.6.1–10.6.6 (re-install xfce4-panel + xfdesktop, restore layout snapshot, re-enable Whisker hotkey). Rollback paths land alongside each forward step, not as one big final task.
+
 ---
 
 ## Tracking
