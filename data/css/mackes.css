@@ -44,3 +44,64 @@
     min-width: 180px;
     color: @cds_text_primary;
 }
+
+
+/* ---- Panel chrome (mackes-panel Rust binary) ---------------------------- *
+ *
+ * Without these, the GTK button widgets that host the top-bar Mackes mark,
+ * the right-side status cluster, and the clock pick up the default GTK
+ * theme's text color — which is dark on dark when the desktop wallpaper is
+ * a dark Carbon surface. Force the panel chrome to Carbon text-primary so
+ * symbolic glyphs (rendered with the same color via icons::render_recolored_svg)
+ * read against the @cds_bg_default panel background.
+ */
+
+window#mackes-top-bar,
+window#mackes-top-bar button,
+window#mackes-top-bar label,
+window#mackes-dock,
+window#mackes-dock button,
+window#mackes-dock label {
+    color: @cds_text_primary;
+    background-color: transparent;
+}
+
+window#mackes-top-bar button:hover,
+window#mackes-dock button:hover {
+    background-color: @cds_bg_layer_02;
+}
+
+window#mackes-top-bar {
+    background-color: @cds_bg_default;
+}
+
+window#mackes-dock {
+    background-color: @cds_bg_default;
+}
+
+#mackes-top-clock {
+    font-family: "Red Hat Mono", monospace;
+    font-size: 12px;
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+#mackes-weather-title,
+#mackes-status-popover-title {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+#mackes-weather-temp {
+    font-size: 24px;
+    font-weight: 300;
+}
+
+#mackes-weather-footer {
+    color: @cds_text_helper;
+    font-size: 11px;
+}
+
+#mackes-status-popover-summary {
+    color: @cds_text_helper;
+}

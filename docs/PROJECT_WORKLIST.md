@@ -94,6 +94,16 @@ blocked until fixed. See Phase 9.4 below.
 - [✓] **8.3 xfdesktop removal** — RPM ships `/etc/xdg/autostart/mackes-panel.desktop` (so every XFCE session brings up the Rust panel) and `/etc/xdg/autostart/xfdesktop.desktop` overrides upstream's autostart with `Hidden=true` + `X-XFCE-Autostart-enabled=false`. On install: log out / log in → mackes-panel owns wallpaper + dock + top bar; xfdesktop never starts. Verified in fresh `make rpm` build — both entries present at the right paths.
 - [ ] **8.4 Root right-click menu** — XGrabButton on the root window, right-click opens a Mackes-themed menu (Change wallpaper / Open mesh share / Send file to peer / Display settings).
 
+### 8.5 — First-boot visual polish (in-flight bug bundle, 2026-05-18)
+
+User feedback bundle on the freshly-installed panel surfaces:
+
+- [>] **8.5.1 Recolor Mackes-Carbon symbolic icons at load** — `icons::load()` rasterizes SVGs via `Pixbuf::from_file_at_scale`, which renders `fill="currentColor"` as black. Result: every glyph in the top bar is black on a black bar (left Apple button, right status cluster). Substitute `currentColor` → `#f0f0f0` in the SVG source before handing to gdk-pixbuf so the cached Pixbuf is already light. Also add a panel-scoped CSS rule so text labels in the top bar pick up Carbon text-primary.
+- [>] **8.5.2 Bottom dock auto-sizes / hides when empty** — fixed-`DOCK_HEIGHT_PX = 80` reserves a thick strip even with zero dock items. Build the strip first; if empty, never `show_all` the dock window. When populated, fit window height to icon size + small padding (~50 % of the prior thickness).
+- [>] **8.5.3 12-hour clock + weather popover** — switch `current_hhmm()` from `%H:%M` to `%l:%M %p` (trim leading space). Wrap the label in a frameless `gtk::Button`; click opens a `gtk::Popover` rendering current conditions fetched from `api.met.no/weatherapi/locationforecast/2.0/complete?lat=…&lon=…`, the same endpoint xfce4-weather-plugin uses. New `weather.rs` module; HTTP via the system `curl` (no new crate dependency) with the User-Agent met.no requires.
+- [>] **8.5.4 Status-cluster popovers for review** — currently each of the 6 right-side buttons only shells out to `mackes --drawer --drawer-focus <slug>` with no visible UI on the panel side. Replace with an in-process `gtk::Popover` showing the slug title + a "Open in Drawer →" button that keeps the existing subprocess path. Gives the user an immediate review surface without waiting on the Python drawer process.
+- [>] **8.5.5 `_NET_WM_STRUT_PARTIAL` on panel + dock** — `WindowTypeHint::Dock` alone doesn't reserve screen space; maximized windows occlude the panel and the dock. Publish strut hints on both windows (top: `top = TOP_BAR_HEIGHT_PX`, bottom: `bottom = dock_height` when shown). Solves the bug under xfwm4 and under any future tiling-WM swap.
+
 ## Phase 9 — Test pyramid (continuous; ratchet to green before M1)
 
 - [ ] **9.1 Unit tests** — every pure-logic module (config parsing, mesh-resource scoring, icon lookup, hotkey parser). Target: 80% line coverage.

@@ -15,9 +15,16 @@
 
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use gdk_pixbuf::Pixbuf;
+
+/// Carbon text-primary. Mackes-Carbon symbolic SVGs ship `fill="currentColor"`,
+/// which librsvg resolves to black when no SVG-level CSS `color` property is
+/// set — producing the "black icons on a black panel" visual at first boot.
+/// We substitute `currentColor` with this token at load time so every
+/// cached Pixbuf is already drawn in the panel's foreground color.
+const SYMBOLIC_FOREGROUND: &str = "#f0f0f0";
 
 /// Root of the installed Mackes-Carbon icon theme.
 const THEME_ROOT: &str = "/usr/share/icons/Mackes-Carbon/scalable";
@@ -127,11 +134,27 @@ pub fn load(name: &str, size_px: i32) -> Option<Pixbuf> {
     }
 
     let path = locate_svg(name)?;
-    let pb = Pixbuf::from_file_at_scale(&path, size_px, size_px, true).ok()?;
+    let pb = render_recolored_svg(&path, size_px)
+        .or_else(|| Pixbuf::from_file_at_scale(&path, size_px, size_px, true).ok())?;
     CACHE.with(|c| {
         c.borrow_mut().insert(key, pb.clone());
     });
     Some(pb)
+}
+
+/// Read the SVG file, swap `currentColor` for the panel foreground,
+/// and render via `Pixbuf::from_stream_at_scale`. Returns `None` if the
+/// file isn't text or rendering fails — callers fall back to the raw
+/// file load so non-symbolic glyphs still work.
+fn render_recolored_svg(path: &Path, size_px: i32) -> Option<Pixbuf> {
+    let raw = std::fs::read_to_string(path).ok()?;
+    if !raw.contains("currentColor") {
+        return None;
+    }
+    let recolored = raw.replace("currentColor", SYMBOLIC_FOREGROUND);
+    let bytes = glib::Bytes::from(recolored.as_bytes());
+    let stream = gio::MemoryInputStream::from_bytes(&bytes);
+    Pixbuf::from_stream_at_scale(&stream, size_px, size_px, true, gio::Cancellable::NONE).ok()
 }
 
 /// Resolve `name` to an SVG path under `THEME_ROOT`. Tries the literal

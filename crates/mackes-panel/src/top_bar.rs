@@ -15,7 +15,14 @@ use std::process::Command;
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 
-use crate::{apple_menu, desktop_files, icons, recents};
+use crate::{apple_menu, desktop_files, icons, recents, weather};
+
+/// Default coords for the weather popover until `panel.toml` grows a
+/// `[weather]` section (8.5.3 follow-up). London works as a sane non-zero
+/// default — met.no returns a real forecast for it so the popover proves
+/// the wiring on first launch.
+const DEFAULT_WEATHER_LAT: f64 = 51.507;
+const DEFAULT_WEATHER_LON: f64 = -0.128;
 
 /// Glyph size shown in the 20 px top bar. 14 px lets the icon breathe
 /// against the height without clipping baseline math.
@@ -214,41 +221,63 @@ fn is_field_code(token: &str) -> bool {
     )
 }
 
-/// Build the center clock widget. The label updates every 60 s and on
-/// startup. Format is "HH:MM" — 24-hour, monospace via Red Hat Mono
-/// (loaded by the global token CSS).
+/// Build the center clock widget. 12-hour format ("h:MM AM/PM") per the
+/// 8.5.3 polish bundle. The label updates every 60 s and on startup, and
+/// the whole thing is wrapped in a frameless `gtk::Button` whose click
+/// pops up a weather panel patterned after xfce4-weather-plugin
+/// (`crate::weather`).
 ///
 /// `gtk::Label` is a reference-counted `GObject` handle, so cloning it
 /// for the timer closure is just a refcount bump (no `Rc<RefCell<…>>`
 /// needed).
 #[must_use]
-pub fn clock() -> gtk::Label {
+pub fn clock() -> gtk::Button {
     let label = gtk::Label::new(None);
-    label.set_widget_name("mackes-top-clock");
-    label.set_text(&current_hhmm());
+    label.set_widget_name("mackes-top-clock-label");
+    label.set_text(&current_clock_text());
 
-    // First tick scheduled for the next minute boundary; afterwards
-    // every 60 s. This keeps the clock visually synchronised with the
-    // wall clock instead of drifting based on startup time.
+    let button = gtk::Button::new();
+    button.set_widget_name("mackes-top-clock");
+    button.set_relief(gtk::ReliefStyle::None);
+    button.set_focus_on_click(false);
+    button.add(&label);
+
     let initial_delay_s = seconds_until_next_minute();
-    let label_for_timer = label.clone();
     glib::timeout_add_seconds_local(initial_delay_s, move || {
-        label_for_timer.set_text(&current_hhmm());
-        let label_recurring = label_for_timer.clone();
+        label.set_text(&current_clock_text());
+        let label_recurring = label.clone();
         glib::timeout_add_seconds_local(60, move || {
-            label_recurring.set_text(&current_hhmm());
+            label_recurring.set_text(&current_clock_text());
             glib::ControlFlow::Continue
         });
         glib::ControlFlow::Break
     });
 
-    label
+    let button_for_click = button.clone();
+    button.connect_clicked(move |_| {
+        let popover = weather::build_popover(
+            button_for_click.upcast_ref::<gtk::Widget>(),
+            DEFAULT_WEATHER_LAT,
+            DEFAULT_WEATHER_LON,
+        );
+        popover.show_all();
+        popover.popup();
+    });
+
+    button
 }
 
-fn current_hhmm() -> String {
+/// "h:MM AM/PM" in the system locale. We use `%l:%M %p` because `%l`
+/// emits the hour without a leading zero (a leading space, actually —
+/// per POSIX strftime — so we `trim_start` the result). `%H:%M` was the
+/// 24-hour predecessor; we keep the fallback string the same length so
+/// the slot doesn't visually jitter when the formatter fails.
+fn current_clock_text() -> String {
     let now = glib::DateTime::now_local().expect("system clock");
-    now.format("%H:%M")
-        .map_or_else(|_| "--:--".to_owned(), |g| g.as_str().to_owned())
+    now.format("%l:%M %p").map_or_else(
+        |_| "--:-- --".to_owned(),
+        |g| g.as_str().trim_start().to_owned(),
+    )
 }
 
 /// Seconds remaining until the next clock minute. `glib::timeout_add_seconds`
@@ -295,20 +324,88 @@ fn status_item(slug: &str, icon_name: &str) -> gtk::Button {
         button.set_label(&slug.chars().next().unwrap_or('?').to_string());
     }
 
+    // 8.5.4 polish: clicking a status-cluster icon now pops up an in-
+    // process review popover *immediately*. The popover then offers a
+    // secondary button that hands off to the Python drawer subprocess
+    // (`mackes --drawer --drawer-focus <slug>`, per Q28). This gives
+    // the user visible feedback whether or not the drawer process is
+    // up — addressing the "Unable to open the dropdown to review" bug.
     let slug_owned = slug.to_owned();
+    let button_for_click = button.clone();
     button.connect_clicked(move |_| {
-        // Per Q28 every status-cluster click opens the v2.2.0
-        // Notification Drawer. Until Phase 4.3 ports the drawer into
-        // mackes-panel itself, we invoke the existing Python drawer
-        // via `mackes --drawer`. The drawer focuses its own section
-        // based on the slug (`--drawer-focus <slug>`).
+        let popover =
+            build_status_popover(button_for_click.upcast_ref::<gtk::Widget>(), &slug_owned);
+        popover.show_all();
+        popover.popup();
+    });
+
+    button
+}
+
+/// Build the per-slug review popover shown when a status-cluster icon
+/// is clicked. Lightweight: a heading naming the cluster, a single
+/// short summary line, and an "Open in Drawer →" button that delegates
+/// to the existing Python notification drawer.
+fn build_status_popover(anchor: &gtk::Widget, slug: &str) -> gtk::Popover {
+    let popover = gtk::Popover::new(Some(anchor));
+    popover.set_widget_name(&format!("mackes-status-popover-{slug}"));
+    popover.set_position(gtk::PositionType::Bottom);
+
+    let column = gtk::Box::new(gtk::Orientation::Vertical, 8);
+    column.set_margin_start(16);
+    column.set_margin_end(16);
+    column.set_margin_top(12);
+    column.set_margin_bottom(12);
+
+    let title = gtk::Label::new(Some(status_popover_title(slug)));
+    title.set_widget_name("mackes-status-popover-title");
+    title.set_halign(gtk::Align::Start);
+    column.pack_start(&title, false, false, 0);
+
+    let summary = gtk::Label::new(Some(status_popover_summary(slug)));
+    summary.set_widget_name("mackes-status-popover-summary");
+    summary.set_halign(gtk::Align::Start);
+    column.pack_start(&summary, false, false, 0);
+
+    let drawer_btn = gtk::Button::with_label("Open in Drawer →");
+    drawer_btn.set_widget_name("mackes-status-popover-drawer");
+    let slug_owned = slug.to_owned();
+    let popover_for_click = popover.clone();
+    drawer_btn.connect_clicked(move |_| {
         if let Err(e) = Command::new("mackes")
             .args(["--drawer", "--drawer-focus", &slug_owned])
             .spawn()
         {
             eprintln!("mackes-panel: drawer launch failed ({slug_owned}): {e}");
         }
+        popover_for_click.popdown();
     });
+    column.pack_start(&drawer_btn, false, false, 0);
 
-    button
+    popover.add(&column);
+    popover
+}
+
+fn status_popover_title(slug: &str) -> &'static str {
+    match slug {
+        "mesh" => "Mesh",
+        "clipboard" => "Clipboard",
+        "volume" => "Volume",
+        "battery" => "Battery",
+        "notifications" => "Notifications",
+        "user" => "User",
+        _ => "Status",
+    }
+}
+
+fn status_popover_summary(slug: &str) -> &'static str {
+    match slug {
+        "mesh" => "Peers, shares, services",
+        "clipboard" => "Recent clipboard items",
+        "volume" => "Output device & level",
+        "battery" => "Power state & estimate",
+        "notifications" => "Unread alerts",
+        "user" => "Session & account",
+        _ => "Status",
+    }
 }

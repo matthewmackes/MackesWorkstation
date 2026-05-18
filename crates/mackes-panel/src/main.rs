@@ -23,7 +23,9 @@ mod icons;
 mod mesh_module;
 mod mesh_sync;
 mod recents;
+mod strut;
 mod top_bar;
+mod weather;
 mod windows;
 
 use std::path::{Path, PathBuf};
@@ -33,7 +35,10 @@ use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 
 const TOP_BAR_HEIGHT_PX: i32 = 20;
-const DOCK_HEIGHT_PX: i32 = 80;
+/// Vertical padding around `DOCK_ICON_PX` (48 px). 4 px above + 4 px below
+/// matches the Carbon 4 px grid and is ~half of the 80 px first-boot dock
+/// (per the 8.5.2 polish bundle — "use as much space as required").
+const DOCK_PADDING_PX: i32 = 8;
 const APP_ID: &str = "shell.mackes.Panel";
 
 /// Backup chrome surface so the panel renders even when no token CSS is
@@ -195,14 +200,27 @@ fn build_top_bar(app: &gtk::Application, geom: &FallbackGeometry) {
 
     window.add(&bar);
     window.show_all();
+    strut::set_top_strut(&window, geom, TOP_BAR_HEIGHT_PX);
 }
 
-/// Bottom dock — 80 px Dock-hint window (primary monitor only).
+/// Bottom dock — Dock-hint window whose height is the icon size plus a
+/// small Carbon-grid padding. If no dock items resolve we never show the
+/// window, so an empty config takes zero pixels (8.5.2 polish bundle).
 fn build_bottom_dock(
     app: &gtk::Application,
     geom: &FallbackGeometry,
     cfg: &mackes_config::PanelConfig,
 ) {
+    let strip = build_dock_strip(cfg);
+    let item_count = strip.children().len();
+    if item_count == 0 {
+        // Empty dock → don't reserve space and don't paint chrome. Hot-
+        // reload will revisit this when the config grows items (Phase 2.5
+        // wiring).
+        return;
+    }
+
+    let height = dock::DOCK_ICON_PX + DOCK_PADDING_PX;
     let window = gtk::ApplicationWindow::builder()
         .application(app)
         .title("mackes-panel-dock")
@@ -213,13 +231,12 @@ fn build_bottom_dock(
         .type_hint(gdk::WindowTypeHint::Dock)
         .build();
     window.set_widget_name("mackes-dock");
-    window.set_default_size(geom.width, DOCK_HEIGHT_PX);
-    window.move_(geom.x, geom.y + geom.height - DOCK_HEIGHT_PX);
+    window.set_default_size(geom.width, height);
+    window.move_(geom.x, geom.y + geom.height - height);
 
-    let strip = build_dock_strip(cfg);
     window.add(&strip);
-
     window.show_all();
+    strut::set_bottom_strut(&window, geom, height);
 }
 
 /// Populate the dock strip from `cfg.dock.items`. App items resolve

@@ -3,6 +3,58 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.0.1 — First-boot panel polish (2026-05-18)
+
+User-feedback bundle on the freshly-installed Mackes XFCE Workstation
+panel. Five bugs, fixed together because they all surface on first
+launch and share build/test gates:
+
+- **Top-bar icons are now visible.** `icons::load()` no longer feeds
+  raw `fill="currentColor"` SVGs to gdk-pixbuf — that produced black
+  glyphs on a black panel and made the left Mackes button + the right
+  status cluster look unwired. The loader now substitutes
+  `currentColor` for Carbon text-primary (`#f0f0f0`) before
+  rasterizing, so every cached `Pixbuf` is already drawn in the
+  panel's foreground color. A panel-scoped block in `data/css/mackes.css`
+  forces `window#mackes-top-bar` / `window#mackes-dock` and their
+  descendants to the same color so any label/button text follows.
+- **Bottom dock auto-sizes and hides when empty.** Fixed
+  `DOCK_HEIGHT_PX = 80` reserved a thick strip even with zero items.
+  Now the dock strip is built first; if it has no children, the dock
+  window never shows. When populated it sizes to `DOCK_ICON_PX + 8 px`
+  padding (~30 % slimmer than the prior 80 px — full 50 % reduction
+  would require shrinking the locked-by-Q12 48 px icon size).
+- **Clock switches to 12-hour and opens a weather panel.** Top-bar
+  clock is now `h:MM AM/PM` (`%l:%M %p`, leading space trimmed),
+  wrapped in a frameless `gtk::Button`. Click opens a `gtk::Popover`
+  rendering current temperature and symbol code fetched from
+  `api.met.no/weatherapi/locationforecast/2.0/complete` — the same
+  endpoint xfce4-weather-plugin uses. New
+  `crates/mackes-panel/src/weather.rs` module; HTTP via the system
+  `curl` (no new crate dep) with the descriptive User-Agent met.no
+  requires. Default coords are London-as-sentinel until `panel.toml`
+  grows a `[weather]` section. 3 unit tests cover the JSON parser
+  shape.
+- **Status-cluster review popovers.** Each of the 6 right-side
+  status buttons (mesh / clipboard / volume / battery /
+  notifications / user) now opens an in-process `gtk::Popover` with
+  the cluster title + a one-line summary + an "Open in Drawer →"
+  button that delegates to `mackes --drawer --drawer-focus <slug>`.
+  The user gets immediate visual feedback whether or not the Python
+  drawer subprocess is up — addressing the "Unable to open the
+  dropdown to review" feedback.
+- **Panel + dock publish `_NET_WM_STRUT_PARTIAL`.** New
+  `crates/mackes-panel/src/strut.rs` looks up each panel window's
+  XID via `xdotool search --name` (already a hard dep from Phase
+  5.3's window-switching path) and publishes both
+  `_NET_WM_STRUT_PARTIAL` (12-cardinal) and `_NET_WM_STRUT` (legacy
+  4-cardinal) via `xprop -id`. Any EWMH-compliant window manager —
+  xfwm4, i3, bspwm, awesome, LeftWM — now leaves the panel and dock
+  space alone when windows maximize. Workspace-manager swap (five
+  alternatives surveyed in the feedback thread) deferred to a future
+  phase; this strut fix unblocks the occlusion bug under the current
+  xfwm4.
+
 ## 1.0.0 — Mackes XFCE Workstation (2026-05-18)
 
 The Mackes Shell line graduates from the 2.x XFCE-control-panel
