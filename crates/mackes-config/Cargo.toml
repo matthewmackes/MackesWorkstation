@@ -14,10 +14,7 @@ path = "src/lib.rs"
 [dependencies]
 mackes-mesh-types = { path = "../mackes-mesh-types" }
 serde             = { version = "1", features = ["derive"] }
-toml              = { version = "0.8", default-features = false, features = ["parse"] }
-
-[dev-dependencies]
-toml = { version = "0.8", default-features = false, features = ["parse", "display"] }
+toml              = { version = "0.8", default-features = false, features = ["parse", "display"] }
 
 [lints]
 workspace = true

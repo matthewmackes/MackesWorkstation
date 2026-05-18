@@ -10,7 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Root document of `panel.toml`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct PanelConfig {
     /// Top status bar configuration (20 px, monochrome Carbon, Q13/Q14).
     #[serde(default)]
@@ -130,6 +130,28 @@ pub fn parse(text: &str) -> Result<PanelConfig, toml::de::Error> {
     toml::from_str(text)
 }
 
+/// Serialize a `PanelConfig` back to TOML — used by Phase 2.2 to write
+/// the default `panel.toml` on first launch.
+///
+/// # Errors
+/// Returns `toml::ser::Error` only on truly exotic schema breakage
+/// (`PanelConfig` is a closed struct so this should not fail in
+/// practice).
+pub fn to_toml_string(cfg: &PanelConfig) -> Result<String, toml::ser::Error> {
+    toml::to_string_pretty(cfg)
+}
+
+/// Build the first-launch default `PanelConfig`. Identical to `Default`
+/// but spelled out so future presets can swap in their own variants.
+#[must_use]
+pub fn default_config() -> PanelConfig {
+    PanelConfig {
+        top_bar: TopBarConfig::default(),
+        dock: DockConfig::default(),
+        mesh: MeshConfig::default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +213,25 @@ mod tests {
         let cfg = parse(doc).expect("parse");
         assert_eq!(cfg.mesh.drift_check_seconds, 0);
         assert!(cfg.mesh.replicate); // default still applied
+    }
+
+    #[test]
+    fn default_config_round_trips_through_toml() {
+        let cfg = default_config();
+        let text = to_toml_string(&cfg).expect("serialize default");
+        let back = parse(&text).expect("re-parse default");
+        assert_eq!(cfg, back);
+    }
+
+    #[test]
+    fn default_config_carries_six_status_items() {
+        let cfg = default_config();
+        assert_eq!(cfg.top_bar.status_items.len(), 6);
+        assert!(cfg.top_bar.status_items.iter().any(|s| s == "mesh"));
+        assert!(cfg
+            .top_bar
+            .status_items
+            .iter()
+            .any(|s| s == "notifications"));
     }
 }

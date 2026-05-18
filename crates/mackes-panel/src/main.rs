@@ -14,6 +14,7 @@
 
 #![forbid(unsafe_code)]
 
+mod config_store;
 mod dock;
 mod icons;
 mod top_bar;
@@ -80,6 +81,11 @@ fn main() -> glib::ExitCode {
 
 fn build_surfaces(app: &gtk::Application) {
     install_global_styling();
+    // Load (or write-default-and-load) panel.toml. The result is unused
+    // right now — Phase 2.3+ wires it into the layout. Reading it here
+    // means a fresh install gets the file materialised on first launch
+    // (Phase 2.2 acceptance).
+    let _cfg = config_store::load_or_default();
     let geom = primary_monitor_geometry().unwrap_or_default();
     build_desktop(app, &geom);
     build_top_bar(app, &geom);
