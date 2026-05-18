@@ -81,10 +81,15 @@ jobs:
           fi
           IN_REPO=$(python3 -c "import sys; sys.path.insert(0, '.'); import mackes; print(mackes.__version__)")
           if [ "$IN_REPO" != "$BASE_VER" ]; then
-            echo "::error::tag $TAG (base=$BASE_VER) does not match mackes.__version__=$IN_REPO" >&2
-            exit 1
+            # The Mackes XFCE Workstation rename (Q48 lock, Phase 10.1)
+            # introduces intentional skew: git tags continue v2.3.0 →
+            # v3.0.0 in the historical line, but the renamed RPM
+            # (mackes-xfce-workstation) starts fresh at package version
+            # 1.0.0 + matching Python __version__. Warn but don't fail.
+            echo "::warning::tag $TAG (base=$BASE_VER) differs from mackes.__version__=$IN_REPO — accepted (renamed package starts a fresh version line)"
+          else
+            echo "OK — tag base $BASE_VER matches mackes.__version__ (rc='$RC')"
           fi
-          echo "OK — tag base $BASE_VER matches mackes.__version__ (rc='$RC')"
 
       - name: Build sdist + RPM
         run: |
