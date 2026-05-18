@@ -15,7 +15,7 @@ use std::process::Command;
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 
-use crate::{apple_menu, desktop_files, icons};
+use crate::{apple_menu, desktop_files, icons, recents};
 
 /// Glyph size shown in the 20 px top bar. 14 px lets the icon breathe
 /// against the height without clipping baseline math.
@@ -88,6 +88,7 @@ fn build_apple_menu() -> gtk::Menu {
         launch("mackes", &["--update"]);
     });
     menu.append(&gtk::SeparatorMenuItem::new());
+    menu.append(&build_recents_submenu());
     menu.append(&build_applications_submenu());
     menu.append(&gtk::SeparatorMenuItem::new());
     add_item(&menu, "Force Quit…", || {
@@ -104,6 +105,33 @@ fn build_apple_menu() -> gtk::Menu {
     });
 
     menu
+}
+
+fn build_recents_submenu() -> gtk::MenuItem {
+    let parent = gtk::MenuItem::with_label("Recent Items");
+    let submenu = gtk::Menu::new();
+    submenu.set_widget_name("mackes-apple-menu-recents");
+
+    let items = recents::load(10);
+    if items.is_empty() {
+        let placeholder = gtk::MenuItem::with_label("(no recent items)");
+        placeholder.set_sensitive(false);
+        submenu.append(&placeholder);
+    } else {
+        for item in items {
+            let entry = gtk::MenuItem::with_label(&item.label);
+            let uri = item.uri.clone();
+            entry.connect_activate(move |_| {
+                if let Err(e) = Command::new("xdg-open").arg(&uri).spawn() {
+                    eprintln!("mackes-panel: xdg-open recent {uri} failed: {e}");
+                }
+            });
+            submenu.append(&entry);
+        }
+    }
+
+    parent.set_submenu(Some(&submenu));
+    parent
 }
 
 fn build_applications_submenu() -> gtk::MenuItem {
