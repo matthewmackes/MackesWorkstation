@@ -20,6 +20,7 @@ mod config_store;
 mod desktop_files;
 mod dock;
 mod icons;
+mod mesh_module;
 mod mesh_sync;
 mod top_bar;
 
@@ -259,7 +260,20 @@ fn build_dock_strip(cfg: &mackes_config::PanelConfig) -> gtk::Box {
                 }
             }
             mackes_config::DockItem::Mesh { id } => {
-                eprintln!("mackes-panel: mesh dock item {id} skipped — Phase 5.4 not landed yet");
+                if let Some(resource) = mesh_module::parse_id(id) {
+                    let module = mesh_module::MeshModule::new(resource);
+                    let widget = dock::render_module(&module);
+                    let module_for_click = module.clone();
+                    widget.connect_button_release_event(move |_, _| {
+                        // Bring the trait into scope for the method call.
+                        use dock::DockModule;
+                        module_for_click.on_click();
+                        glib::Propagation::Stop
+                    });
+                    strip.pack_start(&widget, false, false, 0);
+                } else {
+                    eprintln!("mackes-panel: unrecognised mesh dock id: {id}");
+                }
             }
         }
     }
