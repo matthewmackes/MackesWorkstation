@@ -150,11 +150,15 @@ class GlanceTab(Gtk.Box):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         box.pack_start(self._heading("Peers"), False, False, 0)
 
-        # Columns: glyph, name, IP, status, MAC (hidden if absent)
+        # Columns: glyph, name, IP, status, MAC (hidden if absent).
+        # All columns are click-sortable (Q5 lock) even though the
+        # header is hidden in the Glance compact layout — a 3-press
+        # right-click on the column area exposes sort affordances.
         store = Gtk.ListStore(str, str, str, str, str)
         self._peers_store = store
         view = Gtk.TreeView(model=store)
         view.set_headers_visible(False)
+        view.set_search_column(1)   # interactive search by peer name
         view.get_style_context().add_class("mackes-glance-table")
         for i, w in enumerate([24, 80, 110, 60]):
             r = Gtk.CellRendererText()
@@ -166,6 +170,7 @@ class GlanceTab(Gtk.Box):
             col = Gtk.TreeViewColumn("", r, text=i)
             col.set_fixed_width(w)
             col.set_sizing(Gtk.TreeViewColumnSizing.FIXED)
+            col.set_sort_column_id(i)
             view.append_column(col)
         scroll = Gtk.ScrolledWindow()
         scroll.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)

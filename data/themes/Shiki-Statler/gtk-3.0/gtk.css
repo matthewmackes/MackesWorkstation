@@ -1,0 +1,234 @@
+/* Shiki-Statler — GTK3 port.
+ *
+ * Original GTK2 theme by perfectska04 (Victor C.), modified for
+ * CrunchBang Linux 10 "Statler" by Philip Newborough. Light app
+ * chrome + dark window borders.
+ *
+ * This file ports the canonical GTK2 palette (data/themes/
+ * Shiki-Statler/gtk-2.0/gtkrc:13) to GTK3+ semantic tokens so
+ * GTK3 apps pick up the same colours. Widget rendering relies on
+ * GTK3's default Murrine-like styling — close enough for an
+ * "official Shiki-Statler" feel without recreating every gradient.
+ *
+ * Palette (matches gtk-2.0/gtkrc):
+ *   fg_color           #101010   near-black
+ *   bg_color           #D8D8D8   light grey app chrome
+ *   base_color         #F5F5F5   entry/list background
+ *   text_color         #1A1A1A   list/entry text
+ *   selected_bg_color  #808080   selection
+ *   selected_fg_color  #FFFFFF
+ *   tooltip_bg_color   #222222
+ *   tooltip_fg_color   #D8D8D8
+ *   frame_color        #333333
+ */
+
+@define-color theme_fg_color        #101010;
+@define-color theme_text_color      #1A1A1A;
+@define-color theme_bg_color        #D8D8D8;
+@define-color theme_base_color      #F5F5F5;
+
+@define-color theme_selected_bg_color #808080;
+@define-color theme_selected_fg_color #FFFFFF;
+
+@define-color theme_unfocused_fg_color   #4A4A4A;
+@define-color theme_unfocused_text_color #2F2F2F;
+@define-color theme_unfocused_bg_color   #CFCFCF;
+@define-color theme_unfocused_base_color #EFEFEF;
+@define-color theme_unfocused_selected_bg_color #707070;
+@define-color theme_unfocused_selected_fg_color #FFFFFF;
+
+@define-color insensitive_bg_color   #CCCCCC;
+@define-color insensitive_fg_color   #888888;
+@define-color insensitive_base_color #EAEAEA;
+
+@define-color theme_tooltip_bg_color #222222;
+@define-color theme_tooltip_fg_color #D8D8D8;
+
+@define-color borders          #898989;
+@define-color unfocused_borders #B0B0B0;
+@define-color frame_color      #333333;
+
+@define-color warning_color    #B58800;
+@define-color error_color      #C0392B;
+@define-color success_color    #4A934A;
+
+@define-color content_view_bg  #F5F5F5;
+@define-color text_view_bg     #F5F5F5;
+
+/* Top-level shell defaults */
+
+window {
+    background-color: @theme_bg_color;
+    color: @theme_fg_color;
+}
+
+button {
+    background-image: linear-gradient(to bottom, #F0F0F0, #D8D8D8);
+    border: 1px solid @borders;
+    border-radius: 2px;
+    padding: 3px 10px;
+    color: @theme_fg_color;
+}
+button:hover {
+    background-image: linear-gradient(to bottom, #F8F8F8, #E6E6E6);
+}
+button:active,
+button:checked {
+    background-image: linear-gradient(to bottom, #C0C0C0, #B0B0B0);
+    color: @theme_fg_color;
+}
+button:disabled {
+    color: @insensitive_fg_color;
+    background-image: linear-gradient(to bottom,
+        @insensitive_bg_color, @insensitive_bg_color);
+}
+
+entry,
+textview,
+treeview.view {
+    background-color: @theme_base_color;
+    color: @theme_text_color;
+    border: 1px solid @borders;
+    border-radius: 2px;
+    padding: 2px 6px;
+}
+entry:focus,
+textview:focus {
+    border-color: shade(@theme_selected_bg_color, 0.8);
+}
+
+treeview.view:selected,
+treeview.view:selected:focus {
+    background-color: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+}
+
+/* Header bars + title bars match the dark Shiki accent for that
+ * "dark titlebar over light content" Statler look */
+headerbar,
+.titlebar {
+    background-image: linear-gradient(to bottom, #2A2A2A, #1A1A1A);
+    color: #E6E6E6;
+    border-bottom: 1px solid #404040;
+    padding: 4px 8px;
+}
+headerbar entry {
+    background-color: #3a3a3a;
+    color: #E6E6E6;
+    border-color: #555;
+}
+headerbar button {
+    background-image: linear-gradient(to bottom, #3a3a3a, #2a2a2a);
+    color: #E6E6E6;
+    border-color: #555;
+}
+headerbar button:hover {
+    background-image: linear-gradient(to bottom, #4a4a4a, #3a3a3a);
+}
+
+/* Menus */
+menu,
+.context-menu,
+popover {
+    background-color: @theme_bg_color;
+    color: @theme_fg_color;
+    border: 1px solid @borders;
+}
+menu menuitem:hover,
+.context-menu menuitem:hover {
+    background-color: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+}
+
+/* Tooltips */
+tooltip {
+    background-color: @theme_tooltip_bg_color;
+    color: @theme_tooltip_fg_color;
+    border: 1px solid #444;
+    padding: 4px 8px;
+}
+
+/* Notebook tabs */
+notebook header {
+    background-color: @theme_bg_color;
+}
+notebook tab {
+    background-image: linear-gradient(to bottom, #CFCFCF, #B8B8B8);
+    border: 1px solid @borders;
+    padding: 4px 10px;
+    color: @theme_fg_color;
+}
+notebook tab:checked {
+    background-image: linear-gradient(to bottom,
+        @theme_base_color, @theme_base_color);
+    color: @theme_fg_color;
+}
+
+/* Scrollbar — slim dark slider on a light trough */
+scrollbar trough {
+    background-color: #C8C8C8;
+    border: 1px solid #B0B0B0;
+}
+scrollbar slider {
+    background-color: #6E6E6E;
+    border-radius: 4px;
+    min-width: 8px;
+    min-height: 8px;
+}
+scrollbar slider:hover { background-color: #5B5B5B; }
+scrollbar slider:active { background-color: #404040; }
+
+/* Progressbar */
+progressbar trough {
+    background-color: #C0C0C0;
+    border: 1px solid @borders;
+    border-radius: 2px;
+}
+progressbar progress {
+    background-color: @theme_selected_bg_color;
+    border-radius: 2px;
+}
+
+/* Status bar / info bar — bottom strip */
+statusbar {
+    background-color: shade(@theme_bg_color, 0.95);
+    color: @theme_fg_color;
+    border-top: 1px solid @borders;
+    padding: 2px 8px;
+}
+
+/* Sidebar (Nautilus, Thunar, etc.) */
+.sidebar {
+    background-color: shade(@theme_bg_color, 0.97);
+    color: @theme_fg_color;
+}
+.sidebar list row:selected {
+    background-color: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+}
+
+/* Switch */
+switch {
+    background-color: #B0B0B0;
+    border-radius: 12px;
+}
+switch:checked {
+    background-color: @theme_selected_bg_color;
+}
+switch slider {
+    background-color: #F5F5F5;
+    border: 1px solid #888;
+    border-radius: 12px;
+}
+
+/* Check + radio */
+checkbutton check,
+radiobutton radio {
+    background-color: @theme_base_color;
+    border: 1px solid @borders;
+}
+checkbutton check:checked,
+radiobutton radio:checked {
+    background-color: @theme_selected_bg_color;
+    color: @theme_selected_fg_color;
+}

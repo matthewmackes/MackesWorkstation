@@ -5,6 +5,31 @@ unreleased; tag versions get a date when they ship.
 
 ## 1.6.2 — 1.6.2 rollup (unreleased)
 
+**Final-pass tasklist clear-out — panel button + tray + GTK3 port.**
+
+* **Shiki-Statler GTK3 port.** `data/themes/Shiki-Statler/gtk-3.0/
+  gtk.css` ports the canonical Shiki-Colors palette (`fg #101010`,
+  `bg #D8D8D8`, `base #F5F5F5`, `selected_bg #808080`, dark
+  `headerbar #2A2A2A`) to GTK3+ semantic tokens. GTK3 apps —
+  including Mackes Shell itself — now pick up the same look the
+  GTK2 + xfwm4 paths already did. ~200 LOC of CSS covering buttons,
+  entries, lists, headerbars, menus, tooltips, notebooks,
+  scrollbars, progress, switches, checks.
+
+* **`data/panel-plugins/mackes-launcher/`** — new external xfce4-panel
+  plugin (mirrors the mackes-clipboard layout). Click → spawns
+  `mackes --popover`. Built C source, .desktop with `X-XFCE-API=2.0`,
+  Makefile that compiles with the same pkg-config + CFLAGS the
+  existing clipboard plugin uses. RPM builds + installs it under
+  `/usr/lib64/xfce4/panel/plugins/mackes-launcher`.
+
+* **`mackes/tray.py`** — Gtk.StatusIcon tray + context menu (Open
+  popover, Open full window, Mesh Health, Quit). Tooltip + state
+  refresh every 30 s from `mesh.health()`. Autostart shim at
+  `data/applications/mackes-tray.desktop` so it launches on login.
+
+
+
 **New default themes — Black-Sun (icons) + Shiki-Statler (GTK/xfwm).**
 
 * `data/icons/Black-Sun/` — vendored from

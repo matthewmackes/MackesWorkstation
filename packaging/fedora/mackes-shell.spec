@@ -196,6 +196,7 @@ Menu + xfce4-panel + xfdesktop), styled with the Carbon Design System.
 %build
 # Pure Python — except for the xfce4-panel external clipboard plugin (C).
 make -C data/panel-plugins/mackes-clipboard CFLAGS="%{optflags}"
+make -C data/panel-plugins/mackes-launcher  CFLAGS="%{optflags}"
 
 %install
 # 1. Install the Python package directly into site-packages. Skip
@@ -255,6 +256,8 @@ cp -r data/plymouth/mackes %{buildroot}%{_datadir}/plymouth/themes/
 # C plugin install (compiled in %%build above). Pass libdir explicitly
 # so on 64-bit the binary lands at %{_libdir}=/usr/lib64, not /usr/lib.
 make -C data/panel-plugins/mackes-clipboard install \
+    DESTDIR=%{buildroot} prefix=%{_prefix} libdir=%{_libdir}
+make -C data/panel-plugins/mackes-launcher install \
     DESTDIR=%{buildroot} prefix=%{_prefix} libdir=%{_libdir}
 cp -r data/grub           %{buildroot}%{_datadir}/%{name}/data/
 cp    data/media-services.yaml %{buildroot}%{_datadir}/%{name}/data/
@@ -337,6 +340,9 @@ install -D -m 0644 data/applications/mackes-shell.desktop \
     %{buildroot}%{_datadir}/applications/mackes-shell.desktop
 install -D -m 0644 data/applications/mackes-clipboard.desktop \
     %{buildroot}%{_datadir}/applications/mackes-clipboard.desktop
+# v1.6.2 — tray icon autostart (Q8 lock: panel + tray + hotkey)
+install -D -m 0644 data/applications/mackes-tray.desktop \
+    %{buildroot}%{_datadir}/applications/mackes-tray.desktop
 install -D -m 0644 data/applications/mackes-mesh-uri-handler.desktop \
     %{buildroot}%{_datadir}/applications/mackes-mesh-uri-handler.desktop
 install -D -m 0644 data/icons/mackes-shell.svg \
@@ -392,6 +398,7 @@ fi
 %{_datadir}/%{name}/
 %{_datadir}/applications/mackes-shell.desktop
 %{_datadir}/applications/mackes-clipboard.desktop
+%{_datadir}/applications/mackes-tray.desktop
 %{_datadir}/applications/mackes-conky.desktop
 %{_datadir}/applications/mackes-maximizer.desktop
 %{_datadir}/applications/mackes-mesh-uri-handler.desktop
@@ -412,6 +419,10 @@ fi
 # C panel plugin + its descriptor
 %{_libdir}/xfce4/panel/plugins/mackes-clipboard
 %{_datadir}/xfce4/panel/plugins/mackes-clipboard.desktop
+# v1.6.2 — slide-out popover launcher plugin (Q8 lock: panel button +
+# tray + Super+M). Click → spawns `mackes --popover`.
+%{_libdir}/xfce4/panel/plugins/mackes-launcher
+%{_datadir}/xfce4/panel/plugins/mackes-launcher.desktop
 # Vendored PadOS GTK theme
 %{_datadir}/themes/PadOS/
 # Vendored Shiki-Statler GTK2 + xfwm4 theme (v1.6.2 default)
