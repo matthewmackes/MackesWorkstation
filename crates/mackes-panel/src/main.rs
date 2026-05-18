@@ -14,6 +14,8 @@
 
 #![forbid(unsafe_code)]
 
+mod icons;
+
 use std::path::{Path, PathBuf};
 
 use gdk::prelude::*;
