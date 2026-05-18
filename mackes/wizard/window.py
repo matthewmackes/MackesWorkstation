@@ -87,6 +87,10 @@ class WizardWindow(Gtk.ApplicationWindow):
         if single_preset:
             self.ctx.selected_preset = shipped_presets[0]
 
+        # Escape closes the wizard — standard dialog idiom that users
+        # expect on Linux. Press handler is wired below in _on_key_press.
+        self.connect("key-press-event", self._on_key_press)
+
         # ---- Build page widgets + step model ------------------------------
         self._apply_page = apply.ApplyPage(self.ctx)
 
@@ -169,6 +173,10 @@ class WizardWindow(Gtk.ApplicationWindow):
         self._back_btn = Gtk.Button(label="‹ Back")
         self._back_btn.get_style_context().add_class("cds-button-tertiary")
         self._back_btn.connect("clicked", lambda *_: self._navigate(-1))
+        self._back_btn.set_tooltip_text("Return to the previous step")
+        ax = self._back_btn.get_accessible()
+        if ax is not None:
+            ax.set_name("Back to previous step")
         bar.pack_start(self._back_btn, False, False, 0)
 
         # Spacer
@@ -178,12 +186,21 @@ class WizardWindow(Gtk.ApplicationWindow):
         self._cancel_btn = Gtk.Button(label="Cancel")
         self._cancel_btn.get_style_context().add_class("cds-button-ghost")
         self._cancel_btn.connect("clicked", lambda *_: self.destroy())
+        self._cancel_btn.set_tooltip_text("Exit the wizard (Esc)")
+        ax = self._cancel_btn.get_accessible()
+        if ax is not None:
+            ax.set_name("Cancel setup wizard")
         bar.pack_end(self._cancel_btn, False, False, 0)
 
         self._next_btn = Gtk.Button(label="Next ›")
         self._next_btn.get_style_context().add_class("suggested-action")
         self._next_btn.get_style_context().add_class("cds-button-primary")
         self._next_btn.connect("clicked", lambda *_: self._navigate(+1))
+        self._next_btn.set_tooltip_text("Continue to the next step (Enter)")
+        self._next_btn.set_can_default(True)
+        ax = self._next_btn.get_accessible()
+        if ax is not None:
+            ax.set_name("Continue to next step")
         bar.pack_end(self._next_btn, False, False, 0)
 
         return bar
@@ -252,6 +269,19 @@ class WizardWindow(Gtk.ApplicationWindow):
             pass
 
     # ---- apply pipeline --------------------------------------------------
+
+    # ---- keyboard --------------------------------------------------------
+
+    def _on_key_press(self, _widget, event) -> bool:
+        # Escape — cancel the wizard from anywhere except mid-install.
+        # During Apply the Cancel button on the page itself handles
+        # cancellation so we don't tear down the running pipeline.
+        if event.keyval == Gdk.KEY_Escape:
+            _title, kind, _w = self._steps[self._current]
+            if kind != _STEP_PROGRESS:
+                self.destroy()
+                return True
+        return False
 
     def _run_apply(self) -> bool:
         # `run()` spawns a daemon thread and returns immediately; the
