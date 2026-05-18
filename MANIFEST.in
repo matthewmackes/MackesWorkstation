@@ -11,6 +11,12 @@ include uninstall.sh
 include pyproject.toml
 include setup.py
 
+# Rust workspace — root manifest + lock + every crate (Phase 0.1-0.3)
+include Cargo.toml
+include Cargo.lock
+include rust-toolchain.toml
+recursive-include crates *.toml *.rs
+
 # Branding (logo placed on About, Wizard welcome, and Dashboard header +
 # the standard wallpaper used for desktop + LightDM greeter + boot
 # splash MP4 played before the wizard surfaces)

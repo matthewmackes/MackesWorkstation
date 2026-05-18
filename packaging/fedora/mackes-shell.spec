@@ -19,7 +19,8 @@ Source0:        %{name}-%{version}.tar.gz
 ExclusiveArch:  %{ix86} x86_64 aarch64
 
 # Build dependencies — python3 for site-packages discovery + C toolchain
-# for the panel plugin.
+# for the panel plugin + Rust toolchain for the mackes-panel binary
+# (Mackes XFCE Workstation 1.0.0 rewrite, Phase 0.3).
 BuildRequires:  python3
 # C panel-plugin compile-time deps
 BuildRequires:  gcc
@@ -28,6 +29,9 @@ BuildRequires:  pkgconfig
 BuildRequires:  gtk3-devel
 BuildRequires:  xfce4-panel-devel
 BuildRequires:  libxfce4ui-devel
+# Rust toolchain for crates/mackes-panel + workspace crates
+BuildRequires:  rust
+BuildRequires:  cargo
 
 # Runtime deps the entry point and all panels need
 Requires:       python3
@@ -206,6 +210,12 @@ make -C data/panel-plugins/mackes-clipboard CFLAGS="%{optflags}"
 make -C data/panel-plugins/mackes-launcher  CFLAGS="%{optflags}"
 make -C data/panel-plugins/mackes-drawer    CFLAGS="%{optflags}"
 
+# Rust workspace — mackes-panel binary + library crates (Phase 0.3).
+# Offline=false because we let Cargo resolve crates.io deps; the build
+# environment is expected to have network. If/when we vendor, drop in
+# `--offline` and a vendored target dir.
+cargo build --release --workspace
+
 %install
 # 1. Install the Python package directly into site-packages. Skip
 #    setuptools/pip entirely — Mackes has no C extensions and no
@@ -368,6 +378,11 @@ cat > %{buildroot}%{_bindir}/mackes <<'EOF'
 exec python3 -m mackes "$@"
 EOF
 chmod 0755 %{buildroot}%{_bindir}/mackes
+
+# 6a. mackes-panel — Rust binary from the workspace (Phase 0.3).
+#     Placeholder skeleton in 1.0.0-dev; replaces xfce4-panel at M1.
+install -D -m 0755 target/release/mackes-panel \
+    %{buildroot}%{_bindir}/mackes-panel
 cat > %{buildroot}%{_bindir}/mackes-clipboard <<'EOF'
 #!/usr/bin/env bash
 exec python3 -m mackes.clipboard_app "$@"
@@ -406,6 +421,7 @@ fi
 %{_bindir}/mackes-gvfsd-mesh
 %{_bindir}/mackes-mesh-open
 %{_bindir}/mackes-maximizer
+%{_bindir}/mackes-panel
 %{py3_sitelib}/mackes/
 %{py3_sitelib}/mackes_shell-%{version}.dist-info/
 %{_datadir}/%{name}/
