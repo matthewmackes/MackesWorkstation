@@ -454,60 +454,67 @@ def _xfconf_str(ty: str, value) -> str:
 
 
 def apply_panel_layout(_preset: Preset) -> List[str]:
-    """Deploy the Mackes default xfce4-panel layout from the snapshot.
+    """Write the Mackes default xfce4-panel layout via xfconf-query.
 
-    The layout is shipped as data/panel/xfce4-panel.snapshot.json — a
-    direct mirror of `xfconf-query -c xfce4-panel -lv` from the
-    reference machine. Regenerate via tools/snapshot-panel.py.
+    v1.6.3 — REVERTED from the v1.6.2 data-driven snapshot loader. The
+    snapshot approach was writing types xfce4-panel 4.20 doesn't
+    accept (`/panels` as array-uint vs its expected array-int, whisker
+    `menu-width`/`menu-height` as uint vs int) which triggered
+    GLib-GObject-CRITICAL assertions and "(null)" plugin-load dialogs.
 
-    Apply ordering (v1.5.1 race fix preserved):
-      1. xfce4-panel --quit (so the panel doesn't observe partial state)
-      2. /plugins/* — every plugin's type and properties
-      3. /panels/* root keys except the plugin-ids arrays
-      4. /panels (the master array of panel ids)
-      5. /panels/panel-*/plugin-ids (referenced plugins now exist)
+    This function now uses the proven v1.5.x hardcoded xfconf-query
+    sequence — stable for months in production — with `mackes-launcher`
+    (Super+M popover button) and `mackes-clipboard` added.
+
+    Plugin layout along the top:
+      101  whiskermenu (Mackes-branded "Mackes" with mackes-shell icon)
+      102  mackes-launcher  (NEW v1.6.2 — opens popover)
+      103  docklike (taskbar)
+      104  separator (expand to push tray + clock right)
+      105  mackes-clipboard (NEW v1.5.0)
+      106  systray
+      107  clock (IBM Plex digital)
+
+    Apply ordering (v1.5.1 race-fix preserved):
+      1. xfce4-panel --quit before any xfconf writes
+      2. write plugin types + per-plugin properties
+      3. write panel-0 metadata
+      4. write /panels array LAST
+      5. write /panels/panel-0/plugin-ids LAST
       6. xfce4-panel relaunch
 
-    Transient/runtime cache keys (plugin-N/known-items + known-legacy-items)
-    are filtered to avoid leaking PII from the snapshotting box.
+    Idempotent: every key is upserted via `--create`.
     """
     actions: List[str] = []
     if shutil.which("xfconf-query") is None:
         actions.append("panel layout: xfconf-query not installed — skipping")
         return actions
 
-    snap_path = _panel_snapshot_path()
-    if snap_path is None:
-        actions.append("panel layout: snapshot file missing — skipping")
-        return actions
-
-    try:
-        snap = json.loads(snap_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as e:
-        actions.append(f"panel layout: snapshot parse failed: {e}")
-        return actions
-
-    # Partition the snapshot by apply ordering.
-    plugins: list[tuple[str, dict]] = []
-    panels_root: list[tuple[str, dict]] = []   # /panels (the array)
-    panel_meta: list[tuple[str, dict]] = []    # /panels/panel-N/* except plugin-ids
-    plugin_ids: list[tuple[str, dict]] = []    # /panels/panel-N/plugin-ids
-    misc: list[tuple[str, dict]] = []          # /configver, /panels/dark-mode
-
-    for prop in sorted(snap.keys()):
-        if _panel_is_transient(prop):
-            continue
-        spec = snap[prop]
-        if prop.startswith("/plugins/"):
-            plugins.append((prop, spec))
-        elif prop == "/panels":
-            panels_root.append((prop, spec))
-        elif re.match(r"^/panels/panel-\d+/plugin-ids$", prop):
-            plugin_ids.append((prop, spec))
-        elif prop.startswith("/panels/panel-"):
-            panel_meta.append((prop, spec))
+    def _set(prop: str, type_hint: str, value: str) -> None:
+        rc, out = _run(
+            ["xfconf-query", "--channel", "xfce4-panel",
+             "--property", prop, "--create", "--type", type_hint,
+             "--set", value], timeout=10,
+        )
+        if rc == 0:
+            actions.append(f"panel: set {prop} = {value}")
         else:
-            misc.append((prop, spec))
+            last = out.strip().splitlines()[-1] if out.strip() else rc
+            actions.append(f"panel: failed {prop}: {last}")
+
+    def _set_array(prop: str, type_hint: str, values: list[str]) -> None:
+        _run(["xfconf-query", "--channel", "xfce4-panel",
+              "--property", prop, "--reset"], timeout=10)
+        cmd = ["xfconf-query", "--channel", "xfce4-panel",
+               "--property", prop, "--create", "--force-array"]
+        for v in values:
+            cmd.extend(["--type", type_hint, "--set", v])
+        rc, out = _run(cmd, timeout=10)
+        if rc == 0:
+            actions.append(f"panel: set {prop}[] = {values}")
+        else:
+            last = out.strip().splitlines()[-1] if out.strip() else rc
+            actions.append(f"panel: failed array {prop}: {last}")
 
     # v1.5.1 — kill xfce4-panel BEFORE writing any state so it doesn't
     # race on partial config and crash.
@@ -519,46 +526,74 @@ def apply_panel_layout(_preset: Preset) -> List[str]:
         except (OSError, subprocess.TimeoutExpired):
             pass
 
-    def _apply_batch(batch: list[tuple[str, dict]], label: str) -> None:
-        ok = fail = 0
-        for prop, spec in batch:
-            rc, out = _xfconf_set("xfce4-panel", prop,
-                                  spec["type"], spec["value"])
-            if rc == 0:
-                ok += 1
-            else:
-                fail += 1
-                last = out.strip().splitlines()[-1] if out.strip() else rc
-                actions.append(f"panel: failed {prop}: {last}")
-        actions.append(f"panel: applied {label}: {ok} ok, {fail} failed")
+    plugin_ids = ["101", "102", "103", "104", "105", "106", "107"]
 
-    _apply_batch(plugins,    "plugin types + properties")
-    _apply_batch(panel_meta, "panel metadata")
-    _apply_batch(misc,       "misc keys")
-    _apply_batch(panels_root,"panels array")
-    _apply_batch(plugin_ids, "plugin-ids arrays")
+    # Panel-0 metadata
+    _set("/panels/panel-0/position",         "string", "p=8;x=0;y=0")
+    _set("/panels/panel-0/length",           "uint",   "100")
+    _set("/panels/panel-0/size",             "uint",   "32")
+    _set("/panels/panel-0/icon-size",        "uint",   "22")
+    _set("/panels/panel-0/position-locked",  "bool",   "true")
+    _set("/panels/panel-0/autohide-behavior", "uint",  "0")
 
-    # Copy per-plugin RC files (whiskermenu, launcher icons, etc.).
-    rc_src = _panel_rc_dir()
-    if rc_src is not None:
-        dst = Path.home() / ".config" / "xfce4" / "panel"
-        dst.mkdir(parents=True, exist_ok=True)
-        for src in rc_src.iterdir():
-            target = dst / src.name
-            try:
-                if src.is_dir():
-                    shutil.copytree(src, target, dirs_exist_ok=True)
-                else:
-                    shutil.copy2(src, target)
-                actions.append(f"panel-rc: copied {src.name}")
-            except OSError as e:
-                actions.append(f"panel-rc: failed {src.name}: {e}")
+    # Whisker — Mackes-branded
+    _set("/plugins/plugin-101", "string", "whiskermenu")
+    _set("/plugins/plugin-101/button-title", "string", "Mackes")
+    _set("/plugins/plugin-101/button-icon",  "string", "mackes-shell")
+    _set("/plugins/plugin-101/show-button-title", "bool", "true")
+    _set("/plugins/plugin-101/show-button-icon",  "bool", "true")
+    _set("/plugins/plugin-101/launcher-show-name",        "bool", "true")
+    _set("/plugins/plugin-101/launcher-show-description", "bool", "true")
+    _set("/plugins/plugin-101/category-icon-size", "int", "1")
+    _set("/plugins/plugin-101/item-icon-size",     "int", "2")
+    _set("/plugins/plugin-101/menu-width",         "int", "440")
+    _set("/plugins/plugin-101/menu-height",        "int", "560")
+    _set("/plugins/plugin-101/menu-opacity",       "int", "100")
+    _set("/plugins/plugin-101/position-search-alternate",     "bool", "true")
+    _set("/plugins/plugin-101/position-categories-alternate", "bool", "true")
+    _set("/plugins/plugin-101/search-actions-enabled",        "bool", "true")
+    _set("/plugins/plugin-101/recent-items-max",   "int", "10")
+    _set("/plugins/plugin-101/favorites",          "string", "mackes-shell.desktop")
 
-    # Relaunch xfce4-panel.
+    # mackes-launcher — opens the Super+M popover (v1.6.2)
+    _set("/plugins/plugin-102", "string", "mackes-launcher")
+
+    # docklike taskbar
+    _set("/plugins/plugin-103", "string", "docklike")
+
+    # Expanding separator pushes the right side over
+    _set("/plugins/plugin-104", "string", "separator")
+    _set("/plugins/plugin-104/expand", "bool", "true")
+    _set("/plugins/plugin-104/style",  "uint", "0")
+
+    # mackes-clipboard — mesh clipboard popover (v1.5.0)
+    _set("/plugins/plugin-105", "string", "mackes-clipboard")
+
+    # systray
+    _set("/plugins/plugin-106", "string", "systray")
+
+    # clock — IBM Plex digital
+    _set("/plugins/plugin-107", "string", "clock")
+    _set("/plugins/plugin-107/digital-time-font",   "string", "IBM Plex Sans Bold 12")
+    _set("/plugins/plugin-107/digital-time-format", "string", "%I:%M %p")
+    _set("/plugins/plugin-107/digital-date-font",   "string", "IBM Plex Sans 10")
+    _set("/plugins/plugin-107/digital-date-format", "string", "%B %d, %Y")
+    _set("/plugins/plugin-107/mode",                "uint",   "2")
+
+    # v1.5.1 — /panels array + /panels/panel-0/plugin-ids written LAST,
+    # AFTER every plugin's type has landed. xfce4-panel only loads a
+    # plugin when its plugin-N type is set; writing plugin-ids before
+    # the types caused the v1.5.0 "(null)" plugin-load dialogs.
+    _set_array("/panels",                       "int",  ["0"])
+    _set_array("/panels/panel-0/plugin-ids",    "uint", plugin_ids)
+
+    # Relaunch xfce4-panel — we --quit'd it at the start; spawn fresh
+    # so it sees the new config from scratch.
     if shutil.which("xfce4-panel"):
         try:
             subprocess.Popen(["xfce4-panel"],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL,
                              start_new_session=True)
             actions.append("panel: xfce4-panel relaunched with new config")
         except OSError as e:

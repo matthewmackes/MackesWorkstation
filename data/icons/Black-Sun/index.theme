@@ -75,6 +75,13 @@ MinSize=22
 MaxSize=512
 Type=Scalable
 
+[places/symbolic]
+Context=Places
+Size=16
+MinSize=8
+MaxSize=512
+Type=Scalable
+
 [preferences/scalable]
 Size=128
 Context=Applications

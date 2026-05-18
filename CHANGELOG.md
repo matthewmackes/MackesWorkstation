@@ -3,6 +3,40 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.6.3 — Hotfix: xfce4-panel crash on wizard apply (2026-05-17)
+
+**`apply_panel_layout` REVERTED to the v1.5.x-style hardcoded
+xfconf-query sequence.** The v1.6.2 data-driven snapshot loader was
+writing types xfce4-panel 4.20 doesn't accept:
+
+* `/panels` as `array-uint` — xfce4-panel expects `array-int`
+* whiskermenu `menu-width` / `menu-height` as `uint` — whisker reads
+  them as `int`, triggering `g_value_get_int: assertion
+  'G_VALUE_HOLDS_INT (value)' failed` storms
+* Snapshot writes ran while xfce4-panel was watching the channel,
+  racing on partial state and showing "Plugin "(null)" could not be
+  loaded — do you want to remove" dialogs
+
+The reverted function uses the proven v1.5.x sequence (stable for
+months) with `mackes-launcher` and `mackes-clipboard` added. Plugin
+IDs 101–107: whiskermenu (Mackes-branded) · mackes-launcher (Super+M
+popover) · docklike · separator-expand · mackes-clipboard · systray ·
+clock (IBM Plex digital). v1.5.1 race-fix preserved: `xfce4-panel
+--quit` before any writes; `/panels` + `plugin-ids` written LAST after
+every plugin's type has landed.
+
+The snapshot file (`data/panel/xfce4-panel.snapshot.json`) stays in
+the tree as a reference / diagnostic artifact; `tools/snapshot-panel.py`
+still works for re-capture. `apply_panel_layout` no longer reads from
+it.
+
+**Black-Sun `index.theme` fix.** Upstream's `Directories=` line
+listed `places/symbolic` but the matching `[places/symbolic]` section
+header was missing. Added a minimal stanza
+(Context=Places, Size=16, MinSize=8, MaxSize=512, Type=Scalable).
+Stops the "Theme directory places/symbolic of theme Black-Sun has no
+size field" warning from every GTK app on the desktop.
+
 ## 1.6.2 — Slide-out popover + mesh perf overhaul + new default themes (2026-05-17)
 
 **Final-pass tasklist clear-out — panel button + tray + GTK3 port.**

@@ -81,11 +81,11 @@
     "value": 2
   },
   "/plugins/plugin-1/menu-width": {
-    "type": "uint",
+    "type": "int",
     "value": 440
   },
   "/plugins/plugin-1/menu-height": {
-    "type": "uint",
+    "type": "int",
     "value": 560
   },
   "/plugins/plugin-1/menu-opacity": {
