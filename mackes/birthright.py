@@ -1314,3 +1314,108 @@ def apply_flathub(_preset: Preset) -> List[str]:
     for line in actions:
         log_action(line)
     return actions
+
+
+# ---------------------------------------------------------------------------
+# 15. apply_panel_swap — Phase 10.6.1-4 of the v1.0.0 work.
+# ---------------------------------------------------------------------------
+
+def apply_panel_swap(_preset: Preset) -> List[str]:
+    """Start mackes-panel, then quit + disable xfce4-panel + xfdesktop,
+    then unbind the Whisker Super-key.
+
+    Idempotent. Each step is gated on the previous succeeding; failure
+    aborts the remaining steps and leaves the user in a recoverable
+    state (mackes-panel + xfce4-panel can coexist briefly until the
+    user re-runs the wizard).
+    """
+    actions: List[str] = []
+    home = Path(os.path.expanduser("~"))
+
+    # 10.6.1 — Start mackes-panel.
+    if shutil.which("mackes-panel") is None:
+        actions.append("panel-swap: mackes-panel not installed — aborting")
+        for line in actions:
+            log_action(line)
+        return actions
+    try:
+        subprocess.Popen(
+            ["mackes-panel"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        actions.append("panel-swap: started mackes-panel")
+    except OSError as e:
+        actions.append(f"panel-swap: mackes-panel start failed: {e}")
+        for line in actions:
+            log_action(line)
+        return actions
+
+    # 10.6.2 — Quit xfce4-panel + override its autostart.
+    if shutil.which("xfce4-panel"):
+        subprocess.run(
+            ["xfce4-panel", "--quit"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+        actions.append("panel-swap: stopped xfce4-panel")
+
+        autostart = home / ".config" / "autostart" / "xfce4-panel.desktop"
+        autostart.parent.mkdir(parents=True, exist_ok=True)
+        autostart.write_text(
+            "[Desktop Entry]\nType=Application\nHidden=true\n"
+            "X-XFCE-Autostart-enabled=false\n",
+            encoding="utf-8",
+        )
+        actions.append(f"panel-swap: disabled {autostart}")
+
+    # 10.6.3 — Quit xfdesktop. The RPM already drops the system-side
+    # autostart override (Phase 8.3); the user-side belt-and-braces is
+    # here.
+    if shutil.which("xfdesktop"):
+        subprocess.run(
+            ["xfdesktop", "--quit"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+        actions.append("panel-swap: stopped xfdesktop")
+
+    # 10.6.4 — Unbind Whisker Super-key. xfce4 binds <Super>l (lower
+    # L; the standard installer ships it bound to popup the whisker
+    # menu). Swap to running mackes-panel's apple menu.
+    backup_path = home / ".config" / "mackes-panel" / "keybindings.backup.toml"
+    backup_path.parent.mkdir(parents=True, exist_ok=True)
+    bindings_to_swap = {
+        "<Super>l": "mackes-panel --apple-menu",
+        "<Super>Space": "mackes-panel --apple-menu",
+    }
+    backup_lines = ["# Auto-saved by mackes.birthright.apply_panel_swap"]
+    for combo, _new in bindings_to_swap.items():
+        rc, current = _run(
+            ["xfconf-query", "--channel", "xfce4-keyboard-shortcuts",
+             "--property", f"/commands/custom/{combo}"],
+            timeout=5,
+        )
+        if rc == 0 and current.strip():
+            backup_lines.append(f'"{combo}" = "{current.strip()}"')
+        _run(
+            ["xfconf-query", "--channel", "xfce4-keyboard-shortcuts",
+             "--property", f"/commands/custom/{combo}",
+             "--type", "string",
+             "--set", "mackes-panel --apple-menu", "--create"],
+            timeout=5,
+        )
+    backup_path.write_text("\n".join(backup_lines) + "\n", encoding="utf-8")
+    actions.append(
+        f"panel-swap: rebound Super-keys to mackes-panel "
+        f"(prior bindings backed up to {backup_path})"
+    )
+
+    for line in actions:
+        log_action(line)
+    return actions
