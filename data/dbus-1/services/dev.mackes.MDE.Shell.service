@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=dev.mackes.MDE.Shell
+Exec=/usr/bin/mded serve
+SystemdService=mded.service

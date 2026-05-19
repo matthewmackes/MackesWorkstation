@@ -1,18 +1,28 @@
-//! `org.mackes.Fleet` — fleet control (push setting revisions, list
-//! revisions, rollback) served by mackesd.
+//! `dev.mackes.MDE.Fleet` — fleet control (push setting revisions,
+//! list revisions, rollback) served by mackesd.
 //!
 //! Phase A ships the schema; Phase G (`v2.0.0`) wires it through to
 //! the reconcile loop + the `settings` table.
+//!
+//! v2.0.0 Phase 0.4 rebrand — interface name moved from
+//! `org.mackes.Fleet`. Backward-compat alias .service file ships
+//! under the old name for one release; see `data/dbus-1/services/`.
 
 #![cfg(feature = "async-services")]
 
 use zbus::interface;
 
-/// Object exposed at `/org/mackes/Fleet`. Phase A: shell.
+/// Object exposed at `/dev/mackes/MDE/Fleet`. Phase A: shell.
 #[derive(Debug, Default, Clone)]
 pub struct FleetService;
 
-#[interface(name = "org.mackes.Fleet")]
+/// Stable D-Bus name used by Phase 0.4-onward callers.
+pub const SERVICE_NAME: &str = "dev.mackes.MDE.Fleet";
+
+/// Object-path under [`SERVICE_NAME`].
+pub const OBJECT_PATH: &str = "/dev/mackes/MDE/Fleet";
+
+#[interface(name = "dev.mackes.MDE.Fleet")]
 impl FleetService {
     /// Push a new desired-config revision targeting a set of peers.
     /// `peers_selector` follows the same grammar as

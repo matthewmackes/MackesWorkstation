@@ -1,18 +1,28 @@
-//! `org.mackes.Settings` — DBus surface for the settings store.
+//! `dev.mackes.MDE.Settings` — DBus surface for the settings store.
 //!
 //! Phase A ships the interface decoration and a service struct that
 //! holds no state yet. Phase C wires it through to
 //! `crate::settings::{apply, current}` + the SQLite `settings` table.
+//!
+//! v2.0.0 Phase 0.4 rebrand — interface name moved from
+//! `org.mackes.Settings`. Backward-compat alias .service file ships
+//! under the old name for one release; see `data/dbus-1/services/`.
 
 #![cfg(feature = "async-services")]
 
 use zbus::interface;
 
-/// Object exposed at `/org/mackes/Settings` on the session bus.
+/// Object exposed at `/dev/mackes/MDE/Settings` on the session bus.
 #[derive(Debug, Default, Clone)]
 pub struct SettingsService;
 
-#[interface(name = "org.mackes.Settings")]
+/// Stable D-Bus name used by Phase 0.4-onward callers.
+pub const SERVICE_NAME: &str = "dev.mackes.MDE.Settings";
+
+/// Object-path under [`SERVICE_NAME`].
+pub const OBJECT_PATH: &str = "/dev/mackes/MDE/Settings";
+
+#[interface(name = "dev.mackes.MDE.Settings")]
 impl SettingsService {
     /// Read a setting by dot-notated key. Returns the JSON-encoded
     /// value as a string. Phase A: always returns the Phase A

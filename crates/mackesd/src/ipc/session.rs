@@ -1,23 +1,33 @@
-//! `org.mackes.Session` — session lifecycle. *Schema lives here;
+//! `dev.mackes.MDE.Session` — session lifecycle. *Schema lives here;
 //! server impl lives in `crates/mackes-session/`.*
 //!
 //! This module defines the canonical message shape so every consumer
 //! (Workbench Python panels via DBus, the panel applets, mackesd's
 //! Fleet service, etc.) imports the same interface name. The
-//! `mackes-session` binary in Phase D constructs a real
+//! `mde-session` binary in Phase D constructs a real
 //! `SessionService` struct that holds compositor lifecycle state.
+//!
+//! v2.0.0 Phase 0.4 rebrand — interface name moved from
+//! `org.mackes.Session`. Backward-compat alias .service file ships
+//! under the old name for one release; see `data/dbus-1/services/`.
 
 #![cfg(feature = "async-services")]
 
 use zbus::interface;
 
-/// Placeholder service struct. `mackes-session` will replace this
+/// Placeholder service struct. `mde-session` will replace this
 /// with one that owns the running sway process handle + autostart
 /// state. Phase A: just enough surface to compile + emit signals.
 #[derive(Debug, Default, Clone)]
 pub struct SessionService;
 
-#[interface(name = "org.mackes.Session")]
+/// Stable D-Bus name used by Phase 0.4-onward callers.
+pub const SERVICE_NAME: &str = "dev.mackes.MDE.Session";
+
+/// Object-path under [`SERVICE_NAME`].
+pub const OBJECT_PATH: &str = "/dev/mackes/MDE/Session";
+
+#[interface(name = "dev.mackes.MDE.Session")]
 impl SessionService {
     /// Request a clean logout (sway exits, graphical-session.target
     /// stops, the user is returned to the greeter).

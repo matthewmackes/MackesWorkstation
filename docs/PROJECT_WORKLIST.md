@@ -145,12 +145,22 @@ binary symlink) and in CHANGELOG history.
 - [ ] **0.3 Binary + man-page rename** — `bin/` shell wrappers
   renamed; `data/man/` regenerated; `Cargo.toml` `[[bin]]` names
   updated; `make install` targets point at new paths.
-- [ ] **0.4 D-Bus surface rename** — Service files under
-  `data/dbus-1/services/` regenerated with `dev.mackes.MDE.*`
-  names; zbus `interface(name=…)` and `proxy(default_service=…)`
-  attributes updated; one-release `Alias=` entries published for
-  the five v1.x service names so any external integrations don't
-  break instantly.
+- [✓] **0.4 D-Bus surface rename** — Five `dev.mackes.MDE.*.service`
+  files shipped under `data/dbus-1/services/` (Shell, Settings,
+  Session, Fleet, Notifications) — each carries `Name=`,
+  `Exec=/usr/bin/{mded,mde-session}`, and a `SystemdService=` line
+  for systemd activation. zbus `#[interface(name="…")]` attributes
+  in `crates/mackesd/src/ipc/{shell,settings,session,fleet}.rs`
+  moved from `org.mackes.*` to `dev.mackes.MDE.*`; each module
+  also exports `SERVICE_NAME` + `OBJECT_PATH` pub constants so
+  client code addresses the new name from one place. Four
+  backward-compat alias `org.mackes.*.service` files (dropping in
+  v2.1 alongside the env shim) keep v1.x callers working. 6 new
+  `tests/test_dbus_service_files.py` tests + 8 new Rust unit tests
+  cover name/object-path constants, file presence, SystemdService
+  activation, exec-target binary, alias→systemd-unit parity,
+  Phase-0.4-comment presence on aliases. `org.freedesktop.
+  Notifications` keeps its spec name (no rebrand).
 - [✓] **0.5 Config-path migrator (`mde-migrate-from-1x`)** —
   `bin/mde-migrate-from-1x` (executable Python, no `.py`
   extension since it ships as a system binary): walks the three
