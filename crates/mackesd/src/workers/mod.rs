@@ -80,6 +80,7 @@ impl ShutdownToken {
 // adapter over an existing sync implementation today; they grow real
 // bodies as Phase B fills in.
 pub mod ansible_pull;
+pub mod fs_sync;
 pub mod heartbeat;
 pub mod kdc_bridge;
 pub mod media_sync;

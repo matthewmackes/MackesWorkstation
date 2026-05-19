@@ -313,9 +313,19 @@ panel starts without manual intervention.
 - [ ] **B.2 `workers/mdns.rs`** — replaces
   `mackes-mdns-relay.service` + `mackes/mesh_mdns.py`. Uses `mdns-sd`
   crate.
-- [ ] **B.3 `workers/fs_sync.rs`** — replaces
-  `mackes-gvfsd-mesh.service` + `mackes/mesh_fs*.py`. Supervises
-  sshfs subprocesses (or `russh-sftp` if mature enough).
+- [✓] **B.3 `workers/fs_sync.rs`** —
+  `crates/mackesd/src/workers/fs_sync.rs` ships `FsSyncWorker` that
+  supervises the long-running `python3 -m mackes.mesh_gvfs.daemon`
+  process (the same one `mackes-gvfsd-mesh.service` ran). Treats
+  any subprocess exit — clean OR error — as failure so the Phase
+  A.2 `OnFailure` policy restarts the worker with exponential
+  back-off. `with_argv()` constructor for tests. Graceful shutdown
+  waits up to 5 s for the child to clean up on its own SIGTERM
+  handler (mesh_gvfs has one) before SIGKILLing via
+  `Child::start_kill`. 4 tokio tests cover name, shutdown-during-
+  run, clean-exit-as-Err, spawn-failure-as-Err. Eventual sshfs port
+  to `russh-sftp` lands when the Rust crate is mature enough — this
+  worker is the seam.
 - [✓] **B.4 `workers/media_sync.rs`** —
   `crates/mackesd/src/workers/media_sync.rs` ships
   `build()` → SubprocessTickWorker that invokes
