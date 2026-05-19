@@ -1,7 +1,10 @@
-"""About Mackes — a small scrollable window over the bundled ABOUT.txt.
+"""About MDE — a small scrollable window over the bundled ABOUT.txt.
 
-Opened from the apple menu's "About Mackes" item (which runs
+Opened from the apple menu's "About" item (which runs
 `mackes --about`) and from the Workbench's footer when present.
+
+v2.0.0 Phase 0.11 — user-visible strings switched to "Mackes Desktop
+Environment (MDE)" on first reference, "MDE" thereafter.
 """
 from __future__ import annotations
 
@@ -17,32 +20,38 @@ from mackes import __version__
 
 # Where the credits file lives once the RPM is installed. We also fall
 # back to the source-tree copy so `python -m mackes --about` works in a
-# checked-out repo without installing.
-_INSTALLED_PATH = Path("/usr/share/mackes-shell/ABOUT.txt")
+# checked-out repo without installing. Phase 0.8 will swap the
+# `/usr/share/mackes-shell/` prefix to `/usr/share/mde/`; we probe
+# both so the About window works during the transition.
+_INSTALLED_PATHS = [
+    Path("/usr/share/mde/ABOUT.txt"),
+    Path("/usr/share/mackes-shell/ABOUT.txt"),
+]
 _REPO_PATH = Path(__file__).resolve().parents[1] / "data" / "ABOUT.txt"
 
 
 def _resolve_about_text() -> str:
-    for path in (_INSTALLED_PATH, _REPO_PATH):
+    for path in [*_INSTALLED_PATHS, _REPO_PATH]:
         try:
             return path.read_text(encoding="utf-8")
         except OSError:
             continue
     return (
-        "Mackes Shell\n"
-        "============\n\n"
+        "Mackes Desktop Environment (MDE)\n"
+        "=================================\n\n"
         "ABOUT.txt could not be located. The RPM ships it at\n"
-        "/usr/share/mackes-shell/ABOUT.txt — if you see this message,\n"
-        "the package install is incomplete.\n"
+        "/usr/share/mde/ABOUT.txt (or, for v1.x boxes,\n"
+        "/usr/share/mackes-shell/ABOUT.txt) — if you see this\n"
+        "message, the package install is incomplete.\n"
     )
 
 
 def build_about_window(application: Optional[Gtk.Application] = None) -> Gtk.Window:
-    """Construct the About Mackes window. Caller is responsible for
+    """Construct the About MDE window. Caller is responsible for
     show_all() and (typically) connecting "destroy" to quit the app."""
     win = Gtk.ApplicationWindow(application=application) if application \
         else Gtk.Window()
-    win.set_title(f"About Mackes — v{__version__}")
+    win.set_title(f"About MDE — v{__version__}")
     win.set_default_size(640, 600)
     # Gtk.WindowPosition.CENTER picks the wrong head on multi-monitor
     # setups; compute the center of the *primary* monitor explicitly.

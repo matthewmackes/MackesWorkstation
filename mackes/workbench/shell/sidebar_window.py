@@ -514,7 +514,9 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         self.set_default_size(target_w, target_h)
         self.set_position(Gtk.WindowPosition.CENTER)
         from mackes.workbench._common import versioned_title
-        self.set_title(versioned_title("Mackes Shell"))
+        # v2.0.0 Phase 0.11 — "Mackes Shell" → just the workbench
+        # surface name; versioned_title prepends "MDE <version>".
+        self.set_title(versioned_title("Workbench"))
         self.state = state
 
         # CSS-class root marker so accent files can scope rules to the app
@@ -582,10 +584,11 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         logo.get_style_context().add_class("mackes-dot")
         logo.get_style_context().add_class("accent")
         brand.pack_start(logo, False, False, 0)
-        # text label "Mackes Shell" with two-tone weight
+        # text label "MDE" + "Workbench" with two-tone weight
+        # (Phase 0.11 — was "Mackes Shell" pre-rebrand).
         text = Gtk.Label()
         text.set_markup(
-            '<span weight="600">Mackes</span><span weight="400" alpha="80%"> Shell</span>'
+            '<span weight="600">MDE</span><span weight="400" alpha="80%"> Workbench</span>'
         )
         text.get_style_context().add_class("mackes-brand-text")
         brand.pack_start(text, False, False, 0)

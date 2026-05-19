@@ -148,14 +148,19 @@ def section_description(text: str) -> Gtk.Widget:
 
 
 def versioned_title(base: str) -> str:
-    """Return `<base> — Mackes <version>` — the canonical titlebar
-    format every Mackes window uses. Read by Gtk.Window.set_title()
-    callers and the header bar's set_title()."""
+    """Return `<base> — MDE <version>` — the canonical titlebar
+    format every MDE window uses. Read by Gtk.Window.set_title()
+    callers and the header bar's set_title().
+
+    v2.0.0 Phase 0.11 — "Mackes" rebranded to "MDE" in titlebar text
+    (titlebars are short surfaces; "Mackes Desktop Environment" only
+    appears on first reference in About / README / docs).
+    """
     try:
         from mackes import __version__
     except Exception:  # noqa: BLE001
         __version__ = "?"
-    return f"{base} — Mackes {__version__}"
+    return f"{base} — MDE {__version__}"
 
 
 def set_versioned_title(window: "Gtk.Window", base: str) -> None:
