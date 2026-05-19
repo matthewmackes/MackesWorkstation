@@ -101,6 +101,7 @@ pub fn build_popover(anchor: &gtk::Widget, lat: f64, lon: f64) -> gtk::Popover {
     let popover = gtk::Popover::new(Some(anchor));
     popover.set_widget_name("mackes-weather-popover");
     popover.set_position(gtk::PositionType::Bottom);
+    popover.set_constrain_to(gtk::PopoverConstraint::None);
 
     let column = gtk::Box::new(gtk::Orientation::Vertical, 8);
     column.set_widget_name("mackes-weather-column");

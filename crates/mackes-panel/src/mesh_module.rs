@@ -171,6 +171,7 @@ pub fn build_peer_popover(anchor: &gtk::Widget, peer: &str) -> gtk::Popover {
     let popover = gtk::Popover::new(Some(anchor));
     popover.set_widget_name("mackes-peer-popover");
     popover.set_position(gtk::PositionType::Top);
+    popover.set_constrain_to(gtk::PopoverConstraint::None);
 
     let column = gtk::Box::new(gtk::Orientation::Vertical, 4);
     column.set_margin_top(8);

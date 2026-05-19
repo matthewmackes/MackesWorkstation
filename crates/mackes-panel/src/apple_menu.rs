@@ -142,6 +142,7 @@ mod tests {
             icon: None,
             categories: categories.iter().map(|s| (*s).to_owned()).collect(),
             terminal: false,
+            startup_wm_class: None,
         }
     }
 

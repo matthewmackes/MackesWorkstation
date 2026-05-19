@@ -19,7 +19,10 @@
 use std::path::{Path, PathBuf};
 
 use gio::prelude::*;
-use mackes_config::{default_config, parse, to_toml_string, PanelConfig};
+use mackes_config::{
+    default_config, parse, pin_app as cfg_pin_app, to_toml_string, unpin_app as cfg_unpin_app,
+    PanelConfig,
+};
 
 const REL_PATH: &str = "mackes-panel/panel.toml";
 
@@ -108,10 +111,30 @@ fn reload() -> Option<PanelConfig> {
 
 fn write_default(path: &Path) {
     let cfg = default_config();
-    let text = match to_toml_string(&cfg) {
+    write_to(path, &cfg);
+}
+
+/// Load → mutate → write the current config. Used by `pin_app` /
+/// `unpin_app` so a single file-system round-trip carries each change.
+/// Caller's mutator runs against a fresh load, so concurrent pins from
+/// the dock + the Workbench can interleave without losing each other.
+fn mutate<F>(mutator: F)
+where
+    F: FnOnce(&mut PanelConfig),
+{
+    let Some(p) = path() else {
+        return;
+    };
+    let mut cfg = load_or_default();
+    mutator(&mut cfg);
+    write_to(&p, &cfg);
+}
+
+fn write_to(path: &Path, cfg: &PanelConfig) {
+    let text = match to_toml_string(cfg) {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("mackes-panel: cannot serialize default config: {e}");
+            eprintln!("mackes-panel: cannot serialize config: {e}");
             return;
         }
     };
@@ -122,11 +145,29 @@ fn write_default(path: &Path) {
         }
     }
     if let Err(e) = std::fs::write(path, text) {
-        eprintln!(
-            "mackes-panel: cannot write default to {}: {e}",
-            path.display()
-        );
-    } else {
-        eprintln!("mackes-panel: wrote default config to {}", path.display());
+        eprintln!("mackes-panel: cannot write {}: {e}", path.display());
     }
+}
+
+/// Persistently pin a `.desktop` to the dock — appends an App entry to
+/// the current `panel.toml`. Idempotent by desktop id. mackes-panel's
+/// 2-s dock-refresh tick re-reads the file and rebuilds the dock, so
+/// the new icon appears within ~2 s of the write.
+pub fn pin_app(desktop: &str) {
+    let name = if desktop.ends_with(".desktop") {
+        desktop.to_owned()
+    } else {
+        format!("{desktop}.desktop")
+    };
+    mutate(|cfg| cfg_pin_app(cfg, &name));
+}
+
+/// Persistently unpin a `.desktop` from the dock. Mirrors `pin_app`.
+pub fn unpin_app(desktop: &str) {
+    let name = if desktop.ends_with(".desktop") {
+        desktop.to_owned()
+    } else {
+        format!("{desktop}.desktop")
+    };
+    mutate(|cfg| cfg_unpin_app(cfg, &name));
 }

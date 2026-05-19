@@ -44,6 +44,13 @@ pub struct DesktopEntry {
     pub categories: Vec<String>,
     /// `Terminal=true` → launcher must spawn through a terminal.
     pub terminal: bool,
+    /// `StartupWMClass=` if present. When set, the dock matches running
+    /// windows to this launcher by checking their X11 `WM_CLASS` second
+    /// component against this string (case-insensitive). When absent,
+    /// the matcher falls back to the `.desktop` basename — works for the
+    /// common case where the `WM_CLASS` already mirrors the launcher id
+    /// (e.g. firefox.desktop ↔ "firefox").
+    pub startup_wm_class: Option<String>,
 }
 
 /// Walk every `SEARCH_ROOTS` plus `$HOME/.local/share/applications` and
@@ -98,6 +105,7 @@ pub fn parse_text(id: &str, text: &str) -> Option<DesktopEntry> {
     let mut terminal = false;
     let mut no_display = false;
     let mut hidden = false;
+    let mut startup_wm_class: Option<String> = None;
 
     for raw in text.lines() {
         let line = raw.trim();
@@ -134,6 +142,7 @@ pub fn parse_text(id: &str, text: &str) -> Option<DesktopEntry> {
             "Terminal" => terminal = parse_bool(value),
             "NoDisplay" => no_display = parse_bool(value),
             "Hidden" => hidden = parse_bool(value),
+            "StartupWMClass" => startup_wm_class = Some(value.to_owned()),
             _ => {}
         }
     }
@@ -151,6 +160,7 @@ pub fn parse_text(id: &str, text: &str) -> Option<DesktopEntry> {
         icon,
         categories,
         terminal,
+        startup_wm_class,
     })
 }
 

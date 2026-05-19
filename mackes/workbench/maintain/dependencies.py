@@ -4,6 +4,10 @@ Lists required and recommended Fedora packages, indicates which are
 installed, and offers a one-click install for missing ones via
 `pkexec dnf install`. Optional packages (themes, fonts) are listed too —
 checked but never auto-installed; the user has to opt in.
+
+1.0.7+ (Phase 11.9): the initial `rpm -qa` probe is off-main-thread
+via `async_probe`. The panel renders a "Checking installed packages…"
+placeholder, then fills in the package rows when the probe lands.
 """
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
 from mackes.logging import log_action
+from mackes.workbench._async import async_probe
 from mackes.workbench._common import (
     info_label, panel_box, section_description, section_header, title_label,
 )
@@ -125,6 +130,9 @@ class DependenciesPanel(Gtk.Box):
 
         box.pack_start(section_header("Required"), False, False, 0)
         self._required = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        # Placeholder visible until the rpm -qa probe lands.
+        self._required_placeholder = info_label("Checking installed packages…")
+        self._required.pack_start(self._required_placeholder, False, False, 0)
         box.pack_start(self._required, False, False, 0)
 
         box.pack_start(section_header("Recommended / Optional"), False, False, 0)
@@ -132,14 +140,23 @@ class DependenciesPanel(Gtk.Box):
         box.pack_start(self._optional, False, False, 0)
 
         self.add(box)
-        self._refresh()
+        # Kick the rpm -qa probe off-main-thread. The placeholder above
+        # stays visible until _apply_installed_set fires.
+        async_probe(_all_installed_packages, self._apply_installed_set)
 
     def _refresh(self) -> bool:
+        """Manual refresh (Refresh button + post-install bust). Probes
+        off-main-thread same as the initial load."""
+        async_probe(_all_installed_packages, self._apply_installed_set)
+        return False
+
+    def _apply_installed_set(self, installed_set: frozenset[str]) -> None:
+        """Main thread: rebuild both panes with fresh installed data."""
         for box in (self._required, self._optional):
             for child in list(box.get_children()):
                 box.remove(child)
         for pkg, label, required in PACKAGES:
-            installed = _is_installed(pkg)
+            installed = pkg in installed_set
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
             dot = Gtk.Label(label="●" if installed else "○")
             dot.get_style_context().add_class("success" if installed else
@@ -150,9 +167,12 @@ class DependenciesPanel(Gtk.Box):
             row.pack_start(lbl, True, True, 0)
             (self._required if required else self._optional).pack_start(row, False, False, 0)
         self._required.show_all(); self._optional.show_all()
-        return False
 
     def _install(self, *, required_only: bool) -> None:
+        # `_is_installed` reads from the cached set; ok to call sync
+        # here because the button click is itself a main-thread event
+        # and the cache is warm by this point (the panel must have
+        # rendered first).
         targets = [p for p, _, req in PACKAGES if (req or not required_only) and not _is_installed(p)]
         if not targets:
             self._status.set_text("Nothing to install.")

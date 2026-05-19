@@ -92,11 +92,20 @@ def _fingerprint(host_id: str) -> str:
 
 
 class MeshSshPanel(Gtk.Box):
+    def _gather_state(self):
+        """Off-main-thread: headscale_list_peers does an HTTP roundtrip
+        that can take 7 s+ when the daemon is slow or unreachable."""
+        return headscale_list_peers()
+
     def __init__(self) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._policy_edit_mode = False
         self._build()
-        self._refresh()
+        # 11.9 reliability: probe headscale off-main-thread. Until the
+        # probe lands, status notification stays at its build-time
+        # default ("loading…") and the peer table renders empty.
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_state, self._apply_state)
 
     def _build(self) -> None:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -229,8 +238,14 @@ class MeshSshPanel(Gtk.Box):
 
     # ---- refresh -------------------------------------------------------
 
-    def _refresh(self) -> None:
-        peers = headscale_list_peers()
+    def _refresh(self, *_) -> None:
+        """User-triggered refresh (button clicks elsewhere in the
+        panel call this). Routes through the async probe to keep the
+        main thread responsive."""
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_state, self._apply_state)
+
+    def _apply_state(self, peers) -> None:
         online_n = sum(1 for p in peers if p.online)
         # Status notification
         if online_n > 0:

@@ -146,8 +146,14 @@ pub fn toggle_window(window_id: &str) {
 }
 
 fn active_window_id() -> Option<String> {
-    // wmctrl -a / -r need the title; for "what's active" we'd use
-    // xprop -root _NET_ACTIVE_WINDOW. Parse that.
+    active_window_id_str()
+}
+
+/// Public alias used by the dock's per-tick snapshot. Returns the
+/// currently focused window id in wmctrl's canonical `0x0NNNNNNN` form,
+/// or `None` if `xprop` is missing / the root has no `_NET_ACTIVE_WINDOW`.
+#[must_use]
+pub fn active_window_id_str() -> Option<String> {
     let output = Command::new("xprop")
         .args(["-root", "_NET_ACTIVE_WINDOW"])
         .output()
@@ -193,6 +199,95 @@ fn pid_command_matches(pid: u32, needle: &str) -> bool {
     let path = format!("/proc/{pid}/comm");
     std::fs::read_to_string(&path)
         .is_ok_and(|text| text.trim().to_ascii_lowercase().contains(needle))
+}
+
+/// Read a window's `WM_CLASS` via `xprop` and return the *class* component
+/// (the second quoted string). Used by the dock's tasklist segment to
+/// look up an icon for an open window — much more reliable than parsing
+/// the title or `/proc/<pid>/comm`.
+///
+/// Returns `None` when xprop is missing, the property is unset, or the
+/// output doesn't match the canonical `"instance", "class"` shape.
+#[must_use]
+pub fn window_wm_class(window_id: &str) -> Option<String> {
+    let output = Command::new("xprop")
+        .args(["-id", window_id, "WM_CLASS"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    parse_wm_class(&text)
+}
+
+/// Close the window with the given X11 id via `wmctrl -i -c`. This sends
+/// the standard `_NET_CLOSE_WINDOW` request — the app gets to handle
+/// shutdown gracefully (Save? dialogs etc.), unlike `xkill`.
+pub fn close_window(window_id: &str) {
+    if let Err(e) = Command::new("wmctrl").args(["-i", "-c", window_id]).spawn() {
+        eprintln!("mackes-panel: wmctrl -i -c {window_id} failed: {e}");
+    }
+}
+
+/// Maximize the window (both axes) via `wmctrl -i -r <id> -b add,...`.
+/// EWMH-spec compliant; works under every WM that handles the dock.
+pub fn maximize_window(window_id: &str) {
+    if let Err(e) = Command::new("wmctrl")
+        .args([
+            "-i",
+            "-r",
+            window_id,
+            "-b",
+            "add,maximized_vert,maximized_horz",
+        ])
+        .spawn()
+    {
+        eprintln!("mackes-panel: maximize {window_id} failed: {e}");
+    }
+}
+
+/// Un-maximize back to the previous size. Mirrors `maximize_window`.
+pub fn unmaximize_window(window_id: &str) {
+    if let Err(e) = Command::new("wmctrl")
+        .args([
+            "-i",
+            "-r",
+            window_id,
+            "-b",
+            "remove,maximized_vert,maximized_horz",
+        ])
+        .spawn()
+    {
+        eprintln!("mackes-panel: unmaximize {window_id} failed: {e}");
+    }
+}
+
+/// Minimize the window via `xdotool windowminimize`. Caller is expected
+/// to have already activated the window (xdotool minimizes the *active*
+/// window when its target is the one we're acting on).
+pub fn minimize_window(window_id: &str) {
+    if let Err(e) = Command::new("xdotool")
+        .args(["windowminimize", window_id])
+        .spawn()
+    {
+        eprintln!("mackes-panel: minimize {window_id} failed: {e}");
+    }
+}
+
+/// Pure-text parser for `xprop -id <w> WM_CLASS` output. Public so the
+/// unit tests cover the parsing without spawning xprop.
+#[must_use]
+pub fn parse_wm_class(text: &str) -> Option<String> {
+    // Expected:  WM_CLASS(STRING) = "instance", "class"
+    let after_eq = text.split_once('=')?.1;
+    let between_quotes: Vec<&str> = after_eq
+        .split('"')
+        .enumerate()
+        .filter(|(i, _)| i % 2 == 1)
+        .map(|(_, s)| s)
+        .collect();
+    between_quotes.get(1).map(|s| (*s).to_owned())
 }
 
 #[cfg(test)]
@@ -259,5 +354,17 @@ not-a-window\n\
         assert_eq!(exec_basename("/usr/bin/firefox %U"), "firefox");
         assert_eq!(exec_basename("firefox"), "firefox");
         assert_eq!(exec_basename(""), "");
+    }
+
+    #[test]
+    fn parse_wm_class_extracts_class_component() {
+        let text = "WM_CLASS(STRING) = \"Navigator\", \"firefox\"\n";
+        assert_eq!(parse_wm_class(text), Some("firefox".into()));
+    }
+
+    #[test]
+    fn parse_wm_class_handles_missing_property() {
+        assert_eq!(parse_wm_class("WM_CLASS:  not found.\n"), None);
+        assert_eq!(parse_wm_class(""), None);
     }
 }

@@ -1,4 +1,4 @@
-"""Mackes Notification Drawer — right-side slide-in window (v2.2.0).
+"""Mackes Notification Drawer — right-side slide-in window (v2.2.0+).
 
 Replaces three previous surfaces in a single unified drawer:
 
@@ -6,29 +6,32 @@ Replaces three previous surfaces in a single unified drawer:
   * Tray icon       (mackes/tray.py     — DELETED)
   * Mini popover    (mackes.app --popover — DELETED)
 
-Triggered by the mackes-drawer xfce4-panel plugin (C, in
-data/panel-plugins/mackes-drawer/). The plugin spawns
-`mackes-shell --drawer`; this module's `toggle()` either opens the
-drawer (sliding in from the configured edge) or closes an already-open
-one.
+Triggered by Super+M (xfce4-keyboard-shortcuts custom binding) or by
+the mackes-drawer xfce4-panel plugin (C, in
+data/panel-plugins/mackes-drawer/). Both spawn `mackes --drawer`;
+this module's `toggle()` either opens the drawer (sliding in from the
+right edge) or closes an already-open one.
 
 Design source: docs/design/v2.2.0-notification-drawer/
 
-Sections (top to bottom):
+Sections (top to bottom) — 1.0.7 wiring pass replaced every mocked
+data source with a live probe. Sections from the original 2.2.0 spec
+that depended on subsystems not yet implemented (Drift / Shared
+storage / Daemons grid / Footer-power) were removed rather than
+shown with placeholder data.
 
-  1. Header             — brand · version · preset · admin/lock · close X
-  2. Quick toggles      — Mesh · Bluetooth · Do not disturb · Caffeine
-  3. Sliders            — Volume · Brightness
-  4. Mesh               — hub url · ping sparkline · peer list
-  5. Fleet              — 2×2 node grid
-  6. Drift              — warning rows
-  7. Shared storage     — per-volume capacity bars
-  8. Services           — notifications · media · remote (counts)
-  9. Notifications      — list with dismiss + clear-all
- 10. Daemons (full)     — dot grid (full-density only)
- 11. Battery            — bar · time-remaining · cycle/health
- 12. Hardware           — CPU/RAM/load/clock
- 13. Footer             — power · density meta
+  1. Header           — brand · version · live active preset · admin badge
+  2. Quick toggles    — Mesh (tailscale) · Bluetooth (bluetoothctl) ·
+                        Do Not Disturb (xfconf-query notifyd) ·
+                        Caffeine (xfce4-power-manager presentation-mode)
+  3. Sliders          — Volume (pactl @DEFAULT_SINK@) ·
+                        Brightness (/usr/local/bin/mackes-brightness)
+  4. Mesh             — hub url + peer list (tailscale status --json)
+  5. Fleet            — node grid populated from tailscale peers
+  6. Services         — UNREAD · PLAYING (MPRIS DBus) · REMOTE (`who -u`)
+  7. Notifications    — list with dismiss + clear-all
+  8. Battery          — bar · status (/sys/class/power_supply/BAT*)
+  9. Hardware         — CPU/RAM/load/clock (/proc + getloadavg)
 
 The drawer also writes ~/.cache/mackes/drawer-state.json on open/close
 and on every refresh tick — the C panel plugin reads this for the
@@ -38,6 +41,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -205,6 +209,18 @@ class LiveState:
     mesh_hub:        str = ""
     fleet_nodes:     list = field(default_factory=list)
     notifications:   list = field(default_factory=list)
+    # 1.0.7 wiring pass — replaces the prior mock data sources
+    volume_pct:      int = 50
+    audio_muted:     bool = False
+    brightness_pct:  int = 80
+    bt_powered:      bool = False
+    bt_paired:       int = 0
+    dnd_on:          bool = False
+    caffeine_on:     bool = False
+    active_preset:   str = "unknown"
+    is_admin:        bool = False
+    playing_count:   int = 0
+    remote_sessions: int = 0
 
 
 def _read_battery() -> tuple[int, str]:
@@ -270,16 +286,221 @@ def _read_mesh() -> tuple[list, str]:
         return [], ""
 
 
+def _run_cmd(argv: list[str], timeout: float = 2.0) -> tuple[int, str]:
+    """Spawn a short-lived subprocess and return (returncode, stdout).
+    All drawer probes are fire-and-forget; failures degrade silently."""
+    try:
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        return proc.returncode, proc.stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return -1, ""
+
+
+def _audio_volume() -> tuple[int, bool]:
+    """Current sink volume (0–100) and mute state from pactl. Returns
+    (50, False) on probe failure so the slider has a sane default."""
+    rc, out = _run_cmd(["pactl", "get-sink-volume", "@DEFAULT_SINK@"])
+    pct = 50
+    if rc == 0:
+        # Format: "Volume: front-left: 49151 /  75% / -7.50 dB, ..."
+        import re
+        m = re.search(r"(\d+)\s*%", out)
+        if m:
+            pct = int(m.group(1))
+    rc2, out2 = _run_cmd(["pactl", "get-sink-mute", "@DEFAULT_SINK@"])
+    muted = rc2 == 0 and "yes" in out2.lower()
+    return pct, muted
+
+
+def _audio_set_volume(pct: int) -> None:
+    pct = max(0, min(150, pct))
+    _run_cmd(["pactl", "set-sink-volume", "@DEFAULT_SINK@", f"{pct}%"])
+
+
+def _audio_toggle_mute() -> None:
+    _run_cmd(["pactl", "set-sink-mute", "@DEFAULT_SINK@", "toggle"])
+
+
+def _brightness() -> int:
+    """Current brightness (0–100) via the mackes-brightness helper.
+    Returns 80 on probe failure so the slider isn't stuck at zero."""
+    rc, out = _run_cmd(["/usr/local/bin/mackes-brightness", "get"])
+    if rc == 0:
+        try:
+            return int(out.strip())
+        except ValueError:
+            pass
+    return 80
+
+
+def _brightness_set(pct: int) -> None:
+    pct = max(1, min(100, pct))
+    _run_cmd(["/usr/local/bin/mackes-brightness", "set", str(pct)])
+
+
+def _bluetooth_state() -> tuple[bool, int]:
+    """Return (powered, paired_count). Powered=False also when adapter
+    is missing — the chip ships either way."""
+    rc, out = _run_cmd(["bluetoothctl", "show"])
+    if rc != 0:
+        return False, 0
+    powered = False
+    for line in out.splitlines():
+        if line.strip().startswith("Powered:"):
+            powered = "yes" in line.lower()
+            break
+    rc2, out2 = _run_cmd(["bluetoothctl", "paired-devices"])
+    paired = len([l for l in out2.splitlines() if l.strip().startswith("Device")]) if rc2 == 0 else 0
+    return powered, paired
+
+
+def _bluetooth_toggle() -> None:
+    powered, _ = _bluetooth_state()
+    _run_cmd(["bluetoothctl", "power", "off" if powered else "on"])
+
+
+def _dnd_state() -> bool:
+    """Do-Not-Disturb is xfce4-notifyd's `/do-not-disturb` xfconf key
+    when the daemon is installed. Returns False when notifyd isn't
+    installed; the toggle then becomes a no-op with a visible warning
+    in the row's status line."""
+    rc, out = _run_cmd(
+        ["xfconf-query", "-c", "xfce4-notifyd", "-p", "/do-not-disturb"]
+    )
+    return rc == 0 and out.strip().lower() == "true"
+
+
+def _dnd_toggle() -> None:
+    state = _dnd_state()
+    _run_cmd([
+        "xfconf-query", "-c", "xfce4-notifyd",
+        "-p", "/do-not-disturb",
+        "-n", "-t", "bool", "-s", "false" if state else "true",
+    ])
+
+
+def _caffeine_state() -> bool:
+    """Caffeine = xfce4-power-manager's presentation-mode. When `true`,
+    the screensaver/blank suppress is active — the standard 'keep awake'
+    semantic everyone expects from a Caffeine button."""
+    rc, out = _run_cmd([
+        "xfconf-query", "-c", "xfce4-power-manager",
+        "-p", "/xfce4-power-manager/presentation-mode",
+    ])
+    return rc == 0 and out.strip().lower() == "true"
+
+
+def _caffeine_toggle() -> None:
+    state = _caffeine_state()
+    _run_cmd([
+        "xfconf-query", "-c", "xfce4-power-manager",
+        "-p", "/xfce4-power-manager/presentation-mode",
+        "-n", "-t", "bool", "-s", "false" if state else "true",
+    ])
+
+
+def _mesh_toggle(on: bool) -> None:
+    """`tailscale up` (with mesh_perf flags applied via mesh_vpn) or
+    `tailscale down`. The drawer doesn't wait for completion — the
+    button shows the new state on the next tick."""
+    try:
+        if on:
+            from mackes.mesh_vpn import tailscale_up_via_headscale
+            tailscale_up_via_headscale()
+        else:
+            _run_cmd(["tailscale", "down"])
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _active_preset() -> str:
+    """Active preset name from MackesState. Falls back to 'unknown' if
+    state.json is missing or unreadable."""
+    try:
+        from mackes.state import MackesState
+        return (MackesState.load().active_preset or "unknown")
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def _is_admin() -> bool:
+    """Show the admin badge when the user is in the `wheel` group
+    (Fedora's sudoers default). We don't check the live sudo token —
+    membership is what unlocks the Workbench's privileged panels."""
+    try:
+        import grp
+        return os.environ.get("USER", "") in grp.getgrnam("wheel").gr_mem
+    except (KeyError, OSError):
+        return os.geteuid() == 0
+
+
+def _mpris_playing() -> int:
+    """Number of MPRIS players currently in PlaybackStatus=Playing.
+    Iterates the well-known names on the session bus via gdbus — cheap
+    enough for a 1.5 s drawer tick (~3 short subprocess calls)."""
+    rc, out = _run_cmd([
+        "gdbus", "call", "--session",
+        "--dest", "org.freedesktop.DBus",
+        "--object-path", "/org/freedesktop/DBus",
+        "--method", "org.freedesktop.DBus.ListNames",
+    ])
+    if rc != 0:
+        return 0
+    import re
+    names = re.findall(r"'(org\.mpris\.MediaPlayer2\.[^']+)'", out)
+    playing = 0
+    for name in names:
+        rc2, out2 = _run_cmd([
+            "gdbus", "call", "--session",
+            "--dest", name,
+            "--object-path", "/org/mpris/MediaPlayer2",
+            "--method", "org.freedesktop.DBus.Properties.Get",
+            "org.mpris.MediaPlayer2.Player", "PlaybackStatus",
+        ])
+        if rc2 == 0 and "Playing" in out2:
+            playing += 1
+    return playing
+
+
+def _remote_sessions() -> int:
+    """SSH / remote sessions: `who -u` lines whose tty isn't a local
+    console. Local users (tty :0, seat0) are excluded; SSH connections
+    show as pts/N with the source host in parens."""
+    rc, out = _run_cmd(["who", "-u"])
+    if rc != 0:
+        return 0
+    count = 0
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        # Local console lines contain ":0" or "seat0"
+        if ":0" in line or "seat0" in line or "tty1" in line:
+            continue
+        # SSH lines mention pts/ and have a host in parens or pure IP
+        if "pts/" in line:
+            count += 1
+    return count
+
+
 def collect_state() -> LiveState:
     """One snapshot of everything the drawer renders."""
     now = time.localtime()
     bp, bs = _read_battery()
     cp, rp = _read_cpu_ram()
     peers, hub = _read_mesh()
+    vol, muted = _audio_volume()
+    bt_on, bt_paired = _bluetooth_state()
+    notifs = _load_pending_notifications()
     return LiveState(
         time_str=time.strftime("%H:%M", now),
         date_str=time.strftime("%a %b %e", now),
-        notif_count=len(_load_pending_notifications()),
+        notif_count=len(notifs),
         battery_pct=bp,
         battery_state=bs,
         cpu_pct=cp,
@@ -287,8 +508,22 @@ def collect_state() -> LiveState:
         load_avg=_read_load_avg(),
         mesh_peers=peers,
         mesh_hub=hub,
-        fleet_nodes=_load_fleet_nodes(),
-        notifications=_load_pending_notifications(),
+        # Fleet derives from the same tailscale snapshot — re-using the
+        # peers list (1.0.7) replaces the prior _load_fleet_nodes() mock
+        # fallback that wrote hardcoded helios/oracle/forge/cinder.
+        fleet_nodes=peers,
+        notifications=notifs,
+        volume_pct=vol,
+        audio_muted=muted,
+        brightness_pct=_brightness(),
+        bt_powered=bt_on,
+        bt_paired=bt_paired,
+        dnd_on=_dnd_state(),
+        caffeine_on=_caffeine_state(),
+        active_preset=_active_preset(),
+        is_admin=_is_admin(),
+        playing_count=_mpris_playing(),
+        remote_sessions=_remote_sessions(),
     )
 
 
@@ -297,18 +532,6 @@ def _load_pending_notifications() -> list:
     Mackes services as they emit events). Empty list when there's
     nothing to surface."""
     path = Path(GLib.get_user_cache_dir()) / "mackes" / "notifications.json"
-    if not path.is_file():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
-
-
-def _load_fleet_nodes() -> list:
-    """Read from ~/.cache/mackes/fleet.json (written by the fleet
-    inventory module)."""
-    path = Path(GLib.get_user_cache_dir()) / "mackes" / "fleet.json"
     if not path.is_file():
         return []
     try:
@@ -425,16 +648,19 @@ def _header(state: LiveState, on_close) -> Gtk.Widget:
                      False, False, 0)
     meta.pack_start(_label("·", classes=("mackes-drawer-dim-2",)),
                      False, False, 0)
-    meta.pack_start(_label("hashbang",
+    # Active preset (live from MackesState — replaces the prior
+    # hardcoded "hashbang" label).
+    meta.pack_start(_label(state.active_preset,
                             classes=("mackes-drawer-accent",
                                      "mackes-drawer-meta")),
                      False, False, 0)
-    meta.pack_start(_label("·", classes=("mackes-drawer-dim-2",)),
-                     False, False, 0)
-    meta.pack_start(_label("admin",
-                            classes=("mackes-drawer-success",
-                                     "mackes-drawer-meta")),
-                     False, False, 0)
+    if state.is_admin:
+        meta.pack_start(_label("·", classes=("mackes-drawer-dim-2",)),
+                         False, False, 0)
+        meta.pack_start(_label("admin",
+                                classes=("mackes-drawer-success",
+                                         "mackes-drawer-meta")),
+                         False, False, 0)
     box.pack_start(meta, False, False, 0)
     return box
 
@@ -443,31 +669,60 @@ def _quick_toggles_section(state: LiveState) -> Gtk.Widget:
     outer, body = _section("Quick toggles")
     grid = Gtk.Grid(column_spacing=6, row_spacing=6,
                      column_homogeneous=True)
-    chips = (
-        ("Mesh",          "tailscale up" if state.mesh_hub else "off",
-         bool(state.mesh_hub)),
-        ("Bluetooth",     "0 paired",     False),
-        ("Do not disturb","off",          False),
-        ("Caffeine",      "auto",         False),
+    # Each chip: (label, status text, on?, click handler).
+    # Click handlers run synchronously then the next 1.5 s tick will
+    # repaint with the new state. No await needed.
+    mesh_on = bool(state.mesh_hub)
+    chips: tuple = (
+        ("Mesh",
+         f"tailscale {state.mesh_hub}" if mesh_on else "off",
+         mesh_on,
+         lambda: _mesh_toggle(not mesh_on)),
+        ("Bluetooth",
+         (f"{state.bt_paired} paired" if state.bt_powered else "off"),
+         state.bt_powered,
+         _bluetooth_toggle),
+        ("Do not disturb",
+         "on" if state.dnd_on else "off",
+         state.dnd_on,
+         _dnd_toggle),
+        ("Caffeine",
+         "on" if state.caffeine_on else "off",
+         state.caffeine_on,
+         _caffeine_toggle),
     )
-    for i, (label, status, on) in enumerate(chips):
-        chip = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+    for i, (label, status, on, handler) in enumerate(chips):
+        chip = Gtk.EventBox()
+        chip.set_visible_window(True)
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         chip.get_style_context().add_class("mackes-drawer-chip")
         if on:
             chip.get_style_context().add_class("mackes-drawer-chip-on")
-        chip.pack_start(_label(label,
-                                classes=("mackes-drawer-chip-label",)),
-                         False, False, 0)
-        chip.pack_start(_label(status,
-                                classes=("mackes-drawer-chip-status",)),
-                         False, False, 0)
+        inner.pack_start(_label(label,
+                                 classes=("mackes-drawer-chip-label",)),
+                          False, False, 0)
+        inner.pack_start(_label(status,
+                                 classes=("mackes-drawer-chip-status",)),
+                          False, False, 0)
+        chip.add(inner)
+        # Capture handler in closure (Python default-arg trick to avoid
+        # the classic "last handler wins" loop-binding bug).
+        chip.connect("button-press-event",
+                     lambda _w, _e, h=handler: (h(), False)[1])
         grid.attach(chip, i % 2, i // 2, 1, 1)
     body.pack_start(grid, False, False, 0)
 
-    # Sliders — volume + brightness
+    # Sliders — Volume (pactl) + Brightness (mackes-brightness).
+    # We tag a flag on the Adjustment so the value-changed handler only
+    # fires for user drag, not for the programmatic set we do at build
+    # time. Without the flag, building the slider would immediately
+    # write the displayed value back to the system.
     sliders = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
     sliders.set_margin_top(10)
-    for name, value in (("Volume", 60), ("Brightness", 80)):
+    for name, value, setter in (
+        ("Volume", state.volume_pct, _audio_set_volume),
+        ("Brightness", state.brightness_pct, _brightness_set),
+    ):
         srow = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         srow.pack_start(_label(name, classes=("mackes-drawer-dim",)),
                          False, False, 0)
@@ -477,11 +732,27 @@ def _quick_toggles_section(state: LiveState) -> Gtk.Widget:
                            adjustment=adj)
         scale.set_draw_value(False)
         scale.set_hexpand(True)
-        srow.pack_start(scale, True, True, 0)
-        srow.pack_end(_label(f"{value}%",
+        # Mute indicator on the Volume row: clicking the row label
+        # toggles mute. Saves screen real-estate vs. a separate icon.
+        if name == "Volume" and state.audio_muted:
+            scale.set_sensitive(False)
+        value_label = _label(f"{value}%",
                               classes=("mackes-drawer-meta",
                                        "mackes-drawer-mono"),
-                              xalign=1.0), False, False, 0)
+                              xalign=1.0)
+
+        def on_value_changed(s, _setter=setter, _vl=value_label):
+            pct = int(s.get_value())
+            _vl.set_text(f"{pct}%")
+            _setter(pct)
+        # Debounce: only write on button-release (drag end) not every
+        # pixel of motion, otherwise pactl gets hammered.
+        scale.connect("button-release-event",
+                       lambda s, _e, cb=on_value_changed: (cb(s), False)[1])
+        scale.connect("scroll-event",
+                       lambda s, _e, cb=on_value_changed: (cb(s), False)[1])
+        srow.pack_start(scale, True, True, 0)
+        srow.pack_end(value_label, False, False, 0)
         sliders.pack_start(srow, False, False, 0)
     body.pack_start(sliders, False, False, 0)
     return outer
@@ -528,39 +799,68 @@ def _mesh_section(state: LiveState) -> Gtk.Widget:
 
 
 def _fleet_section(state: LiveState) -> Gtk.Widget:
-    nodes = state.fleet_nodes or [
-        {"name": "helios",  "status": "ok",   "ip": "10.0.1.4"},
-        {"name": "oracle",  "status": "ok",   "ip": "10.0.1.7"},
-        {"name": "forge",   "status": "sync", "ip": "10.0.1.12"},
-        {"name": "cinder",  "status": "idle", "ip": "10.0.1.18"},
-    ]
-    reachable = sum(1 for n in nodes if n.get("status") == "ok")
-    outer, body = _section("Fleet",
-                            right_text=f"{reachable} / {len(nodes)} reachable")
+    """Fleet view — live tailscale peers, up to 4 visible in a 2×2 grid.
+    A peer's status is one of:
+      - "ok" (green): peer is Online
+      - "idle" (grey): peer is in the tailnet but Offline
+    Tailscale's status JSON doesn't expose a "sync" intermediate state,
+    so the old mock fallback's three colors collapse to two real ones."""
+    nodes = state.fleet_nodes  # already comes from tailscale_status()'s peers
+    reachable = sum(1 for n in nodes if n.get("online"))
+    outer, body = _section(
+        "Fleet",
+        right_text=(
+            f"{reachable} / {len(nodes)} reachable"
+            if nodes else "no peers"
+        ),
+    )
+
+    if not nodes:
+        body.pack_start(
+            _label(
+                "Join a mesh from Workbench → Network → Mesh VPN to "
+                "populate this list.",
+                classes=("mackes-drawer-dim-2", "mackes-drawer-mono"),
+            ),
+            False, False, 0,
+        )
+        return outer
+
     grid = Gtk.Grid(column_spacing=6, row_spacing=6,
                      column_homogeneous=True)
     for i, n in enumerate(nodes[:4]):
         cell = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         cell.get_style_context().add_class("mackes-drawer-fleet-cell")
         top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        dot_class = ("mackes-drawer-success" if n["status"] == "ok"
-                      else "mackes-drawer-accent" if n["status"] == "sync"
+        online = bool(n.get("online"))
+        dot_class = ("mackes-drawer-success" if online
                       else "mackes-drawer-dim-2")
         top.pack_start(_label("●", classes=(dot_class,)),
                         False, False, 0)
-        top.pack_start(_label(n["name"]), True, True, 0)
+        top.pack_start(_label(n.get("name") or "?"), True, True, 0)
         cell.pack_start(top, False, False, 0)
         bot = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        bot.pack_start(_label(n.get("ip", ""),
+        bot.pack_start(_label(n.get("mesh_ip", ""),
                                 classes=("mackes-drawer-dim",
                                          "mackes-drawer-mono")),
                         True, True, 0)
-        bot.pack_end(_label(n["status"].upper(),
+        status = "OK" if online else "IDLE"
+        bot.pack_end(_label(status,
                               classes=(dot_class, "mackes-drawer-mono"),
                               xalign=1.0), False, False, 0)
         cell.pack_start(bot, False, False, 0)
         grid.attach(cell, i % 2, i // 2, 1, 1)
     body.pack_start(grid, False, False, 0)
+
+    if len(nodes) > 4:
+        body.pack_start(
+            _label(
+                f"+{len(nodes) - 4} more — open Workbench → Network "
+                f"→ Mesh Health to see all",
+                classes=("mackes-drawer-dim-2", "mackes-drawer-mono"),
+            ),
+            False, False, 0,
+        )
     return outer
 
 
@@ -568,9 +868,9 @@ def _services_section(state: LiveState) -> Gtk.Widget:
     outer, body = _section("Services")
     grid = Gtk.Grid(column_spacing=6, column_homogeneous=True)
     for label, count, glyph in (
-        ("UNREAD",  str(state.notif_count), "◐"),
-        ("PLAYING", "0",                    "♫"),
-        ("REMOTE",  "0",                    "↪"),
+        ("UNREAD",  str(state.notif_count),     "◐"),
+        ("PLAYING", str(state.playing_count),   "♫"),
+        ("REMOTE",  str(state.remote_sessions), "↪"),
     ):
         cell = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         cell.get_style_context().add_class("mackes-drawer-fleet-cell")

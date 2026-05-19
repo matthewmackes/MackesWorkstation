@@ -26,7 +26,13 @@ class MeshVpnPanel(Gtk.Box):
     def __init__(self) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._build()
-        self._refresh()
+        # 11.9 reliability: don't block __init__ on tailscale_status +
+        # headscale_list_peers (each subprocess can take 7 s+ when the
+        # daemon is slow). Probe off-main-thread; _apply_refresh fires
+        # on the GTK main thread when the probe lands. Until then the
+        # status tile shows "(loading…)" (set in _build above).
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_refresh_state, self._apply_refresh)
 
     def _build(self) -> None:
         box = panel_box()
@@ -132,10 +138,26 @@ class MeshVpnPanel(Gtk.Box):
 
     # ---- refresh -------------------------------------------------------
 
-    def _refresh(self) -> None:
+    def _gather_refresh_state(self) -> tuple:
+        """Off-main-thread: every slow probe in one place. Returns
+        the (MeshState, tailscale_status, peer-list) tuple consumed by
+        `_apply_refresh`."""
         state = MeshState.load()
         ts = tailscale_status()
         peers = headscale_list_peers()
+        return state, ts, peers
+
+    def _refresh(self, *_) -> None:
+        """User-triggered refresh (Refresh button). Same probe path as
+        the initial load — always off-main-thread."""
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_refresh_state, self._apply_refresh)
+
+    def _apply_refresh(self, gathered: tuple) -> None:
+        """Main thread: rebuild status tile + peer rows from the
+        gathered tuple. Mirrors what the pre-1.0.7 sync `_refresh` did
+        below the probe calls, with no behavior change."""
+        state, ts, peers = gathered
         n = len(peers)
 
         # Status

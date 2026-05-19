@@ -70,6 +70,10 @@ impl DockModule for AppModule {
         self.state
     }
 
+    fn categories(&self) -> &[String] {
+        &self.entry.categories
+    }
+
     fn on_click(&self) {
         // top_bar::launch_exec already handles field-code stripping
         // and the Terminal=true wrapper.
@@ -89,6 +93,7 @@ mod tests {
             icon: icon.map(str::to_owned),
             categories: Vec::new(),
             terminal: false,
+            startup_wm_class: None,
         }
     }
 

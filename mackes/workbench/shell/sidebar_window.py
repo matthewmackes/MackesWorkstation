@@ -777,8 +777,13 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
             f"preset: {self.state.active_preset or '—'}"), False, False, 0)
         bar.pack_end(right, True, True, 0)
 
-        # Kick off the 30s refresh loop
-        self._refresh_status_bar()
+        # Kick off the 30 s refresh loop. 1.0.7: first refresh runs on
+        # a background thread (matches the 30 s tick's pattern) — prior
+        # synchronous call blocked __init__ for ~7 s waiting on
+        # headscale / fleet / drift probes on top of the nav-badge
+        # probes' 10 s.
+        import threading
+        threading.Thread(target=self._refresh_status_bar, daemon=True).start()
         GLib.timeout_add_seconds(30, self._refresh_status_bar_tick)
         return bar
 

@@ -124,8 +124,11 @@ pub fn resolve(desktop_icon: &str) -> &str {
 }
 
 /// Look up an icon by freedesktop name and return a `Pixbuf` sized to
-/// `size_px`. Returns `None` only if the file is genuinely missing or
-/// fails to parse — never panics.
+/// `size_px`. Returns `None` only if the file is genuinely missing from
+/// the Mackes-Carbon theme — vendor brand icons from the system theme are
+/// **intentionally** not consulted (Q14: Carbon-only across the entire
+/// interface). Callers that want a category-aware fallback should use
+/// [`load_with_fallback`] instead.
 #[must_use]
 pub fn load(name: &str, size_px: i32) -> Option<Pixbuf> {
     let key = (name.to_owned(), size_px);
@@ -133,13 +136,87 @@ pub fn load(name: &str, size_px: i32) -> Option<Pixbuf> {
         return Some(hit);
     }
 
-    let path = locate_svg(name)?;
-    let pb = render_recolored_svg(&path, size_px)
-        .or_else(|| Pixbuf::from_file_at_scale(&path, size_px, size_px, true).ok())?;
+    let pb = load_from_carbon(name, size_px)?;
     CACHE.with(|c| {
         c.borrow_mut().insert(key, pb.clone());
     });
     Some(pb)
+}
+
+/// Mackes-Carbon SVG (the only icon source the panel ever uses for
+/// rendering, per Q14). Returns None when the name isn't in the
+/// shipped Carbon set.
+fn load_from_carbon(name: &str, size_px: i32) -> Option<Pixbuf> {
+    let path = locate_svg(name)?;
+    render_recolored_svg(&path, size_px)
+        .or_else(|| Pixbuf::from_file_at_scale(&path, size_px, size_px, true).ok())
+}
+
+/// Carbon-only icon resolution with category-based fallback. For a
+/// `.desktop` whose Icon= field isn't covered by the [`APP_TO_CARBON`]
+/// curated table OR whose mapped name has no SVG in the shipped theme,
+/// we degrade to the freedesktop "applications-<bucket>-symbolic"
+/// glyph appropriate to the entry's Categories — every dock/menu icon
+/// stays inside the Mackes-Carbon visual system.
+///
+/// Resolution order:
+///   1. Curated `APP_TO_CARBON` mapping for the literal Icon= value.
+///   2. Literal Icon= value passed through the Carbon SVG locator.
+///   3. Category-bucket Carbon glyph from `carbon_glyph_for_categories`.
+///   4. `applications-other-symbolic` as a last resort.
+#[must_use]
+pub fn load_with_fallback(
+    icon_name: Option<&str>,
+    categories: &[String],
+    size_px: i32,
+) -> Option<Pixbuf> {
+    if let Some(name) = icon_name {
+        let mapped = resolve(name);
+        if let Some(pb) = load(mapped, size_px) {
+            return Some(pb);
+        }
+        if mapped != name {
+            if let Some(pb) = load(name, size_px) {
+                return Some(pb);
+            }
+        }
+    }
+    let bucket = carbon_glyph_for_categories(categories);
+    load(bucket, size_px).or_else(|| load("applications-other-symbolic", size_px))
+}
+
+/// Map `.desktop` `Categories=` into one of the freedesktop top-level
+/// `applications-<bucket>-symbolic` glyphs. The Carbon theme ships these
+/// under `actions`/`apps`/`categories`, so they always resolve.
+#[must_use]
+pub fn carbon_glyph_for_categories(categories: &[String]) -> &'static str {
+    // Walk the explicit category list once; the first known bucket wins.
+    // freedesktop spec lists categories in priority order so this matches
+    // most users' intuition (Network before Utility for a web browser).
+    for cat in categories {
+        match cat.as_str() {
+            "Network" | "WebBrowser" | "Email" => return "applications-internet-symbolic",
+            "AudioVideo" | "Audio" | "Video" | "AudioVideoPlayer" | "Player" => {
+                return "applications-multimedia-symbolic"
+            }
+            "Photography" | "RasterGraphics" | "VectorGraphics" | "Graphics" => {
+                return "applications-graphics-symbolic"
+            }
+            "Office" | "TextEditor" | "Spreadsheet" | "Presentation" => {
+                return "applications-office-symbolic"
+            }
+            "Development" | "IDE" | "Debugger" | "Building" => {
+                return "applications-development-symbolic"
+            }
+            "Game" | "Games" => return "applications-games-symbolic",
+            "System" | "Settings" | "Monitor" => return "applications-system-symbolic",
+            "Utility" | "Accessibility" | "TextTools" | "FileTools" => {
+                return "applications-utilities-symbolic"
+            }
+            _ => {}
+        }
+    }
+    "applications-other-symbolic"
 }
 
 /// Read the SVG file, swap `currentColor` for the panel foreground,

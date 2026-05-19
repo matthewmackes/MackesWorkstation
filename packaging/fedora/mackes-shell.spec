@@ -49,6 +49,16 @@ Requires:       xfconf
 Requires:       xfce4-settings
 Requires:       xfce4-session
 
+# 1.0.7 — i3 tiling window manager is an optional drop-in replacement
+# for xfwm4. Workbench → System → Window Manager toggles between them
+# via /usr/bin/mackes-wm; the layout grid (Maximized / Side-by-Side /
+# Split-in-4 / Master+Stack / Tabbed / Stacking / Focus / Floating)
+# runs against i3 via i3-msg. With i3 active the mackes-maximizer
+# service is stopped automatically.
+Requires:       i3
+Requires:       i3status
+Requires:       dmenu
+
 # 1.6.7 — the wizard's apply_panel_layout step now drives
 # `xfce4-panel-profiles load` rather than writing xfconf keys by hand.
 # Hard Require: without the tool the panel layout step no-ops and the
@@ -305,6 +315,10 @@ cp -r branding/* %{buildroot}%{_datadir}/%{name}/branding/
 install -d %{buildroot}%{_datadir}/%{name}/help
 cp docs/help/*.md %{buildroot}%{_datadir}/%{name}/help/
 
+# 3c. Apple-menu "About Mackes" credits + license file (1.0.7+).
+#     Consumed by mackes/about.py via /usr/share/mackes-shell/ABOUT.txt.
+install -D -m 0644 data/ABOUT.txt %{buildroot}%{_datadir}/%{name}/ABOUT.txt
+
 # 4. Install helper scripts (called from %%post / %%preun, plus the
 #    capture/apply pair admins use to manage XFCE baselines, plus the
 #    theme/icon bootstrap, lightdm config, and mackes-user creation)
@@ -346,6 +360,11 @@ install -m 0644 data/systemd/mackes-media-sync.timer         %{buildroot}%{_user
 install -D -m 0440 data/sudoers.d/mackes-shell               %{buildroot}/etc/sudoers.d/mackes-shell
 # Maximizer binary
 install -D -m 0755 bin/mackes-maximizer                       %{buildroot}%{_bindir}/mackes-maximizer
+install -D -m 0755 bin/mackes-wm                              %{buildroot}%{_bindir}/mackes-wm
+
+# 1.0.7 — default i3 config shipped to /usr/share/mackes-shell/i3/.
+# mackes-wm seeds ~/.config/i3/config from this file on first switch.
+install -D -m 0644 data/i3/config %{buildroot}%{_datadir}/%{name}/i3/config
 # Maximizer autostart .desktop
 install -D -m 0644 data/applications/mackes-maximizer.desktop \
     %{buildroot}%{_datadir}/applications/mackes-maximizer.desktop
@@ -408,10 +427,19 @@ install -D -m 0644 data/icons/mackes-shell.svg \
     %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/mackes-shell.svg
 
 # 6. /usr/bin/* wrappers
+#
+# `python3 -P` (Python 3.11+) prevents the cwd from being prepended to
+# sys.path. Without -P, launching `mackes` from a directory that
+# contains a `mackes/` subdirectory (notably the project's own source
+# checkout) would import the in-repo copy instead of the installed
+# /usr/lib/python3.14/site-packages/mackes/, silently bypassing every
+# fix shipped through this RPM. Measured impact in 1.0.7:
+#   - without -P from ~/Desktop/files: 17 s cold start (old code path)
+#   - with    -P from any cwd:          1.5 s cold start
 install -d %{buildroot}%{_bindir}
 cat > %{buildroot}%{_bindir}/mackes <<'EOF'
 #!/usr/bin/env bash
-exec python3 -m mackes "$@"
+exec python3 -P -m mackes "$@"
 EOF
 chmod 0755 %{buildroot}%{_bindir}/mackes
 
@@ -458,6 +486,7 @@ fi
 %{_bindir}/mackes-mesh-open
 %{_bindir}/mackes-maximizer
 %{_bindir}/mackes-panel
+%{_bindir}/mackes-wm
 %{py3_sitelib}/mackes/
 %{py3_sitelib}/mackes_shell-%{version}.dist-info/
 %{_datadir}/%{name}/

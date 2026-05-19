@@ -1,13 +1,18 @@
-# Mackes Shell
+# Mackes XFCE Workstation
 
-**A single control panel for XFCE on Fedora — plus a mesh fabric that
+**A unified XFCE shell for Fedora — top status bar, macOS-style dock,
+sidebar workbench, optional i3 tiling, plus a mesh fabric that
 connects every one of your machines.**
 
-Replaces `xfce4-settings-manager` for daily work. Adds peer-to-peer
-filesystem sharing, clipboard, notifications, media-service discovery,
-and identity-based SSH across up to 16 mesh peers, anywhere on the
-internet. Carbon Design System UI, single binary, headless mode for
-fileservers.
+Replaces `xfce4-panel`, `xfdesktop`, and `xfce4-settings-manager` with a
+single Rust-native panel (`mackes-panel`) and a Python sidebar
+(`mackes`). Underneath it stays a standard XFCE session — `xfwm4` (or
+`i3`, toggleable via `mackes-wm`) for window management, LightDM for
+login, Plymouth for boot, all rebranded to a consistent PatternFly v6
+visual language. Adds peer-to-peer filesystem sharing, clipboard,
+notifications, media-service discovery, and identity-based SSH across
+up to 16 mesh peers, anywhere on the internet. Single binary, headless
+mode for fileservers.
 
 ---
 
@@ -42,19 +47,73 @@ sudo dnf install mackes-shell
 
 ```sh
 # Download the RPM directly from the Releases page and install offline
-wget https://github.com/matthewmackes/MAP2-RELEASES/releases/latest/download/mackes-shell-1.0.0-1.fc44.noarch.rpm
-sudo dnf install ./mackes-shell-1.0.0-1.fc44.noarch.rpm
+wget https://github.com/matthewmackes/MAP2-RELEASES/releases/latest/download/mackes-xfce-workstation-1.0.6-1.fc44.x86_64.rpm
+sudo dnf install ./mackes-xfce-workstation-1.0.6-1.fc44.x86_64.rpm
 ```
 
 ---
 
-## What's in 1.0.0 — "XFCE Provisioner"
+## Build from source
 
-Mackes Shell 1.0.0 ships a complete pivot from the v0.2 polybar/plank/rofi
-shell-stack to a standard XFCE shell (Whisker Menu + Docklike Taskbar +
-xfce4-panel + xfdesktop), with the Mackes window itself running on the
-**IBM Carbon Design System** (Gray 100 palette, IBM Plex typography,
-per-preset accent).
+The repo is two co-resident projects: a **Python** workbench
+(`mackes/`) and a **Rust** panel (`crates/`). One `make` command builds
+both into a single RPM.
+
+```sh
+# Toolchain (Fedora 44+):
+sudo dnf install python3 python3-build python3-gobject \
+    gtk3 cairo-devel python3-pytest \
+    rust cargo rust-toolchain \
+    rpm-build rpmdevtools \
+    appstream-util appstream
+
+# One-shot build:
+make rpm
+# → rpmbuild/RPMS/x86_64/mackes-xfce-workstation-<version>-1.fc<rel>.x86_64.rpm
+
+# Tighter dev loops:
+make rust          # cargo build --release --workspace
+make rust-check    # cargo fmt --check && cargo clippy -D warnings && cargo test
+make test          # pytest tests/    (needs pytest installed)
+make test-nodeps   # in-tree smoke harness, no pytest needed
+make smoke         # walk mackes/ and import every module
+```
+
+The Rust panel runs standalone — useful for iterating on chrome
+without rebuilding the RPM each time:
+
+```sh
+cargo run --release -p mackes-panel
+# CTRL-C to stop. Reads ~/.config/mackes-panel/panel.toml on launch and
+# hot-reloads it on save (gio FileMonitor / inotify).
+```
+
+The Python workbench:
+
+```sh
+python3 -P -m mackes              # GUI workbench
+python3 -P -m mackes --drawer     # notification drawer
+python3 -P -m mackes --about      # About Mackes window
+python3 -P -m mackes status       # headless status (no DISPLAY needed)
+```
+
+> `python3 -P` (Python 3.11+) prevents the cwd from being prepended to
+> `sys.path`. Without it, running `python3 -m mackes` from the repo
+> root would silently import the in-tree copy instead of the
+> installed package — a footgun we hit hard enough to enshrine in the
+> RPM-installed `/usr/bin/mackes` wrapper.
+
+---
+
+## What's in 1.0.x — "Mackes XFCE Workstation"
+
+1.0.0 pivoted from the 2.x-era polybar/plank/rofi shell-stack to a
+standard XFCE base with a Rust-native panel and dock layered on top.
+The Mackes UI runs on the **PatternFly v6** design tokens (adaptive
+dark surfaces, Red Hat Display / Text / Mono typography, per-preset
+accent). 1.0.6 fixed the first-boot visual issues; 1.0.7 brings the
+dock to feature parity with Plank and adds optional i3 as a tiling
+alternative to xfwm4.
 
 On top of the standard XFCE base, Mackes adds the **mesh fabric**:
 

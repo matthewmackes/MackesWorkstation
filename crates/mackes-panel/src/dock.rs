@@ -24,8 +24,13 @@ use gtk::prelude::*;
 
 use crate::icons;
 
-/// Per-Q12 dock icon size.
-pub const DOCK_ICON_PX: i32 = 48;
+/// Per-Q12 dock icon size. Iteration log:
+///   - 1.0.6:  48 px icon / 56 px dock (felt oversized on 1366×768)
+///   - 1.0.7a: 24 px icon / 28 px dock (felt too small)
+///   - 1.0.7b: 40 px icon / 48 px dock ("slightly too big")
+///   - 1.0.7c: 36 px icon / 44 px dock (close)
+///   - 1.0.7d: 34 px icon / 42 px dock (5 % smaller per design feedback)
+pub const DOCK_ICON_PX: i32 = 34;
 
 /// State-indicator dot size.
 const DOT_PX: i32 = 1;
@@ -88,6 +93,14 @@ pub trait DockModule {
     /// Current state — running / focused / urgent / idle.
     fn state(&self) -> DockState;
 
+    /// `.desktop` Categories= field, used by the Carbon-only icon
+    /// loader to pick a category-bucket fallback when the literal icon
+    /// name isn't shipped in Mackes-Carbon. Default empty for modules
+    /// that don't have category metadata (mesh peers etc.).
+    fn categories(&self) -> &[String] {
+        &[]
+    }
+
     /// Click handler. Boxed so the trait stays object-safe.
     fn on_click(&self);
 }
@@ -110,10 +123,17 @@ pub fn render_module(module: &dyn DockModule) -> gtk::EventBox {
     let overlay = gtk::Overlay::new();
     overlay.set_size_request(DOCK_ICON_PX, DOCK_ICON_PX);
 
-    let icon_widget: gtk::Widget = icons::load(module.icon_name(), DOCK_ICON_PX).map_or_else(
-        || gtk::Label::new(Some(module.tooltip())).upcast::<gtk::Widget>(),
-        |pb| gtk::Image::from_pixbuf(Some(&pb)).upcast::<gtk::Widget>(),
-    );
+    // Carbon-only resolution: prefer the curated APP_TO_CARBON name; on
+    // miss, degrade to the freedesktop category-bucket glyph
+    // (applications-development-symbolic etc.) — never to the system
+    // theme's brand-colored icon. Q14: every dock glyph stays inside the
+    // Mackes-Carbon visual system.
+    let icon_widget: gtk::Widget =
+        icons::load_with_fallback(Some(module.icon_name()), module.categories(), DOCK_ICON_PX)
+            .map_or_else(
+                || gtk::Label::new(Some(module.tooltip())).upcast::<gtk::Widget>(),
+                |pb| gtk::Image::from_pixbuf(Some(&pb)).upcast::<gtk::Widget>(),
+            );
     overlay.add(&icon_widget);
 
     if let Some(count) = module.state().unread_count() {

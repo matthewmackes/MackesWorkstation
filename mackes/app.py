@@ -99,8 +99,15 @@ def _make_gui_app():
                 "Toggle the Mackes Notification Drawer (right-side slide-in). "
                 "Spawned by the mackes-drawer xfce4-panel plugin.", None,
             )
+            self.add_main_option(
+                "about", ord("a"), GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
+                "Open the About Mackes window (credits, licenses, "
+                "upstream attributions). Wired to the apple-menu's "
+                "About Mackes item.", None,
+            )
             self._force_wizard = False
             self._drawer_mode = False
+            self._about_mode = False
 
         def do_command_line(self, command_line):  # type: ignore[override]
             opts = command_line.get_options_dict().end().unpack()
@@ -109,6 +116,7 @@ def _make_gui_app():
                 return 0
             self._force_wizard = bool(opts.get("wizard"))
             self._drawer_mode = bool(opts.get("drawer"))
+            self._about_mode = bool(opts.get("about"))
             self.activate()
             return 0
 
@@ -138,9 +146,24 @@ def _make_gui_app():
                 # popover). Spawned by the mackes-drawer xfce4-panel
                 # plugin on click. toggle() opens on first run, closes
                 # on second.
-                from mackes.drawer import toggle
+                #
+                # 1.0.6-hotfix: hold() the GApplication so the process
+                # survives past do_activate; release on drawer hide so
+                # a second invocation can quit cleanly.
+                from mackes.drawer import toggle, DrawerWindow
+                self.hold()
                 toggle()
+                inst = DrawerWindow._singleton
+                if inst is not None:
+                    inst.connect("hide", lambda *_: self.release())
                 return
+            elif self._about_mode:
+                # 1.0.7 — Apple menu's About Mackes item. Self-contained
+                # window with a scrollable text view over ABOUT.txt.
+                from mackes.about import build_about_window
+                win = build_about_window(application=self)
+                win.connect("destroy", lambda *_: self.quit())
+                win.show_all()
             else:
                 from mackes.workbench.shell.sidebar_window import WorkbenchWindow
                 win = WorkbenchWindow(application=self, state=state)

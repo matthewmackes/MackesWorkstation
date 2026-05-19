@@ -1,0 +1,73 @@
+#!/usr/bin/bash
+# mackes-wm — Live switch between xfwm4 and i3 as the active WM.
+#
+#   mackes-wm i3      → install ~/.config/i3/config (if missing) and
+#                       start i3 with --replace, killing xfwm4 cleanly.
+#   mackes-wm xfwm4   → start xfwm4 with --replace, killing i3 cleanly.
+#                       Also re-enables the mackes-maximizer.service which
+#                       compensates for xfwm4's lack of native tiling.
+#   mackes-wm status  → print the running window manager's name.
+#
+# Run from the active X11 session; no root required.
+
+set -euo pipefail
+
+DEFAULT_I3_CONFIG=/usr/share/mackes-shell/i3/config
+USER_I3_CONFIG="$HOME/.config/i3/config"
+
+ensure_user_i3_config() {
+    if [ -f "$USER_I3_CONFIG" ]; then
+        return
+    fi
+    mkdir -p "$(dirname "$USER_I3_CONFIG")"
+    if [ -f "$DEFAULT_I3_CONFIG" ]; then
+        cp "$DEFAULT_I3_CONFIG" "$USER_I3_CONFIG"
+        echo "mackes-wm: seeded $USER_I3_CONFIG from $DEFAULT_I3_CONFIG" >&2
+    else
+        echo "mackes-wm: default config $DEFAULT_I3_CONFIG missing; using i3 stock defaults" >&2
+    fi
+}
+
+current_wm() {
+    wmctrl -m 2>/dev/null | awk -F': *' '$1=="Name"{print $2}' | head -1
+}
+
+case "${1:-status}" in
+    i3)
+        if ! command -v i3 >/dev/null 2>&1; then
+            echo "mackes-wm: i3 not installed (try 'sudo dnf install i3')" >&2
+            exit 2
+        fi
+        ensure_user_i3_config
+        # i3 --replace handles the handover; xfwm4 sees the WM-replace
+        # protocol message and exits. mackes-maximizer is redundant
+        # under i3 (which tiles natively) so we stop it.
+        systemctl --user stop mackes-maximizer.service 2>/dev/null || true
+        nohup i3 --replace >/dev/null 2>&1 &
+        disown
+        echo "mackes-wm: started i3 --replace (running PID $!)"
+        ;;
+    xfwm4)
+        if ! command -v xfwm4 >/dev/null 2>&1; then
+            echo "mackes-wm: xfwm4 not installed" >&2
+            exit 2
+        fi
+        nohup xfwm4 --replace >/dev/null 2>&1 &
+        disown
+        # Re-enable the maximizer that xfwm4 needs to mimic tile-on-open
+        systemctl --user start mackes-maximizer.service 2>/dev/null || true
+        echo "mackes-wm: started xfwm4 --replace (running PID $!)"
+        ;;
+    status)
+        wm="$(current_wm)"
+        if [ -z "$wm" ]; then
+            echo "no WM detected (wmctrl unreachable)"
+            exit 1
+        fi
+        echo "$wm"
+        ;;
+    *)
+        echo "usage: $0 {i3|xfwm4|status}" >&2
+        exit 2
+        ;;
+esac

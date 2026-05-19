@@ -1,0 +1,141 @@
+# Mackes Shell — default i3 config
+# =================================
+#
+# Coexists with mackes-panel (top status bar + bottom dock) by honoring
+# `_NET_WM_STRUT_PARTIAL` — i3 reserves the strut'd region automatically,
+# so tiled windows never overlap the bars. Keybindings are minimal and
+# do not collide with mackes' own (Super+M is reserved for the drawer).
+#
+# Reset to this default any time via Workbench → System → Window Manager
+# → "Reset i3 config" or by copying /usr/share/mackes-shell/i3/config
+# back to ~/.config/i3/config.
+
+# ---------------------------------------------------------------------------
+# Modifier — Super (the "Windows" key)
+# ---------------------------------------------------------------------------
+set $mod Mod4
+
+# Use the same font as the panel for any i3-drawn chrome (title bars when
+# borders are visible, the polybar/i3bar fallback). Red Hat Text matches
+# the rest of the Mackes look.
+font pango:Red Hat Text 11
+
+# ---------------------------------------------------------------------------
+# Look & feel — borders, gaps, colors
+# ---------------------------------------------------------------------------
+
+# Tiny pixel borders (1 px). Mackes' Carbon look prefers visible-but-quiet
+# separation; full title bars feel too heavy on a dense layout.
+default_border pixel 1
+default_floating_border pixel 1
+
+# 4-px inner gap, 0-px outer. The outer-zero ensures windows hug the
+# strut boundary set by mackes-panel — no double-padding.
+gaps inner 4
+gaps outer 0
+smart_gaps on
+smart_borders on
+
+# Mackes Carbon palette (matches data/css/tokens.css):
+#   accent (interactive-04)        #2b9af3
+#   surface 90                     #262626
+#   surface 80                     #393939
+#   text                           #f4f4f4
+#   helper                         #a8a8a8
+#   error                          #fa4d56
+#
+#                       border       bg       text      indicator child_border
+client.focused          #2b9af3      #2b9af3  #f4f4f4   #4589ff   #2b9af3
+client.focused_inactive #393939      #393939  #f4f4f4   #393939   #393939
+client.unfocused        #262626      #262626  #a8a8a8   #262626   #262626
+client.urgent           #fa4d56      #fa4d56  #f4f4f4   #fa4d56   #fa4d56
+client.placeholder      #1a1a1a      #1a1a1a  #a8a8a8   #1a1a1a   #1a1a1a
+
+# ---------------------------------------------------------------------------
+# Workspaces (4, persistent — no dynamic workspaces by name)
+# ---------------------------------------------------------------------------
+set $ws1 "1"
+set $ws2 "2"
+set $ws3 "3"
+set $ws4 "4"
+
+bindsym $mod+1 workspace $ws1
+bindsym $mod+2 workspace $ws2
+bindsym $mod+3 workspace $ws3
+bindsym $mod+4 workspace $ws4
+bindsym $mod+Shift+1 move container to workspace $ws1
+bindsym $mod+Shift+2 move container to workspace $ws2
+bindsym $mod+Shift+3 move container to workspace $ws3
+bindsym $mod+Shift+4 move container to workspace $ws4
+
+# ---------------------------------------------------------------------------
+# Focus / move
+# ---------------------------------------------------------------------------
+focus_follows_mouse no  # click-to-focus matches macOS/Finder mental model
+
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+l focus right
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+
+# ---------------------------------------------------------------------------
+# Layout switching (also reachable from Workbench → Window Manager)
+# ---------------------------------------------------------------------------
+bindsym $mod+e layout toggle split    # side-by-side / stacked toggle
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+f fullscreen toggle
+bindsym $mod+space floating toggle
+bindsym $mod+Shift+space focus mode_toggle
+
+# ---------------------------------------------------------------------------
+# Window operations
+# ---------------------------------------------------------------------------
+bindsym $mod+q kill                          # close focused window
+bindsym $mod+Return exec xfce4-terminal       # XFCE terminal (Mackes default)
+bindsym $mod+d exec dmenu_run -fn "Red Hat Text-11" -nb "#262626" -nf "#f4f4f4" -sb "#2b9af3" -sf "#f4f4f4"
+
+# Resize mode — Super+r enters resize mode, escape leaves.
+mode "resize" {
+    bindsym h resize shrink width  10 px or 10 ppt
+    bindsym j resize grow   height 10 px or 10 ppt
+    bindsym k resize shrink height 10 px or 10 ppt
+    bindsym l resize grow   width  10 px or 10 ppt
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+# i3 itself
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+r restart
+
+# ---------------------------------------------------------------------------
+# Reserved: do NOT bind — owned by mackes-panel keyboard shortcuts
+# ---------------------------------------------------------------------------
+#  Super+M               Notification drawer toggle (mackes --drawer)
+#  XF86Audio*            Volume + mute (pactl)
+#  XF86MonBrightness*    Brightness (mackes-brightness)
+# These remain handled by xfsettingsd via xfconf-keyboard-shortcuts.
+
+# ---------------------------------------------------------------------------
+# Window rules
+# ---------------------------------------------------------------------------
+# Float mackes-panel surfaces so i3 never tries to tile them. i3 already
+# respects the Dock window-type hint for struts, but window rules give
+# defense in depth.
+for_window [class="^Mackes-panel$"] floating enable, border none
+
+# Float dialogs (file pickers, color pickers, etc.) and small popups.
+for_window [window_role="pop-up"] floating enable
+for_window [window_role="task_dialog"] floating enable
+for_window [window_type="dialog"] floating enable
+
+# ---------------------------------------------------------------------------
+# No i3bar — mackes-panel-top + mackes-panel-dock replace it
+# ---------------------------------------------------------------------------
+# (intentionally no `bar { ... }` block)

@@ -12,7 +12,6 @@
 
 use std::process::Command;
 
-use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 
 use crate::{apple_menu, desktop_files, icons, recents, weather};
@@ -24,24 +23,17 @@ use crate::{apple_menu, desktop_files, icons, recents, weather};
 const DEFAULT_WEATHER_LAT: f64 = 51.507;
 const DEFAULT_WEATHER_LON: f64 = -0.128;
 
-/// Glyph size shown in the 20 px top bar. 14 px lets the icon breathe
-/// against the height without clipping baseline math.
-const TOP_BAR_ICON_PX: i32 = 14;
+/// Glyph size shown in the top bar. 1.0.7 design-pass: bumped from 14
+/// to 18. The realized bar is ~36 px tall (`TOP_BAR_HEIGHT_PX` is a
+/// minimum; content drives the final height); 14-px glyphs read as
+/// "tray tray" rather than "menu surface." 18 px gives each icon a
+/// confident presence without crowding the row.
+const TOP_BAR_ICON_PX: i32 = 18;
 
 /// Glyph used as the Mackes-menu button. Q23 hinted at a Carbon mark;
 /// we use `applications-system-symbolic` as a stand-in until the real
 /// brand glyph lands.
 const MACKES_BUTTON_ICON: &str = "applications-system-symbolic";
-
-/// Right-side status cluster, in render order (left-to-right). Per Q8.
-const STATUS_ITEMS: &[(&str, &str)] = &[
-    ("mesh", "network-wireless-symbolic"),
-    ("clipboard", "edit-paste-symbolic"),
-    ("volume", "audio-volume-high-symbolic"),
-    ("battery", "battery-symbolic"),
-    ("notifications", "mail-unread-symbolic"),
-    ("user", "system-users-symbolic"),
-];
 
 /// Build the Mackes-menu button. Click → drops a `gtk::Menu` populated
 /// by `apple_menu::build` of the live `.desktop` scan, plus the canonical
@@ -60,6 +52,12 @@ pub fn apple_menu_button() -> gtk::Button {
         // No Carbon theme available (dev tree); use a tiny text glyph
         // so the slot is at least visible.
         button.set_label("M");
+    }
+
+    button.set_tooltip_text(Some("Mackes menu — About, Settings, Applications, Power"));
+    if let Some(atk) = button.accessible() {
+        atk.set_name("Mackes menu");
+        atk.set_description("Open the Apple-style menu with About, Settings, Applications, Recent items, and Power actions");
     }
 
     let button_for_handler = button.clone();
@@ -241,6 +239,13 @@ pub fn clock() -> gtk::Button {
     button.set_relief(gtk::ReliefStyle::None);
     button.set_focus_on_click(false);
     button.add(&label);
+    button.set_tooltip_text(Some("Clock — click for weather"));
+    if let Some(atk) = button.accessible() {
+        atk.set_name("Clock");
+        atk.set_description(
+            "Current time. Click to open a weather panel for the configured location.",
+        );
+    }
 
     let initial_delay_s = seconds_until_next_minute();
     glib::timeout_add_seconds_local(initial_delay_s, move || {
@@ -294,118 +299,6 @@ fn seconds_until_next_minute() -> u32 {
     }
 }
 
-/// Build the right-side status cluster — six Carbon glyphs side by side.
-/// Click anywhere in the cluster opens the Notification Drawer (Q28),
-/// stubbed for now.
-#[must_use]
-pub fn status_cluster() -> gtk::Box {
-    let cluster = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    cluster.set_widget_name("mackes-status-cluster");
-
-    for (slug, icon_name) in STATUS_ITEMS {
-        cluster.pack_start(&status_item(slug, icon_name), false, false, 0);
-    }
-
-    cluster
-}
-
-fn status_item(slug: &str, icon_name: &str) -> gtk::Button {
-    let button = gtk::Button::new();
-    button.set_widget_name(&format!("mackes-status-{slug}"));
-    button.set_relief(gtk::ReliefStyle::None);
-    button.set_focus_on_click(false);
-
-    let pb: Option<Pixbuf> = icons::load(icon_name, TOP_BAR_ICON_PX);
-    if let Some(pb) = pb {
-        button.set_image(Some(&gtk::Image::from_pixbuf(Some(&pb))));
-        button.set_always_show_image(true);
-    } else {
-        // Dev fallback so the slot remains discoverable.
-        button.set_label(&slug.chars().next().unwrap_or('?').to_string());
-    }
-
-    // 8.5.4 polish: clicking a status-cluster icon now pops up an in-
-    // process review popover *immediately*. The popover then offers a
-    // secondary button that hands off to the Python drawer subprocess
-    // (`mackes --drawer --drawer-focus <slug>`, per Q28). This gives
-    // the user visible feedback whether or not the drawer process is
-    // up — addressing the "Unable to open the dropdown to review" bug.
-    let slug_owned = slug.to_owned();
-    let button_for_click = button.clone();
-    button.connect_clicked(move |_| {
-        let popover =
-            build_status_popover(button_for_click.upcast_ref::<gtk::Widget>(), &slug_owned);
-        popover.show_all();
-        popover.popup();
-    });
-
-    button
-}
-
-/// Build the per-slug review popover shown when a status-cluster icon
-/// is clicked. Lightweight: a heading naming the cluster, a single
-/// short summary line, and an "Open in Drawer →" button that delegates
-/// to the existing Python notification drawer.
-fn build_status_popover(anchor: &gtk::Widget, slug: &str) -> gtk::Popover {
-    let popover = gtk::Popover::new(Some(anchor));
-    popover.set_widget_name(&format!("mackes-status-popover-{slug}"));
-    popover.set_position(gtk::PositionType::Bottom);
-
-    let column = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    column.set_margin_start(16);
-    column.set_margin_end(16);
-    column.set_margin_top(12);
-    column.set_margin_bottom(12);
-
-    let title = gtk::Label::new(Some(status_popover_title(slug)));
-    title.set_widget_name("mackes-status-popover-title");
-    title.set_halign(gtk::Align::Start);
-    column.pack_start(&title, false, false, 0);
-
-    let summary = gtk::Label::new(Some(status_popover_summary(slug)));
-    summary.set_widget_name("mackes-status-popover-summary");
-    summary.set_halign(gtk::Align::Start);
-    column.pack_start(&summary, false, false, 0);
-
-    let drawer_btn = gtk::Button::with_label("Open in Drawer →");
-    drawer_btn.set_widget_name("mackes-status-popover-drawer");
-    let slug_owned = slug.to_owned();
-    let popover_for_click = popover.clone();
-    drawer_btn.connect_clicked(move |_| {
-        if let Err(e) = Command::new("mackes")
-            .args(["--drawer", "--drawer-focus", &slug_owned])
-            .spawn()
-        {
-            eprintln!("mackes-panel: drawer launch failed ({slug_owned}): {e}");
-        }
-        popover_for_click.popdown();
-    });
-    column.pack_start(&drawer_btn, false, false, 0);
-
-    popover.add(&column);
-    popover
-}
-
-fn status_popover_title(slug: &str) -> &'static str {
-    match slug {
-        "mesh" => "Mesh",
-        "clipboard" => "Clipboard",
-        "volume" => "Volume",
-        "battery" => "Battery",
-        "notifications" => "Notifications",
-        "user" => "User",
-        _ => "Status",
-    }
-}
-
-fn status_popover_summary(slug: &str) -> &'static str {
-    match slug {
-        "mesh" => "Peers, shares, services",
-        "clipboard" => "Recent clipboard items",
-        "volume" => "Output device & level",
-        "battery" => "Power state & estimate",
-        "notifications" => "Unread alerts",
-        "user" => "Session & account",
-        _ => "Status",
-    }
-}
+// Status cluster moved to `crate::status_cluster` (1.0.7 Q-lock
+// 2026-05-18 — icon + numeric, 2 s poll, click opens the drawer
+// focused, em-dash on probe failure).

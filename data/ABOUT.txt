@@ -1,0 +1,173 @@
+Mackes Shell — XFCE Workstation
+================================
+
+A unified GTK shell on top of vanilla XFCE: top status bar with an
+Apple-menu-style launcher, macOS-style bottom dock with window
+grouping, right-side notification drawer, preset-driven theming, and
+mesh-VPN-aware workbench panels. Standard XFCE underneath as the
+window manager and session.
+
+
+Project
+-------
+
+  Project manager:  Matthew Mackes
+  Location:         Buffalo, NY
+  Contact:          matthewmackes@outlook.com
+  Repository:       https://github.com/matthewmackes/MAP2-RELEASES
+
+  Status:           Private project — not intended for distribution.
+                    This software is developed for internal use only.
+                    There is no support, warranty, or commercial intent.
+
+
+License
+-------
+
+Mackes Shell is licensed under the GNU General Public License,
+version 3 (GPL-3.0-or-later). The full license text is shipped at
+/usr/share/licenses/mackes-shell/LICENSE.
+
+The Mackes-Carbon icon set is derived from IBM's Carbon Design System
+icons (Apache 2.0) and adapted for the Mackes visual language. The
+adaptation retains Carbon's apache-2.0 license; the additions made
+specifically for Mackes are GPL-3.0-or-later.
+
+The PatternFly v6 design tokens (Red Hat) and Red Hat Display /
+Red Hat Text / Red Hat Mono fonts are used under their respective
+upstream licenses (MIT and SIL OFL).
+
+
+Upstream projects
+-----------------
+
+Mackes Shell stands on the work of dozens of upstream projects.
+Listed below in rough order of how prominently they're used.
+
+  GTK 3                       LGPL-2.1        https://gtk.org
+    The toolkit everything renders through.
+
+  GLib / GIO                  LGPL-2.1        https://gitlab.gnome.org/GNOME/glib
+    Event loop, DBus client, file abstractions.
+
+  PyGObject                   LGPL-2.1        https://pygobject.gnome.org
+    Python bindings for GTK/GLib.
+
+  gtk-rs                      MIT             https://gtk-rs.org
+    Rust bindings for the GTK stack (panel/dock daemon).
+
+  XFCE 4                      GPL-2.0+        https://xfce.org
+    xfce4-session, xfwm4, xfsettingsd, xfconf — the surface Mackes sits on.
+
+  IBM Carbon Design System    Apache-2.0      https://carbondesignsystem.com
+    Icon set and design tokens. Mackes ships an adapted "Mackes-Carbon"
+    theme derived from Carbon's free-color SVGs.
+
+  PatternFly                  MIT             https://patternfly.org
+    Red Hat's component tokens; mackes-shell's appearance preset
+    uses PF v6 color tokens.
+
+  Red Hat typography          SIL OFL 1.1     https://github.com/RedHatOfficial/RedHatFont
+    Red Hat Display / Text / Mono — the project's font stack.
+
+  JetBrains Mono              SIL OFL 1.1     https://www.jetbrains.com/lp/mono
+    Secondary monospace face for code-heavy panels.
+
+  Orchis GTK theme            GPL-3.0         https://github.com/vinceliuice/Orchis-theme
+    GTK widget theme bundled with the "Mackes" preset.
+
+  Tailscale                   BSD-3-Clause    https://tailscale.com
+    Mesh-VPN client (data plane) the workbench surfaces.
+
+  Headscale                   BSD-3-Clause    https://github.com/juanfont/headscale
+    Open-source Tailscale coordination server; the control plane
+    Mackes presets ship with.
+
+  WireGuard                   GPL-2.0         https://www.wireguard.com
+    Kernel-level VPN transport used by Tailscale on Linux.
+
+  PipeWire                    MIT             https://pipewire.org
+    Audio server the drawer's volume slider drives via pactl shims.
+
+  PulseAudio / pactl          LGPL-2.1+       https://pulseaudio.org
+    CLI shim layer Mackes uses for volume + mute.
+
+  BlueZ / bluetoothctl        GPL-2.0+        https://bluez.org
+    Bluetooth stack the drawer's BT toggle drives.
+
+  systemd / logind            LGPL-2.1+       https://systemd.io
+    Session lifecycle + per-user services. The brightness helper
+    talks to logind via DBus so we can write the backlight without
+    root.
+
+  wmctrl                      GPL-2.0         http://tomas.styblo.name/wmctrl/
+    EWMH window-management CLI used for the dock's tasklist.
+
+  xdotool                     BSD-3-Clause    https://github.com/jordansissel/xdotool
+    Window-targeting CLI for the dock's minimize action and the
+    panel's _NET_WM_STRUT publication.
+
+  xprop                       MIT             https://gitlab.freedesktop.org/xorg/app/xprop
+    Property inspection / setting for the panel's strut + dock
+    grouping (WM_CLASS lookup).
+
+  wireguard-tools             GPL-2.0         https://www.wireguard.com
+    Userspace tooling for the WireGuard kernel module.
+
+  bubblewrap (bwrap)          LGPL-2.0+       https://github.com/containers/bubblewrap
+    Sandbox runtime used by glycin image loaders.
+
+  glycin                      MPL-2.0         https://gitlab.gnome.org/sophie-h/glycin
+    Sandboxed image-loader framework (pulled in transitively via GTK).
+
+  met.no Weather API          Open data       https://api.met.no
+    Free public weather data the clock's weather popover consumes.
+
+  Rust toolchain              MIT / Apache    https://www.rust-lang.org
+    Used by the mackes-panel crate (Rust workspace at crates/).
+
+  serde / toml_edit / glib    MIT / Apache    https://serde.rs
+    Rust dependencies — config parsing, GLib FFI, etc.
+
+  Python 3                    PSF-2.0         https://python.org
+    The Workbench GUI, wizard, presets, and most non-panel modules.
+
+  Ansible                     GPL-3.0         https://ansible.com
+    Drives the xfconf-baseline / debloat / preset-apply playbooks
+    that ship under data/ansible/.
+
+
+Tools and fonts
+---------------
+
+  - Mackes-Carbon icon set    (this project)  Adapted from IBM Carbon.
+  - Red Hat Display / Text / Mono             Primary font stack.
+  - JetBrains Mono                            Secondary monospace.
+  - Adwaita cursor                            Default pointer theme.
+
+
+Acknowledgements
+----------------
+
+Thank you to every upstream maintainer listed above. Mackes Shell is
+a small wrapper around an enormous amount of work that other people
+have done over decades. None of this would exist without them.
+
+Thanks also to:
+
+  - The XFCE community for keeping a sane, minimal desktop alive on
+    Linux while every other shell chased ten different design fads.
+  - The PatternFly and Carbon teams for shipping open design tokens.
+  - Anthropic's Claude (used as a pair-programming assistant during
+    the 1.0.6 → 1.0.7 polish work).
+
+
+Reporting issues
+----------------
+
+This is a private project. Issues, suggestions, and improvements are
+welcome at matthewmackes@outlook.com but no response is guaranteed.
+
+If you've received a copy of this software and you don't recognise
+the maintainer, you've probably gotten it accidentally — please
+delete it. There is no public distribution channel.

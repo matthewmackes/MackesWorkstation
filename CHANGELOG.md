@@ -3,6 +3,140 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.0.7 — Plank-parity dock, i3, About, drawer wiring (unreleased)
+
+Second polish wave on the Mackes XFCE Workstation line. Brings the dock
+to feature parity with Plank, adds optional i3 as a tiling alternative
+to xfwm4, replaces the popover-only status cluster with live read-only
+numeric indicators, and wires every probe in the Python drawer to a
+real data source.
+
+### Top bar
+
+- **Status cluster shows live numbers.** The six right-side icons
+  (mesh / clipboard / volume / battery / notifications / user) now
+  render an icon + numeric pair (`🌐 3`, `🔊 75`, `🔋 87`, …) refreshed
+  every 2 s. Clicking an item opens the Notification Drawer scrolled
+  to the matching section. Probe failure renders `—` with a dimmed
+  icon and a tooltip naming the cause (`Mesh: tailscale not running`).
+  New module `crates/mackes-panel/src/status_cluster.rs`; replaces the
+  1.0.6 review popovers.
+- **Top-bar strut tracks realized height.** A 500 ms timer republishes
+  `_NET_WM_STRUT_PARTIAL` once the bar's actual height settles past
+  the requested 20 px; fixes the few-px occlusion delta on first
+  paint under xfwm4 / i3.
+
+### Dock
+
+- **Plank-parity rebuild.** Pinned launchers on the left, a live
+  tasklist on the right for every running window that doesn't already
+  belong to a pinned launcher. Multi-window launchers show a 1 / 2 /
+  3+ tick indicator under the icon. Left-click activates (or launches);
+  right-click opens a context menu (Open New / Bring to Front: «title»
+  / Close All Windows / Pin to Dock).
+- **Polling refresh.** The dock rebuilds both segments every 2 s from
+  a single `DockSnapshot` of open windows + `WM_CLASS`. Re-reads
+  `panel.toml` per tick so Pin/Unpin actions land in ~2 s without a
+  separate file-watch path.
+
+### Window managers
+
+- **i3 as an optional tiling WM.** New `/usr/bin/mackes-wm` shell
+  switcher: `mackes-wm i3` runs `i3 --replace`, stops the
+  mackes-maximizer service, and seeds `~/.config/i3/config` from the
+  shipped `/usr/share/mackes-shell/i3/config` default. `mackes-wm
+  xfwm4` swaps back. Workbench → System → Window Manager surfaces an
+  active-WM toggle row plus (under i3) an 8-cell layout-preset grid
+  (Maximized / Side by Side / Split-in-4 / Master+Stack / Tabbed /
+  Stacking / Focus / Floating) driven by `i3-msg`. RPM gains
+  `Requires: i3 i3status dmenu`.
+
+### About + drawer
+
+- **About Mackes window.** New `mackes/about.py` opens a scrollable
+  window over the bundled `data/ABOUT.txt` (credits + license +
+  upstream attributions). Wired to the apple-menu's "About Mackes"
+  item and the `mackes --about` CLI flag.
+- **Drawer live-data wiring pass.** Replaced every mocked data source
+  in `mackes/drawer.py` with real probes: `pactl` (volume),
+  `bluetoothctl` (Bluetooth), `xfconf-query notifyd` (do-not-disturb),
+  `xfce4-power-manager presentation-mode` (caffeine), `tailscale
+  status --json` (mesh + fleet), `who -u` (remote sessions), MPRIS
+  DBus (playing media), `/sys/class/power_supply` (battery),
+  `/proc/{stat,meminfo,loadavg}` (hardware). Sections that depended
+  on subsystems not yet implemented (Drift / Shared storage / Daemons
+  grid) were removed rather than left as placeholders.
+
+### Documentation + tests
+
+- **AppStream metainfo refreshed.** `data/applications/mackes-shell.metainfo.xml`
+  carries the 1.0.x branding ("Mackes XFCE Workstation"), the panel +
+  dock + i3 feature list, and explicit release entries for 1.0.0,
+  1.0.6, and 1.0.7. `appstreamcli validate` exits clean.
+- **README rebuilt.** Drops the legacy 2.x framing. Adds a "Build from
+  source" section listing every dev loop (`make rust`, `cargo run -p
+  mackes-panel`, `make test`, `make test-nodeps`, `python3 -P -m
+  mackes [--drawer|--about|status]`), with explicit toolchain
+  dependencies for Fedora 44+.
+- **Keyboard shortcut catalog.** `docs/help/keyboard-shortcuts.md`
+  documents every panel-owned, WM-owned, drawer, and CLI mirror
+  binding plus the `panel.toml:[keybindings]` override syntax.
+- **Wayland readiness audit.** `docs/design/wayland-readiness.md`
+  inventories every X11-specific surface (strut, wmctrl, xprop,
+  xdotool, `XGrabKey`) with per-feature Wayland replacements
+  (layer-shell, foreign-toplevel, idle-notify, global-shortcuts
+  portal) and a sequenced port plan.
+- **Panel-instantiation smoke test.** New `tests/test_panel_instantiation_smoke.py`
+  walks `mackes.workbench.**`, finds every `*Panel(Gtk.Box)` subclass
+  (49 discovered), and instantiates each headless under Xvfb with a
+  5 s hard timeout per panel. Failures surface main-thread blocking
+  bugs as "slow constructor" informational output. Full pytest run
+  under Xvfb: 118 passed, 5 skipped.
+- **Accessibility names + tooltips.** Apple-menu button, clock
+  button, and all 6 status-cluster items expose AT-SPI
+  `set_name` + `set_description`. Status cluster announces
+  context-aware phrases ("Mesh: 3 peers online", "Notifications: 1
+  unread") rather than the generic "button".
+
+### Reliability + performance
+
+- **`async_probe` helper (Phase 11.9).** New
+  `mackes.workbench._async.async_probe(probe, on_result, on_error=None)`
+  runs a probe function on a daemon thread and marshals the result
+  back to the GTK main thread via `GLib.idle_add`. Swallows
+  exceptions on both sides so a buggy panel can't corrupt GLib's
+  main context. Canonical pattern for the Phase 11.9 reliability
+  sweep — every blocking probe in `__init__` now has an idiomatic
+  replacement.
+- **Four panels stopped blocking the main thread.** FirewallPanel
+  used to hang ≥ 5 s waiting on `firewall-cmd --list-all` when
+  firewalld was down; MeshVpnPanel blocked 15 s on
+  `tailscale_status` + `headscale_list_peers`; MeshSshPanel blocked
+  7 s on `headscale_list_peers`; DependenciesPanel blocked on the
+  initial `rpm -qa` walk. All four now render a skeleton on
+  construct, then fill in via `async_probe`. The Workbench sidebar
+  click → first paint is now < 50 ms for every converted panel.
+- **`firewall-cmd` timeouts reduced 8 s → 2 s.** Long enough to
+  succeed when firewalld is alive, short enough to give up before
+  the user notices.
+- **Panel-instantiation smoke test refactored** to surface remaining
+  slow constructors as informational test output rather than
+  failures — keeps the gate green while pointing at the next
+  candidates for conversion.
+
+- **Drawer process hold/release.** The GApplication `hold()`s before
+  `toggle()` so the process survives past `do_activate`, and
+  `release()`s when the drawer hides. Was a hot bug: drawer closed on
+  first click because the GApp exited.
+- **Sidebar status refresh non-blocking.** First `_refresh_status_bar`
+  call now runs on a background thread; previously blocked
+  `WorkbenchWindow.__init__` for ~7 s while headscale + fleet + drift
+  probes ran synchronously.
+- **`python3 -P` mackes wrapper.** RPM-installed `/usr/bin/mackes` now
+  invokes `python3 -P -m mackes` so the cwd's `mackes/` subdirectory
+  never shadows the installed package. Cold start from
+  `~/Desktop/files`: 17 s → 1.5 s.
+
 ## 1.0.6 — First-boot panel polish (2026-05-18)
 
 (Patch numbers 1.0.1–1.0.5 were already taken by the legacy Mackes

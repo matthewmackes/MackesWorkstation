@@ -146,6 +146,15 @@ pub fn pin_app(cfg: &mut PanelConfig, desktop: &str) {
     });
 }
 
+/// Unpin a `.desktop` from the dock. No-op when no matching App entry
+/// exists (idempotent by id). Mirrors `pin_app`. 1.0.7 — completes the
+/// pin/unpin pair surfaced by the Workbench right-click menus.
+pub fn unpin_app(cfg: &mut PanelConfig, desktop: &str) {
+    cfg.dock
+        .items
+        .retain(|i| !matches!(i, DockItem::App { desktop: d } if d == desktop));
+}
+
 /// Move the dock item at `from` to position `to` (clamped to the
 /// valid range). No-op if the indices are equal or out of range.
 pub fn reorder_dock(cfg: &mut PanelConfig, from: usize, to: usize) {
