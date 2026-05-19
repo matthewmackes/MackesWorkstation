@@ -1,0 +1,39 @@
+[Unit]
+Description=Mackes Mesh control plane (mackesd)
+Documentation=https://github.com/matthewmackes/MAP2-RELEASES
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mackesd
+Group=mackesd
+# Phase 12.1 — `mackesd` ships only `migrate` and `status` subcommands
+# today (the SQLite store + applied-migration counter). The reconcile
+# loop subcommand (`mackesd serve`) lands in 12.5; until then the
+# systemd unit just runs the migration on boot so the store stays
+# current as schema versions are added. ExecStart will switch to
+# `mackesd serve` once 12.5 ships.
+ExecStartPre=/usr/bin/mackesd migrate
+ExecStart=/usr/bin/mackesd status
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=10
+StateDirectory=mackesd
+StateDirectoryMode=0750
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

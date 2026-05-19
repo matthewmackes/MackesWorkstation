@@ -87,7 +87,10 @@ class DebloatPanel(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._selected_level: int = 1
         self._build()
-        self._refresh()
+        # 11.9: preview() walks rpm -qa to compute the bloat-removal
+        # diff. Async.
+        from mackes.workbench._async import async_probe
+        async_probe(lambda: preview(self._selected_level), self._apply_preview)
 
     def _build(self) -> None:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -211,13 +214,17 @@ class DebloatPanel(Gtk.Box):
             return row, radio
         return row
 
-    def _refresh(self) -> None:
+    def _refresh(self, *_) -> None:
+        """11.9: kicks off the async preview probe; legacy callers
+        (set-level click, post-action refresh) keep working."""
+        from mackes.workbench._async import async_probe
+        async_probe(lambda: preview(self._selected_level), self._apply_preview)
+
+    def _apply_preview(self, p) -> None:
         # Preview the currently-selected level
         for c in list(self._preview_box.get_children()):
             self._preview_box.remove(c)
-        try:
-            p = preview(self._selected_level)
-        except ValueError:
+        if p is None or "level" not in p:
             return
 
         lvl: DebloatLevel = p["level"]

@@ -15,7 +15,7 @@ include setup.py
 include Cargo.toml
 include Cargo.lock
 include rust-toolchain.toml
-recursive-include crates *.toml *.rs
+recursive-include crates *.toml *.rs *.sql
 
 # Branding (logo placed on About, Wizard welcome, and Dashboard header +
 # the standard wallpaper used for desktop + LightDM greeter + boot

@@ -27,6 +27,7 @@ mod status_cluster;
 mod strut;
 mod top_bar;
 mod weather;
+mod window_buttons;
 mod windows;
 
 use std::path::{Path, PathBuf};
@@ -122,6 +123,25 @@ const PLACEHOLDER_CSS: &[u8] = b"
     }
     #mackes-status-cluster button.mackes-status-degraded #mackes-status-value {
         color: #a8a8a8;
+    }
+
+    /* Phase 8.7 - window-management buttons (min/max/close) */
+    #mackes-window-buttons {
+        margin-left: 8px;
+        margin-right: 2px;
+    }
+    #mackes-window-buttons button {
+        padding: 2px 6px;
+        margin: 0 1px;
+        min-height: 0;
+        border-radius: 4px;
+    }
+    #mackes-window-buttons button.mackes-window-button-disabled image,
+    #mackes-window-buttons button.mackes-window-button-disabled label {
+        opacity: 0.45;
+    }
+    #mackes-window-button-close:hover {
+        background-color: rgba(250, 77, 86, 0.20);
     }
 
     /* --- Dock items + state dot -------------------------------------- */
@@ -365,6 +385,10 @@ fn build_top_bar(app: &gtk::Application, geom: &FallbackGeometry) {
     left.pack_start(&top_bar::apple_menu_button(), false, false, 0);
     center.pack_start(&top_bar::clock(), false, false, 0);
     right.pack_start(&status_cluster::build(), false, false, 0);
+    // Phase 8.7: window-management buttons (min / max / close) sit
+    // past the status cluster at the far-right corner. i3 is the
+    // only WM as of Phase 8.8, so they're unconditionally packed.
+    right.pack_start(&window_buttons::build(), false, false, 0);
 
     bar.pack_start(&left, false, false, 0);
     bar.set_center_widget(Some(&center));

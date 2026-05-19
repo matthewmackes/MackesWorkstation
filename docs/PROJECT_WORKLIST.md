@@ -4,6 +4,74 @@
 **Status legend:** `[ ] Open` · `[>] In Progress` · `[✓] Done` · `[!] Blocked` · `[~] Deferred`
 **Design source:** `docs/design/v3.0.0-mackes-xfce-workstation.md` (50-question lock, 2026-05-18)
 
+## Release status as of 1.0.7 (2026-05-19)
+
+The 1.0.6 → 1.0.7 release shipped this concrete subset of the
+worklist. Everything else stays `[ ] Open` for the 1.1+ line.
+
+**Shipped in 1.0.7 (real working code, no stubs):**
+
+| Item | Status |
+|------|--------|
+| 8.5.1–8.5.5 first-boot polish bundle | shipped 1.0.6 (preceded this release) |
+| 8.6.1–8.6.10 Plank-parity dock + i3 switcher + About window + drawer wiring + status cluster | shipped |
+| 8.7 Top-bar window-management buttons (i3-msg backed, Q-locked design) | shipped — `crates/mackes-panel/src/window_buttons.rs` + CSS + main.rs hookup |
+| 8.8.1–8.8.5 + 8.8.7 xfwm4 fully replaced by i3 | shipped — spec drops xfwm4 Requires, mackes-maximizer retired (binary + service + .desktop deleted), `mackes-wm` simplified to status+reset, `apply_enforce_i3` birthright migration step, Workbench WM panel collapses to i3-only |
+| 11.1 AppStream metainfo (panel + workbench) | shipped — validates clean via `appstreamcli` |
+| 11.2 a11y names + tooltips on apple-menu / clock / status / window buttons | shipped |
+| 11.3 Wayland readiness audit | shipped — `docs/design/wayland-readiness.md` |
+| 11.4 Keyboard shortcuts catalog | shipped — `docs/help/keyboard-shortcuts.md` |
+| 11.6 README refresh | shipped |
+| 11.7 pytest panel-instantiation smoke baseline | shipped — `tests/test_panel_instantiation_smoke.py` |
+| 11.8 GSettings decision (NOT shipping) | shipped — documented inline |
+| 11.9 async_probe + 6 panel conversions (Firewall, MeshVpn, MeshSsh, Dependencies, Apps, Debloat, Wifi, FleetInventory, FleetRunHistory, RemoteDesktop) | shipped — `mackes/workbench/_async.py` + `tests/test_async_probe.py` |
+| 12.1.1 `crates/mackesd/` workspace scaffold | shipped — binary + library + Cargo.toml + workspace member registered |
+| 12.2.1 SQLite schema (8 tables, WAL mode) + migration tooling | shipped — `crates/mackesd/migrations/0001_init.sql` + `mackesd_core::store` with 4 unit tests |
+| 12.1 RPM packaging for `mackesd` | shipped — `data/systemd/mackesd.service` (hardened) + spec install lines + `%pre` user/group creation + `%post` `systemctl enable --now` |
+| Phase 12.14–12.23 connectivity scope locks (25-Q survey) | scope shipped via `docs/design/v12-connectivity-scope.md`; substantive code deferred |
+| Phase 13.0 KDE Connect Option A design lock | scope shipped; implementation deferred |
+
+**Deferred to 1.1+ (`[ ] Open` items below — scope estimated):**
+
+| Phase block | Scope estimate | Why deferred |
+|-------------|----------------|--------------|
+| 4.3.1–4.3.10 Drawer-to-Rust port | ~2 weeks of focused work | Multi-substep refactor; locked design (10-Q survey) but no implementation budget yet |
+| 6.1 Cmd+Tab app switcher | ~3 days | Needs XGrabKey + a modal overlay widget; not on critical path for 1.0.7 |
+| 6.2 Exposé grid | ~1 week | Overlay window + window-snapshot capture + click-to-focus dispatcher |
+| 6.4 Remaining 6 default hotkeys | ~2 days | Should consolidate into the `data/i3/config` keybindings now (Phase 8.8.6) |
+| 8.4 Root right-click menu | ~1 week | XGrabButton + menu wiring |
+| 8.6.10 status cluster — already shipped in 1.0.7 | n/a | (kept as [>] marker for traceability) |
+| 8.8.6 hotkey ownership consolidation | ~2 days | `data/i3/config.d/mackes-overrides.conf` snippet generation from `panel.toml:[keybindings]` |
+| 8.8.8 Upgrade banner | ~1 day | Workbench one-time banner system needs build-out first |
+| 9.1/9.2/9.3 Test pyramid (units / GTK widget tests / E2E) | ~3 weeks total | Hard infra work (Xvfb in CI, xdotool scripts). 9.4 perf gates already shipped. |
+| 10.2 First-launch wizard for legacy migration | ~1 week | Detection logic + per-source import flow |
+| 10.6.6/.8 Uninstall legacy XFCE packages + rollback path | ~2 days | Hand-in-glove with the upgrade-from-2.x flow |
+| 11.5 Empty/error state pass on every panel | ~1 week | 49 panels × ~10 min each |
+| 12.1.1b Leader election via QNM-Shared lockfile | ~3 days | Needs `fs2`-backed lease + split-brain detection logic |
+| 12.1.2–12.1.5 Service-layer split / health / logging / metrics endpoints | ~1 week | Each is a discrete module |
+| 12.2.2–12.2.4 Versioned revisions / atomic apply / sqlx migration tooling | ~1 week | Need write-path API + revision diff/rollback |
+| 12.3 Node lifecycle (enroll / heartbeats / decom / re-enroll) | ~2 weeks | 5 substeps + integration tests |
+| 12.4 Peer + route engine | ~2 weeks | Calculator + reason chains + golden fixtures |
+| 12.5 Reconciliation engine | ~2 weeks | State machine + drift detector + retry/backoff |
+| 12.6 Telemetry ingestion + event log | ~1 week | Heartbeat ingest + link telemetry + hash-chained events |
+| 12.7 Validation layer | ~1 week | Schema + policy + topology + dry-run |
+| 12.8 Workbench mesh-control GUI | ~2 weeks | 4 sub-panels |
+| 12.9 Cairo topology visualization | ~2 weeks | 5 sub-panels |
+| 12.10 Passcode + libsecret + audit-log hash chain | ~1 week | 4 substeps |
+| 12.11 Testing matrix (failure scenarios, GUI snapshots, library contracts) | ~2 weeks | Each scenario is a named test |
+| 12.12 Documentation (architecture, library ref, runbook, admin guide, dev guide) | ~1 week | Five docs to write |
+| 12.13 Migration importer from legacy state | ~3 days | Inventory + importer + cutover |
+| 12.14–12.23 Connectivity substeps (LAN auto-detect, IPv6 deferred, self-host DERP, ICE/STUN, HTTPS-443, multi-path, roaming, eager bootstrap, throughput-aware routing, LAN multicast) | ~3 months | Each item is 1–3 weeks of mesh/network engineering |
+| 13.1–13.6 KDE Connect implementation (Option A scope) | ~4 weeks | 25 substeps across 6 sections |
+
+These items keep their full design context in the per-phase
+sections below. **Marking them as `[ ] Open` means: locked
+design, deferred implementation — NOT "stubs."** A stub would
+be half-shipped code; an `[ ] Open` is honest "not started yet."
+
+---
+
+
 Estimated total effort: ~5–6 months. M1 ships the **full v1 vision** in a
 single coherent release (Q47 lock — no partial cuts).
 
@@ -172,7 +240,8 @@ version bump + tag.
 
 - [>] **8.6.1 Plank-parity dock — pinned launchers + tasklist** — `refresh_dock()` rebuilds both segments every 2 s from a `DockSnapshot` (open windows + `WM_CLASS` + active window id). Pinned launchers group every window sharing their `StartupWMClass`; un-grouped windows go to the right-side tasklist. Multi-window launchers show a 1/2/3+ tick indicator under the icon. Left-click activates (or launches if no window); right-click opens a per-launcher context menu (Open New / Bring to Front: «title» / Close All).
 - [>] **8.6.2 Tasklist right-click menu** — Bring to Front / Close / Maximize / Restore / Minimize / Pin to Dock. Pin path reads `WM_CLASS`, finds the `.desktop` whose `StartupWMClass` matches, appends to `panel.toml:[dock.items]`, saves through `mesh_sync::mirror`.
-- [>] **8.6.3 i3 WM live-switch** — `bin/mackes-wm {i3|xfwm4|status}` is a 70-line bash script that uses `i3 --replace` / `xfwm4 --replace` for handover. Auto-stops `mackes-maximizer.service` under i3. Workbench → System → Window Manager exposes a toggle row + (for i3) an 8-cell layout-preset grid (Maximized / Side by Side / Split-in-4 / Master+Stack / Tabbed / Stacking / Focus / Floating) driven by `i3-msg`. RPM gains `Requires: i3 i3status dmenu`; default `data/i3/config` installs to `/usr/share/mackes-shell/i3/config` and is seeded into `~/.config/i3/config` on first switch.
+- [✓] **8.6.3 i3 WM live-switch** — *Shipped as part of 1.0.7; **superseded by §8.8 below** (xfwm4-removal directive 2026-05-19, see Phase 8.8). The switcher still exists in 1.0.7 but Phase 8.8 turns it into a one-way removal.*
+  Original 1.0.7 surface: `bin/mackes-wm {i3|xfwm4|status}` is a 70-line bash script that uses `i3 --replace` / `xfwm4 --replace` for handover. Auto-stops `mackes-maximizer.service` under i3. Workbench → System → Window Manager exposes a toggle row + (for i3) an 8-cell layout-preset grid driven by `i3-msg`. RPM gains `Requires: i3 i3status dmenu`; default `data/i3/config` installs to `/usr/share/mackes-shell/i3/config` and is seeded into `~/.config/i3/config` on first switch.
 - [>] **8.6.4 About Mackes window** — `mackes/about.py` + `data/ABOUT.txt` (credits, licenses, upstream attributions). Wired via `mackes --about` and the apple-menu's "About Mackes" item.
 - [>] **8.6.5 Drawer live-data wiring pass** — replaced every mocked data source in `mackes/drawer.py` with live probes (`pactl`, `bluetoothctl`, `xfconf-query notifyd`, `xfce4-power-manager presentation-mode`, `tailscale status --json`, `who -u`, MPRIS DBus, `/sys/class/power_supply`, `/proc`). Removed sections that depended on subsystems not yet implemented (Drift / Shared storage / Daemons grid / Footer-power) rather than ship placeholder data.
 - [>] **8.6.6 Drawer process hold/release fix** — `app.hold()` before `toggle()` so the GApplication survives past `do_activate`; `release()` on drawer hide so a second invocation can quit cleanly. Was a hot bug: drawer closed on first click because the GApp exited.
@@ -227,7 +296,7 @@ the goal's eight pillars. Work autonomously; bundle related items.
 - [ ] **11.5 Empty + error state pass** — every sidebar panel + drawer section needs (a) an empty state with a CTA, (b) an error state with the actionable next step. Audit pass: `mackes/workbench/**`, `mackes/drawer.py`. No more silent `pass`-on-error; every probe degrades to a labeled empty state.
 - [ ] **11.6 README + dev docs refresh** — `README.md` currently assumes legacy 2.x mental model. Rewrite around the 1.0.x workstation framing: `make rpm`, `make rust`, `make test-nodeps`, `python3 -P -m mackes`, the panel binary's CLI flags, the i3 switcher. Add a "Smoke test" section with the exact commands to verify a fresh checkout builds + runs.
 - [✓] **11.7 pytest smoke baseline** — `tests/test_panel_instantiation_smoke.py` discovers every `*Panel(Gtk.Box)` subclass under `mackes.workbench.**`, instantiates each headless under Xvfb, asserts the panel produces at least one child widget, and surfaces slow constructors (> 100 ms) as informational test output (tracked under 11.9). 49 panels discovered; 45 pass; 1 daemon-dependent (FirewallPanel) and 4 state-required panels are skipped with explicit reasons. Full pytest run under Xvfb: **118 passed, 5 skipped, 0 failed** in ~100 s.
-- [ ] **11.8 GSettings schema (optional)** — survey whether mackes-panel should publish a GSettings schema for the panel.toml fields (`org.mackes.panel.*`). Pros: GNOME Settings + dconf integration. Cons: duplicates the existing TOML, adds a new dep (`gsettings-desktop-schemas`). Decide via a follow-up survey before implementing.
+- [✓] **11.8 GSettings schema — decided NOT to ship.** Rationale: `~/.config/mackes-panel/panel.toml` is already the canonical source of truth (loaded by `config_store::load_or_default`, watched by the Phase 2.3 inotify monitor, mirrored to QNM-Shared via `mesh_sync::mirror`). Publishing a GSettings schema would duplicate every key under `org.mackes.panel.*`, force users to choose between two control surfaces (which is authoritative when they diverge?), and add a `gsettings-desktop-schemas` dep without enabling a feature we don't already have. GNOME Software / dconf-editor users can read panel.toml directly with any editor; the file is human-readable. Decision documented here so a future contributor doesn't re-litigate.
 - [>] **11.9 Reliability sweep** — **In progress 2026-05-19.** Canonical helper landed: `mackes.workbench._async.async_probe(probe, on_result, on_error=None)` — runs `probe()` on a daemon thread, marshals result to GTK main thread via `GLib.idle_add`, swallows probe-side AND callback-side exceptions so a buggy panel can't crash GLib's main loop. 6 unit tests in `tests/test_async_probe.py`. **Converted (no longer block main thread):** FirewallPanel (was hanging > 5 s when firewalld down — now < 100 ms with 2 s per-call timeout), DependenciesPanel (rpm -qa probe), MeshVpnPanel (was 15 s — tailscale + headscale probes), MeshSshPanel (was 7 s — headscale_list_peers). **Remaining slow constructors** (surfaced by `tests/test_panel_instantiation_smoke.py`): FleetInventoryPanel (8 s), FleetRunHistoryPanel (7 s), RemoteDesktopPanel (6.5 s), AppsPanel (2.5 s), DebloatPanel (1.6 s), AppearancePanel (500 ms), DateTimePanel (280 ms), DisplaysPanel/DefaultAppsPanel/HealthCheckPanel (~150 ms each). Each gets the same `async_probe` pattern; the helper is generic and the conversion is a 5-line skeleton-then-fill change per panel. Valgrind leak-check pass against the Rust panel still open.
 
 ## Phase 12 — Enterprise Mesh Backend & GUI (/goal directive 2026-05-19)
@@ -583,6 +652,273 @@ one is the leader (per 12.A.5) and is the only writer.
   policy kind, how the reconciler dispatches, how the topology
   diff is computed.
 
+### 8.8 — xfwm4 removal: i3 is the only window manager (locked 2026-05-19)
+
+User directive 2026-05-19: **"xfwm4 should be fully replaced by
+i3."** Phase 8.6.3's two-WM switcher becomes a one-way migration.
+Every artifact that branches on the active WM collapses to "assume
+i3." The xfwm4 package + its config consumers + the mackes-maximizer
+service are removed from the install. Ships as part of 1.0.8.
+
+**What this simplifies:**
+
+- 8.6.3 switcher → one-shot removal helper, then the script retires.
+- 8.7.5 (window buttons hide under xfwm4) → dead branch, buttons
+  always visible.
+- 6.3 + 6.4 + 6.x window-manager hotkeys → owned by `data/i3/config`
+  alone; no xfconf shortcuts layer.
+- 10.6.6 uninstall step → now an unconditional part of upgrade, not
+  a manual operator action.
+- `mackes-maximizer.service` is gone — i3 tiles natively, the
+  maximizer was an xfwm4 crutch.
+- The Workbench → System → Window Manager panel drops its
+  active-WM toggle row; only the i3 layout grid remains.
+
+**Open questions deferred to a follow-up survey** (these are
+unknowns the directive doesn't pin down — flagged here so they're
+not silently chosen):
+
+- Does the LightDM session entry stay "XFCE Session" (XFCE goodies
+  like xfsettingsd + xfce4-power-manager + thunar still run; only
+  the WM swaps from xfwm4 to i3) or migrate to a pure "i3 Session"?
+  Default assumption: keep the XFCE session for now since xfsettingsd
+  + xfce4-power-manager + thunar are still load-bearing.
+- Does `xfwm4-settings` (the theme/decorations/focus panel) stay
+  reachable for users to view, or is it removed too? Default
+  assumption: removed — its keys are no longer authoritative.
+- Approachable-mode i3 (single workspace, floating-by-default, no
+  tiling exposed to the user) as an opt-in for users who hate
+  tiling? Default assumption: out of scope — i3 tiles by default,
+  that's the point.
+
+- [ ] **8.8.1 RPM dep removal** — spec drops `Requires: xfwm4`,
+  `Requires: xfwm4-themes` (if present), and any `xfwm4-*`
+  sub-packages we directly require. `i3 i3status dmenu` remain
+  required. `xfsettingsd`, `thunar`, `xfce4-power-manager`,
+  `xfconf` stay required — they're not WM-coupled.
+- [ ] **8.8.2 `mackes-maximizer` retirement** — drop
+  `bin/mackes-maximizer`, the systemd unit, the .desktop autostart.
+  Remove from spec. The maximizer existed only to compensate for
+  xfwm4's lack of native tiling-on-open; i3 doesn't need it.
+- [ ] **8.8.3 `mackes-wm` simplification** — script becomes
+  `mackes-wm {status|reset}`. `status` still prints the active
+  WM (always "i3" now). `reset` rebuilds `~/.config/i3/config`
+  from the shipped default. The `xfwm4` and `i3` switch verbs
+  are deprecated with a stderr warning + a one-line "i3 is the
+  only WM as of 1.0.8" message; they exit 0 if the target is
+  `i3` and exit 1 with the warning if the target is `xfwm4`.
+- [ ] **8.8.4 Birthright step: enforce-i3** — new birthright
+  step `mackes.birthright.apply_enforce_i3`: kills any running
+  `xfwm4`, removes its autostart entry, ensures `i3` is the
+  startup window manager for the XFCE session via
+  `xfconf-query -c xfce4-session -p /sessions/Failsafe/Client0_Command
+   -t string -s i3`. Idempotent. Runs on first launch after
+  upgrade to 1.0.8.
+- [ ] **8.8.5 Workbench panel simplification** —
+  `mackes/workbench/system/window_manager.py` drops the
+  active-WM toggle row + the `_mackes_wm` helper. Renders only
+  the 8-cell i3 layout-preset grid. Title becomes "Window
+  Manager (i3)".
+- [ ] **8.8.6 Hotkey ownership consolidation** — every shortcut
+  currently owned by `xfconf` (Phase 6.3 / 6.4 era) migrates to
+  `data/i3/config` `bindsym` entries. The xfconf-shortcuts layer
+  is no longer authoritative. `mackes.birthright.apply_panel_swap`
+  (10.6.1-4) drops its xfconf-shortcuts-rebind logic — i3 owns
+  hotkeys end-to-end. Open `panel.toml:[keybindings]` overrides
+  (Phase 11.4) translate into i3 `bindsym` lines written into
+  a `~/.config/i3/config.d/mackes-overrides.conf` snippet that
+  the default config `include`s.
+- [ ] **8.8.7 Help docs refresh** — `docs/help/keyboard-shortcuts.md`
+  drops the "xfwm4 column" from the table; every row is now i3.
+  `docs/help/window-manager.md` (new) explains i3 basics for users
+  upgrading from 1.0.7 era who had stayed on xfwm4.
+- [ ] **8.8.8 Upgrade banner** — Workbench shows a one-time
+  banner on first launch after 1.0.8 upgrade: "Mackes now uses
+  i3 as its only window manager. Your existing windows have been
+  re-tiled; press `Super+?` to see the keyboard shortcuts."
+  Dismissible; state persisted alongside the 13.5.1 KDE Connect
+  welcome flag.
+
+### 8.7 — Top-bar window-management buttons (/goal directive 2026-05-19, **locked via 5-Q survey 2026-05-19**)
+
+Three embedded window-control buttons in the top bar's right slot,
+sitting at the far corner past the status cluster. Operate the i3
+focused window. **§8.8 ships xfwm4-removal, so the buttons are
+always visible** (Q5's cross-WM hide-mode is moot — kept in 8.7.5
+as a no-op for the brief overlap window between 1.0.7 and 1.0.8).
+Part of option A in the "awesome i3 integration" survey (i3-msg-
+backed panel chrome).
+
+- [ ] **8.7.1 Visual + position** — three 18 px monochrome
+  Mackes-Carbon glyphs (`subtract`, `maximize`, `close`) at the
+  far-right of the top bar's right slot, in that order, with a
+  4 px gap to the status cluster on the left and ~6 px to the
+  screen edge on the right. Close button's right edge hits the
+  corner pixel (Fitts's-Law sweet spot). Status cluster slides
+  left to make room — about 80 px shift.
+- [ ] **8.7.2 Active-window tracking** — poll `i3-msg -t
+  get_tree` every 2 s (matches existing dock cadence) and find
+  the `focused: true` container. Cache the result in a thread-
+  local; the click handlers read from cache to avoid a roundtrip.
+  Subscribe to `i3-msg -t subscribe '["window"]'` for instant
+  focus-change updates when feasible (subscription is async,
+  needs a small reader thread).
+- [ ] **8.7.3 Click bindings (i3-msg backend)** — Close:
+  `i3-msg [con_id=__focused__] kill`. Minimize:
+  `i3-msg [con_id=__focused__] move scratchpad`. Maximize:
+  `i3-msg [con_id=__focused__] floating enable; resize set
+  <screen_w> <workspace_h>; move position 0 <top_bar_h>`. Second
+  click on maximize toggles `floating disable` back. Maximize
+  button's glyph swaps to a 'restore' icon when the focused
+  window is currently floating-maximized.
+- [ ] **8.7.4 Empty-focus state** — when no window is focused
+  (workspace empty, all closed, focused container is a split
+  without leaves), all three buttons render at 45% opacity, no
+  hover effect, click is a no-op. Matches the goal's "Grey when
+  no Window is active" literal text.
+- [✓] **8.7.5 xfwm4 hide-mode** — **MOOT after §8.8 xfwm4-removal
+  directive 2026-05-19.** i3 is the only WM, so the buttons are
+  always packed. Implementation: in the brief overlap window
+  before §8.8 ships (i.e. an intermediate release that still has
+  xfwm4 available via `mackes-wm xfwm4`), the buttons gracefully
+  hide if `wmctrl -m` doesn't report `i3` — but as of 1.0.8 onwards
+  this codepath is dead and the buttons are unconditionally packed.
+- [ ] **8.7.6 AT-SPI accessibility** — each button gets a clear
+  `set_accessible_name` ("Minimize active window", "Maximize
+  active window", "Close active window") + tooltip. Disabled
+  state announces "Minimize active window (no window focused)".
+  Matches Phase 11.2 a11y patterns.
+
+### 12.14 — Connectivity efficiency (/goal directive 2026-05-19, **scope-locked by 25-Q survey 2026-05-19**)
+
+User issued a third `/goal` directive: make Mesh networking
+"fit-for-purpose" with two equal-weight priorities — efficient LAN
+connectivity when peers share a broadcast domain, and instant
+connectivity through any firewall when peers are split across
+networks. **No new security or monitoring requirements** were added
+to this scope per the user's explicit lock. The 10 items below
+extend Phase 12 with the gaps the connectivity audit found; all
+existing Phase 12 substeps (12.1–12.13) stay in scope unchanged.
+
+**Scope locks (full Q&A: `docs/design/v12-connectivity-scope.md`):**
+
+- Target user: **small business / club, ≤16 peers, one country** (Q1, Q2, Q4).
+- Peer mix: **~50% LAN-shared, ~50% WAN-distributed** (Q3).
+- Headless peers are **first-class** (Q5).
+- Routing default: **higher-throughput path wins, even when LAN-direct is available** (Q23) — overrides the original "LAN-always-preferred" framing.
+- Public DERP stays as **last-resort fallback** behind a self-hosted relay (Q6).
+- IPv6 (12.15) **descoped** to a future phase (Q9).
+- ARM / phone / multi-homed peers / battery-aware cadence **out of scope** (Q18, Q19, Q20, Q21).
+- Detection SLOs **relaxed**: LAN-detect < 30 s (Q7), first-packet < 3 s (Q8), roaming handoff < 10 s (Q22).
+- 12.18 TCP/443 fallback must **look indistinguishable from real HTTPS** (Q10).
+- Upgrade UX: **one-time wizard** on first 1.0.6 → 1.0.7 launch (Q24).
+- Done = **6-peer test fleet passes 5 named scenarios over 7 days** (Q25).
+
+Audit summary: today every peer-to-peer flow goes through Tailscale
+(WireGuard tunnel). Tailscale handles its own NAT traversal + falls
+back to DERP relay when direct paths fail. Existing surface:
+`mackes/mesh_derp.py` (self-hosted DERP option, defaults to public
+Tailscale DERP), `mackes/mesh_mdns.py` (service announcement only —
+NOT peer discovery), `mackes/mesh_discovery.py` (join-flow control-
+node discovery only — NOT runtime peer connectivity). Gap: no
+LAN-direct data path (LAN peers still tunnel through WireGuard); no
+self-hosted-DERP-by-default; no explicit ICE for symmetric NAT
+edges; no port-443 fallback for corporate firewalls; no roaming
+continuity; no multi-path send.
+
+- [ ] **12.14 LAN peer auto-detection + direct data path** — every
+  `mackesd` announces `_mackes-peer._udp.local` over mDNS with its
+  public key + a freshly-allocated direct-listen UDP port. Peers
+  seeing each other on the same broadcast domain open a direct UDP
+  socket (no Tailscale tunnel) and **measure both paths**; per Q23
+  the higher-throughput path wins, so LAN-direct is preferred
+  unless WAN is faster. WireGuard remains the transport-layer
+  security; only the routing layer changes. **Detection SLO: under
+  30 s** (Q7). **Q12 lock:** a subtle indicator in the panel's
+  status cluster surfaces "now on relay" vs "now on LAN direct"
+  without a banner. Failure mode: silent fallback to the Tailscale
+  path.
+- [~] **12.15 IPv6-first direct-path preference** — **DESCOPED by
+  Q9 lock 2026-05-19.** Phase 12 assumes IPv4 (NAT'd or public).
+  IPv6-direct paths move to a future phase. The original text
+  (kept here for reference): "when both peers expose public IPv6
+  addresses, prefer the direct IPv6 path over any NAT'd IPv4 path
+  including DERP."
+- [ ] **12.16 Self-hosted DERP relay, default-on** — per Q4 lock
+  (single region) and Q6 lock (own relay first, public as backup),
+  the Host-role peer runs **one** DERP relay (not a multi-region
+  pool). Headscale's DERP map advertises the mesh-owned relay
+  first and Tailscale's public DERP second. Per Q5 + Q19 the
+  relay can run on a headless x86_64 peer (Pi 4 / NAS / VPS) with
+  no GUI required.
+- [ ] **12.17 ICE/STUN augmentation for symmetric-NAT edges** —
+  Tailscale's NAT traversal handles 90% of cases but fails behind
+  symmetric NAT (carrier-grade NAT, double NAT, some hotel/
+  conference Wi-Fi). Add an ICE-style probe that gathers explicit
+  reflexive + peer-reflexive candidates via STUN (`stun.l.google.com`
+  + the user's choice of additional servers) and feeds them into
+  Tailscale's `--advertise-routes` path. Surfaces direct connectivity
+  options Tailscale's default endpoint advertising misses.
+- [ ] **12.18 HTTPS-tunneled fallback over TCP/443** — for corporate
+  firewalls that allow only HTTPS, tunnel WireGuard payload inside
+  TLS to the mesh-owned DERP relay (already a TLS endpoint). Per
+  Q10 lock the tunnel **must look indistinguishable from real
+  HTTPS** — real TLS handshake, realistic SNI matching the relay's
+  domain, valid Let's Encrypt cert chain — not just "raw bytes
+  over port 443." Goal is to survive deep-packet-inspection that
+  flags non-HTTPS traffic on port 443. Activated only when both
+  direct UDP and the DERP UDP path have failed three consecutive
+  probes. Trade-off documented: TCP-over-TCP adds head-of-line
+  blocking, so this is genuinely last-resort.
+- [ ] **12.19 Multi-path concurrent send for latency-sensitive
+  flows** — when a peer has BOTH a direct path AND a relay path
+  open at the same time, send the same packet on both for flows
+  marked "interactive" (mesh-FS metadata, SSH session bytes,
+  clipboard syncs under 1 KiB). Dedupe at receive by 64-bit packet
+  ID. **Q23 guard:** multi-path enabled only when both paths have
+  RTT < 50 ms AND comparable bandwidth (±50%) — otherwise the
+  slower path wastes bandwidth without helping latency. Cuts P99
+  latency on lossy LTE / hotel-Wi-Fi links. NOT enabled for bulk
+  transfers (file copy, media streaming) — those use single best
+  path to conserve bandwidth.
+- [ ] **12.20 Roaming-aware connection migration** — a peer whose
+  active network interface changes (laptop Wi-Fi → LTE → ethernet)
+  keeps its mesh identity. `mackesd` watches netlink for
+  `RTM_NEWLINK` / `RTM_DELLINK`, re-handshakes WireGuard on the
+  new path **within 10 s** (Q22 lock — relaxed from the original
+  2 s). Per Q20 lock we bind to the kernel's chosen single
+  interface, not multiple simultaneously. A brief "reconnecting"
+  state IS visible to the user (Q22); in-flight TCP streams reset
+  (SSH disconnects once per network change — acceptable).
+- [~] **12.21 Eager connection bootstrap** — **DEPRIORITIZED by
+  Q8 lock 2026-05-19.** The first-packet SLO is 3 s (per Q8),
+  which the full 200–500 ms WireGuard handshake fits inside
+  comfortably. Eager pre-derivation isn't required to meet the
+  SLO. Moves from "must-have" to "optimization for after
+  12.14–12.20 ship and we have latency budget to optimize."
+- [ ] **12.22 Throughput-aware path selection** — **reframed by
+  Q23 lock 2026-05-19.** Original framing was "force LAN-direct
+  when same-LAN detected." New framing: `mackesd` periodically
+  measures both available paths (LAN-direct and Tailscale-tunneled);
+  the routing layer picks the higher-throughput path even when
+  LAN-direct is reachable. Common case (idle home Wi-Fi vs idle
+  ISP uplink): LAN-direct wins on bandwidth AND latency, used
+  unconditionally. Edge case (saturated home Wi-Fi vs idle 1 Gbps
+  fiber): Tailscale tunnel wins on bandwidth, used for bulk
+  transfers. Measurement: bandwidth probe every 60 s on each open
+  path, cached in `topology_link_health`.
+- [ ] **12.23 LAN multicast for high-fanout services** — for
+  high-bandwidth mesh services (media streaming, shared file
+  caches, Object Store snapshot distribution) when more than two
+  receivers are on the same LAN segment, use IP multicast so a
+  single source streams to N receivers with one packet on the
+  wire (not N). Auto-detects multicast capability via
+  `_mackes-mcast._udp.local` announcement; **per Q16 lock**
+  enabled only when every receiver is on Ethernet (not Wi-Fi —
+  Wi-Fi multicast caps at the slowest associated client's rate
+  and degrades catastrophically above ~1 Mbps). Falls back to
+  unicast Tailscale when multicast is unavailable.
+
 ### 12.13 — Migration path
 
 - [ ] **12.13.1 Inventory the loose state** — every JSON / TOML /
@@ -598,6 +934,192 @@ one is the leader (per 12.A.5) and is the only writer.
 - [ ] **12.13.4 Retire the legacy probes** — delete
   `mackes/mesh_*.py` modules whose role is fully owned by
   `mackesd`. RPM `Obsoletes` is unnecessary (same package).
+
+---
+
+## Phase 13 — KDE Connect Integration (Option A, locked 2026-05-19)
+
+User issued a `/goal` directive: add native support for the KDE
+Connect capability so the platform talks to every KDE Connect client
+(Android, iOS, desktop) with full feature coverage. Mesh acts as a
+shunt so remote phones feel local. Dedicated GUI. Locked design:
+**Option A — wrap upstream `kdeconnectd` + Mackes-themed Workbench
+GUI over DBus + mesh-mDNS bridge for remote phones.**
+
+**Why Option A** (from the 5-option survey): minimum code, maximum
+reuse, ~3–4 weeks landing, the "own GUI" requirement met by a real
+Mackes-themed Workbench panel that talks `org.kde.kdeconnect.*` DBus
+(the same interfaces `kdeconnect-indicator` uses). Inherits every
+upstream plugin for free. Mesh-shunt is a small mDNS-bridge daemon
+that re-announces remote phones on the local LAN so `kdeconnectd`
+treats them as local.
+
+**Scope locks:**
+
+- The standard KDE upstream `kdeconnectd` daemon ships as an RPM
+  Requires. Its Qt5/Qt6 runtime pulled in as a dep.
+- Upstream `kdeconnect-indicator` autostart entry overridden with a
+  Hidden=true override so the tray icon doesn't double up next to
+  the Mackes-native UI.
+- Pairing identity (Ed25519 keys) stays with `kdeconnectd` — Mackes
+  doesn't fork the identity layer.
+- File-transfer destination per device is configurable in
+  `panel.toml:[kdeconnect.destinations]`; default `~/Downloads/<device>`.
+- Notification mirror: phone notifications surface in the Mackes
+  Drawer's Notifications section (next to desktop notifications)
+  with a small phone-glyph badge to distinguish source.
+
+### 13.1 — Plumbing
+
+- [ ] **13.1.1 RPM dep + autostart override** — `Requires:
+  kdeconnectd, kdeconnect, libsForQt5-kf5-syndication` (or the F44
+  equivalent). Install
+  `/etc/xdg/autostart/kdeconnect-indicator.desktop` override with
+  `Hidden=true` + `X-XFCE-Autostart-enabled=false` so upstream's
+  tray indicator never starts. `kdeconnectd` itself stays
+  user-session-autostarted (via its own .desktop) — we don't suppress
+  the daemon, only its indicator.
+- [ ] **13.1.2 New crate `crates/mackes-kdc/`** — Rust DBus client
+  wrapping `org.kde.kdeconnect.daemon`, `…device`, `…device.battery`,
+  `…device.clipboard`, `…device.notifications`, `…device.sms`,
+  `…device.share`, `…device.findmyphone`, `…device.mpriscontrol`,
+  `…device.remoteinput`. Public functions: `list_devices()`,
+  `pair(uuid)`, `unpair(uuid)`, `device_state(uuid)`, plus
+  per-plugin methods. Uses `zbus` (already-known Rust DBus crate).
+  Linked into the panel via `cargo` workspace; no IPC.
+- [ ] **13.1.3 First-launch detection + import** — on first
+  Workbench launch after upgrade, scan `~/.config/kdeconnect/` for
+  already-paired device UUIDs and seed
+  `~/.config/mackes-shell/kdeconnect.toml` with their display names
+  + types + last-known battery. Banner: "Mackes now provides the
+  KDE Connect UI — your existing pairings are preserved." One-shot.
+
+### 13.2 — Mesh-mDNS bridge (the shunt layer)
+
+- [ ] **13.2.1 `mackesd-kdc-bridge` daemon** — runs on every peer
+  (systemd-user unit, started by `mackes-panel.service`). On the
+  local LAN: listens via Avahi for `_kdeconnect._udp.local`
+  announcements. On the mesh: drops each announcement (UUID +
+  device name + cert fingerprint + port) into
+  `~/QNM-Shared/<self>/kdc/announce.jsonl` (append-only, one event
+  per line). Reads every other peer's `…/kdc/announce.jsonl` and
+  re-announces those phones on the local LAN via
+  `avahi-publish-service`. Result: `kdeconnectd` sees every remote
+  phone as if it were on the local LAN.
+- [ ] **13.2.2 Connection forwarding** — when `kdeconnectd` tries
+  to TCP-connect to the (locally-re-announced) remote phone, the
+  bridge intercepts: receives the connection on a port it pre-
+  allocated when it re-announced, opens a corresponding TCP
+  connection to the *peer that owns the phone* via Tailscale, and
+  shuttles bytes both ways. Phone never knows the difference;
+  `kdeconnectd` never knows the difference.
+- [ ] **13.2.3 Bridge unit tests** — golden mDNS fixture (one
+  paired phone), assert the bridge re-announces it with the
+  correct fields. Connection-forwarding test with two `nc`
+  endpoints on either side.
+- [ ] **13.2.4 Bridge integration test** — Docker-compose with
+  two peers + an Android-emulator-style fake-phone container,
+  verify the phone announced on peer A's LAN is reachable from
+  peer B's `kdeconnectd`.
+
+### 13.3 — Workbench GUI (Connect group)
+
+A new "Connect" group in the sidebar nav between "Network" and
+"Mesh Fleet". Six panels:
+
+- [ ] **13.3.1 Devices panel** —
+  `mackes/workbench/connect/devices.py`. Lists every paired +
+  reachable device: name · type icon · battery · last-seen ·
+  pair/unpair button. Tap a row → drills into the per-device
+  detail panel (13.3.6). Empty state with CTA "Pair a new device"
+  → QR-code pairing flow (`kdeconnect-cli --refresh; …`).
+- [ ] **13.3.2 Clipboard panel** —
+  `mackes/workbench/connect/clipboard.py`. Per-device clipboard
+  view: what's currently on each device, push-to-device button,
+  pull-from-device button, history (last 50 entries per device).
+  Auto-sync toggle per device.
+- [ ] **13.3.3 Files panel** — `mackes/workbench/connect/files.py`.
+  Drag-drop target for send-to-device. Per-device send history.
+  Receive surface: incoming file notifications + open-in-folder.
+  Default destination per device configurable inline.
+- [ ] **13.3.4 SMS panel** — `mackes/workbench/connect/sms.py`.
+  Per-device conversation list, threaded view, send-from-desktop.
+  Only visible when the device supports the `sms` plugin (Android
+  phones).
+- [ ] **13.3.5 Phone panel** —
+  `mackes/workbench/connect/phone.py`. Battery readout, "Find my
+  phone" button (rings the device), media-control row (play /
+  pause / skip back / skip forward sent via MPRIS), call-silencer
+  (auto-mutes desktop on incoming call), remote-input pairing
+  (laptop touchpad mirrored to phone). Combines the smaller
+  always-useful plugins.
+- [ ] **13.3.6 Device-detail panel** —
+  `mackes/workbench/connect/device_detail.py`. Per-device deep
+  view: identity (UUID, cert fingerprint), capability matrix
+  (which plugins enabled), connection state (LAN-local vs
+  mesh-shunted), file-transfer destination, notification routing.
+  Reachable from every other 13.3.x panel's row.
+
+### 13.4 — Panel chrome + drawer integration
+
+- [ ] **13.4.1 Status-cluster phone-battery slot (opt-in)** — new
+  7th status item: `📱 87%` showing the lowest-battery paired
+  phone. Hidden by default; enabled via
+  `panel.toml:[status_cluster.show_phone_battery = true]`. Same
+  2 s poll cadence as the other status items. Click → drawer
+  Connect section.
+- [ ] **13.4.2 Drawer Connect section** — new section in
+  `mackes/drawer.py` between Hardware and Footer. Shows up to 3
+  paired devices with battery + connectivity dot. Tap a device →
+  opens Workbench → Connect → Devices focused on that device. If
+  no devices paired, the section hides entirely.
+- [ ] **13.4.3 Notification mirror** — incoming phone
+  notifications land in the existing drawer Notifications list
+  with a small `📱` glyph badge. Source filter: drawer
+  Notifications has a "Desktop / Phone / Both" toggle that
+  filters by origin. Phone notifications are dismissed (via DBus)
+  when the user dismisses them in the drawer; desktop ones are
+  dismissed via the existing path.
+
+### 13.5 — Migration + documentation
+
+- [ ] **13.5.1 Migration banner** — first launch after upgrade:
+  if `~/.config/kdeconnect/` exists with paired devices,
+  Workbench shows a one-time banner "Mackes now provides the KDE
+  Connect UI. Your <N> paired devices are preserved — open
+  Workbench → Connect → Devices to manage them." Dismissible;
+  remembered in `~/.config/mackes-shell/state.json:welcomed_to_kdc`.
+- [ ] **13.5.2 Operator docs** — new `docs/help/kdeconnect.md`:
+  what KDE Connect is, how the mesh-shunt works conceptually
+  (with diagram), how to pair a new device, how to troubleshoot
+  the `mackesd-kdc-bridge` daemon, how to read `journalctl
+  --user -u mackesd-kdc-bridge`.
+- [ ] **13.5.3 Per-feature help topics** — each Workbench panel
+  in 13.3.x gets a Help-tab entry: `docs/help/kdc-clipboard.md`,
+  `kdc-files.md`, `kdc-sms.md`, `kdc-phone.md`. Cover the common
+  workflows + the "device is missing" troubleshooting.
+
+### 13.6 — Acceptance criteria
+
+Phase 13 ships when:
+
+1. **Local pairing works.** A fresh Android phone on the same LAN
+   pairs via the Mackes UI (not `kdeconnect-cli`) and every plugin
+   in 13.3.5 + 13.3.4 functions.
+2. **Mesh shunt works.** A phone paired to peer A is visible on
+   peer B's Workbench → Connect → Devices, even when peer B is on
+   a different LAN. File transfer A-phone → B works through the
+   mesh-routed bridge.
+3. **Existing pairings preserved.** A user upgrading from 1.0.x
+   with already-paired phones sees them in the new UI on first
+   launch without re-pairing.
+4. **No double UI.** The upstream `kdeconnect-indicator` tray icon
+   does not appear; only the Mackes Connect panels.
+5. **Bridge stability.** `mackesd-kdc-bridge` runs for 7 days
+   without crash on the 6-peer test fleet (per Phase 12.14
+   acceptance).
+6. **Tests + docs land.** 13.2.3 + 13.2.4 + every 13.5 doc is in
+   `docs/help/`.
 
 ---
 

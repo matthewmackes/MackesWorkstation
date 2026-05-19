@@ -5,7 +5,7 @@
 %global debug_package %{nil}
 
 Name:           mackes-xfce-workstation
-Version:        1.0.6
+Version:        1.0.7
 Release:        1%{?dist}
 Summary:        Mackes XFCE Workstation — unified shell, panel, dock, and mesh for Fedora
 
@@ -49,12 +49,11 @@ Requires:       xfconf
 Requires:       xfce4-settings
 Requires:       xfce4-session
 
-# 1.0.7 — i3 tiling window manager is an optional drop-in replacement
-# for xfwm4. Workbench → System → Window Manager toggles between them
-# via /usr/bin/mackes-wm; the layout grid (Maximized / Side-by-Side /
-# Split-in-4 / Master+Stack / Tabbed / Stacking / Focus / Floating)
-# runs against i3 via i3-msg. With i3 active the mackes-maximizer
-# service is stopped automatically.
+# 1.0.7 (Phase 8.8) — i3 is the only window manager. xfwm4 is
+# fully replaced. The XFCE session host stays (xfsettingsd,
+# xfce4-power-manager, thunar, xfconf above) — i3 just owns the
+# WM role inside the XFCE session. mackes-maximizer is retired
+# (it existed only as an xfwm4 crutch; i3 tiles natively).
 Requires:       i3
 Requires:       i3status
 Requires:       dmenu
@@ -144,9 +143,9 @@ Requires:       conky
 Recommends:     xorg-x11-server-utils
 Recommends:     xdotool
 
-# Always-maximize windows (v1.4.1 birthright) — mackes-maximizer is a
-# user-level service that listens for new top-level windows and adds
-# maximized_vert + maximized_horz via wmctrl. Toggleable via Tweaks.
+# wmctrl + xprop still needed for the panel's window enumeration
+# (dock tasklist, EWMH strut publishing). The mackes-maximizer
+# service that previously consumed them is retired in Phase 8.8.
 Requires:       wmctrl
 Requires:       xprop
 
@@ -345,9 +344,12 @@ install -m 0644 data/systemd/mackes-mdns-relay.service       %{buildroot}%{_unit
 # Fleet management (v1.3.0) — ansible-pull timer + service
 install -m 0644 data/systemd/mackes-ansible-pull.service     %{buildroot}%{_unitdir}/
 install -m 0644 data/systemd/mackes-ansible-pull.timer       %{buildroot}%{_unitdir}/
-# Always-maximize windows (v1.4.1) — user-level systemd unit
+# Phase 8.8 (1.0.7) — mackes-maximizer.service retired. The
+# unit + binary + autostart .desktop are no longer installed.
+# i3 tiles natively so the xfwm4-era auto-maximize crutch is
+# gone. Existing 1.0.6 installs get their unit disabled by the
+# apply_enforce_i3 birthright step on first launch after upgrade.
 install -d %{buildroot}%{_userunitdir}
-install -m 0644 data/systemd/mackes-maximizer.service        %{buildroot}%{_userunitdir}/
 # Mesh clipboard daemon (v1.5.0) — XA_CLIPBOARD watcher
 install -m 0644 data/systemd/mackes-clipboard-daemon.service %{buildroot}%{_userunitdir}/
 # Remmina auto-populate (v1.6.2) — user-level timer + oneshot service
@@ -358,16 +360,11 @@ install -m 0644 data/systemd/mackes-media-sync.service       %{buildroot}%{_user
 install -m 0644 data/systemd/mackes-media-sync.timer         %{buildroot}%{_userunitdir}/
 # Sudoers drop-in (v1.4.1) — grants NOPASSWD on Mackes-managed commands
 install -D -m 0440 data/sudoers.d/mackes-shell               %{buildroot}/etc/sudoers.d/mackes-shell
-# Maximizer binary
-install -D -m 0755 bin/mackes-maximizer                       %{buildroot}%{_bindir}/mackes-maximizer
 install -D -m 0755 bin/mackes-wm                              %{buildroot}%{_bindir}/mackes-wm
 
 # 1.0.7 — default i3 config shipped to /usr/share/mackes-shell/i3/.
 # mackes-wm seeds ~/.config/i3/config from this file on first switch.
 install -D -m 0644 data/i3/config %{buildroot}%{_datadir}/%{name}/i3/config
-# Maximizer autostart .desktop
-install -D -m 0644 data/applications/mackes-maximizer.desktop \
-    %{buildroot}%{_datadir}/applications/mackes-maximizer.desktop
 # headscale.service is owned by the upstream `headscale` RPM at the same
 # path; shipping our copy would cause a file-conflict on dnf install.
 # Our data/systemd/headscale.service is kept in the source tree as a
@@ -423,6 +420,11 @@ install -D -m 0644 data/applications/mackes-mesh-uri-handler.desktop \
 # ID matches mackes-shell.desktop's launchable type.
 install -D -m 0644 data/applications/mackes-shell.metainfo.xml \
     %{buildroot}%{_metainfodir}/io.github.matthewmackes.MackesShell.metainfo.xml
+# Panel binary gets its own metainfo so GNOME Software / KDE Discover
+# surface the Rust panel + dock + wallpaper as a distinct component
+# from the workbench app (1.0.7+).
+install -D -m 0644 data/metainfo/shell.mackes.Panel.metainfo.xml \
+    %{buildroot}%{_metainfodir}/shell.mackes.Panel.metainfo.xml
 install -D -m 0644 data/icons/mackes-shell.svg \
     %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/mackes-shell.svg
 
@@ -447,6 +449,16 @@ chmod 0755 %{buildroot}%{_bindir}/mackes
 #     Placeholder skeleton in 1.0.0-dev; replaces xfce4-panel at M1.
 install -D -m 0755 target/release/mackes-panel \
     %{buildroot}%{_bindir}/mackes-panel
+# 6a-bis. mackesd — Mesh control plane binary (Phase 12.1, 1.0.7).
+#     Today ships only `migrate` + `status` subcommands (Phase 12.2
+#     SQLite store + applied-migration counter). The reconcile loop
+#     and serve subcommand land in Phase 12.5+. The systemd unit
+#     calls `mackesd migrate` on boot so the store stays current as
+#     schema versions land.
+install -D -m 0755 target/release/mackesd \
+    %{buildroot}%{_bindir}/mackesd
+install -D -m 0644 data/systemd/mackesd.service \
+    %{buildroot}%{_unitdir}/mackesd.service
 cat > %{buildroot}%{_bindir}/mackes-clipboard <<'EOF'
 #!/usr/bin/env bash
 exec python3 -m mackes.clipboard_app "$@"
@@ -456,6 +468,17 @@ chmod 0755 %{buildroot}%{_bindir}/mackes-clipboard
 install -m 0755 bin/mackes-gvfsd-mesh %{buildroot}%{_bindir}/mackes-gvfsd-mesh
 install -m 0755 bin/mackes-mesh-open  %{buildroot}%{_bindir}/mackes-mesh-open
 
+%pre
+# Phase 12.1 (1.0.7) — `mackesd` runs as a dedicated system user.
+# The unit's StateDirectory=mackesd creates /var/lib/mackesd at first
+# start; we just need the user to own it.
+getent group mackesd >/dev/null 2>&1 || \
+    groupadd --system mackesd
+getent passwd mackesd >/dev/null 2>&1 || \
+    useradd --system --gid mackesd --home-dir /var/lib/mackesd \
+            --shell /sbin/nologin \
+            --comment "Mackes Mesh control plane" mackesd
+
 %post
 /usr/share/%{name}/install-helpers/create-mackes-user.sh || :
 /usr/share/%{name}/install-helpers/hide-xfce-settings.sh || :
@@ -463,6 +486,9 @@ install -m 0755 bin/mackes-mesh-open  %{buildroot}%{_bindir}/mackes-mesh-open
 systemctl enable --now sshd.service || :
 # Refresh systemd unit cache so the new mackes-* units are visible.
 systemctl daemon-reload || :
+# Phase 12.1 — initialize the mackesd store on install/upgrade. The
+# migrate subcommand is idempotent (no-op if schema is current).
+systemctl enable --now mackesd.service 2>/dev/null || :
 # Validate the sudoers drop-in we shipped; on failure remove it so we
 # never break the host's sudo behavior.
 visudo -c -f /etc/sudoers.d/mackes-shell >/dev/null 2>&1 \
@@ -484,21 +510,21 @@ fi
 %{_bindir}/mackes-clipboard
 %{_bindir}/mackes-gvfsd-mesh
 %{_bindir}/mackes-mesh-open
-%{_bindir}/mackes-maximizer
 %{_bindir}/mackes-panel
 %{_bindir}/mackes-wm
+%{_bindir}/mackesd
 %{py3_sitelib}/mackes/
 %{py3_sitelib}/mackes_shell-%{version}.dist-info/
 %{_datadir}/%{name}/
 %{_datadir}/applications/mackes-shell.desktop
 %{_datadir}/applications/mackes-clipboard.desktop
-%{_datadir}/applications/mackes-maximizer.desktop
 %{_datadir}/applications/mackes-mesh-uri-handler.desktop
 # Phase 8.3 — autostart entries that bring up mackes-panel and override
 # xfdesktop on Mackes installs (Q39/Q40).
 %config %{_sysconfdir}/xdg/autostart/mackes-panel.desktop
 %config %{_sysconfdir}/xdg/autostart/xfdesktop.desktop
 %{_metainfodir}/io.github.matthewmackes.MackesShell.metainfo.xml
+%{_metainfodir}/shell.mackes.Panel.metainfo.xml
 %{_datadir}/gvfs/mounts/mesh.mount
 %{_datadir}/icons/hicolor/scalable/apps/mackes-shell.svg
 %{_datadir}/thumbnailers/mackes-mesh.thumbnailer
@@ -506,9 +532,9 @@ fi
 %{_unitdir}/mackes-tailscale-bootstrap.service
 %{_unitdir}/mackes-mdns-relay.service
 %{_unitdir}/mackes-ansible-pull.service
+%{_unitdir}/mackesd.service
 %{_unitdir}/mackes-ansible-pull.timer
 %{_userunitdir}/mackes-gvfsd-mesh.service
-%{_userunitdir}/mackes-maximizer.service
 %{_userunitdir}/mackes-clipboard-daemon.service
 %{_userunitdir}/mackes-remmina-sync.service
 %{_userunitdir}/mackes-remmina-sync.timer

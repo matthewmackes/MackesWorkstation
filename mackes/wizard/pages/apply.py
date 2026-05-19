@@ -47,8 +47,8 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from mackes.logging import log_action
 from mackes.birthright import (
     apply_apps, apply_clipboard_daemon, apply_dnf_update, apply_drawer,
-    apply_flathub, apply_fleet, apply_fonts, apply_hotkey, apply_lightdm,
-    apply_maximize_all, apply_media_clients, apply_panel_layout,
+    apply_enforce_i3, apply_flathub, apply_fleet, apply_fonts, apply_hotkey,
+    apply_lightdm, apply_media_clients, apply_panel_layout,
     apply_plymouth, apply_qnm, apply_remote_desktop, apply_themes,
     apply_third_party_repos, apply_thunar_autostart,
 )
@@ -358,7 +358,6 @@ class ApplyPage(Gtk.Box):
             _Step("Remote desktop",    lambda: apply_remote_desktop(merged)),
             _Step("Fleet management",  lambda: apply_fleet(merged)),
             _Step("Notification drawer", lambda: apply_drawer(merged)),
-            _Step("Maximize windows",  lambda: apply_maximize_all(merged)),
             _Step("Mesh clipboard",    lambda: apply_clipboard_daemon(merged)),
             _Step("Quick Network Mesh", lambda: apply_qnm(merged)),
             _Step("Thunar on login",   lambda: apply_thunar_autostart(merged)),

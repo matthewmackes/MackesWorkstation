@@ -198,7 +198,28 @@ class RemoteDesktopPanel(Gtk.Box):
         self._last_sync = "(unknown)"
         self._suppress_writes = False
         self._build()
-        self._refresh()
+        # 11.9: status + connection + diagnostics probes each shell out
+        # to systemctl/ss/curl across mesh peers. ~6.5 s sync; off-
+        # main-thread now.
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_refresh_state, self._apply_refresh)
+
+    def _gather_refresh_state(self) -> dict:
+        """Off-main-thread: every slow probe in one place. Returns a
+        dict the _apply_refresh path consumes — no widget access
+        from here. None of these helpers raise; each surfaces failure
+        as a structured `{"error": ...}` value."""
+        from mackes.workbench.network.remote_desktop import (
+            service_status,
+        )
+        try:
+            statuses = service_status()
+        except Exception as exc:  # noqa: BLE001
+            statuses = {"_error": str(exc)}
+        # Connections + diagnostics are fast enough to run on-main-
+        # thread (under 50 ms each); only `service_status` exceeded
+        # the 100 ms budget in the smoke baseline.
+        return {"statuses": statuses}
 
     # ---- build ------------------------------------------------------------
 
@@ -458,16 +479,26 @@ class RemoteDesktopPanel(Gtk.Box):
 
     # ---- refresh ----------------------------------------------------------
 
-    def _refresh(self) -> None:
-        self._refresh_status()
+    def _refresh(self, *_) -> None:
+        """Top-level refresh (Refresh button + post-action). Always
+        async on the slow probe; the cheap ones run on the main
+        thread after the slow one lands."""
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_refresh_state, self._apply_refresh)
+
+    def _apply_refresh(self, state: dict) -> None:
+        """Main thread: rebuild every section from the gathered
+        probe data, plus the cheap probes."""
+        self._refresh_status(state.get("statuses"))
         self._refresh_connections()
         self._refresh_settings_widgets()
         self._refresh_diagnostics()
 
-    def _refresh_status(self) -> None:
+    def _refresh_status(self, statuses=None) -> None:
         for c in list(self._status_notif_box.get_children()):
             self._status_notif_box.remove(c)
-        statuses = service_status()
+        if statuses is None:
+            statuses = service_status()
         ok_count = sum(1 for v in statuses.values() if v == "ok")
         if ok_count == len(statuses):
             self._status_notif_box.pack_start(Notification(

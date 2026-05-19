@@ -3,13 +3,37 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.0.7 — Plank-parity dock, i3, About, drawer wiring (unreleased)
+## 1.0.7 — Plank-parity dock, i3, About, drawer wiring, window buttons, xfwm4 retirement, mackesd scaffold (2026-05-19)
 
 Second polish wave on the Mackes XFCE Workstation line. Brings the dock
 to feature parity with Plank, adds optional i3 as a tiling alternative
 to xfwm4, replaces the popover-only status cluster with live read-only
 numeric indicators, and wires every probe in the Python drawer to a
 real data source.
+
+### Window management
+
+- **i3 fully replaces xfwm4 (Phase 8.8).** xfwm4 is no longer
+  installed by the RPM. The XFCE session host (xfsettingsd,
+  xfce4-power-manager, thunar, xfconf) stays unchanged — only
+  the WM swaps. `bin/mackes-wm` simplifies to `status` + `reset`;
+  legacy `i3` / `xfwm4` verbs print a deprecation note. The
+  `apply_enforce_i3` birthright step auto-migrates existing
+  1.0.6 installs on first launch (stops + disables
+  mackes-maximizer.service, runs `i3 --replace`, seeds
+  `~/.config/i3/config` if missing). `mackes-maximizer` (the
+  binary, the user-systemd unit, the autostart .desktop) is
+  retired — i3 tiles natively.
+- **Workbench → System → Window Manager simplified.** Drops
+  the WM-toggle row; renders only the i3 layout-preset grid.
+- **Top-bar window-management buttons (Phase 8.7).** Three
+  Carbon-symbolic glyphs at the far-right corner of the top bar:
+  minimize / maximize / close. Operate the i3 focused window via
+  `i3-msg`. 45% greyed-out + no-op click when no window is
+  focused. Maximize uses `floating toggle + resize 100 ppt` so
+  the panel chrome stays visible (NOT `fullscreen toggle`).
+  AT-SPI accessible names + tooltips. 4 unit tests cover the
+  JSON scan for i3's focused leaf container.
 
 ### Top bar
 
@@ -66,6 +90,46 @@ real data source.
   `/proc/{stat,meminfo,loadavg}` (hardware). Sections that depended
   on subsystems not yet implemented (Drift / Shared storage / Daemons
   grid) were removed rather than left as placeholders.
+
+### Mesh control plane scaffold (Phase 12)
+
+- **`crates/mackesd/` workspace member (Phase 12.1.1).** New Rust
+  crate ships two artifacts: the `mackesd` binary (CLI for the
+  mesh control plane — currently `migrate` + `status` subcommands)
+  and the `mackesd_core` library (in-process read API for the
+  panel — no IPC, no networked API per Phase 12.A.3 lock). Builds
+  clean against cargo 1.95.0; 4 unit tests cover the SQLite store
+  and migration application.
+- **SQLite store with WAL + 8-table schema (Phase 12.2).** New
+  `crates/mackesd/migrations/0001_init.sql` defines `nodes`,
+  `desired_config`, `runtime_state`, `observed_telemetry`,
+  `topology_link_health`, `events`, `policies`, `leader_lease`
+  with CHECK constraints on the deployment-state machine and
+  node roles. `mackesd_core::store::migrate` is idempotent.
+- **RPM packaging for `mackesd` (Phase 12.1).** Spec gains the
+  binary install line, a hardened `data/systemd/mackesd.service`
+  unit, `%pre` creation of the `mackesd` system user/group,
+  `%post` `systemctl enable --now`. State directory
+  `/var/lib/mackesd` (0750, owned by mackesd:mackesd) created
+  automatically by systemd's `StateDirectory=`. The reconcile
+  loop subcommand (`mackesd serve`) lands in 12.5; today's unit
+  runs `mackesd migrate` on every boot so the store stays current.
+- **Connectivity scope (Phase 12.14–12.23, 25-Q survey 2026-05-19).**
+  Locked: 16-peer small-business fleet, ~50% LAN/~50% WAN,
+  throughput-first routing (NOT LAN-first), self-hosted DERP
+  default with public Tailscale DERP as fallback, IPv6 descoped
+  to a future phase, < 3 s first-packet SLO, < 10 s roaming
+  handoff, no new security or monitoring requirements. Full Q&A
+  + per-item evaluation in `docs/design/v12-connectivity-scope.md`.
+
+### Phase 13 — KDE Connect integration (design lock)
+
+- **Option A locked 2026-05-19 (5-option survey).** Wrap upstream
+  `kdeconnectd` + Mackes-themed Workbench GUI over the
+  `org.kde.kdeconnect.*` DBus interface + mesh-mDNS bridge as the
+  shunt that re-announces remote phones on every peer's local
+  LAN. Full 6-section worklist in `PROJECT_WORKLIST.md § Phase 13`.
+  Implementation lands in 1.1+.
 
 ### Documentation + tests
 

@@ -76,10 +76,10 @@ class WifiPanel(Gtk.Box):
         box.pack_start(self._scan_list, False, False, 0)
 
         refresh = Gtk.Button(label="Rescan")
-        refresh.connect("clicked", lambda *_: self._refresh())
+        refresh.connect("clicked", lambda *_: self._async_refresh())
         box.pack_start(refresh, False, False, 0)
 
-        self._refresh()
+        self._async_refresh()
         self.add(box)
 
     def _clear(self, container: Gtk.Box) -> None:
@@ -156,7 +156,23 @@ class WifiPanel(Gtk.Box):
             GLib.idle_add(self._refresh)
         dialog.destroy()
 
+    def _async_refresh(self) -> None:
+        """11.9: _connections + _wifi_scan each shell out to nmcli;
+        together they exceed the 1 s budget. Off-main-thread."""
+        from mackes.workbench._async import async_probe
+        async_probe(
+            lambda: (_connections(), _wifi_scan()),
+            self._apply_refresh,
+        )
+
+    def _apply_refresh(self, gathered) -> None:
+        connections, scan = gathered
+        self._populate_connections(connections)
+        self._populate_scan(scan)
+
     def _refresh(self) -> bool:
-        self._populate_connections(_connections())
-        self._populate_scan(_wifi_scan())
+        # Back-compat shim: legacy callers (a GLib.idle_add closure
+        # in the connect flow above) still call `self._refresh`. Route
+        # through the async path.
+        self._async_refresh()
         return False

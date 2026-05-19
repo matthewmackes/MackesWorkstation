@@ -14,11 +14,10 @@ from pathlib import Path
 
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gtk  # noqa: E402
 
-from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    info_label, panel_box, section_header, title_label,
 )
 
 
@@ -152,47 +151,36 @@ class WindowManagerPanel(Gtk.Box):
         box = panel_box()
         box.pack_start(title_label("Window Manager"), False, False, 0)
         box.pack_start(info_label(
-            "Pick the window manager that lays out your apps. Xfwm4 is "
-            "the classic XFCE manager — floating windows you arrange "
-            "by hand. i3 tiles automatically into clean grids, tabs, "
-            "and stacks."
+            "Mackes uses i3 to tile your apps automatically into clean "
+            "grids, tabs, and stacks. Pick a layout below to apply it "
+            "to the current workspace."
         ), False, False, 0)
 
-        # ---- Active window manager -----------------------------------
+        # Phase 8.8 (1.0.7) — i3 is the only WM; the WM-toggle row is
+        # retired. Surface the active WM as a one-line status only.
         active = _detect_wm() or "unknown"
-        box.pack_start(section_header("Active window manager"), False, False, 0)
-        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        row.pack_start(info_label(f"Currently running: {active}"),
-                       True, True, 0)
-        if active.lower().startswith("xfwm"):
-            btn = Gtk.Button(label="Switch to i3")
+        if active.lower() != "i3":
+            # Defensive: should only ever happen during the brief
+            # window between RPM upgrade and apply_enforce_i3 firing.
+            # Show a banner pointing the user at the migration step.
+            banner = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+            banner.pack_start(info_label(
+                f"Current WM is {active}, not i3. Re-run the Mackes "
+                "setup wizard to switch."
+            ), True, True, 0)
+            btn = Gtk.Button(label="Run wizard")
             btn.get_style_context().add_class("suggested-action")
-            btn.connect("clicked", self._on_switch_to_i3)
-        elif active.lower().startswith("i3"):
-            btn = Gtk.Button(label="Switch to Xfwm4")
-            btn.connect("clicked", self._on_switch_to_xfwm4)
-        else:
-            btn = Gtk.Button(label="Refresh")
-            btn.connect("clicked", lambda *_: self._render())
-        row.pack_end(btn, False, False, 0)
-        box.pack_start(row, False, False, 0)
+            btn.connect("clicked", lambda *_: subprocess.Popen(
+                ["mackes", "--wizard"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ))
+            banner.pack_end(btn, False, False, 0)
+            box.pack_start(banner, False, False, 0)
 
-        # ---- WM-specific body ----------------------------------------
-        if active.lower().startswith("i3"):
-            box.pack_start(self._build_i3_body(), True, True, 0)
-        else:
-            box.pack_start(self._build_xfwm_body(), True, True, 0)
+        # ---- i3 body (always rendered now) --------------------------
+        box.pack_start(self._build_i3_body(), True, True, 0)
 
         return box
-
-    def _on_switch_to_i3(self, _btn: Gtk.Button) -> None:
-        _mackes_wm("i3")
-        # Give the WM a moment to swap, then re-render.
-        GLib.timeout_add_seconds(1, lambda: (self._render(), False)[1])
-
-    def _on_switch_to_xfwm4(self, _btn: Gtk.Button) -> None:
-        _mackes_wm("xfwm4")
-        GLib.timeout_add_seconds(1, lambda: (self._render(), False)[1])
 
     # ----------------------------------------------------------------
     # i3 — layout buttons
@@ -281,51 +269,9 @@ class WindowManagerPanel(Gtk.Box):
         _i3_msg("reload")
 
     # ----------------------------------------------------------------
-    # xfwm4 — legacy panel (unchanged from 1.0.6)
+    # xfwm4 panel removed in Phase 8.8 (1.0.7) — i3 is the only WM.
+    # The xfwm4 theme/focus/title-bar settings are no longer
+    # authoritative. CHANNEL / FOCUS_MODES / TITLE_LAYOUTS constants
+    # below are kept as references for any future inspection-only
+    # surface (not currently rendered).
     # ----------------------------------------------------------------
-
-    def _build_xfwm_body(self) -> Gtk.Widget:
-        body = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-
-        try:
-            xf = get_bridge()
-        except XfconfError as e:
-            body.pack_start(error_label(str(e)), False, False, 0)
-            return body
-
-        body.pack_start(section_header("Theme"), False, False, 0)
-        themes = _xfwm_themes()
-        theme_combo = Gtk.ComboBoxText()
-        for t in themes:
-            theme_combo.append_text(t)
-        xf.bind_combo(theme_combo, CHANNEL, "/general/theme", themes, themes[0])
-        body.pack_start(labeled_row("Decoration theme", theme_combo),
-                        False, False, 0)
-
-        body.pack_start(section_header("Focus"), False, False, 0)
-        focus_combo = Gtk.ComboBoxText()
-        for f in FOCUS_MODES:
-            focus_combo.append_text(f)
-        xf.bind_combo(focus_combo, CHANNEL, "/general/focus_mode",
-                      FOCUS_MODES, "click")
-        body.pack_start(labeled_row("Focus mode", focus_combo),
-                        False, False, 0)
-
-        raise_focus = Gtk.Switch()
-        raise_focus.set_active(bool(xf.get(CHANNEL, "/general/raise_on_focus", True)))
-        def on_raise(s, _g):
-            xf.set(CHANNEL, "/general/raise_on_focus", s.get_active())
-        raise_focus.connect("notify::active", on_raise)
-        body.pack_start(labeled_row("Raise on focus", raise_focus),
-                        False, False, 0)
-
-        body.pack_start(section_header("Title bar"), False, False, 0)
-        layout_combo = Gtk.ComboBoxText()
-        for layout in TITLE_LAYOUTS:
-            layout_combo.append_text(layout)
-        xf.bind_combo(layout_combo, CHANNEL, "/general/button_layout",
-                      TITLE_LAYOUTS, "O|HMC")
-        body.pack_start(labeled_row("Button layout", layout_combo),
-                        False, False, 0)
-
-        return body

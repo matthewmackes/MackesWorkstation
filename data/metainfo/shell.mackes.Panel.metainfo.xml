@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>shell.mackes.Panel</id>
+  <launchable type="desktop-id">mackes-panel.desktop</launchable>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Mackes Panel</name>
+  <summary>Top status bar and bottom dock for Mackes XFCE Workstation</summary>
+
+  <description>
+    <p>
+      Mackes Panel is the Rust-native top status bar and bottom dock
+      that ships with Mackes XFCE Workstation. It replaces xfce4-panel
+      and xfdesktop with a unified, single-binary shell layered on top
+      of a standard XFCE session.
+    </p>
+    <p>Top bar:</p>
+    <ul>
+      <li>Apple-menu launcher with About / Settings / Software Update / Recent Items / Applications</li>
+      <li>12-hour clock with weather popover (met.no)</li>
+      <li>Live status cluster: mesh peers, clipboard items, volume, battery, unread notifications, sessions — each refreshed every 2 s</li>
+    </ul>
+    <p>Bottom dock:</p>
+    <ul>
+      <li>Plank-parity pinned launchers grouped by WM_CLASS</li>
+      <li>Tasklist for un-pinned open windows with multi-window indicators</li>
+      <li>Right-click context menus (Open New / Bring to Front / Close / Pin)</li>
+      <li>Mesh resources (peers, shares, services) as first-class dock items</li>
+    </ul>
+    <p>
+      Wallpaper is rendered by a dedicated Desktop-hint window so a
+      single binary owns every chrome surface; xfdesktop is disabled
+      on installation.
+    </p>
+  </description>
+
+  <url type="homepage">https://github.com/matthewmackes/MAP2-RELEASES</url>
+  <url type="bugtracker">https://github.com/matthewmackes/MAP2-RELEASES/issues</url>
+
+  <developer id="io.github.matthewmackes">
+    <name>Matthew Mackes</name>
+  </developer>
+
+  <categories>
+    <category>Settings</category>
+    <category>System</category>
+    <category>DesktopSettings</category>
+  </categories>
+
+  <keywords>
+    <keyword>panel</keyword>
+    <keyword>dock</keyword>
+    <keyword>status</keyword>
+    <keyword>xfce</keyword>
+    <keyword>plank</keyword>
+    <keyword>mesh</keyword>
+    <keyword>workstation</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <provides>
+    <binary>mackes-panel</binary>
+  </provides>
+
+  <releases>
+    <release version="1.0.7" type="development" date="2026-05-19">
+      <description>
+        <p>Plank-parity dock (pinned launchers + tasklist + window grouping), live numeric status cluster, AT-SPI accessibility names, top-bar strut height tracking, in-process drawer focus path.</p>
+      </description>
+    </release>
+    <release version="1.0.6" date="2026-05-18">
+      <description>
+        <p>First-boot panel polish: visible icons, auto-sizing dock, 12-hour clock with weather popover, status-cluster popovers, _NET_WM_STRUT_PARTIAL.</p>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-05-18">
+      <description>
+        <p>Initial release: top bar + bottom dock + wallpaper layer in a single Rust binary. PatternFly v6 design tokens. Mackes-Carbon symbolic icons. Performance gates: cold start under 200 ms, idle CPU under 1 percent, RSS at most 150 MB.</p>
+      </description>
+    </release>
+  </releases>
+</component>

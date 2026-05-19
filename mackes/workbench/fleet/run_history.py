@@ -87,7 +87,20 @@ class FleetRunHistoryPanel(Gtk.Box):
         # the app on open via infinite recursion.
         self._suppress_filter_signals = False
         self._build()
-        self._refresh()
+        # 11.9 reliability: build_inventory + list_playbooks + list_runs
+        # together take ~7 s on a 16-peer mesh. Off-main-thread.
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_refresh_state, self._apply_refresh)
+
+    def _gather_refresh_state(self):
+        peers = build_inventory()
+        playbooks = list_playbooks()
+        records = list_runs(
+            peer=self._filter_peer,
+            playbook=self._filter_playbook,
+            limit=500,
+        )
+        return peers, playbooks, records
 
     def _build(self) -> None:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -173,27 +186,26 @@ class FleetRunHistoryPanel(Gtk.Box):
 
     # ---- refresh ---------------------------------------------------------
 
-    def _refresh(self) -> None:
+    def _refresh(self, *_) -> None:
+        """Re-probe (button + filter changes). Always async."""
+        from mackes.workbench._async import async_probe
+        async_probe(self._gather_refresh_state, self._apply_refresh)
+
+    def _apply_refresh(self, gathered) -> None:
+        peers, playbooks, records = gathered
         # Re-populate combo boxes from live data. Suppress "changed" while
         # we rebuild — otherwise set_active() re-enters _refresh().
         self._suppress_filter_signals = True
         try:
-            peers = build_inventory()
             self._reset_combo(self._peer_combo, ["All peers"] + [p.name for p in peers],
                               select=self._filter_peer or "All peers")
-            playbooks = list_playbooks()
             self._reset_combo(self._pb_combo, ["All playbooks"] +
                               ["site"] + [p.name for p in playbooks],
                               select=self._filter_playbook or "All playbooks")
         finally:
             self._suppress_filter_signals = False
 
-        # Load filtered runs
-        self._records = list_runs(
-            peer=self._filter_peer,
-            playbook=self._filter_playbook,
-            limit=500,
-        )
+        self._records = records
 
         # Stats tiles
         for c in list(self._stats_box.get_children()):

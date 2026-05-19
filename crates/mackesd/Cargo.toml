@@ -1,0 +1,81 @@
+# Phase 12 — Enterprise Mesh Backend & GUI control plane.
+#
+# Ships TWO targets from one crate:
+#
+#   * Library `mackesd_core` — the authoritative read API. Linked
+#     directly into `mackes-panel` so the GUI gets in-process access
+#     to mesh state with zero IPC overhead. No networked API by Phase
+#     12.A.3 lock.
+#
+#   * Binary  `mackesd`      — the reconcile loop + CLI. Runs on every
+#     peer as a systemd unit; one is leader per the QNM-Shared lockfile
+#     (12.A.5). Owns writes to the SQLite store.
+#
+# Both consume the same internal modules (store, policy, topology,
+# telemetry, reconcile, deploy, audit) — they're not separate crates,
+# just separate entry points.
+
+[package]
+name         = "mackesd"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+description  = "Enterprise mesh control plane for Mackes XFCE Workstation"
+
+[lib]
+name = "mackesd_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mackesd"
+path = "src/bin/mackesd.rs"
+
+[dependencies]
+mackes-mesh-types = { path = "../mackes-mesh-types" }
+
+# Storage: SQLite via rusqlite (sync, no async runtime needed for the
+# reconcile loop's cadence). WAL mode + 5 s busy timeout per 12.A.2.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# CLI parsing: clap derive macro for declarative subcommand routing.
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# JSON for revisions + events + QNM-Shared heartbeat files. Serde
+# everything; explicit (de)serializers per type.
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+
+# Time: chrono for ISO-8601 timestamps stored in SQLite TEXT columns.
+chrono = { version = "0.4", features = ["serde"] }
+
+# Crypto: SHA-256 for the audit-log hash chain + 16-char URL-safe
+# passcode generation.
+sha2 = "0.10"
+rand = "0.8"
+
+# Filesystem locking for the leader-election lockfile (12.A.5).
+fs2 = "0.4"
+
+# Error context. We surface failures as structured errors, never
+# unwrap. anyhow is the canonical Rust ergonomic-error crate.
+anyhow = "1"
+
+# Structured logging. tracing macros emit JSON spans; the binary
+# initializes a subscriber that writes to stderr in dev and the
+# journal in prod.
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Directory resolution that honors $XDG_*_HOME with sensible fallbacks.
+dirs = "5"
+
+[dev-dependencies]
+# Deterministic snapshot diffs for library-contract tests (12.11.5).
+insta    = { version = "1", features = ["json"] }
+tempfile = "3"
+
+[lints]
+workspace = true

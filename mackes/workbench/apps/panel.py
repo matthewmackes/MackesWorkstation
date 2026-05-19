@@ -160,7 +160,14 @@ class AppsPanel(Gtk.Box):
         self._active_category: str = "all"
         self._search_q: str = ""
         self._build()
-        self._refresh_grid()
+        # 11.9 reliability: _is_installed walks `rpm -qa` once + caches
+        # the result. The initial walk is ~2.5 s. Move it off the main
+        # thread; the grid renders "loading…" until the probe lands.
+        from mackes.workbench._async import async_probe
+        from mackes.workbench.maintain.dependencies import (
+            _all_installed_packages,
+        )
+        async_probe(_all_installed_packages, lambda _set: self._refresh_grid())
 
     def _build(self) -> None:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -169,11 +176,15 @@ class AppsPanel(Gtk.Box):
 
         outer.pack_start(_breadcrumb(), False, False, 0)
         outer.pack_start(_page_title("Apps"), False, False, 0)
-        n_installed = sum(1 for app in CATALOG.values() if _is_installed(app))
-        outer.pack_start(_page_subtitle(
-            f"Install or remove apps from the Mackes catalog. You "
-            f"currently have {n_installed} apps installed."
-        ), False, False, 0)
+        # Initial subtitle uses a placeholder count; the async probe
+        # in __init__ refreshes the grid + subtitle when the rpm -qa
+        # cache lands. Computing it sync here would re-trigger the
+        # 2.5 s walk we just moved off the main thread.
+        self._subtitle_label = _page_subtitle(
+            "Install or remove apps from the Mackes catalog. Loading "
+            "installed count…"
+        )
+        outer.pack_start(self._subtitle_label, False, False, 0)
         outer.pack_start(_section_description(
             "Use the tabs below to switch between installing new apps, "
             "removing pre-installed bloat, and reviewing what's already "
@@ -185,9 +196,12 @@ class AppsPanel(Gtk.Box):
         tabs_row.set_margin_top(16)
         tabs_row.get_style_context().add_class("mackes-tabs")
         self._tab_buttons = {}
+        # Tab labels render with a 0 count until the async rpm probe
+        # lands (Phase 11.9 — _is_installed walks rpm -qa). The
+        # `_refresh_grid` call updates the labels with real counts.
         for key, label in (("install", "Install"),
                            ("remove",  "Remove bloat"),
-                           ("installed", f"Installed ({n_installed})")):
+                           ("installed", "Installed (…)")):
             btn = Gtk.ToggleButton(label=label)
             btn.get_style_context().add_class("mackes-tab")
             btn.set_relief(Gtk.ReliefStyle.NONE)
@@ -274,6 +288,13 @@ class AppsPanel(Gtk.Box):
     # ---- grid render ------------------------------------------------------
 
     def _refresh_grid(self) -> None:
+        # Update the subtitle now that the rpm cache is warm.
+        if hasattr(self, "_subtitle_label"):
+            n_installed = sum(1 for app in CATALOG.values() if _is_installed(app))
+            self._subtitle_label.set_text(
+                f"Install or remove apps from the Mackes catalog. You "
+                f"currently have {n_installed} apps installed."
+            )
         apps = list(CATALOG.values())
 
         # Tab filter

@@ -104,7 +104,12 @@ class FleetInventoryPanel(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._selected: set[str] = set()
         self._build()
-        self._refresh()
+        # 11.9 reliability: build_inventory() probes every peer
+        # (Tailscale + ansible state files); takes 8 s+ on a 16-peer
+        # mesh. Off-main-thread; the status box stays empty until the
+        # probe lands.
+        from mackes.workbench._async import async_probe
+        async_probe(build_inventory, self._apply_refresh)
 
     def _build(self) -> None:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -170,8 +175,12 @@ class FleetInventoryPanel(Gtk.Box):
 
     # ---- refresh ---------------------------------------------------------
 
-    def _refresh(self) -> None:
-        peers = build_inventory()
+    def _refresh(self, *_) -> None:
+        """Re-probe (button click + post-action refresh). Always async."""
+        from mackes.workbench._async import async_probe
+        async_probe(build_inventory, self._apply_refresh)
+
+    def _apply_refresh(self, peers) -> None:
 
         # Status notification
         for c in list(self._status_notif_box.get_children()):

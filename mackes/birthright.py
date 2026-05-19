@@ -22,7 +22,7 @@ addition to the v1.0.x xfconf-only apply pipeline:
                                   ensures the cache dir exists for the
                                   mackes-drawer xfce4-panel plugin and
                                   sweeps legacy conky / tray autostarts
- 12. apply_maximize_all        — every new top-level window starts maximized,
+ 12. (retired in 1.0.7)        — apply_maximize_all was the mackes-maximizer enabler,
                                   via the mackes-maximizer user service
                                   (v1.4.1 lock)
  13. apply_clipboard_daemon    — mesh clipboard daemon: bidirectional sync
@@ -933,70 +933,13 @@ def apply_drawer(_preset: Preset) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# 12. Always-maximize windows — wmctrl-based maximizer (v1.4.1 birthright)
+# 12. (retired) Always-maximize windows — apply_maximize_all
+#
+#     Removed in Phase 8.8 (1.0.7). The mackes-maximizer.service was an
+#     xfwm4 crutch; i3 tiles natively so the auto-maximize behavior is
+#     no longer needed. apply_enforce_i3 (step 17 below) handles the
+#     stop/disable of the legacy service on existing 1.0.6 installs.
 # ---------------------------------------------------------------------------
-
-
-def apply_maximize_all(_preset: Preset) -> List[str]:
-    """Install + enable the mackes-maximizer user service.
-
-    Every new top-level window will start maximized. Toggleable via
-    Tweaks → 'Always maximize windows' or by creating the file
-    ~/.config/mackes-shell/maximizer.disabled.
-    """
-    actions: List[str] = []
-    if shutil.which("dnf") is None:
-        actions.append("maximize-all: dnf not available — skipping")
-        return actions
-
-    # ---- 1. Install wmctrl + xprop ----------------------------------
-    needed = []
-    if shutil.which("wmctrl") is None:
-        needed.append("wmctrl")
-    if shutil.which("xprop") is None:
-        needed.append("xprop")
-    if needed:
-        actions.append(f"maximize-all: installing {', '.join(needed)} via dnf")
-        rc, out = _run_root(["dnf", "install", "-y", *needed], timeout=300)
-        if rc != 0:
-            last = out.strip().splitlines()[-1] if out.strip() else f"rc={rc}"
-            actions.append(f"maximize-all: install failed: {last}")
-            return actions
-    else:
-        actions.append("maximize-all: wmctrl + xprop already installed")
-
-    # ---- 2. Ensure systemd user unit + autostart are reachable -------
-    # The RPM installs mackes-maximizer.service + mackes-maximizer.desktop
-    # to system paths; the wizard just has to enable the user unit and
-    # let the autostart .desktop fire on graphical login.
-    if shutil.which("systemctl"):
-        rc, _ = _run(["systemctl", "--user", "enable", "--now",
-                       "mackes-maximizer.service"], timeout=10)
-        if rc == 0:
-            actions.append("maximize-all: mackes-maximizer.service enabled + started")
-        else:
-            actions.append(
-                "maximize-all: user-systemctl enable failed; will rely on "
-                "XDG autostart at next graphical login"
-            )
-
-    # ---- 3. Clear the disable-flag file in case it's leftover from
-    # a previous opt-out --------------------------------------------------
-    disabled_flag = Path(os.path.expanduser(
-        "~/.config/mackes-shell/maximizer.disabled"))
-    if disabled_flag.exists():
-        try:
-            disabled_flag.unlink()
-            actions.append("maximize-all: cleared disable flag")
-        except OSError:
-            pass
-
-    actions.append(
-        "maximize-all: ready — toggle via Tweaks → 'Always maximize windows'"
-    )
-    for line in actions:
-        log_action(line)
-    return actions
 
 
 # ---------------------------------------------------------------------------
@@ -1453,6 +1396,114 @@ def apply_panel_archive(_preset: Preset) -> List[str]:
         actions.append(f"panel-archive: copied {src} → {dst}")
     except OSError as e:
         actions.append(f"panel-archive: copytree failed: {e}")
+
+    for line in actions:
+        log_action(line)
+    return actions
+
+
+# 17. apply_enforce_i3 — Phase 8.8 of the v1.0.7 work.
+#
+#     1.0.7 fully replaces xfwm4 with i3. This step migrates an
+#     upgraded 1.0.6 install that still has xfwm4 running. Idempotent:
+#     reruns on systems where i3 is already the active WM are a no-op.
+def apply_enforce_i3(_preset: Preset) -> List[str]:
+    """Make i3 the active window manager and retire xfwm4-era cruft.
+
+    Steps (all best-effort; failures land in `actions` but don't abort
+    the rest):
+
+    1. Detect the running WM via `wmctrl -m`. If already i3, skip the
+       process-swap; only stale-state cleanup runs.
+    2. If xfwm4 is running, start `i3 --replace` to take over and let
+       xfwm4 exit via the WM-replace protocol.
+    3. Disable + stop the mackes-maximizer.service user unit (1.0.6
+       era — i3 tiles natively, the maximizer is dead weight).
+    4. Hide any user-installed mackes-maximizer.desktop autostart
+       entry by writing a `Hidden=true` override.
+    5. Make sure `~/.config/i3/config` exists; if not, seed it from
+       the shipped /usr/share/mackes-shell/i3/config (matches what
+       the legacy mackes-wm switch flow did).
+    """
+    actions: List[str] = []
+    home = Path(os.path.expanduser("~"))
+
+    # ---- 1. detect current WM ----
+    current_wm = ""
+    try:
+        out = subprocess.run(
+            ["wmctrl", "-m"], capture_output=True, text=True,
+            timeout=2, check=False,
+        ).stdout
+        for line in out.splitlines():
+            if line.startswith("Name:"):
+                current_wm = line.split(":", 1)[1].strip()
+                break
+    except (OSError, subprocess.TimeoutExpired) as e:
+        actions.append(f"enforce-i3: wmctrl probe failed: {e}")
+
+    actions.append(f"enforce-i3: current WM = {current_wm or 'unknown'}")
+
+    # ---- 2. swap to i3 if needed ----
+    if current_wm.lower() == "i3":
+        actions.append("enforce-i3: already on i3, skip --replace")
+    elif shutil.which("i3") is None:
+        actions.append("enforce-i3: i3 binary missing; reinstall mackes-xfce-workstation")
+    else:
+        try:
+            subprocess.Popen(
+                ["i3", "--replace"],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            actions.append("enforce-i3: started i3 --replace (taking over from xfwm4)")
+        except OSError as e:
+            actions.append(f"enforce-i3: i3 --replace failed: {e}")
+
+    # ---- 3. disable mackes-maximizer.service (1.0.6 era) ----
+    if shutil.which("systemctl"):
+        for verb in ("stop", "disable"):
+            try:
+                subprocess.run(
+                    ["systemctl", "--user", verb, "mackes-maximizer.service"],
+                    capture_output=True, timeout=5, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+        actions.append("enforce-i3: stopped + disabled mackes-maximizer.service (if it existed)")
+
+    # ---- 4. hide stale autostart entry ----
+    autostart_user = home / ".config" / "autostart" / "mackes-maximizer.desktop"
+    if autostart_user.exists():
+        try:
+            content = autostart_user.read_text(encoding="utf-8")
+            if "Hidden=true" not in content:
+                if content.endswith("\n"):
+                    content += "Hidden=true\nX-XFCE-Autostart-enabled=false\n"
+                else:
+                    content += "\nHidden=true\nX-XFCE-Autostart-enabled=false\n"
+                autostart_user.write_text(content, encoding="utf-8")
+                actions.append(f"enforce-i3: appended Hidden=true to {autostart_user}")
+            else:
+                actions.append(f"enforce-i3: {autostart_user} already hidden")
+        except OSError as e:
+            actions.append(f"enforce-i3: autostart override failed: {e}")
+
+    # ---- 5. seed ~/.config/i3/config if missing ----
+    user_i3_config = home / ".config" / "i3" / "config"
+    default_i3_config = Path("/usr/share/mackes-shell/i3/config")
+    if not user_i3_config.exists():
+        if default_i3_config.is_file():
+            try:
+                user_i3_config.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(default_i3_config, user_i3_config)
+                actions.append(f"enforce-i3: seeded {user_i3_config} from {default_i3_config}")
+            except OSError as e:
+                actions.append(f"enforce-i3: seed failed: {e}")
+        else:
+            actions.append(f"enforce-i3: default config {default_i3_config} missing — skipping seed")
+    else:
+        actions.append(f"enforce-i3: {user_i3_config} already exists")
 
     for line in actions:
         log_action(line)
