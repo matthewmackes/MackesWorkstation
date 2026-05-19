@@ -19,6 +19,21 @@ from mackes.state import MackesState, ensure_dirs
 
 APP_ID = "shell.mackes.Mackes"
 
+# 1.0.8 — status-cluster slug → workbench nav-item key. The status
+# cluster lives in the Rust top-bar (`crates/mackes-panel/src/
+# status_cluster.rs`); every slug here must stay in sync with the
+# `slug` literals on that side. Unmapped slugs fall back to the
+# value as-is (panel keys like "dashboard" / "mesh_join" work
+# directly without a translation step).
+_STATUS_SLUG_TO_PANEL = {
+    "mesh":          "mesh_join",
+    "clipboard":     "dashboard",
+    "volume":        "devices",
+    "battery":       "system",
+    "notifications": "dashboard",
+    "user":          "system",
+}
+
 _CSS_ROOTS = (
     Path("/usr/share/mackes-shell/data/css"),
     Path(__file__).resolve().parent.parent / "data" / "css",
@@ -105,9 +120,21 @@ def _make_gui_app():
                 "upstream attributions). Wired to the apple-menu's "
                 "About Mackes item.", None,
             )
+            # 1.0.8 — `--focus <slug>` opens the Workbench navigated to
+            # the panel identified by <slug>. Wired to the top-bar
+            # status cluster (Q-lock 2026-05-19): every status icon
+            # click opens the Workbench focused on the relevant panel
+            # instead of the drawer. Unmapped slugs land on dashboard.
+            self.add_main_option(
+                "focus", ord("f"), GLib.OptionFlags.NONE, GLib.OptionArg.STRING,
+                "Open the Workbench focused on the named panel "
+                "(status-cluster slug or panel key). Unknown values "
+                "fall through to the dashboard.", "SLUG",
+            )
             self._force_wizard = False
             self._drawer_mode = False
             self._about_mode = False
+            self._focus_slug: Optional[str] = None
 
         def do_command_line(self, command_line):  # type: ignore[override]
             opts = command_line.get_options_dict().end().unpack()
@@ -117,6 +144,8 @@ def _make_gui_app():
             self._force_wizard = bool(opts.get("wizard"))
             self._drawer_mode = bool(opts.get("drawer"))
             self._about_mode = bool(opts.get("about"))
+            focus_raw = opts.get("focus")
+            self._focus_slug = (focus_raw or None) if isinstance(focus_raw, str) else None
             self.activate()
             return 0
 
@@ -168,6 +197,18 @@ def _make_gui_app():
                 from mackes.workbench.shell.sidebar_window import WorkbenchWindow
                 win = WorkbenchWindow(application=self, state=state)
                 win.connect("destroy", lambda *_: self.quit())
+                # 1.0.8 — route --focus <slug> to the matching panel.
+                # The status-cluster slugs (mesh / clipboard / volume /
+                # battery / notifications / user) map to existing nav
+                # keys; anything else is treated as a literal panel key.
+                if self._focus_slug:
+                    panel_key = _STATUS_SLUG_TO_PANEL.get(
+                        self._focus_slug, self._focus_slug
+                    )
+                    try:
+                        win.go_to(panel_key)
+                    except Exception:  # noqa: BLE001
+                        pass
                 win.show_all()
 
     return MackesApp

@@ -3,6 +3,57 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.0.8 — First-boot hotfix: i3 + mackes-panel takeover on every login, Workbench geometry, status-cluster opens Workbench (2026-05-19)
+
+Three bugs reported after installing 1.0.7 + rebooting on a stock Fedora
+44 XFCE session: xfwm4 and xfce4-panel still started (Failsafe template
+hadn't been overridden), the Workbench window was being tiled
+full-screen by i3 (no `for_window` rule matched it), and the top-right
+status-cluster icons opened the drawer instead of the Workbench.
+
+### Window manager / panel takeover
+
+- **`mackes-enforce-session` (new XDG autostart).** A small shell
+  script installed at `/usr/bin/mackes-enforce-session` and wired to
+  `/etc/xdg/autostart/mackes-enforce-session.desktop`. On every
+  login it idempotently runs `i3 --replace` (no-op when i3 is
+  already the active WM), kills any `xfce4-panel` / `xfdesktop`
+  that `xfce4-session` spawned from its Failsafe client list, and
+  re-launches `mackes-panel` if it died. Closes the gap between
+  install-and-reboot and the `apply_enforce_i3` /
+  `apply_panel_swap` birthright steps, which previously only ran
+  when the user opened the setup wizard manually.
+- **`mackes-suppress-xfce4-panel.desktop` (new XDG autostart).**
+  Belt-and-braces Hidden=true override for the XDG autostart spawn
+  path (mirrors the existing `xfdesktop.desktop` override). Doesn't
+  conflict with the `xfce4-panel` RPM because it lives at a
+  Mackes-prefixed filename.
+
+### Workbench geometry on i3
+
+- **`Mackes-shell` WM_CLASS + i3 float rule.** `WorkbenchWindow`
+  now calls `set_wmclass("mackes-shell", "Mackes-shell")` so the
+  res_class is stable + predictable. `data/i3/config` grows a
+  matching `for_window [class="^Mackes-shell$"] floating enable`
+  rule alongside the existing `Mackes-panel` rule. Result: the
+  workbench respects `set_default_size(1280x720)` +
+  `WindowPosition.CENTER` again. Existing users with a stale
+  `~/.config/i3/config` from 1.0.7 should run `mackes-wm reset`
+  (or delete the file and re-login) to pick up the new rule.
+
+### Top-bar status cluster click-target
+
+- **`mackes --focus <slug>` opens Workbench focused on a panel
+  (Q-lock 2026-05-19).** Every status-cluster icon (mesh,
+  clipboard, volume, battery, notifications, user) now spawns
+  `mackes --focus <slug>` instead of `mackes --drawer
+  --drawer-focus <slug>`. The Python side owns the slug → panel
+  mapping (mesh → mesh_join, volume → devices, battery / user →
+  system, clipboard / notifications → dashboard); unknown slugs
+  fall through to the dashboard. The drawer is no longer
+  reachable from this cluster — it stays bound to Super+M and the
+  drawer applet.
+
 ## 1.0.7 — Plank-parity dock, i3, About, drawer wiring, window buttons, xfwm4 retirement, mackesd scaffold (2026-05-19)
 
 Second polish wave on the Mackes XFCE Workstation line. Brings the dock

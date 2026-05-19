@@ -130,6 +130,13 @@ bindsym $mod+Shift+r restart
 # defense in depth.
 for_window [class="^Mackes-panel$"] floating enable, border none
 
+# 1.0.8 hotfix — float the Mackes Shell workbench (the sidebar-grouped
+# settings window) so its `set_default_size(1280x720) +
+# WindowPosition.CENTER` lands as authored instead of being tiled
+# full-screen. The window sets WM_CLASS to "Mackes-shell" explicitly
+# (see mackes/workbench/shell/sidebar_window.py).
+for_window [class="^Mackes-shell$"] floating enable
+
 # Float dialogs (file pickers, color pickers, etc.) and small popups.
 for_window [window_role="pop-up"] floating enable
 for_window [window_role="task_dialog"] floating enable

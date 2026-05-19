@@ -1,13 +1,15 @@
 //! Top-bar right-side status cluster — six read-only indicators that
 //! each show an icon paired with a numeric value (Q-locked
-//! 2026-05-18).
+//! 2026-05-18; click-target re-locked 2026-05-19).
 //!
 //! Layout: icon-left, number-right, ~4 px gap inside each pair, ~6 px
 //! between items. The cluster refreshes every 2 s (matches the dock).
-//! Clicking an item opens the Notification Drawer with the matching
-//! section focused (`mackes --drawer --drawer-focus <slug>`). On probe
-//! failure the value renders as an em-dash and the item dims via
-//! `.mackes-status-degraded`; the tooltip names the reason.
+//! Clicking an item opens the Mackes Workbench focused on the panel
+//! the slug maps to (`mackes --focus <slug>`); the Python side owns
+//! the slug → panel-key translation. The drawer is no longer reachable
+//! from this cluster — it stays bound to Super+M / the drawer applet.
+//! On probe failure the value renders as an em-dash and the item dims
+//! via `.mackes-status-degraded`; the tooltip names the reason.
 //!
 //! Numeric mapping per Q-lock:
 //!
@@ -308,14 +310,17 @@ pub fn build() -> gtk::Box {
 
         let slug = item.slug;
         button.connect_clicked(move |_| {
-            // Drawer launch path: still the Python drawer until 4.3
-            // lands. Once the Rust drawer ships, this becomes an
-            // in-process `drawer::toggle_focused(slug)` call.
+            // 1.0.8 (Q-lock 2026-05-19): every status icon opens the
+            // Mackes Workbench focused on the panel its slug maps to.
+            // The Python side (`mackes/app.py`) owns the slug → panel
+            // translation; unknown slugs fall through to the
+            // dashboard. The drawer is no longer wired to this
+            // cluster.
             if let Err(e) = Command::new("mackes")
-                .args(["--drawer", "--drawer-focus", slug])
+                .args(["--focus", slug])
                 .spawn()
             {
-                eprintln!("mackes-panel: drawer launch failed ({slug}): {e}");
+                eprintln!("mackes-panel: workbench launch failed ({slug}): {e}");
             }
         });
 

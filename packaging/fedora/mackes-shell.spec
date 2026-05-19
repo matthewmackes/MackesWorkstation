@@ -5,7 +5,7 @@
 %global debug_package %{nil}
 
 Name:           mackes-xfce-workstation
-Version:        1.0.7
+Version:        1.0.8
 Release:        1%{?dist}
 Summary:        Mackes XFCE Workstation — unified shell, panel, dock, and mesh for Fedora
 
@@ -468,6 +468,36 @@ chmod 0755 %{buildroot}%{_bindir}/mackes-clipboard
 install -m 0755 bin/mackes-gvfsd-mesh %{buildroot}%{_bindir}/mackes-gvfsd-mesh
 install -m 0755 bin/mackes-mesh-open  %{buildroot}%{_bindir}/mackes-mesh-open
 
+# 6b. mackes-enforce-session — 1.0.8 hotfix. Runs from
+# /etc/xdg/autostart at every login and idempotently converges the
+# session onto i3 + mackes-panel (no xfwm4, no xfce4-panel, no
+# xfdesktop). Needed because xfce4-session's Failsafe template still
+# starts the legacy stack, and we don't ship a system xfce4-session.xml
+# override (RPM file conflict with the xfce4-session package).
+install -m 0755 bin/mackes-enforce-session \
+    %{buildroot}%{_bindir}/mackes-enforce-session
+install -D -m 0644 data/applications/mackes-enforce-session.desktop \
+    %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-enforce-session.desktop
+
+# 6c. xfce4-panel autostart override — Hidden=true, mirrors the
+# xfdesktop override at line ~400. xfce4-panel ships its own
+# /etc/xdg/autostart/xfce4-panel.desktop, so we install ours at a
+# Mackes-prefixed filename and rely on mackes-enforce-session to kill
+# any xfce4-panel that xfce4-session started directly. Belt-and-braces
+# for the XDG-autostart spawn path.
+cat > %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-suppress-xfce4-panel.desktop <<'XFP_EOF'
+[Desktop Entry]
+Type=Application
+Name=xfce4-panel suppressor (Mackes)
+Comment=mackes-panel replaces xfce4-panel on Mackes installs.
+Exec=true
+Hidden=true
+NoDisplay=true
+X-XFCE-Autostart-enabled=false
+X-GNOME-Autostart-enabled=false
+XFP_EOF
+chmod 0644 %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-suppress-xfce4-panel.desktop
+
 %pre
 # Phase 12.1 (1.0.7) — `mackesd` runs as a dedicated system user.
 # The unit's StateDirectory=mackesd creates /var/lib/mackesd at first
@@ -508,6 +538,7 @@ fi
 %doc README.md CHANGELOG.md docs/MACKES_SHELL_SPEC.md docs/MIGRATION_FROM_V2.2.md
 %{_bindir}/mackes
 %{_bindir}/mackes-clipboard
+%{_bindir}/mackes-enforce-session
 %{_bindir}/mackes-gvfsd-mesh
 %{_bindir}/mackes-mesh-open
 %{_bindir}/mackes-panel
@@ -520,9 +551,14 @@ fi
 %{_datadir}/applications/mackes-clipboard.desktop
 %{_datadir}/applications/mackes-mesh-uri-handler.desktop
 # Phase 8.3 — autostart entries that bring up mackes-panel and override
-# xfdesktop on Mackes installs (Q39/Q40).
+# xfdesktop on Mackes installs (Q39/Q40). The mackes-enforce-session
+# entry (1.0.8 hotfix) idempotently swaps xfwm4 → i3 and quits any
+# xfce4-panel/xfdesktop that xfce4-session spawned from its Failsafe
+# client list.
 %config %{_sysconfdir}/xdg/autostart/mackes-panel.desktop
 %config %{_sysconfdir}/xdg/autostart/xfdesktop.desktop
+%config %{_sysconfdir}/xdg/autostart/mackes-enforce-session.desktop
+%config %{_sysconfdir}/xdg/autostart/mackes-suppress-xfce4-panel.desktop
 %{_metainfodir}/io.github.matthewmackes.MackesShell.metainfo.xml
 %{_metainfodir}/shell.mackes.Panel.metainfo.xml
 %{_datadir}/gvfs/mounts/mesh.mount

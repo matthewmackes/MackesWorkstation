@@ -1,0 +1,68 @@
+#!/usr/bin/bash
+# mackes-enforce-session — make sure every login lands on i3 with no
+# xfce4-panel / xfdesktop running.
+#
+# Phase 8.8 (1.0.7+): xfwm4 is fully replaced by i3, and mackes-panel
+# replaces xfce4-panel + xfdesktop. The XFCE session host (xfce4-session)
+# still owns process supervision and starts whatever it was told to start
+# by `/etc/xdg/xfce4/xfconf/xfce-perchannel-xml/xfce4-session.xml` — on a
+# stock Fedora install that's `xfwm4` + `xfce4-panel` + `xfdesktop`. This
+# script runs from `/etc/xdg/autostart/mackes-enforce-session.desktop`
+# (priority 50, after the session has spawned all Failsafe clients) and
+# converges the live process tree onto the Mackes target state.
+#
+# Idempotent: re-running is a no-op if the system is already in the
+# target state. Failures are non-fatal — we log to stderr and exit 0 so
+# the XDG-autostart slot never shows a "failed" notification.
+
+set -u
+
+log() {
+    echo "mackes-enforce-session: $*" >&2
+}
+
+# 1. WM: if i3 isn't already the live WM, run `i3 --replace` to take
+#    over via the WM-replace protocol (xfwm4 exits cleanly when it
+#    sees the replace signal).
+if command -v i3 >/dev/null 2>&1; then
+    current_wm="$(wmctrl -m 2>/dev/null | awk -F': *' '$1=="Name"{print $2}' | head -1 || true)"
+    if [ "${current_wm:-}" != "i3" ]; then
+        i3 --replace >/dev/null 2>&1 &
+        disown
+        log "started i3 --replace (was: ${current_wm:-unknown})"
+    fi
+else
+    log "i3 binary not found — reinstall mackes-xfce-workstation"
+fi
+
+# 2. Panel: kill xfce4-panel if it's running. mackes-panel is started
+#    by its own autostart entry (priority 50 too — order within the
+#    same priority is implementation-defined, so the panel may briefly
+#    coexist with xfce4-panel; that's why this step is idempotent and
+#    runs on every session).
+if pgrep -x xfce4-panel >/dev/null 2>&1; then
+    xfce4-panel --quit >/dev/null 2>&1 || pkill -x xfce4-panel >/dev/null 2>&1 || true
+    log "stopped xfce4-panel"
+fi
+
+# 3. Desktop: kill xfdesktop. mackes-panel owns the wallpaper + root
+#    window roles. We ship a Hidden=true autostart override for
+#    xfdesktop, but that doesn't help if xfce4-session spawned it from
+#    its own client list rather than via XDG-autostart.
+if pgrep -x xfdesktop >/dev/null 2>&1; then
+    xfdesktop --quit >/dev/null 2>&1 || pkill -x xfdesktop >/dev/null 2>&1 || true
+    log "stopped xfdesktop"
+fi
+
+# 4. Make sure mackes-panel is alive (defense-in-depth — its own
+#    autostart entry usually handles this, but if the user killed it
+#    or a previous run errored out we want it back).
+if ! pgrep -x mackes-panel >/dev/null 2>&1; then
+    if command -v mackes-panel >/dev/null 2>&1; then
+        nohup mackes-panel >/dev/null 2>&1 &
+        disown
+        log "started mackes-panel"
+    fi
+fi
+
+exit 0

@@ -491,6 +491,18 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
 
     def __init__(self, application: Gtk.Application, state: MackesState) -> None:
         super().__init__(application=application)
+        # 1.0.8 hotfix — Pin a stable, predictable WM_CLASS so i3 can
+        # match the workbench in a `for_window … floating enable` rule.
+        # Without this, Gtk.Application derives WM_CLASS from
+        # `shell.mackes.Mackes` and i3 tiles the workbench full-screen,
+        # making `set_default_size` + `WindowPosition.CENTER` no-ops.
+        # set_wmclass() is deprecated in GTK3 but still functional and
+        # is the only reliable way to set both res_name + res_class.
+        try:
+            self.set_wmclass("mackes-shell", "Mackes-shell")
+        except Exception:  # noqa: BLE001
+            pass
+
         # v1.6.5 — Compact-by-default. Open at a laptop-friendly size
         # (1280x720) regardless of monitor size; let the user maximize
         # themselves if they want full-screen. Previously we forced
