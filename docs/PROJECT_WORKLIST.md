@@ -364,9 +364,20 @@ panel starts without manual intervention.
   sibling worker unit tests. 2 tokio tests cover name + shutdown
   propagation. mackesd lib test count: 230 → 235 (with
   `--features async-services`).
-- [ ] **B.9 `workers/notification_relay.rs`** — watch
-  `~/QNM-Shared/<peer>/.qnm-notifications/`, write to
-  `notifications` table.
+- [✓] **B.9 `workers/notification_relay.rs`** —
+  `crates/mackesd/src/workers/notification_relay.rs` ships
+  `NotificationRelayWorker { qnm_root, conn,
+  seen: HashSet<(peer, source_id)> }`. Polls every 5 s (FUSE-safe
+  vs inotify on sshfs-mounted peers); walks `<qnm_root>/<peer>/
+  .qnm-notifications/*.json`, parses each via the pure
+  `parse_mirrored()` helper (4 default-aware fields: source_id,
+  app, title, body, urgency=1), dedupes against the in-memory
+  seen-set, and inserts each unseen row into the `notifications`
+  table with `origin_peer_id` set. Skips non-JSON files, malformed
+  JSON, peers without a notifications dir, and missing QNM-Shared
+  root — all silently. 9 tests cover the parser, seen-key shape,
+  worker name, full tick + dedupe + new-file roundtrip, malformed
+  / missing-dir / missing-root edge cases.
 - [✓] **B.10 `workers/notifications_server.rs`** —
   `crates/mackesd/src/ipc/notifications.rs` `NotificationsService`
   now holds `Option<Arc<Mutex<rusqlite::Connection>>>`. The default

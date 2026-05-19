@@ -83,6 +83,7 @@ pub mod ansible_pull;
 pub mod heartbeat;
 pub mod kdc_bridge;
 pub mod media_sync;
+pub mod notification_relay;
 pub mod remmina_sync;
 pub mod subprocess_tick;
 
