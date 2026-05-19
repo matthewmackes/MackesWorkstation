@@ -65,4 +65,50 @@ if ! pgrep -x mackes-panel >/dev/null 2>&1; then
     fi
 fi
 
+# 5a. 1.1.0 — make sure the user units Mackes ships are enabled for the
+#     current user. The systemd-preset at /usr/lib/systemd/user-preset/
+#     90-mackes.preset handles new accounts; this loop handles existing
+#     accounts. `systemctl --user is-enabled` is cheap (parses the
+#     symlink), and `enable --now` is idempotent when the unit is
+#     already enabled + running.
+for unit in \
+    mackes-clipboard-daemon.service \
+    mackes-gvfsd-mesh.service \
+    mackes-remmina-sync.timer \
+    mackes-media-sync.timer
+do
+    if ! systemctl --user is-enabled "$unit" >/dev/null 2>&1; then
+        systemctl --user enable --now "$unit" >/dev/null 2>&1 || true
+        log "enabled user unit $unit"
+    fi
+done
+
+# 5b. 1.1.0 — propagate XFCE menu hides into the current user's home.
+#    /etc/skel only seeds NEW accounts; existing users won't pick up
+#    the hide-xfce-settings.sh additions unless we copy them here on
+#    login. Idempotent: skip when the user's copy already exists
+#    AND already carries the Mackes-Hidden marker (so a user who
+#    deliberately edited the file isn't clobbered).
+SKEL_APPS=/etc/skel/.local/share/applications
+USER_APPS="$HOME/.local/share/applications"
+if [ -d "$SKEL_APPS" ]; then
+    mkdir -p "$USER_APPS"
+    propagated=0
+    for src in "$SKEL_APPS"/*.desktop; do
+        [ -f "$src" ] || continue
+        grep -q "X-Mackes-Hidden=1" "$src" || continue
+        dst="$USER_APPS/$(basename "$src")"
+        if [ -f "$dst" ]; then
+            grep -q "X-Mackes-Hidden=1" "$dst" && continue
+            # User has their own override (no Mackes marker) — leave it.
+            continue
+        fi
+        cp -f "$src" "$dst"
+        propagated=$((propagated + 1))
+    done
+    if [ "$propagated" -gt 0 ]; then
+        log "propagated $propagated hidden-menu overrides to $USER_APPS"
+    fi
+fi
+
 exit 0

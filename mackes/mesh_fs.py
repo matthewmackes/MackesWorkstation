@@ -14,6 +14,19 @@ Layer-A mesh ssh key (~/.ssh/mackes_mesh_ed25519) for auth.
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_fs is deprecated. SSHFS mount/unmount supervision is "
+    "now driven by the reconcile loop in `mackesd_core::reconcile` "
+    "(drift detection + auto-repair against the desired-state "
+    "snapshot — see docs/design/v12.0-enterprise-mesh.md, "
+    "docs/MIGRATION_TO_MACKESD.md). This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import os
 import shutil
 import subprocess

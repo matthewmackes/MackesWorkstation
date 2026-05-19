@@ -1,18 +1,119 @@
 # Mackes XFCE Workstation
 
-**A unified XFCE shell for Fedora — top status bar, macOS-style dock,
-sidebar workbench, optional i3 tiling, plus a mesh fabric that
-connects every one of your machines.**
+**A unified XFCE shell for Fedora — single 40 px bottom taskbar,
+focused-app hero, mesh-aware status cluster, plus a peer-to-peer
+mesh fabric that connects every one of your machines.**
 
-Replaces `xfce4-panel`, `xfdesktop`, and `xfce4-settings-manager` with a
-single Rust-native panel (`mackes-panel`) and a Python sidebar
-(`mackes`). Underneath it stays a standard XFCE session — `xfwm4` (or
-`i3`, toggleable via `mackes-wm`) for window management, LightDM for
-login, Plymouth for boot, all rebranded to a consistent PatternFly v6
-visual language. Adds peer-to-peer filesystem sharing, clipboard,
-notifications, media-service discovery, and identity-based SSH across
-up to 16 mesh peers, anywhere on the internet. Single binary, headless
-mode for fileservers.
+Replaces `xfce4-panel`, `xfdesktop`, `xfwm4`, `xfce4-settings-manager`,
+and the legacy KDE Connect tray indicator with a single Rust-native
+panel (`mackes-panel`) and a Python sidebar (`mackes`). Underneath
+it's a standard XFCE session with **i3 as the only window manager**
+(per the 1.0.8 lock), LightDM for login, Plymouth for boot, all
+rebranded to a consistent PatternFly v6 visual language with Carbon
+icons + Red Hat Display/Text/Mono fonts. Adds peer-to-peer filesystem
+sharing, clipboard manager with mesh history, notifications,
+media-service discovery, KDE Connect via DBus, and identity-based SSH
+across up to 16 mesh peers, anywhere on the internet. Single binary,
+headless mode for fileservers.
+
+## Smoke test — fresh checkout
+
+```bash
+git clone https://github.com/matthewmackes/MAP2-RELEASES.git mackes-shell
+cd mackes-shell
+
+# Build the panel (Rust) + workspace tests
+cargo build --release --workspace
+cargo test --workspace
+
+# Run the Python smoke harness
+make test-nodeps        # quick — no pytest dep
+python3 -m pytest tests/  # full — needs pytest
+
+# Build the RPM
+make rpm                # produces dist/ + rpmbuild/RPMS/x86_64/
+
+# Verify the panel binary boots under Xvfb
+PANEL_BIN=target/release/mackes-panel install-helpers/bench-panel.sh
+```
+
+The CI workflow at `.github/workflows/ci.yml` runs the same
+sequence on every push.
+
+## Panel CLI
+
+```bash
+# Open the Workbench focused on the named panel slug (1.0.8 lock)
+mackes --focus mesh_join
+mackes --focus dashboard
+
+# Update Mackes via dnf (1.1.0 — same path the watermark left-click
+# and the right-click admin menu use)
+mackes update                  # interactive
+mackes update --yes --refresh  # force-refresh metadata + auto-confirm
+mackes update --check-only     # don't apply, just report
+
+# Open the notification drawer
+mackes --drawer
+
+# Print version
+mackes --version
+```
+
+## `mackesd` (mesh control plane) CLI
+
+```bash
+mackesd migrate              # apply SQLite migrations
+mackesd status               # store + migration count
+mackesd healthz              # JSON: leader/applied_revision/nodes/health
+mackesd generate-passcode    # fresh 16-char URL-safe mesh passcode
+mackesd rotate-passcode      # alias — emits a new passcode for rotation
+mackesd audit-verify         # walk the event hash chain
+mackesd peers-why <node-id>  # explain a peer's expected adjacencies
+mackesd apply --dry-run      # validate desired state without mutating
+```
+
+## Window manager
+
+i3 is the only WM. `bin/mackes-wm`:
+
+```bash
+mackes-wm status   # print live WM name (always "i3" on 1.0.8+)
+mackes-wm reset    # rebuild ~/.config/i3/config from the shipped default
+```
+
+Default keybindings ship at
+`/usr/share/mackes-shell/i3/config.d/mackes-defaults.conf` and
+include Phase 6.4 hotkeys (Mod+Q kill, Mod+W close, Mod+L lock,
+Mod+V clipboard, Mod+E Thunar) plus Mod+Space for the apple menu
+and Super+M for the notification drawer. User overrides at
+`~/.config/i3/config.d/mackes-overrides.conf` load lexicographically
+after our defaults. See `docs/help/keyboard-shortcuts.md` for the
+full catalog.
+
+## Architecture at a glance
+
+- **`mackes-panel`** — Rust binary, the bottom taskbar + wallpaper
+  layer. Modules: `admin_menu`, `clipboard_manager`, `hero`,
+  `i3_cluster`, `icon_mapper`, `logout_dialog`, `network_manager`,
+  `start_menu`, `status_cluster`, `top_bar`, `watermark`,
+  `windows`, `dock`, `mesh_module`, plus the wallpaper desktop layer.
+- **`mackes`** — Python entry point. Workbench (`mackes/workbench/`)
+  + drawer (`mackes/drawer.py`) + birthright (`mackes/birthright.py`)
+  + CLI (`mackes/headless/cli.py`).
+- **`mackesd`** — Rust mesh control-plane binary + library. Modules:
+  `audit`, `health`, `identity`, `metrics`, `passcode`, `policy`,
+  `revisions`, `secrets`, `store`, `telemetry`, `topology`,
+  `validation`. Per-peer systemd unit; one is leader via the
+  QNM-Shared lockfile.
+- **`mackes-clipboard-daemon`** — XA_CLIPBOARD watcher; appends to
+  `~/.cache/mackes/clipboard.json`; mesh-replicated whole-file via
+  QNM-Shared. Auto-enabled via the shipped `90-mackes.preset`.
+
+Detailed architecture lives at `docs/design/v12.0-enterprise-mesh.md`
+(backend), `docs/design/v3.0.0-mackes-xfce-workstation.md` (UI lock),
+`docs/design/v12-connectivity-scope.md` (mesh networking), and
+`docs/design/wayland-readiness.md` (port roadmap).
 
 ---
 

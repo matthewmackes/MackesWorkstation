@@ -31,8 +31,21 @@ addition to the v1.0.x xfconf-only apply pipeline:
  14. apply_qnm                 — Quick Network Mesh: dnf install qnm,
                                   enable qnm.service, run qnmctl init
                                   (v1.5.2 lock)
+ 15. apply_panel_swap          — Phase 10.6.1-4: start mackes-panel,
+                                  retire xfce4-panel + xfdesktop, unbind
+                                  the Whisker Super-key (v1.0.7 lock)
+ 16. apply_panel_archive       — Phase 10.6.7: archive the user's
+                                  pre-1.0 xfce4-panel state under
+                                  ~/.config/mackes-panel/legacy-xfce-panel/
+ 17. apply_enforce_i3          — Phase 8.8: replace xfwm4 with i3, retire
+                                  the mackes-maximizer service (v1.0.7)
+ 18. apply_user_dirs           — Phase 1.1.0: remap XDG user-dirs to
+                                  ~/QNM-Mesh subdirs + local Downloads
+ 19. apply_uninstall_legacy_xfce — Phase 10.6.6: single dnf-remove of the
+                                  six legacy XFCE packages mackes-panel
+                                  has supplanted (gated on 10.6.1-4)
 
-All fourteen are wired into mackes/wizard/pages/apply.py between Panel and Mesh.
+All wired into mackes/wizard/pages/apply.py between Panel and Mesh.
 """
 from __future__ import annotations
 
@@ -1281,6 +1294,20 @@ def apply_panel_swap(_preset: Preset) -> List[str]:
         for line in actions:
             log_action(line)
         return actions
+
+    # Phase 10.6.8 — capture rollback state BEFORE we mutate anything.
+    # The record stays on disk regardless of how far the step gets, so a
+    # partial-failure can still be reversed cleanly.
+    try:
+        from mackes import birthright_rollback as _rb
+        prior, restore_actions = _rb.capture_panel_swap_state()
+        _rb.record("apply_panel_swap", prior, restore_actions)
+        actions.append("panel-swap: recorded rollback state")
+    except (OSError, ImportError) as e:
+        # Rollback ledger is best-effort — we never block the real step
+        # on it. The action log notes the lapse so the user knows
+        # `mackes recover` won't reverse this run.
+        actions.append(f"panel-swap: rollback record failed: {e}")
     try:
         subprocess.Popen(
             ["mackes-panel"],
@@ -1378,6 +1405,17 @@ def apply_panel_archive(_preset: Preset) -> List[str]:
     home = Path(os.path.expanduser("~"))
     src = home / ".config" / "xfce4" / "panel"
     dst = home / ".config" / "mackes-panel" / "legacy-xfce-panel"
+
+    # Phase 10.6.8 — write rollback ledger BEFORE we mutate the archive
+    # directory. Idempotent: if the archive already existed, the
+    # restore_actions list is empty (rollback should not delete a dir
+    # the user had before they ever ran the swap).
+    try:
+        from mackes import birthright_rollback as _rb
+        prior, restore_actions = _rb.capture_panel_archive_state()
+        _rb.record("apply_panel_archive", prior, restore_actions)
+    except (OSError, ImportError) as e:
+        actions.append(f"panel-archive: rollback record failed: {e}")
 
     if not src.is_dir():
         actions.append("panel-archive: no legacy xfce4 panel state to archive")
@@ -1504,6 +1542,299 @@ def apply_enforce_i3(_preset: Preset) -> List[str]:
             actions.append(f"enforce-i3: default config {default_i3_config} missing — skipping seed")
     else:
         actions.append(f"enforce-i3: {user_i3_config} already exists")
+
+    for line in actions:
+        log_action(line)
+    return actions
+
+
+# 18. apply_user_dirs — Phase 1.1.0 of the v1.1.0 work.
+#
+#     User lock 2026-05-19: the freedesktop user-dirs default
+#     (Music/Pictures/Videos/Documents/Templates/Public/Desktop) is
+#     replaced with mesh-sync mount targets plus a local Downloads. This
+#     reflects the Mackes platform's model — content lives on the mesh,
+#     not in per-machine subdirectories.
+def apply_user_dirs(_preset: Preset) -> List[str]:
+    """Rewrite ~/.config/user-dirs.dirs to point at QNM-Mesh + Downloads.
+
+    The freedesktop xdg-user-dirs spec says apps consult
+    `$XDG_CONFIG_HOME/user-dirs.dirs` for the canonical home of each
+    well-known media type. Thunar's sidebar, GTK file pickers, and
+    every freedesktop app honor these — pointing them at the mesh
+    mount makes mesh-sync the default storage tier for everything but
+    transient downloads.
+
+    Idempotent: re-running is a no-op when the file already matches
+    the target shape. The previous content is backed up to
+    `user-dirs.dirs.legacy` on the first rewrite.
+    """
+    actions: List[str] = []
+    home = Path(os.path.expanduser("~"))
+    config_dir = home / ".config"
+    target = config_dir / "user-dirs.dirs"
+    backup = config_dir / "user-dirs.dirs.legacy"
+
+    mesh_root = home / "QNM-Mesh"
+    downloads = home / "Downloads"
+
+    # Make sure the local Downloads dir exists. The mesh subdirs are
+    # owned by the mesh-sync layer; create the parent only — actual
+    # children land when peers come online.
+    downloads.mkdir(parents=True, exist_ok=True)
+    mesh_root.mkdir(parents=True, exist_ok=True)
+
+    # The target file content — every XDG well-known dir mapped to
+    # either a mesh subdir or $HOME (the spec's "I don't want a
+    # dedicated folder for this" idiom).
+    target_lines = [
+        "# Mackes Shell 1.1.0 — XDG user-dirs remapped to mesh-sync.",
+        "# Edit Workbench → Look & Feel → User Folders to override.",
+        f'XDG_DESKTOP_DIR="$HOME"',
+        f'XDG_DOWNLOAD_DIR="{downloads}"',
+        f'XDG_TEMPLATES_DIR="$HOME"',
+        f'XDG_PUBLICSHARE_DIR="$HOME"',
+        f'XDG_DOCUMENTS_DIR="{mesh_root / "Documents"}"',
+        f'XDG_MUSIC_DIR="{mesh_root / "Music"}"',
+        f'XDG_PICTURES_DIR="{mesh_root / "Pictures"}"',
+        f'XDG_VIDEOS_DIR="{mesh_root / "Videos"}"',
+        "",
+    ]
+    target_content = "\n".join(target_lines)
+
+    if target.is_file():
+        try:
+            current = target.read_text(encoding="utf-8")
+        except OSError as e:
+            actions.append(f"user-dirs: could not read {target}: {e}")
+            current = ""
+        if current.strip() == target_content.strip():
+            actions.append(f"user-dirs: {target} already at Mackes target")
+            for line in actions:
+                log_action(line)
+            return actions
+        # Back up the existing file once (don't clobber an older backup
+        # — that would lose the original freedesktop defaults forever).
+        if not backup.exists():
+            try:
+                shutil.copy(target, backup)
+                actions.append(f"user-dirs: backed up legacy file to {backup}")
+            except OSError as e:
+                actions.append(f"user-dirs: backup failed ({e}); aborting rewrite")
+                for line in actions:
+                    log_action(line)
+                return actions
+
+    try:
+        config_dir.mkdir(parents=True, exist_ok=True)
+        target.write_text(target_content, encoding="utf-8")
+        actions.append(f"user-dirs: wrote Mackes remap to {target}")
+    except OSError as e:
+        actions.append(f"user-dirs: write failed: {e}")
+
+    # `xdg-user-dirs-update` re-creates the underlying directories when
+    # any are missing. Run it after the rewrite so Thunar's sidebar
+    # picks up the new targets immediately on next mount.
+    if shutil.which("xdg-user-dirs-update"):
+        try:
+            subprocess.run(
+                ["xdg-user-dirs-update", "--force"],
+                capture_output=True, timeout=10, check=False,
+            )
+            actions.append("user-dirs: ran xdg-user-dirs-update --force")
+        except (OSError, subprocess.TimeoutExpired) as e:
+            actions.append(f"user-dirs: xdg-user-dirs-update failed: {e}")
+
+    for line in actions:
+        log_action(line)
+    return actions
+
+
+# ---------------------------------------------------------------------------
+# 19. apply_uninstall_legacy_xfce — Phase 10.6.6 of the v1.0.0 work.
+#
+#     1.0.7+ ships mackes-panel (Rust, Phase 0.3) as a complete drop-in
+#     replacement for xfce4-panel + xfdesktop. The legacy stack is held
+#     inert at runtime by:
+#
+#       * mackes-enforce-session (1.0.8) — kills xfce4-panel / xfdesktop
+#         on every XDG-autostart spawn,
+#       * /etc/xdg/autostart/xfdesktop.desktop override (Hidden=true,
+#         shipped by mackes-xfce-workstation),
+#       * /etc/xdg/autostart/mackes-suppress-xfce4-panel.desktop,
+#       * apply_panel_swap's user-side autostart overrides (10.6.1-4).
+#
+#     This step is the disk-cleanup follow-up — once the user has
+#     successfully run the panel swap, the legacy RPMs are dead weight
+#     and removing them frees ~14 MB plus a handful of /etc/xdg
+#     autostart entries that mackes-enforce-session would otherwise
+#     keep neutralizing on every login.
+#
+#     Hard prerequisite: apply_panel_swap (10.6.1-4) must have already
+#     succeeded. We detect that by:
+#
+#       (a) mackes-panel is running (pgrep -x mackes-panel), AND
+#       (b) the user-side xfce4-panel autostart override exists with
+#           Hidden=true (apply_panel_swap writes this).
+#
+#     If either signal is missing, the step is a clean no-op with a
+#     "panel-swap prerequisite not met" message — never attempt the
+#     removal on a box where mackes-panel hasn't taken over yet (would
+#     leave the user with no panel at all).
+# ---------------------------------------------------------------------------
+
+# The six packages mackes-xfce-workstation has supplanted. Order matches
+# the worklist lock (Phase 10.6.6) so the dnf invocation in the log is
+# easy to grep for. xfce4-power-manager-plugin is included even though
+# Fedora 44+ folded it into the parent xfce4-power-manager package — dnf
+# treats a remove of a missing package as a no-op rather than an error,
+# so listing it is harmless on newer Fedoras and correct on older ones.
+_LEGACY_XFCE_PACKAGES: tuple[str, ...] = (
+    "xfce4-panel",
+    "xfdesktop",
+    "xfce4-whiskermenu-plugin",
+    "xfce4-docklike-plugin",
+    "xfce4-pulseaudio-plugin",
+    "xfce4-power-manager-plugin",
+)
+
+
+def _panel_swap_succeeded() -> tuple[bool, str]:
+    """Return (ok, reason). The reason is a human-readable string the
+    caller logs when ok=False."""
+    # (a) mackes-panel must be running. pgrep -x requires an exact match
+    #     on the basename — the panel binary lives at /usr/bin/mackes-panel
+    #     and runs under its own name when launched by apply_panel_swap.
+    if shutil.which("pgrep") is None:
+        return False, "pgrep unavailable — cannot verify mackes-panel is running"
+    try:
+        rc = subprocess.run(
+            ["pgrep", "-x", "mackes-panel"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        ).returncode
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, f"pgrep probe failed: {e}"
+    if rc != 0:
+        return False, "mackes-panel is not running (panel-swap not applied)"
+
+    # (b) user-side autostart override must be in place. apply_panel_swap
+    #     writes this whenever an xfce4-panel binary is detected at swap
+    #     time — its presence is a positive signal that the swap step ran
+    #     to completion at least once.
+    home = Path(os.path.expanduser("~"))
+    autostart = home / ".config" / "autostart" / "xfce4-panel.desktop"
+    if not autostart.is_file():
+        # Edge case: a box that never had xfce4-panel installed at swap
+        # time (rare — only happens on a minimal Fedora WS install
+        # without the xfce4 spin) won't get the autostart override.
+        # Accept that as a pass — there's nothing to keep neutralized.
+        if shutil.which("xfce4-panel") is None:
+            return True, "no xfce4-panel ever installed"
+        return False, (f"{autostart} missing — apply_panel_swap "
+                       "hasn't been run for this user")
+    try:
+        content = autostart.read_text(encoding="utf-8")
+    except OSError as e:
+        return False, f"could not read {autostart}: {e}"
+    if "Hidden=true" not in content:
+        return False, (f"{autostart} exists but does not have Hidden=true — "
+                       "apply_panel_swap did not finish")
+    return True, "ok"
+
+
+def _installed_legacy_packages() -> List[str]:
+    """Return the subset of _LEGACY_XFCE_PACKAGES that rpm reports as
+    installed. Used both for idempotency (skip the dnf call when nothing
+    is left to remove) and for the action log so the user sees exactly
+    which packages were dropped."""
+    installed: List[str] = []
+    for pkg in _LEGACY_XFCE_PACKAGES:
+        rc, _ = _run(["rpm", "-q", pkg], timeout=10)
+        if rc == 0:
+            installed.append(pkg)
+    return installed
+
+
+def apply_uninstall_legacy_xfce(_preset: Preset) -> List[str]:
+    """Remove the legacy XFCE packages mackes-xfce-workstation supersedes.
+
+    Idempotent: when none of the six packages are installed (already
+    removed, or never were), the step is a clean no-op. Gated on
+    apply_panel_swap having completed — refuses to run when
+    mackes-panel isn't the active panel, since removing xfce4-panel
+    out from under a still-running xfce4-panel process leaves the
+    user with no panel at all.
+
+    Side effect: the C panel-plugin sub-RPMs (mackes-launcher /
+    mackes-clipboard / mackes-drawer) that BuildRequire
+    xfce4-panel-devel are obsoleted by mackes-xfce-workstation's
+    Obsoletes: lines in the spec, so a `dnf install
+    mackes-xfce-workstation` already handles the rename. This step
+    closes the gap for boxes that upgrade via package replacement
+    rather than fresh install.
+    """
+    actions: List[str] = []
+
+    # --- 0. dnf must be present. On a non-Fedora box (somehow) this is a
+    #         skip, not an error. ---
+    if shutil.which("dnf") is None:
+        actions.append("uninstall-legacy-xfce: dnf not available — skipping")
+        for line in actions:
+            log_action(line)
+        return actions
+
+    # --- 1. gate on apply_panel_swap completing successfully. ---
+    ok, reason = _panel_swap_succeeded()
+    if not ok:
+        actions.append(
+            f"uninstall-legacy-xfce: panel-swap prerequisite not met — {reason}"
+        )
+        for line in actions:
+            log_action(line)
+        return actions
+
+    # --- 2. idempotency probe — if nothing is installed, skip the call. ---
+    installed = _installed_legacy_packages()
+    if not installed:
+        actions.append(
+            "uninstall-legacy-xfce: no legacy XFCE packages installed — "
+            "nothing to remove"
+        )
+        for line in actions:
+            log_action(line)
+        return actions
+
+    # Phase 10.6.8 — record the rollback ledger BEFORE the dnf remove
+    # fires. Rolling back this step means `dnf install -y <prior set>`,
+    # routed through AdminSession by mackes/headless/cli.py:recover.
+    try:
+        from mackes import birthright_rollback as _rb
+        prior, restore_actions = _rb.capture_uninstall_legacy_state(installed)
+        _rb.record("apply_uninstall_legacy_xfce", prior, restore_actions)
+        actions.append("uninstall-legacy-xfce: recorded rollback state "
+                       f"({len(installed)} packages)")
+    except (OSError, ImportError) as e:
+        actions.append(f"uninstall-legacy-xfce: rollback record failed: {e}")
+
+    # --- 3. fire the single dnf call. We pass the full canonical list
+    #         (not just `installed`) so the log shows the locked package
+    #         set — dnf treats already-removed packages as a no-op. ---
+    rc, out = _run_root(
+        ["dnf", "remove", "-y", *_LEGACY_XFCE_PACKAGES],
+        timeout=600,
+    )
+    if rc == 0:
+        actions.append(
+            "uninstall-legacy-xfce: removed " + ", ".join(installed)
+        )
+    else:
+        last = (out.strip().splitlines()[-1]
+                if out.strip() else f"rc={rc}")
+        actions.append(
+            f"uninstall-legacy-xfce: dnf remove failed: {last}"
+        )
 
     for line in actions:
         log_action(line)

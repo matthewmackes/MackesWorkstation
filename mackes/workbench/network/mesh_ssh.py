@@ -173,14 +173,20 @@ class MeshSshPanel(Gtk.Box):
         ap_bar.set_margin_top(12)
         self._edit_btn = Button("Edit policy", kind=ButtonKind.TERTIARY,
                                 icon_name="document-edit-symbolic",
-                                on_click=self._on_toggle_edit)
+                                on_click=self._on_toggle_edit,
+                                accessible_name="Edit the Mesh SSH access-control policy",
+                                tooltip="Toggle edit mode for the ACL hujson document")
         self._save_btn = Button("Save", kind=ButtonKind.PRIMARY,
                                 icon_name="document-save-symbolic",
-                                on_click=self._on_save_policy)
+                                on_click=self._on_save_policy,
+                                accessible_name="Save Mesh SSH ACL policy to disk",
+                                tooltip="Write the edited ACL back to disk")
         self._save_btn.set_sensitive(False)
         self._reload_btn = Button("Reload from disk", kind=ButtonKind.GHOST,
                                   icon_name="view-refresh-symbolic",
-                                  on_click=self._on_reload_policy)
+                                  on_click=self._on_reload_policy,
+                                  accessible_name="Reload Mesh SSH ACL from disk (discard edits)",
+                                  tooltip="Discard pending edits and re-read the on-disk ACL")
         ap_bar.pack_start(self._edit_btn, False, False, 0)
         ap_bar.pack_start(self._save_btn, False, False, 0)
         ap_bar.pack_start(self._reload_btn, False, False, 0)
@@ -202,11 +208,15 @@ class MeshSshPanel(Gtk.Box):
         kd_bar.pack_start(Button("Re-distribute my key",
                                   kind=ButtonKind.TERTIARY,
                                   icon_name="document-send-symbolic",
-                                  on_click=self._on_republish), False, False, 0)
+                                  on_click=self._on_republish,
+                                  accessible_name="Re-publish my SSH public key to every mesh peer",
+                                  tooltip="Re-send my SSH pubkey to peers via QNM-Shared"), False, False, 0)
         kd_bar.pack_start(Button("Sync authorized_keys",
                                   kind=ButtonKind.TERTIARY,
                                   icon_name="view-refresh-symbolic",
-                                  on_click=self._on_sync_keys), False, False, 0)
+                                  on_click=self._on_sync_keys,
+                                  accessible_name="Sync ~/.ssh/authorized_keys from mesh peers",
+                                  tooltip="Update authorized_keys with the latest peer pubkeys"), False, False, 0)
         kd_tile.pack(kd_bar)
         outer.pack_start(kd_tile, False, False, 0)
 

@@ -20,7 +20,7 @@ from mackes.app_mgmt import CATALOG, install_app, is_dnf_installed
 from mackes.presets import default_preset, load_preset
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    a11y, info_label, panel_box, section_header, title_label,
 )
 
 
@@ -61,11 +61,17 @@ class AppsInstallPanel(Gtk.Box):
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         select_all = Gtk.Button(label="Select all not installed")
         select_all.connect("clicked", lambda *_: self._select_unselected())
+        a11y(select_all, name="Select every uninstalled curated app",
+             tooltip="Check the box on every row whose app isn't installed yet")
         bulk = Gtk.Button(label="Install selected")
         bulk.get_style_context().add_class("suggested-action")
         bulk.connect("clicked", lambda *_: self._install_selected())
+        a11y(bulk, name="Install every selected curated app",
+             tooltip="Run dnf / appimage / npm install for each checked row")
         refresh = Gtk.Button(label="Refresh")
         refresh.connect("clicked", lambda *_: self._refresh())
+        a11y(refresh, name="Refresh the curated-app list",
+             tooltip="Re-read the active preset's app list and the installed status")
         bar.pack_start(select_all, False, False, 0)
         bar.pack_start(bulk, False, False, 0)
         bar.pack_start(refresh, False, False, 0)
@@ -97,6 +103,8 @@ class AppsInstallPanel(Gtk.Box):
             installed = is_dnf_installed(app.package or app.name)
             row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
             check = Gtk.CheckButton(); check.set_sensitive(not installed)
+            a11y(check, name=f"Select {app.display} for bulk install",
+                 tooltip=f"Include {app.display} when 'Install selected' runs")
             row.pack_start(check, False, False, 0)
             self._rows.append((check, name))
 
@@ -116,6 +124,8 @@ class AppsInstallPanel(Gtk.Box):
 
             inst_btn = Gtk.Button(label="Install"); inst_btn.set_sensitive(not installed)
             inst_btn.connect("clicked", lambda *_a, n=name: self._install_one(n))
+            a11y(inst_btn, name=f"Install {app.display} now",
+                 tooltip=f"Install {app.display} via {_BACKEND_LABEL.get(app.backend, app.backend)}")
             row.pack_end(inst_btn, False, False, 0)
             self._rows_box.pack_start(row, False, False, 0)
         if not self._rows:

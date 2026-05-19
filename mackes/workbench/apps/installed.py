@@ -7,8 +7,9 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
-from mackes.app_mgmt import list_installed_packages, remove_packages
+from mackes.app_mgmt import PackageProbeError, list_installed_packages, remove_packages
 from mackes.workbench._common import (
+    a11y, empty_state, error_state, format_probe_error,
     info_label, panel_box, section_header, title_label,
 )
 
@@ -40,13 +41,22 @@ class AppsInstalledPanel(Gtk.Box):
         sw = Gtk.ScrolledWindow(); sw.set_min_content_height(380); sw.add(self._view)
         box.pack_start(sw, True, True, 0)
 
+        # Phase 11.5: slot for empty/error states under the tree view.
+        self._state_slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        box.pack_start(self._state_slot, False, False, 0)
+
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         remove_btn = Gtk.Button(label="Remove selected")
         remove_btn.get_style_context().add_class("destructive-action")
         remove_btn.connect("clicked", lambda *_: self._remove_selected())
+        a11y(remove_btn,
+             name="Remove the selected installed packages (destructive)",
+             tooltip="Run dnf remove for every checked row")
         bar.pack_start(remove_btn, False, False, 0)
         reload_btn = Gtk.Button(label="Reload list")
         reload_btn.connect("clicked", lambda *_: self._reload())
+        a11y(reload_btn, name="Reload the installed-package list",
+             tooltip="Re-scan rpm -qa to refresh the installed list")
         bar.pack_start(reload_btn, False, False, 0)
         box.pack_start(bar, False, False, 0)
 
@@ -63,7 +73,11 @@ class AppsInstalledPanel(Gtk.Box):
     def _reload(self) -> None:
         self._append_log("loading rpm -qa…")
         def worker() -> None:
-            pairs = list_installed_packages()
+            try:
+                pairs = list_installed_packages()
+            except PackageProbeError as exc:
+                GLib.idle_add(self._set_error, format_probe_error(exc))
+                return
             GLib.idle_add(self._set_all, pairs)
         threading.Thread(target=worker, daemon=True).start()
 
@@ -71,6 +85,39 @@ class AppsInstalledPanel(Gtk.Box):
         self._all = pairs
         self._refresh_view()
         self._append_log(f"loaded {len(pairs)} packages")
+        # Clear any prior error tile.
+        for c in list(self._state_slot.get_children()):
+            self._state_slot.remove(c)
+        if not pairs:
+            self._state_slot.set_size_request(-1, 160)
+            self._state_slot.pack_start(empty_state(
+                "No packages installed",
+                "rpm -qa returned zero rows. On a Fedora system this "
+                "shouldn't happen — check the RPM database with "
+                "`rpmdb --rebuilddb` if the list stays empty after a "
+                "reload.",
+                icon_name="package-x-generic-symbolic",
+                cta_label="Reload",
+                on_cta=self._reload,
+            ), True, True, 0)
+            self._state_slot.show_all()
+        else:
+            self._state_slot.set_size_request(-1, 0)
+        return False
+
+    def _set_error(self, reason: str) -> bool:
+        self._all = []
+        self._refresh_view()
+        self._append_log(f"rpm -qa failed: {reason}")
+        for c in list(self._state_slot.get_children()):
+            self._state_slot.remove(c)
+        self._state_slot.set_size_request(-1, 200)
+        self._state_slot.pack_start(error_state(
+            "Couldn't list installed packages",
+            reason,
+            on_retry=self._reload,
+        ), True, True, 0)
+        self._state_slot.show_all()
         return False
 
     def _refresh_view(self) -> None:

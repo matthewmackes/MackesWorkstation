@@ -17,7 +17,7 @@ from mackes.app_mgmt import is_dnf_installed, remove_packages
 from mackes.presets import default_preset, load_preset
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    a11y, info_label, panel_box, section_header, title_label,
 )
 
 
@@ -54,9 +54,13 @@ class AppsRemovePanel(Gtk.Box):
         bloat_btn = Gtk.Button(label="Remove selected bloat")
         bloat_btn.get_style_context().add_class("destructive-action")
         bloat_btn.connect("clicked", lambda *_: self._remove_bloat_selected())
+        a11y(bloat_btn, name="Remove every selected bloat package (destructive)",
+             tooltip="Run dnf remove for the checked rows — requires authentication")
         bloat_bar.pack_start(bloat_btn, False, False, 0)
         refresh = Gtk.Button(label="Refresh")
         refresh.connect("clicked", lambda *_: self._refresh())
+        a11y(refresh, name="Refresh the bloat package list",
+             tooltip="Re-scan the preset's bloat list and the installed state")
         bloat_bar.pack_start(refresh, False, False, 0)
         box.pack_start(bloat_bar, False, False, 0)
 
@@ -90,6 +94,8 @@ class AppsRemovePanel(Gtk.Box):
                 row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
                 check = Gtk.CheckButton(); check.set_active(installed)
                 check.set_sensitive(installed)
+                a11y(check, name=f"Select {pkg} for bloat removal",
+                     tooltip=f"Include {pkg} when 'Remove selected bloat' runs")
                 row.pack_start(check, False, False, 0)
                 self._bloat_checks.append((check, pkg))
                 name_lbl = Gtk.Label(label=pkg); name_lbl.set_xalign(0)

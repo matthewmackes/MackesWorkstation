@@ -7,7 +7,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    a11y, error_label, info_label, labeled_row, panel_box, section_header, title_label,
 )
 
 
@@ -36,6 +36,8 @@ class WorkspacesPanel(Gtk.Box):
         box.pack_start(section_header("Count"), False, False, 0)
         count = Gtk.SpinButton.new_with_range(1, 16, 1)
         xf.bind_spin(count, CHANNEL, "/general/workspace_count", 4)
+        a11y(count, name="Number of virtual workspaces",
+             tooltip="How many virtual desktops xfwm4 creates (1–16)")
         box.pack_start(labeled_row("Workspaces", count), False, False, 0)
 
         box.pack_start(section_header("Behavior"), False, False, 0)
@@ -45,6 +47,8 @@ class WorkspacesPanel(Gtk.Box):
         def on_wrap(s, _g):
             xf.set(CHANNEL, "/general/wrap_workspaces", s.get_active())
         wrap.connect("notify::active", on_wrap)
+        a11y(wrap, name="Wrap around when switching workspaces at the edge",
+             tooltip="Going past the last workspace returns to the first")
         box.pack_start(labeled_row("Wrap around at edges", wrap), False, False, 0)
 
         cycle = Gtk.Switch()
@@ -52,6 +56,8 @@ class WorkspacesPanel(Gtk.Box):
         def on_cycle(s, _g):
             xf.set(CHANNEL, "/general/cycle_workspaces", s.get_active())
         cycle.connect("notify::active", on_cycle)
+        a11y(cycle, name="Cycle through workspaces when at the edge",
+             tooltip="Alternative cycling behaviour for the workspace switcher")
         box.pack_start(labeled_row("Cycle when switching", cycle), False, False, 0)
 
         return box

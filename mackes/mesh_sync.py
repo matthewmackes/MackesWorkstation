@@ -19,6 +19,21 @@ the transport. The interface exposes Object-Store-like primitives:
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_sync is deprecated. The filesystem-polling bucket-sync "
+    "substrate is replaced by the SQLite-backed state store + "
+    "immutable revision log in `mackesd_core::store` and "
+    "`mackesd_core::revisions` (WAL-mode, in-process library link; no "
+    "networked API per 12.A.3). See "
+    "docs/design/v12.0-enterprise-mesh.md and "
+    "docs/MIGRATION_TO_MACKESD.md. This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import shutil
 import socket

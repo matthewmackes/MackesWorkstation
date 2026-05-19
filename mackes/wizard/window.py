@@ -32,8 +32,8 @@ from mackes.presets import list_presets
 from mackes.state import MackesState
 from mackes.wizard.context import WizardContext
 from mackes.wizard.pages import (
-    appearance, apply, env_scan, hardware, network, preset_pick, review,
-    snapshot, welcome,
+    appearance, apply, env_scan, hardware, legacy_import,
+    mesh_passcode, network, preset_pick, review, snapshot, welcome,
 )
 
 
@@ -97,6 +97,12 @@ class WizardWindow(Gtk.ApplicationWindow):
         steps: List[Tuple[str, str, Gtk.Widget]] = [
             ("Welcome",     _STEP_CONTENT,  welcome.build(self.ctx)),
             ("Scan",        _STEP_CONTENT,  env_scan.build(self.ctx)),
+            # Legacy import sits between Scan and Preset so 2.x users
+            # see what's being preserved BEFORE they pick a (new)
+            # preset. Page is self-detecting; on a fresh install it
+            # renders a single "nothing to import" line and the user
+            # clicks through. (Phase 10.2; v3.0.0 Q49.)
+            ("Import",      _STEP_CONTENT,  legacy_import.build(self.ctx)),
         ]
         if not single_preset:
             steps.append(
@@ -106,6 +112,9 @@ class WizardWindow(Gtk.ApplicationWindow):
             ("Appearance & Desktop", _STEP_CONTENT, appearance.build(self.ctx)),
             ("Hardware",   _STEP_CONTENT,  hardware.build(self.ctx)),
             ("Network",    _STEP_CONTENT,  network.build(self.ctx)),
+            # Phase 12.8.4 — capture or generate the shared 16-char
+            # mesh passcode before Apply mints the mackesd identity.
+            ("Mesh passcode", _STEP_CONTENT, mesh_passcode.build(self.ctx)),
             ("Snapshot",   _STEP_CONTENT,  snapshot.build(self.ctx)),
             ("Review",     _STEP_CONFIRM,  review.build(self.ctx)),
             ("Apply",      _STEP_PROGRESS, self._apply_page),

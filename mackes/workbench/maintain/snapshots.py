@@ -133,10 +133,16 @@ class SnapshotsPanel(Gtk.Box):
         self._label = Gtk.Entry()
         self._label.set_placeholder_text("Optional label — e.g. before-theme-swap")
         self._label.set_hexpand(True)
+        self._label.set_tooltip_text("Optional human-readable label for the snapshot")
+        ax = self._label.get_accessible()
+        if ax is not None:
+            ax.set_name("Snapshot label (optional)")
         row.pack_start(self._label, True, True, 0)
         create_btn = Button("Create restore point", kind=ButtonKind.PRIMARY,
                             icon_name="document-revert-symbolic",
-                            on_click=self._on_create)
+                            on_click=self._on_create,
+                            accessible_name="Create a new snapshot of current settings",
+                            tooltip="Save current xfconf / panel / theme / mesh state as a restore point")
         row.pack_start(create_btn, False, False, 0)
         create_tile.pack(row)
         helper = Gtk.Label(label=(
@@ -251,16 +257,26 @@ class SnapshotsPanel(Gtk.Box):
     # ---- refresh ----------------------------------------------------------
 
     def _refresh(self) -> None:
-        snaps = list_snapshots()
+        # Phase 11.5: replace silent zero-row rendering with a labeled
+        # empty/error state hosted next to the table.
+        try:
+            snaps = list_snapshots()
+            probe_error: str | None = None
+        except Exception as exc:  # noqa: BLE001
+            snaps = []
+            probe_error = str(exc) or exc.__class__.__name__
+
         self._snap_index = {snap.name: snap for snap in snaps}
         rows = []
         total_bytes = 0
+        size_errors = 0
         for snap in snaps:
             mf = snap.manifest()
             try:
                 size = _dir_size_bytes(snap.path)
             except Exception:  # noqa: BLE001
                 size = 0
+                size_errors += 1
             total_bytes += size
             rows.append({
                 "name":    snap.name,
@@ -271,11 +287,62 @@ class SnapshotsPanel(Gtk.Box):
                 "actions": "Restore · Delete",
             })
         self._table.set_rows(rows)
+        self._render_table_state(snaps, probe_error)
 
-        # Update section meta (count + total size)
+        # Update section meta (count + total size + optional size-error count)
+        meta_text = (f"{len(snaps)} snapshots · "
+                     f"{_format_size(total_bytes)} total")
+        if size_errors:
+            meta_text += f" · {size_errors} unreadable on disk"
+        if probe_error:
+            meta_text = f"couldn't list snapshots — {probe_error}"
         for child in list(self._snap_meta.get_children()):
             if isinstance(child, Gtk.Label) and "mackes-section-meta" in (
                 child.get_style_context().list_classes() or []
             ):
-                child.set_text(f"{len(snaps)} snapshots · {_format_size(total_bytes)} total")
+                child.set_text(meta_text)
                 break
+
+    def _render_table_state(self, snaps: list[Snapshot], err: str | None) -> None:
+        """Phase 11.5: surface empty/error states under the table so the
+        user never sees just a blank pane. The slot is created lazily."""
+        from mackes.workbench._common import empty_state, error_state
+
+        # Lazy-create the slot the first time we render — the table itself
+        # already has a Gtk parent at this point.
+        slot = getattr(self, "_table_state_slot", None)
+        if slot is None:
+            slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            parent = self._table.get_parent()
+            if parent is not None and hasattr(parent, "pack_start"):
+                parent.pack_start(slot, False, False, 0)
+            self._table_state_slot = slot
+
+        for c in list(slot.get_children()):
+            slot.remove(c)
+
+        if err is not None:
+            slot.set_size_request(-1, 160)
+            slot.pack_start(error_state(
+                "Couldn't load snapshots",
+                err,
+                on_retry=self._refresh,
+            ), True, True, 0)
+            slot.show_all()
+            return
+
+        if not snaps:
+            slot.set_size_request(-1, 160)
+            slot.pack_start(empty_state(
+                "No snapshots yet",
+                "Take one before you change something risky so you can "
+                "roll back if it goes wrong.",
+                icon_name="document-revert-symbolic",
+                cta_label="Create restore point",
+                on_cta=self._on_create,
+            ), True, True, 0)
+            slot.show_all()
+            return
+
+        # Snapshots present — collapse the slot so the table sits flush.
+        slot.set_size_request(-1, 0)

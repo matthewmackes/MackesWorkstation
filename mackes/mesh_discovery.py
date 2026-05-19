@@ -25,6 +25,19 @@ zbar-tools + a webcam and is deferred until we actually ship that.
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_discovery is deprecated. Mesh-join credential "
+    "discovery, peer enrollment, and the shared 16-char passcode are "
+    "now owned by `mackesd_core::enrollment` and "
+    "`mackesd_core::passcode` (docs/design/v12.0-enterprise-mesh.md, "
+    "docs/MIGRATION_TO_MACKESD.md). This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import re
 from dataclasses import dataclass, field
 from typing import List, Optional

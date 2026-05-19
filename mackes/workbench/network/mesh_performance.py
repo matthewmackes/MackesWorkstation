@@ -24,6 +24,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.workbench._common import (
+    a11y,
     info_label,
     panel_box,
     section_description,
@@ -59,6 +60,12 @@ def _switch_row(label: str, *, initial: bool, on_change) -> Gtk.Widget:
     sw = Gtk.Switch(); sw.set_active(initial)
     sw.connect("notify::active",
                lambda s, _gp: on_change(s.get_active()))
+    # Mesh-performance switches all toggle a tuning flag — share a
+    # tooltip + accessible name pattern.
+    sw.set_tooltip_text(f"Toggle the {label!r} mesh-performance setting")
+    _ax = sw.get_accessible()
+    if _ax is not None:
+        _ax.set_name(f"Toggle mesh setting: {label}")
     row.pack_start(sw, False, False, 0)
     return row
 
@@ -165,9 +172,13 @@ class MeshPerformancePanel(Gtk.Box):
         apply_btn = Gtk.Button(label="Apply tuning")
         apply_btn.get_style_context().add_class("suggested-action")
         apply_btn.connect("clicked", lambda *_: self._apply_sysctl())
+        a11y(apply_btn, name="Apply Mackes mesh sysctl tuning",
+             tooltip="Write /etc/sysctl.d/90-mackes-mesh.conf (requires authentication)")
         bar.pack_start(apply_btn, False, False, 0)
         remove_btn = Gtk.Button(label="Remove")
         remove_btn.connect("clicked", lambda *_: self._remove_sysctl())
+        a11y(remove_btn, name="Remove Mackes mesh sysctl tuning",
+             tooltip="Delete /etc/sysctl.d/90-mackes-mesh.conf (requires authentication)")
         bar.pack_start(remove_btn, False, False, 0)
         box.pack_start(bar, False, False, 0)
         return box
@@ -221,9 +232,15 @@ class MeshPerformancePanel(Gtk.Box):
         install_btn = Gtk.Button(label="Install exporter")
         install_btn.get_style_context().add_class("suggested-action")
         install_btn.connect("clicked", lambda *_: self._install_metrics())
+        a11y(install_btn,
+             name="Install the Mackes mesh Prometheus exporter",
+             tooltip="Install + enable the mesh-metrics exporter on port 9586")
         bar.pack_start(install_btn, False, False, 0)
         remove_btn = Gtk.Button(label="Remove")
         remove_btn.connect("clicked", lambda *_: self._remove_metrics())
+        a11y(remove_btn,
+             name="Remove the Mackes mesh Prometheus exporter",
+             tooltip="Disable + uninstall the mesh-metrics exporter")
         bar.pack_start(remove_btn, False, False, 0)
         box.pack_start(bar, False, False, 0)
         return box
@@ -467,6 +484,12 @@ class MeshPerformancePanel(Gtk.Box):
                 wake_btn.set_tooltip_text(
                     "No cached MAC — connect once while online so "
                     "the ARP table learns it")
+            else:
+                wake_btn.set_tooltip_text(
+                    f"Send a Wake-on-LAN magic packet to {name} ({mac})")
+            _ax_wake = wake_btn.get_accessible()
+            if _ax_wake is not None:
+                _ax_wake.set_name(f"Wake mesh peer {name} via Wake-on-LAN")
             row.pack_start(wake_btn, False, False, 0)
         return row
 

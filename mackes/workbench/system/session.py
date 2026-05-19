@@ -19,7 +19,7 @@ from mackes.logging import log_action
 from mackes.state import HOME
 from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_description, section_header, title_label,
+    a11y, error_label, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -152,18 +152,24 @@ class SessionPanel(Gtk.Box):
             save_on_exit.set_active(bool(xf.get(CHANNEL, "/general/SaveOnExit", True)))
             save_on_exit.connect("notify::active",
                                  lambda s, _g: xf.set(CHANNEL, "/general/SaveOnExit", s.get_active()))
+            a11y(save_on_exit, name="Save the session on logout",
+                 tooltip="Remember open apps and restore them next login")
             box.pack_start(labeled_row("Save session on logout", save_on_exit), False, False, 0)
 
             prompt = Gtk.Switch()
             prompt.set_active(bool(xf.get(CHANNEL, "/shutdown/LockScreen", False)))
             prompt.connect("notify::active",
                            lambda s, _g: xf.set(CHANNEL, "/shutdown/LockScreen", s.get_active()))
+            a11y(prompt, name="Lock the screen before suspending",
+                 tooltip="Require password to wake the machine from suspend")
             box.pack_start(labeled_row("Lock screen before suspend", prompt), False, False, 0)
 
             auto_save = Gtk.Switch()
             auto_save.set_active(bool(xf.get(CHANNEL, "/general/AutoSave", False)))
             auto_save.connect("notify::active",
                               lambda s, _g: xf.set(CHANNEL, "/general/AutoSave", s.get_active()))
+            a11y(auto_save, name="Auto-save the session periodically",
+                 tooltip="Periodically write the session state so it survives crashes")
             box.pack_start(labeled_row("Auto-save session periodically", auto_save), False, False, 0)
 
         # Autostart entries
@@ -174,8 +180,12 @@ class SessionPanel(Gtk.Box):
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         add = Gtk.Button(label="Add command…")
         add.connect("clicked", lambda *_: self._add_dialog())
+        a11y(add, name="Add a new autostart entry",
+             tooltip="Create a new .desktop file that runs at login")
         refresh = Gtk.Button(label="Refresh")
         refresh.connect("clicked", lambda *_: self._refresh())
+        a11y(refresh, name="Refresh the autostart entry list",
+             tooltip="Re-scan ~/.config/autostart/ and /etc/xdg/autostart/")
         actions.pack_start(add, False, False, 0)
         actions.pack_start(refresh, False, False, 0)
         box.pack_start(actions, False, False, 0)
@@ -200,6 +210,8 @@ class SessionPanel(Gtk.Box):
                 _set_autostart_hidden(fname, not s.get_active())
                 GLib.idle_add(self._refresh)
             switch.connect("notify::active", _on_toggle)
+            a11y(switch, name=f"Enable autostart for {name}",
+                 tooltip=f"Toggle whether {name} runs automatically at login")
             row.pack_end(switch, False, False, 0)
             self._list_box.pack_start(row, False, False, 0)
         if not self._list_box.get_children():
@@ -218,7 +230,11 @@ class SessionPanel(Gtk.Box):
 
         grid = Gtk.Grid(row_spacing=8, column_spacing=8)
         name_entry = Gtk.Entry(); name_entry.set_placeholder_text("Display name")
+        a11y(name_entry, name="Autostart entry display name",
+             tooltip="Human-readable name shown in this list")
         exec_entry = Gtk.Entry(); exec_entry.set_placeholder_text("/path/to/program --args")
+        a11y(exec_entry, name="Autostart entry command line",
+             tooltip="Command to run at login (absolute path + arguments)")
         grid.attach(Gtk.Label(label="Name:"), 0, 0, 1, 1)
         grid.attach(name_entry, 1, 0, 1, 1)
         grid.attach(Gtk.Label(label="Command:"), 0, 1, 1, 1)

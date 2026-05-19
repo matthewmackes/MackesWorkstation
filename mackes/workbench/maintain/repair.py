@@ -20,7 +20,7 @@ from mackes.menu_integration import (
 from mackes.presets import apply_preset, load_preset
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    info_label, panel_box, section_description, section_header, title_label,
+    a11y, info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -68,14 +68,19 @@ class RepairPanel(Gtk.Box):
         grid = Gtk.Grid(column_spacing=8, row_spacing=8, column_homogeneous=True)
 
         ops = [
-            ("Re-apply active preset",        self._reapply_preset),
-            ("Re-hide xfce4-settings menu",   self._rehide_menus),
-            ("Restore xfce4-settings menu",   self._restore_menus),
-            ("Re-install Mackes menu entry",  self._reinstall_entry),
+            ("Re-apply active preset",        self._reapply_preset,
+             "Write every active-preset value back to its target setting"),
+            ("Re-hide xfce4-settings menu",   self._rehide_menus,
+             "Re-hide the XFCE settings menu entries that Mackes replaces"),
+            ("Restore xfce4-settings menu",   self._restore_menus,
+             "Un-hide the XFCE settings menu entries (e.g. before uninstall)"),
+            ("Re-install Mackes menu entry",  self._reinstall_entry,
+             "Re-install the mackes-shell.desktop launcher into the menu"),
         ]
-        for i, (label, fn) in enumerate(ops):
+        for i, (label, fn, desc) in enumerate(ops):
             btn = Gtk.Button(label=label)
             btn.connect("clicked", lambda _b, f=fn: self._run(f))
+            a11y(btn, name=desc, tooltip=desc)
             grid.attach(btn, i % 2, i // 2, 1, 1)
         box.pack_start(grid, False, False, 0)
 

@@ -3,6 +3,12 @@
 Controls what happens when removable storage is plugged in, when a camera
 is attached, when an audio CD is inserted, etc. All driven by the
 `thunar-volman` xfconf channel.
+
+11.9 reliability sweep: 13× synchronous `xfconf-query --get` calls in
+`__init__` (one per switch) summed to ~250 ms. The panel now renders the
+switches immediately (default-off) and pulls the real boolean state via
+`mackes.workbench._async.async_probe` — switches snap to their correct
+position when the probe lands.
 """
 from __future__ import annotations
 
@@ -10,9 +16,10 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
+from mackes.workbench._async import async_probe
 from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    a11y, error_label, info_label, labeled_row, panel_box, section_header, title_label,
 )
 
 
@@ -36,12 +43,31 @@ _SWITCHES: list[tuple[str, str, str]] = [
 ]
 
 
+def _gather_switch_states() -> dict[str, bool]:
+    """Off-main-thread: one xfconf-query per switch in parallel-ish (the
+    bridge is sync but each call is fast — running them on the probe
+    thread keeps the GTK main loop free)."""
+    try:
+        xf = get_bridge()
+    except XfconfError:
+        return {}
+    out: dict[str, bool] = {}
+    for _section, key, _label in _SWITCHES:
+        out[key] = bool(xf.get(CHANNEL, key, False))
+    return out
+
+
 class RemovablePanel(Gtk.Box):
     def __init__(self) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
-        self.add(self._build())
+        self._switches: dict[str, Gtk.Switch] = {}
+        self.add(self._build_skeleton())
+        async_probe(_gather_switch_states, self._apply_state)
 
-    def _build(self) -> Gtk.Widget:
+    def _build_skeleton(self) -> Gtk.Widget:
+        """Sync — render every section + switch row but skip the
+        xfconf bind. Switches default to off; `_apply_state` snaps them
+        to the live xfconf value (and wires up `notify::active` then)."""
         box = panel_box()
         box.pack_start(title_label("Removable Media"), False, False, 0)
         box.pack_start(info_label(
@@ -50,7 +76,7 @@ class RemovablePanel(Gtk.Box):
         ), False, False, 0)
 
         try:
-            xf = get_bridge()
+            get_bridge()  # verify xfconf-query is installed; cheap.
         except XfconfError as e:
             box.pack_start(error_label(str(e)), False, False, 0)
             return box
@@ -61,7 +87,25 @@ class RemovablePanel(Gtk.Box):
                 box.pack_start(section_header(section), False, False, 0)
                 current_section = section
             sw = Gtk.Switch()
-            xf.bind_switch(sw, CHANNEL, key, False)
+            # Real value + signal binding land in `_apply_state` once
+            # the probe completes — keeps the constructor sync-cheap.
+            a11y(sw, name=f"Removable-media auto-action: {label}",
+                 tooltip=f"Toggle the xfce4-volumed action {label}")
+            self._switches[key] = sw
             box.pack_start(labeled_row(label, sw), False, False, 0)
 
         return box
+
+    def _apply_state(self, states: dict[str, bool]) -> None:
+        """Snap each switch to its xfconf value, then wire its writeback."""
+        try:
+            xf = get_bridge()
+        except XfconfError:
+            return
+        for key, sw in self._switches.items():
+            sw.set_active(states.get(key, False))
+
+            def _on_active(s, _gp, _k=key):
+                xf.set(CHANNEL, _k, s.get_active())
+
+            sw.connect("notify::active", _on_active)

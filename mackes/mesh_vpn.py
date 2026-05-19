@@ -16,6 +16,20 @@ to the user without exposing CLI internals.
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_vpn is deprecated. The mesh VPN control plane "
+    "(enrollment, topology computation, and policy/route decisions) now "
+    "lives in the `mackesd_core` Rust crate — see "
+    "`mackesd_core::enrollment`, `mackesd_core::topology`, and "
+    "`mackesd_core::policy` (docs/design/v12.0-enterprise-mesh.md, "
+    "docs/MIGRATION_TO_MACKESD.md). This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import os
 import secrets

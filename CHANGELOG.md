@@ -3,6 +3,101 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 1.1.0 — Win10 layout (2026-05-19)
+
+Visual reskin of the panel chrome from a 20 px top bar + 80 px
+Plank-parity dock into a single 40 px Win10-style taskbar at the
+bottom. Same content sources (panel.toml, status_cluster probes,
+desktop_files scan, weather popover, recents catalog) — the actual
+behavior changes are right-click admin menu, focused-app hero,
+desktop watermark, and the new XDG / clipboard / update plumbing.
+
+### Panel chrome
+
+- **Single 40 px bottom taskbar.** Layout left → center → right:
+  Start (`apple_menu_button`, lit-amber when open) + pinned-apps
+  strip; centered i3 cluster (SPLIT / LAYOUT / WINDOW chips, no
+  workspace switcher); status cluster + two-line clock. The prior
+  top bar + Plank dock builders stay in-tree as `#[allow(dead_code)]`
+  for one release cycle.
+- **Right-click Start: 9-item Fedora admin menu (Q15/Q16).** Sections
+  — Shells / Packages / Services / Security / Storage. Each item
+  launches `terminator -x bash -c '<cmd>; bash'` (keeps the shell
+  open after the command finishes per the terminator deprecation of
+  `--hold`). Tooltips show the literal command + a sudo-cache hint
+  (`sudo -nv` exit code) so the user knows whether the action will
+  prompt.
+- **`window_buttons.rs` retired (Q11/Q12).** i3 keybindings (Mod+q
+  close / Mod+f fullscreen / Mod+space float) + each app's own CSD
+  buttons carry the UX. Apps without CSD use the keybindings.
+
+### Desktop layer
+
+- **Win10-style watermark (Q19–Q21, suggestions #2/#10).** Three
+  lines in the lower-right corner (name + `Version 1.1.0 (build
+  <git-hash>)` + Fedora release · hostname). Hidden by default;
+  becomes visible when `dnf check-update` reports pending updates
+  (poll every 4 h). Version line gains `— N updates available`
+  while the count is known and >0. Left-click opens
+  `terminator -x bash -c 'sudo dnf upgrade --refresh; bash'`;
+  right-click drops a context menu — *Check for updates now* /
+  *Hide for this session*.
+
+### Workbench integration
+
+- **`mackes --focus <slug>` second-click toggles closed (suggestion
+  #5).** A repeated tray click on the same status-cluster slug
+  destroys the workbench rather than opening a second window.
+  Implementation in `app.py` + `_active_panel_key` exposed by
+  `sidebar_window.py:go_to`.
+- **First-time wizard critically reviewed (10 pages → 3).** Welcome
+  / Scan / Appearance / Hardware / Network / Summary demoted to
+  Workbench panels or dropped. Wizard retains Preset (conditional)
+  / Review / Apply (with silent snapshot). Analysis only this
+  release — implementation lands in 1.1.1.
+
+### Fedora-native plumbing
+
+- **XFCE menu hides expanded (18 → 32 entries).** Now covers
+  xfce4-panel preferences, Whisker, docklike-plugin, xfdesktop,
+  xfce4-screensaver, appfinder, xfce4-settings-editor, xfconf-query.
+  Propagated to existing users on every login via the
+  `mackes-enforce-session` autostart (the 1.0.8 enforcer also gains
+  a 5a step that enables Mackes user systemd units idempotently).
+- **`90-mackes.preset`.** Fedora systemd-preset that enables the
+  Mackes user units (clipboard daemon, gvfsd-mesh, remmina-sync,
+  media-sync) for new accounts. Closes the gap that left the mesh
+  clipboard daemon never auto-starting on 1.0.x installs.
+- **`apply_user_dirs` birthright step.** Rewrites
+  `~/.config/user-dirs.dirs` so XDG well-known folders point at
+  `~/QNM-Mesh/{Documents,Music,Pictures,Videos}`; Downloads stays
+  local at `~/Downloads`; Desktop / Templates / Public Share collapse
+  to `$HOME`. Idempotent; backs up the legacy file once on first
+  rewrite to `user-dirs.dirs.legacy`.
+- **`.repo` file at Fedora best practice.** `repo_gpgcheck=1`,
+  `metadata_expire=4h` (matches the watermark poll cadence),
+  `clean_requirements_on_remove=True`.
+- **`mackes update` CLI subcommand.** Single unified update path
+  shared with the watermark + admin menu (`sudo dnf upgrade
+  mackes-xfce-workstation --refresh`). Flags: `--check-only` /
+  `--refresh|--no-refresh` / `--yes`.
+- **AppStream releases.** Both `mackes-shell.metainfo.xml` and
+  `shell.mackes.Panel.metainfo.xml` carry `<release>` entries for
+  1.0.8 + 1.1.0; both validate clean via `appstreamcli validate`.
+
+### Notes
+
+- **PNG screenshots in metainfo are deferred** — must be captured on
+  a real Mackes host (workbench / taskbar / mesh topology) and
+  dropped into `branding/screenshots/` before the next release that
+  surfaces them in GNOME Software / KDE Discover.
+- **Hero animation (i3-msg subscribe + 280 ms slide), Carbon Icon
+  Mapper, multi-monitor wallpaper, PulseAudio compliance, and the
+  full clipboard manager popover land in subsequent 1.1.x point
+  releases** — the design is locked (memory:
+  `project_1_1_0_win10_layout`), the implementation is sequenced
+  but not in this tag.
+
 ## 1.0.8 — First-boot hotfix: i3 + mackes-panel takeover on every login, Workbench geometry, status-cluster opens Workbench (2026-05-19)
 
 Three bugs reported after installing 1.0.7 + rebooting on a stock Fedora

@@ -9,7 +9,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    a11y, error_label, info_label, labeled_row, panel_box, section_header, title_label,
 )
 
 
@@ -56,6 +56,8 @@ class MousePanel(Gtk.Box):
         def on_accel(s):
             xf.set("pointers", "/Default/Acceleration", float(s.get_value()), type_hint="double")
         accel.connect("value-changed", on_accel)
+        a11y(accel, name="Pointer acceleration multiplier",
+             tooltip="How quickly the cursor speeds up with mouse motion (0.1–10.0)")
         box.pack_start(labeled_row("Acceleration", accel), False, False, 0)
 
         threshold = Gtk.SpinButton.new_with_range(1, 100, 1)
@@ -63,6 +65,8 @@ class MousePanel(Gtk.Box):
         def on_threshold(s):
             xf.set("pointers", "/Default/Threshold", int(s.get_value()))
         threshold.connect("value-changed", on_threshold)
+        a11y(threshold, name="Pointer acceleration threshold in pixels",
+             tooltip="Pixels of motion before acceleration kicks in (1–100)")
         box.pack_start(labeled_row("Threshold", threshold), False, False, 0)
 
         click = Gtk.SpinButton.new_with_range(100, 800, 50)
@@ -70,6 +74,8 @@ class MousePanel(Gtk.Box):
         def on_click(s):
             xf.set("xsettings", "/Net/DoubleClickTime", int(s.get_value()))
         click.connect("value-changed", on_click)
+        a11y(click, name="Double-click time window in milliseconds",
+             tooltip="Maximum gap between clicks counted as a double-click (100–800 ms)")
         box.pack_start(labeled_row("Double-click time (ms)", click), False, False, 0)
 
         box.pack_start(section_header("Detected devices"), False, False, 0)

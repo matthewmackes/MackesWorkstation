@@ -20,8 +20,10 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from mackes import mackesd_bridge
 from mackes.mesh import diagnose, health, health_json, overall_state, summary
 from mackes.workbench._common import (
+    a11y,
     info_label,
     section_description,
     section_header,
@@ -102,18 +104,36 @@ class MeshHealthPanel(Gtk.Box):
         self._summary.get_style_context().add_class("mackes-page-subtitle")
         outer.pack_start(self._summary, False, False, 0)
 
+        # Phase 12.13.3 cutover: when the mackesd bridge is active
+        # (panel.toml::[migration].use_mackesd = true) we render the
+        # backend's HealthReport in a dedicated row above the legacy
+        # per-layer breakdown. When the flag is off or the binary is
+        # unreachable, the row stays empty (no chrome change) and the
+        # legacy probes drive the page as before.
+        self._mackesd_row = Gtk.Label(label="")
+        self._mackesd_row.set_xalign(0)
+        self._mackesd_row.set_line_wrap(True)
+        self._mackesd_row.get_style_context().add_class("mackes-section-meta")
+        outer.pack_start(self._mackesd_row, False, False, 0)
+
         # Action bar
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         bar.set_margin_top(8); bar.set_margin_bottom(16)
         recheck = Gtk.Button(label="Re-check")
         recheck.get_style_context().add_class("suggested-action")
         recheck.connect("clicked", lambda *_: self._refresh(force=True))
+        a11y(recheck, name="Re-run all mesh health checks",
+             tooltip="Re-evaluate every mesh-layer health probe")
         bar.pack_start(recheck, False, False, 0)
         copy = Gtk.Button(label="Copy diagnostics")
         copy.connect("clicked", lambda *_: self._copy_to_clipboard())
+        a11y(copy, name="Copy mesh diagnostics to the clipboard",
+             tooltip="Copy the diagnostic summary as text for support")
         bar.pack_start(copy, False, False, 0)
         save = Gtk.Button(label="Save report")
         save.connect("clicked", lambda *_: self._save_report())
+        a11y(save, name="Save mesh health report to a file",
+             tooltip="Save the full diagnostic report as JSON/text on disk")
         bar.pack_start(save, False, False, 0)
         outer.pack_start(bar, False, False, 0)
 
@@ -171,12 +191,22 @@ class MeshHealthPanel(Gtk.Box):
 
     def _refresh(self, *, force: bool) -> None:
         def worker():
+            # 12.13.3 cutover: try the mackesd bridge first. When the
+            # feature flag is on AND the binary is reachable, bridge_report
+            # is a populated HealthReport; otherwise it is None and the
+            # legacy probes still drive the rest of the panel.
+            bridge_report = mackesd_bridge.health()
             snap = health(force_refresh=force)
             dump_lines = diagnose() if force else None
-            GLib.idle_add(self._apply, snap, dump_lines)
+            GLib.idle_add(self._apply, snap, dump_lines, bridge_report)
         threading.Thread(target=worker, daemon=True).start()
 
-    def _apply(self, snap: dict, dump_lines: list[str] | None) -> bool:
+    def _apply(
+        self,
+        snap: dict,
+        dump_lines: list[str] | None,
+        bridge_report: mackesd_bridge.HealthReport | None = None,
+    ) -> bool:
         # Overall banner
         worst = overall_state(snap)
         worst_label = {
@@ -185,6 +215,25 @@ class MeshHealthPanel(Gtk.Box):
         }.get(worst, worst.title())
         self._overall.set_text(worst_label)
         self._summary.set_text(summary(snap))
+
+        # 12.13.3 cutover: render the bridge's HealthReport when present.
+        if bridge_report is not None:
+            leader_mark = "leader" if bridge_report.is_leader else "follower"
+            audit_mark = (
+                "audit intact" if bridge_report.audit_chain_intact
+                else "audit BREAK"
+            )
+            revision = bridge_report.applied_revision or "no deploy yet"
+            self._mackesd_row.set_text(
+                f"mackesd {bridge_report.version} · {leader_mark} · "
+                f"{bridge_report.healthy_nodes}/"
+                f"{bridge_report.node_count} healthy · "
+                f"{bridge_report.degraded_nodes} degraded · "
+                f"{bridge_report.unreachable_nodes} unreachable · "
+                f"rev {revision} · {audit_mark}"
+            )
+        else:
+            self._mackesd_row.set_text("")
 
         # Replace layer rows
         for c in self._layer_box.get_children():

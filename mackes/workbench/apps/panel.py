@@ -21,6 +21,7 @@ from mackes.app_mgmt import (
 )
 from mackes.presets import default_preset, load_preset
 from mackes.state import MackesState
+from mackes.workbench._common import a11y
 
 
 # Category derivation — apps catalog doesn't carry an explicit category
@@ -206,6 +207,8 @@ class AppsPanel(Gtk.Box):
             btn.get_style_context().add_class("mackes-tab")
             btn.set_relief(Gtk.ReliefStyle.NONE)
             btn.connect("toggled", self._on_tab_toggled, key)
+            a11y(btn, name=f"Switch to the {label} tab in Apps",
+                 tooltip=f"Show the {label} list of applications")
             self._tab_buttons[key] = btn
             tabs_row.pack_start(btn, False, False, 0)
         self._tab_buttons["install"].set_active(True)
@@ -225,6 +228,8 @@ class AppsPanel(Gtk.Box):
         self._search.set_placeholder_text("Search apps…")
         self._search.set_size_request(280, -1)
         self._search.connect("search-changed", self._on_search_changed)
+        a11y(self._search, name="Search the app catalog by name or description",
+             tooltip="Type to filter the visible app cards")
         controls.pack_end(self._search, False, False, 0)
         outer.pack_start(controls, False, False, 0)
 
@@ -366,6 +371,8 @@ class AppsPanel(Gtk.Box):
         btn.get_style_context().add_class("mackes-tag")
         btn.get_style_context().add_class("accent" if active else "neutral")
         btn.connect("clicked", self._on_chip_clicked, key)
+        a11y(btn, name=f"Filter apps by category: {label}",
+             tooltip=f"Show only {label} apps")
         return btn
 
     def _make_app_card(self, app: AppDef, *, in_preset: bool) -> Gtk.Widget:
@@ -413,14 +420,20 @@ class AppsPanel(Gtk.Box):
             action_btn = Gtk.Button(label="Install")
             action_btn.get_style_context().add_class("cds-button-tertiary")
             action_btn.connect("clicked", self._on_install_clicked, app)
+            a11y(action_btn, name=f"Install {app.display}",
+                 tooltip=f"Install {app.display} via {app.backend}")
         elif self._active_tab == "remove":
             action_btn = Gtk.Button(label="Remove")
             action_btn.get_style_context().add_class("destructive-action")
             action_btn.connect("clicked", self._on_remove_clicked, app)
+            a11y(action_btn, name=f"Remove {app.display} (destructive)",
+                 tooltip=f"Uninstall {app.display} via dnf")
         else:  # installed
             action_btn = Gtk.Button(label="Open")
             action_btn.get_style_context().add_class("cds-button-ghost")
             action_btn.connect("clicked", self._on_open_clicked, app)
+            a11y(action_btn, name=f"Launch {app.display}",
+                 tooltip=f"Run {app.display} now")
         foot.pack_end(action_btn, False, False, 0)
         card.pack_start(foot, False, False, 0)
         return card

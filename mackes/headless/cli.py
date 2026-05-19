@@ -156,11 +156,64 @@ def _build_parser() -> argparse.ArgumentParser:
                       help="bypass interactive confirm")
     p_un.add_argument("--keep-snapshots", action="store_true")
 
+    # recover (Phase 10.6.8) — reverse the panel-swap / panel-archive /
+    # uninstall-legacy-xfce birthright steps using the rollback ledger
+    # written under ~/.config/mackes-panel/rollback/. Routes shell
+    # actions through AdminSession so the dnf reinstall runs with one
+    # password prompt for the whole batch.
+    p_rec = sub.add_parser(
+        "recover",
+        help="reverse the panel-swap birthright steps from the rollback ledger",
+    )
+    rec_sub = p_rec.add_subparsers(dest="rec_cmd")
+    rec_sub.add_parser("list", help="show recorded rollback steps (newest first)")
+    rec_sub.add_parser("all", help="restore every recorded step in reverse-time order")
+    p_rec_one = rec_sub.add_parser("one", help="restore one named step")
+    p_rec_one.add_argument("step_name",
+                           help="e.g. apply_panel_swap / apply_panel_archive / "
+                                "apply_uninstall_legacy_xfce")
+    p_rec_show = rec_sub.add_parser("show",
+                                    help="dump one record's JSON to stdout")
+    p_rec_show.add_argument("step_name")
+
     # help
     p_help = sub.add_parser("help", help="print user-guide topics")
     p_help.add_argument("topic", nargs="?", default=None)
     p_help.add_argument("--open", action="store_true",
                         help="open in $PAGER instead of stdout")
+
+    # 1.1.0 — update
+    # Unified update path that matches what the Win10 watermark's
+    # left-click and the right-click admin menu's "DNF update" entry
+    # already run. Surfaces the same command as a top-level CLI verb
+    # so users can `mackes update` from any shell.
+    p_up = sub.add_parser(
+        "update",
+        help="upgrade Mackes via dnf (mackes-xfce-workstation + deps)",
+    )
+    p_up.add_argument("--yes", action="store_true",
+                      help="pass -y to dnf (no interactive confirm)")
+    p_up.add_argument("--refresh", action=argparse.BooleanOptionalAction,
+                      default=True,
+                      help="force dnf to re-download repo metadata (default)")
+    p_up.add_argument("--check-only", action="store_true",
+                      help="only check for updates; don't apply")
+    # Phase 12.13.3 cutover toggle for early adopters: flip the
+    # ``[migration].use_mackesd`` flag in ~/.config/mackes-panel/panel.toml
+    # without writing TOML by hand. Accepts an explicit on/off; with no
+    # argument it flips to the bridge-on state (the 2.0 default).
+    p_up.add_argument(
+        "--flip-mackesd-flag",
+        nargs="?",
+        const="on",
+        choices=("on", "off"),
+        default=None,
+        metavar="{on,off}",
+        help=(
+            "set panel.toml::[migration].use_mackesd and exit "
+            "(early-adopter cutover toggle for Phase 12.13.3)"
+        ),
+    )
 
     return root
 
@@ -210,6 +263,46 @@ def main(argv: Optional[list[str]] = None) -> int:
         return st.peers(json_out=args.json)
     if cmd == "shares":
         return st.shares()
+
+    # ---- update (1.1.0) ----
+    # Unified update path. Watermark left-click + admin menu's "DNF
+    # update" both run the same shell verb so there's exactly one
+    # update mechanism on the system (Q23 — github-repo plumbing tied
+    # to dnf upgrade, best practice). The .repo file declares
+    # repo_gpgcheck=1 + metadata_expire=4h (matching the watermark
+    # poll), so `dnf upgrade --refresh` re-validates the signature on
+    # every run.
+    if cmd == "update":
+        # Phase 12.13.3 cutover toggle short-circuit: if the operator
+        # asked for --flip-mackesd-flag, persist it and exit without
+        # running dnf. This is the early-adopter knob from the worklist
+        # lock — flip a single shell to the bridge-on path without
+        # editing panel.toml by hand.
+        flip = getattr(args, "flip_mackesd_flag", None)
+        if flip is not None:
+            from mackes import mackesd_bridge
+            new_value = (flip == "on")
+            path = mackesd_bridge.set_use_mackesd_flag(new_value)
+            state = "on" if new_value else "off"
+            print(
+                f"panel.toml::[migration].use_mackesd = {state} "
+                f"(wrote {path})"
+            )
+            return 0
+
+        import subprocess
+        cmd_args = ["sudo", "dnf"]
+        if args.check_only:
+            cmd_args.extend(["check-update", "--refresh"] if args.refresh else ["check-update"])
+        else:
+            cmd_args.append("upgrade")
+            if args.refresh:
+                cmd_args.append("--refresh")
+            cmd_args.append("mackes-xfce-workstation")
+            if args.yes:
+                cmd_args.append("-y")
+        rc = subprocess.call(cmd_args)
+        return rc
 
     # ---- snapshot ----
     if cmd == "snapshot":
@@ -313,7 +406,13 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print(f"  · {line}")
             return 0
         if args.apps_cmd == "list":
-            for n, v in list_installed_packages():
+            from mackes.app_mgmt import PackageProbeError
+            try:
+                packages = list_installed_packages()
+            except PackageProbeError as exc:
+                print(f"error: {exc}")
+                return 2
+            for n, v in packages:
                 print(f"  {n}  {v}")
             return 0
         if args.apps_cmd == "catalog":
@@ -471,6 +570,56 @@ def main(argv: Optional[list[str]] = None) -> int:
                 return 0
         report = run_uninstall(progress=lambda s: print(s))
         return 0 if report.failed_count == 0 else 1
+
+    # ---- recover (Phase 10.6.8) ----
+    if cmd == "recover":
+        from mackes import birthright_rollback as _rb
+
+        # Route shell actions that flag `needs_root: true` through the
+        # admin session so the dnf reinstall runs under sudo without
+        # re-prompting for each item.
+        def _root_runner(argv: list[str]) -> int:
+            from mackes.admin_session import AdminSession
+            rc, out = AdminSession.instance().run(argv, timeout=900)
+            if out.strip():
+                for line in out.strip().splitlines():
+                    print(f"    {line}")
+            return rc
+
+        _rb.set_root_runner(_root_runner)
+
+        if args.rec_cmd in (None, "list"):
+            records = _rb.list_recent(limit=50)
+            if not records:
+                print("(no rollback records found)")
+                return 0
+            for step in records:
+                print(f"  {step.timestamp}  {step.step_name}  "
+                      f"({len(step.restore_actions)} action(s))")
+            return 0
+
+        if args.rec_cmd == "show":
+            step = _rb.load_step(args.step_name)
+            if step is None:
+                print(f"no such rollback record: {args.step_name}", file=sys.stderr)
+                return 1
+            print(step.to_json())
+            return 0
+
+        if args.rec_cmd == "one":
+            for line in _rb.restore_one(args.step_name):
+                print(line)
+            return 0
+
+        if args.rec_cmd == "all":
+            for line in _rb.restore_all():
+                print(line)
+            return 0
+
+        # Unknown rec_cmd (shouldn't reach: argparse covers the choices).
+        print("recover: subcommand required (list/show/one/all)",
+              file=sys.stderr)
+        return 2
 
     # ---- help ----
     if cmd == "help":

@@ -74,12 +74,40 @@ def _importorskip(modname, *args, **kwargs):
         raise _Skip(f"missing dep {modname}: {e}")
 
 
+class _Mark:
+    """Minimal pytest.mark shim. parametrize is a no-op decorator that
+    leaves the function callable with default args; tests that depend on
+    real parametrization are then skipped by the fixture detector
+    (parameter names look like fixtures to it)."""
+    @staticmethod
+    def parametrize(*_args, **_kwargs):
+        def deco(fn):
+            fn._parametrized = True
+            return fn
+        return deco
+
+    def __getattr__(self, _name):
+        def deco(fn=None, *args, **kwargs):
+            if callable(fn):
+                return fn
+            def inner(real):
+                return real
+            return inner
+        return deco
+
+
+def _fail(msg=""):
+    raise AssertionError(msg)
+
+
 def _install_shim() -> None:
     pytest = types.ModuleType("pytest")
     pytest.raises = _Raises
     pytest.fixture = _fixture
     pytest.skip = lambda reason="": (_ for _ in ()).throw(_Skip(reason))
     pytest.importorskip = _importorskip
+    pytest.mark = _Mark()
+    pytest.fail = _fail
     sys.modules["pytest"] = pytest
 
 

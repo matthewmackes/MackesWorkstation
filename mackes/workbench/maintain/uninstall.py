@@ -14,7 +14,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.uninstall import run_uninstall, schedule_logout
 from mackes.workbench._common import (
-    info_label, panel_box, section_description, section_header, title_label,
+    a11y, info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -56,6 +56,9 @@ class UninstallPanel(Gtk.Box):
             box.pack_start(lbl, False, False, 0)
 
         self._consent = Gtk.CheckButton(label="I understand this removes Mackes Shell and all its files.")
+        a11y(self._consent,
+             name="Confirm I understand this removes Mackes Shell and all its files",
+             tooltip="Must be checked before the Uninstall button activates")
         box.pack_start(self._consent, False, False, 0)
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -65,6 +68,8 @@ class UninstallPanel(Gtk.Box):
         self._consent.connect("toggled",
                               lambda c: self._run_btn.set_sensitive(c.get_active()))
         self._run_btn.connect("clicked", lambda *_: self._run())
+        a11y(self._run_btn, name="Uninstall Mackes Shell now (destructive)",
+             tooltip="Remove Mackes Shell and undo every change it made")
         bar.pack_start(self._run_btn, False, False, 0)
         box.pack_start(bar, False, False, 0)
 

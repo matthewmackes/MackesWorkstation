@@ -11,7 +11,7 @@ from gi.repository import Gtk, GLib  # noqa: E402
 
 from mackes import qnm_bridge
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_description, section_header, title_label,
+    a11y, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -47,17 +47,18 @@ class QnmPanel(Gtk.Box):
         box.pack_start(scroll, False, False, 0)
 
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        for label, fn in [
-            ("Start", qnm_bridge.start),
-            ("Stop", qnm_bridge.stop),
-            ("Restart", qnm_bridge.restart),
-            ("Refresh status", lambda: ""),
+        for label, fn, desc in [
+            ("Start", qnm_bridge.start, "Start the QNM background helper"),
+            ("Stop", qnm_bridge.stop, "Stop the QNM background helper"),
+            ("Restart", qnm_bridge.restart, "Restart the QNM background helper"),
+            ("Refresh status", lambda: "", "Re-read QNM status without changing state"),
         ]:
             b = Gtk.Button(label=label)
             def _on(_btn, f=fn):
                 f()
                 GLib.idle_add(self._refresh)
             b.connect("clicked", _on)
+            a11y(b, name=desc, tooltip=desc)
             actions.pack_start(b, False, False, 0)
         box.pack_start(actions, False, False, 0)
 
@@ -66,6 +67,8 @@ class QnmPanel(Gtk.Box):
         def _on_gui(_):
             qnm_bridge.launch_gui()
         gui_btn.connect("clicked", _on_gui)
+        a11y(gui_btn, name="Open the QNM graphical interface",
+             tooltip="Launch the standalone QNM window")
         box.pack_start(labeled_row("Launcher", gui_btn), False, False, 0)
 
         self.add(box)

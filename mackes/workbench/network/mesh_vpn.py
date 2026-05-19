@@ -341,9 +341,16 @@ class MeshVpnPanel(Gtk.Box):
             link_entry.set_text(link)
             link_entry.set_editable(False)
             link_entry.set_can_focus(True)
+            link_entry.set_tooltip_text(
+                "Read-only mesh-join link — copy to share with the new peer")
+            _ax = link_entry.get_accessible()
+            if _ax is not None:
+                _ax.set_name("Mesh join link (read-only, copy to share)")
             body.pack_start(link_entry, False, False, 0)
             copy_btn = Button("Copy", kind=ButtonKind.TERTIARY,
-                              on_click=lambda: self._copy_to_clip(link))
+                              on_click=lambda: self._copy_to_clip(link),
+                              accessible_name="Copy the mesh-join link to clipboard",
+                              tooltip="Place the join link on the clipboard for sharing")
             body.pack_start(copy_btn, False, False, 0)
 
         modal = Modal(self.get_toplevel(), "Add Peer", body, size=ModalSize.MEDIUM)

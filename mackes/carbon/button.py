@@ -40,6 +40,7 @@ class Button(Gtk.Button):
         icon_name: Optional[str] = None,
         on_click: Optional[Callable[[], None]] = None,
         tooltip: Optional[str] = None,
+        accessible_name: Optional[str] = None,
     ) -> None:
         super().__init__()
         self._kind = kind
@@ -65,8 +66,19 @@ class Button(Gtk.Button):
         else:
             self.set_label("")
 
-        if tooltip:
-            self.set_tooltip_text(tooltip)
+        # Tooltip default = the label, so every Carbon button gets at
+        # least the visual text as a hover hint when the caller forgets
+        # to pass one. The accessible name falls back to the label too;
+        # when the caller passes either argument explicitly we use it
+        # verbatim (Phase 11.2 a11y sweep).
+        effective_tooltip = tooltip if tooltip is not None else label or None
+        if effective_tooltip:
+            self.set_tooltip_text(effective_tooltip)
+        ax = self.get_accessible()
+        if ax is not None:
+            name = accessible_name if accessible_name is not None else label
+            if name:
+                ax.set_name(name)
         if on_click is not None:
             self.connect("clicked", lambda *_: on_click())
 

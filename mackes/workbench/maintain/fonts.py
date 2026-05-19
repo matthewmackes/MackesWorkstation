@@ -22,7 +22,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_description, section_header, title_label,
+    a11y, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -78,11 +78,15 @@ class FontsPanel(Gtk.Box):
 
         self._family_combo = Gtk.ComboBoxText()
         self._family_combo.connect("changed", lambda *_: self._update_preview())
+        a11y(self._family_combo, name="Choose font family to preview",
+             tooltip="Pick a font family from the system")
         box.pack_start(labeled_row("Family", self._family_combo), False, False, 0)
 
         self._size_spin = Gtk.SpinButton.new_with_range(8, 64, 1)
         self._size_spin.set_value(16)
         self._size_spin.connect("value-changed", lambda *_: self._update_preview())
+        a11y(self._size_spin, name="Preview font size in points",
+             tooltip="Set the point size used in the preview")
         box.pack_start(labeled_row("Size", self._size_spin), False, False, 0)
 
         self._preview = Gtk.Label(
@@ -97,6 +101,8 @@ class FontsPanel(Gtk.Box):
 
         refresh = Gtk.Button(label="Rebuild fc-cache")
         refresh.connect("clicked", lambda *_: self._rebuild_cache())
+        a11y(refresh, name="Rebuild the font cache (fc-cache)",
+             tooltip="Re-scan ~/.local/share/fonts/ and refresh the system font cache")
         box.pack_start(refresh, False, False, 0)
 
         # ---- Quick installs ------------------------------------------
@@ -105,6 +111,8 @@ class FontsPanel(Gtk.Box):
         for i, (display, pkg) in enumerate(_QUICK_INSTALL):
             btn = Gtk.Button(label=display)
             btn.connect("clicked", lambda _b, p=pkg, d=display: self._install_pkg(d, p))
+            a11y(btn, name=f"Install the {display} font package via dnf",
+                 tooltip=f"Install the {pkg} RPM (requires authentication)")
             grid.attach(btn, i % 2, i // 2, 1, 1)
         box.pack_start(grid, False, False, 0)
 

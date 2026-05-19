@@ -57,6 +57,46 @@ case "${1:-status}" in
     reset)
         reset_i3_config
         ;;
+    session-pick)
+        # Phase W7 — Wayland-session-pick flow. mackes-wm can't
+        # live-swap a Wayland compositor (the compositor IS the
+        # display server). Instead surface every installed Wayland
+        # session .desktop so the operator can pick one at the
+        # greeter on next login.
+        echo "Installed sessions under /usr/share/wayland-sessions/:"
+        if [ -d /usr/share/wayland-sessions ]; then
+            ls /usr/share/wayland-sessions/*.desktop 2>/dev/null \
+                | sed 's|.*/||; s|.desktop$||' \
+                | awk '{print "  " $0}'
+        else
+            echo "  (no Wayland sessions installed)"
+        fi
+        echo "Installed sessions under /usr/share/xsessions/:"
+        if [ -d /usr/share/xsessions ]; then
+            ls /usr/share/xsessions/*.desktop 2>/dev/null \
+                | sed 's|.*/||; s|.desktop$||' \
+                | awk '{print "  " $0}'
+        else
+            echo "  (no X11 sessions installed)"
+        fi
+        echo ""
+        echo "To switch: log out + pick from the greeter's session dropdown."
+        ;;
+    probe-wayland)
+        # Phase W8 — runtime probe. Reports which Wayland features
+        # would be reachable on the active session without spawning
+        # the full panel.
+        echo "Session type:       ${XDG_SESSION_TYPE:-unknown}"
+        echo "Wayland display:    ${WAYLAND_DISPLAY:-unset}"
+        echo "X display:          ${DISPLAY:-unset}"
+        if [ "${XDG_SESSION_TYPE:-}" = "wayland" ]; then
+            echo "Layer shell:        $(command -v wayland-info >/dev/null 2>&1 && \
+                wayland-info 2>/dev/null | grep -q wlr_layer_shell && \
+                echo 'available' || echo 'compositor-dependent')"
+        else
+            echo "Layer shell:        n/a (X11 session)"
+        fi
+        ;;
     i3)
         # Deprecated — i3 is the only WM as of 1.0.7. Exit 0 as a
         # courtesy for any caller that previously invoked this verb
@@ -69,9 +109,11 @@ case "${1:-status}" in
         exit 1
         ;;
     *)
-        echo "usage: $0 {status|reset}" >&2
-        echo "  status   print the running WM's name" >&2
-        echo "  reset    rebuild ~/.config/i3/config from the shipped default" >&2
+        echo "usage: $0 {status|reset|session-pick|probe-wayland}" >&2
+        echo "  status         print the running WM's name" >&2
+        echo "  reset          rebuild ~/.config/i3/config from the shipped default" >&2
+        echo "  session-pick   list available Wayland + X11 sessions (Phase W7)" >&2
+        echo "  probe-wayland  report Wayland feature reachability (Phase W8)" >&2
         exit 2
         ;;
 esac

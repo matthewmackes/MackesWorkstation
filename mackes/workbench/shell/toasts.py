@@ -72,6 +72,10 @@ class ToastHost(Gtk.Box):
         close.get_style_context().add_class("mackes-header-action")
         close.connect("clicked", lambda *_: box.get_parent().remove(box)
                                             if box.get_parent() else None)
+        close.set_tooltip_text("Dismiss this toast notification")
+        _ax = close.get_accessible()
+        if _ax is not None:
+            _ax.set_name(f"Dismiss toast: {message[:60]}")
         box.pack_end(close, False, False, 0)
         box.set_size_request(360, -1)
         return box

@@ -195,18 +195,49 @@ def _make_gui_app():
                 win.show_all()
             else:
                 from mackes.workbench.shell.sidebar_window import WorkbenchWindow
-                win = WorkbenchWindow(application=self, state=state)
-                win.connect("destroy", lambda *_: self.quit())
-                # 1.0.8 — route --focus <slug> to the matching panel.
-                # The status-cluster slugs (mesh / clipboard / volume /
-                # battery / notifications / user) map to existing nav
-                # keys; anything else is treated as a literal panel key.
+
+                # 1.1.0 (suggestion #5): a second `mackes --focus <slug>`
+                # invocation targeting the SAME panel toggles the
+                # workbench closed. Gtk.Application's single-instance
+                # behavior routes the second click here instead of
+                # spawning a new process, so we can check the existing
+                # primary window's active panel and react.
+                existing = None
+                for w in self.get_windows():
+                    if isinstance(w, WorkbenchWindow):
+                        existing = w
+                        break
+
+                target_panel: Optional[str] = None
                 if self._focus_slug:
-                    panel_key = _STATUS_SLUG_TO_PANEL.get(
+                    target_panel = _STATUS_SLUG_TO_PANEL.get(
                         self._focus_slug, self._focus_slug
                     )
+
+                if existing is not None:
+                    # Second click semantics:
+                    # - same slug as current panel → close (toggle off)
+                    # - different slug → navigate + present
+                    # - no slug at all (plain `mackes` invocation)
+                    #   → just present whatever's open
+                    current_panel = getattr(existing, "_active_panel_key", None)
+                    if target_panel and current_panel == target_panel:
+                        existing.destroy()
+                        return
+                    if target_panel:
+                        try:
+                            existing.go_to(target_panel)
+                        except Exception:  # noqa: BLE001
+                            pass
+                    existing.present()
+                    return
+
+                # First-click path — build the window normally.
+                win = WorkbenchWindow(application=self, state=state)
+                win.connect("destroy", lambda *_: self.quit())
+                if target_panel:
                     try:
-                        win.go_to(panel_key)
+                        win.go_to(target_panel)
                     except Exception:  # noqa: BLE001
                         pass
                 win.show_all()

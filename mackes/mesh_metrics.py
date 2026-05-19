@@ -22,6 +22,20 @@ Public API:
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_metrics is deprecated. Prometheus metric emission "
+    "(textfile-collector .prom files, no HTTP endpoint per the 12.1.5 "
+    "lock) and the underlying link telemetry are now owned by "
+    "`mackesd_core::metrics` and `mackesd_core::telemetry`. See "
+    "docs/design/v12.0-enterprise-mesh.md and "
+    "docs/MIGRATION_TO_MACKESD.md. This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import shutil
 import subprocess
 import urllib.error

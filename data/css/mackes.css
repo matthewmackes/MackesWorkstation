@@ -216,6 +216,31 @@ window#mackes-dock eventbox {
     border-radius: 6px;
 }
 
+/* Phase 5.7 — drag-and-drop visual feedback.
+ *  - .dragging is applied to the drag source on `drag-begin` and
+ *    removed on `drag-end`. The icon dims to half opacity so the
+ *    user has a clear "this is the thing I'm moving" cue.
+ *  - .drop-hover is applied on `drag-motion` and removed on
+ *    `drag-leave` (and on `drag-data-received` as defence in depth).
+ *    The accent-tinted background + 1 px inset outline marks the
+ *    landing zone.
+ *
+ * Both classes are managed by `crates/mackes-panel/src/dock_dnd.rs`. */
+.mackes-dock-strip > *.dragging,
+#mackes-dock-tasklist > *.dragging,
+eventbox.dragging {
+    opacity: 0.5;
+}
+
+.mackes-dock-strip > *.drop-hover,
+#mackes-dock-tasklist > *.drop-hover,
+eventbox.drop-hover,
+#mackes-taskbar-pinned.drop-hover {
+    background-color: alpha(@mackes_accent, 0.18);
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px alpha(@mackes_accent, 0.55);
+}
+
 /* State dot — under-icon indicator.
  *  - .muted  → unfocused running.  Helper-color, low contrast.
  *  - .accent → focused window's app. Brand blue, full saturation.

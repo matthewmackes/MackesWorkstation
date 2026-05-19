@@ -21,7 +21,7 @@ from gi.repository import Gtk  # noqa: E402
 from mackes.logging import log_action
 from mackes.workbench._async import async_probe
 from mackes.workbench._common import (
-    info_label, panel_box, section_description, section_header, title_label,
+    a11y, info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -114,11 +114,19 @@ class DependenciesPanel(Gtk.Box):
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         refresh = Gtk.Button(label="Refresh")
         refresh.connect("clicked", lambda *_: self._refresh())
+        a11y(refresh, name="Re-scan installed packages",
+             tooltip="Re-run rpm -qa to refresh the dependency check")
         self._install_btn = Gtk.Button(label="Install missing required")
         self._install_btn.get_style_context().add_class("suggested-action")
         self._install_btn.connect("clicked", lambda *_: self._install(required_only=True))
+        a11y(self._install_btn,
+             name="Install only the missing required dependencies via dnf",
+             tooltip="dnf install the mandatory packages only (requires authentication)")
         self._install_all_btn = Gtk.Button(label="Install all missing")
         self._install_all_btn.connect("clicked", lambda *_: self._install(required_only=False))
+        a11y(self._install_all_btn,
+             name="Install every missing dependency (required + recommended) via dnf",
+             tooltip="dnf install all the missing packages (requires authentication)")
         bar.pack_start(refresh, False, False, 0)
         bar.pack_start(self._install_btn, False, False, 0)
         bar.pack_start(self._install_all_btn, False, False, 0)

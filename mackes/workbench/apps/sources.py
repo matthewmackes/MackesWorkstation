@@ -26,6 +26,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from mackes.admin_session import AdminSession
 from mackes.probe_cache import cached, invalidate
 from mackes.workbench._common import (
+    a11y,
     panel_box,
     section_description,
     section_header,
@@ -142,6 +143,8 @@ class SourcesPanel(Gtk.Box):
         self._flathub_btn = Gtk.Button(label="Add Flathub")
         self._flathub_btn.get_style_context().add_class("suggested-action")
         self._flathub_btn.connect("clicked", lambda *_: self._add_flathub())
+        a11y(self._flathub_btn, name="Add the Flathub remote to Flatpak",
+             tooltip="Register flathub as a system-wide Flatpak remote")
         box.pack_start(self._flathub_btn, False, False, 0)
 
         threading.Thread(target=self._refresh_flathub, daemon=True).start()
@@ -163,6 +166,9 @@ class SourcesPanel(Gtk.Box):
         self._rpmfusion_btn = Gtk.Button(label="Enable RPM Fusion (free + nonfree)")
         self._rpmfusion_btn.get_style_context().add_class("suggested-action")
         self._rpmfusion_btn.connect("clicked", lambda *_: self._add_rpmfusion())
+        a11y(self._rpmfusion_btn,
+             name="Enable RPM Fusion free and nonfree repositories",
+             tooltip="Install rpmfusion-free-release and rpmfusion-nonfree-release")
         box.pack_start(self._rpmfusion_btn, False, False, 0)
 
         threading.Thread(target=self._refresh_rpmfusion, daemon=True).start()
@@ -186,6 +192,9 @@ class SourcesPanel(Gtk.Box):
             label="Install fedora-workstation-repositories")
         self._workstation_btn.connect(
             "clicked", lambda *_: self._add_workstation_repos())
+        a11y(self._workstation_btn,
+             name="Install fedora-workstation-repositories package",
+             tooltip="Add the off-by-default Chrome / Steam / NVIDIA repo files")
         box.pack_start(self._workstation_btn, False, False, 0)
 
         threading.Thread(target=self._refresh_workstation, daemon=True).start()

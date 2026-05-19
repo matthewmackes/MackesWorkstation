@@ -24,6 +24,7 @@ the staged dict to `apply_layout()`.
 from __future__ import annotations
 
 import copy
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -37,6 +38,49 @@ from mackes.carbon import (
     Button, ButtonKind, Tile, Notification, NotificationKind,
 )
 from mackes.logging import log_action
+from mackes.workbench._async import async_probe
+from mackes.workbench._common import a11y
+
+
+@dataclass(frozen=True)
+class _DisplaysSnapshot:
+    """Off-main-thread snapshot of every probe `_refresh_from_xfconf`
+    used to call synchronously: xrandr + xfconf-query per output,
+    profile list, active profile, LightDM greeter config, and
+    per-monitor wallpaper paths."""
+
+    outputs: list[ds.Output]
+    profiles: list[str]
+    active_profile: str
+    lightdm_active: Optional[str]
+    wallpapers: dict[str, Optional[Path]] = field(default_factory=dict)
+
+
+def _gather_displays_snapshot() -> _DisplaysSnapshot:
+    """Runs on the probe thread — every blocking call in one place so
+    panel construction never waits on xrandr / xfconf-query / LightDM."""
+    outputs = ds.list_outputs()
+    profiles = ds.list_profiles()
+    try:
+        active = ds.active_profile()
+    except Exception:  # noqa: BLE001
+        active = ""
+    try:
+        lightdm_active = ds.lightdm_active_monitor()
+    except Exception:  # noqa: BLE001
+        lightdm_active = None
+    # Pre-resolve wallpaper paths for every output so the expander build
+    # doesn't shell out per row. Falls back to None on error.
+    wallpapers: dict[str, Optional[Path]] = {}
+    for o in outputs:
+        try:
+            wallpapers[o.name] = ds.get_wallpaper(o.name)
+        except Exception:  # noqa: BLE001
+            wallpapers[o.name] = None
+    return _DisplaysSnapshot(
+        outputs=outputs, profiles=profiles, active_profile=active,
+        lightdm_active=lightdm_active, wallpapers=wallpapers,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -350,9 +394,15 @@ class DisplaysPanel(Gtk.Box):
         self._staged: dict[str, dict] = {}
         self._original: dict[str, dict] = {}
         self._expander_widgets: dict[str, dict] = {}
+        self._wallpapers: dict[str, Optional[Path]] = {}
         self._refreshing = False
         self._build()
-        self._refresh_from_xfconf()
+        # 11.9 reliability: list_outputs() / list_profiles() /
+        # lightdm_active_monitor() / get_wallpaper() are all xfconf or
+        # xrandr probes — together ~280 ms on a 2-monitor laptop, much
+        # worse if xrandr times out. Off-main-thread; the per-monitor
+        # expanders stay empty until the snapshot lands.
+        async_probe(_gather_displays_snapshot, self._apply_snapshot)
 
     # ---- build -----------------------------------------------------------
 
@@ -417,6 +467,8 @@ class DisplaysPanel(Gtk.Box):
         prof_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._profile_combo = Gtk.ComboBoxText()
         self._profile_combo.set_size_request(220, -1)
+        a11y(self._profile_combo, name="Choose display layout profile",
+             tooltip="Named multi-monitor layout to load, save, or delete")
         prof_row.pack_start(self._profile_combo, False, False, 0)
         prof_row.pack_start(Button("Load",
                                     kind=ButtonKind.TERTIARY,
@@ -453,12 +505,24 @@ class DisplaysPanel(Gtk.Box):
 
         self._greeter_all_radio = Gtk.RadioButton.new_with_label_from_widget(
             None, "Show on all monitors")
+        a11y(self._greeter_all_radio,
+             name="Show LightDM login screen on every active monitor",
+             tooltip="Mirror the greeter across all displays")
         self._greeter_primary_radio = Gtk.RadioButton.new_with_label_from_widget(
             self._greeter_all_radio, "Show on primary only")
+        a11y(self._greeter_primary_radio,
+             name="Show LightDM login screen on the primary monitor only",
+             tooltip="Restrict the greeter to the primary display")
         self._greeter_specific_radio = Gtk.RadioButton.new_with_label_from_widget(
             self._greeter_all_radio, "Show on a specific monitor:")
+        a11y(self._greeter_specific_radio,
+             name="Show LightDM login screen on a chosen monitor",
+             tooltip="Pin the greeter to the monitor selected below")
         self._greeter_specific_combo = Gtk.ComboBoxText()
         self._greeter_specific_combo.set_size_request(200, -1)
+        a11y(self._greeter_specific_combo,
+             name="Monitor that hosts the LightDM login screen",
+             tooltip="Pick which connected monitor shows the greeter")
         login_tile.pack(self._greeter_all_radio)
         login_tile.pack(self._greeter_primary_radio)
         spec_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -516,10 +580,16 @@ class DisplaysPanel(Gtk.Box):
     # ---- state -----------------------------------------------------------
 
     def _refresh_from_xfconf(self) -> None:
-        """Pull live xfconf state into `_staged` + rebuild the expanders."""
+        """Re-probe live xfconf state — routed through async_probe so
+        the panel never blocks while waiting on xrandr/xfconf-query."""
+        async_probe(_gather_displays_snapshot, self._apply_snapshot)
+
+    def _apply_snapshot(self, snap: _DisplaysSnapshot) -> None:
+        """Main thread — install the snapshot, then rebuild the panel
+        sections that depend on it."""
         self._refreshing = True
         try:
-            self._outputs = ds.list_outputs()
+            self._outputs = snap.outputs
             self._staged = {}
             for o in self._outputs:
                 self._staged[o.name] = {
@@ -535,6 +605,10 @@ class DisplaysPanel(Gtk.Box):
                     "supported_modes": o.supported_modes,
                 }
             self._original = copy.deepcopy(self._staged)
+            self._wallpapers = dict(snap.wallpapers)
+            self._snap_profiles = list(snap.profiles)
+            self._snap_active_profile = snap.active_profile
+            self._snap_lightdm_active = snap.lightdm_active
             self._rebuild_expanders()
             self._refresh_profiles_combo()
             self._refresh_greeter_section()
@@ -611,6 +685,8 @@ class DisplaysPanel(Gtk.Box):
         active_sw.set_halign(Gtk.Align.START)
         active_sw.connect("notify::active",
                           lambda s, *_: self._on_active_toggled(name, s.get_active()))
+        a11y(active_sw, name=f"Enable monitor {name}",
+             tooltip=f"Toggle whether {name} is part of the display layout")
         widgets["active"] = active_sw
         grid.attach(active_lbl, 0, 0, 1, 1)
         grid.attach(active_sw, 1, 0, 1, 1)
@@ -621,6 +697,8 @@ class DisplaysPanel(Gtk.Box):
         primary_btn.set_active(props.get("primary", False))
         primary_btn.connect("toggled",
                             lambda b: self._on_primary_toggled(name, b.get_active()))
+        a11y(primary_btn, name=f"Mark monitor {name} as the primary display",
+             tooltip="Primary display hosts the menu / status bar / taskbar")
         widgets["primary"] = primary_btn
         grid.attach(primary_lbl, 0, 1, 1, 1)
         grid.attach(primary_btn, 1, 1, 1, 1)
@@ -643,6 +721,8 @@ class DisplaysPanel(Gtk.Box):
             res_combo.set_active(0)
         res_combo.connect("changed",
                           lambda c: self._on_resolution_changed(name, c.get_active_id()))
+        a11y(res_combo, name=f"Resolution for monitor {name}",
+             tooltip=f"Pixel dimensions for {name} (width × height)")
         widgets["resolution"] = res_combo
         grid.attach(res_lbl, 0, 2, 1, 1)
         grid.attach(res_combo, 1, 2, 1, 1)
@@ -654,6 +734,8 @@ class DisplaysPanel(Gtk.Box):
         self._populate_refresh_combo(name)
         rr_combo.connect("changed",
                          lambda c: self._on_refresh_changed(name, c.get_active_text()))
+        a11y(rr_combo, name=f"Refresh rate for monitor {name}",
+             tooltip=f"Vertical refresh rate (Hz) for {name}")
         grid.attach(rr_lbl, 0, 3, 1, 1)
         grid.attach(rr_combo, 1, 3, 1, 1)
 
@@ -668,6 +750,8 @@ class DisplaysPanel(Gtk.Box):
             scale_combo.set_active(0)
         scale_combo.connect("changed",
                             lambda c: self._on_scale_changed(name, c.get_active_id()))
+        a11y(scale_combo, name=f"HiDPI scale for monitor {name}",
+             tooltip=f"Window scaling factor on {name} (1.0 = native, 2.0 = HiDPI)")
         widgets["scale"] = scale_combo
         grid.attach(scale_lbl, 0, 4, 1, 1)
         grid.attach(scale_combo, 1, 4, 1, 1)
@@ -685,6 +769,8 @@ class DisplaysPanel(Gtk.Box):
             if ang == cur_rot:
                 btn.set_active(True)
             btn.connect("toggled", self._on_rotation_toggled, name, ang)
+            a11y(btn, name=f"Rotate monitor {name} by {ang} degrees",
+                 tooltip=f"Set {name} rotation to {ang}°")
             rot_buttons[ang] = btn
             rot_row.pack_start(btn, False, False, 0)
         widgets["rotation"] = rot_buttons
@@ -702,6 +788,10 @@ class DisplaysPanel(Gtk.Box):
                        lambda s: self._on_position_spin(name, "x", int(s.get_value())))
         y_spin.connect("value-changed",
                        lambda s: self._on_position_spin(name, "y", int(s.get_value())))
+        a11y(x_spin, name=f"X position of monitor {name}",
+             tooltip=f"Horizontal pixel offset for {name} (relative to layout origin)")
+        a11y(y_spin, name=f"Y position of monitor {name}",
+             tooltip=f"Vertical pixel offset for {name} (relative to layout origin)")
         pos_row.pack_start(Gtk.Label(label="x"), False, False, 0)
         pos_row.pack_start(x_spin, False, False, 0)
         pos_row.pack_start(Gtk.Label(label="y"), False, False, 0)
@@ -713,7 +803,9 @@ class DisplaysPanel(Gtk.Box):
         # 8. Wallpaper picker (per monitor, per workspace 0)
         wp_lbl = Gtk.Label(label="Wallpaper"); wp_lbl.set_xalign(0)
         wp_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-        current = ds.get_wallpaper(name)
+        # Use the wallpaper path cached by `_gather_displays_snapshot` so
+        # this expander build doesn't shell out per row.
+        current = self._wallpapers.get(name)
         wp_btn = Gtk.FileChooserButton(
             title=f"Wallpaper for {name}",
             action=Gtk.FileChooserAction.OPEN)
@@ -868,8 +960,18 @@ class DisplaysPanel(Gtk.Box):
 
     def _refresh_profiles_combo(self) -> None:
         self._profile_combo.remove_all()
-        profs = ds.list_profiles()
-        active = ds.active_profile()
+        # Profiles list + active marker come from the most recent snapshot
+        # gathered off-main-thread; falling back to live calls only when
+        # the snapshot hasn't landed yet (e.g. a future eager refresh).
+        profs = getattr(self, "_snap_profiles", None)
+        active = getattr(self, "_snap_active_profile", None)
+        if profs is None:
+            profs = ds.list_profiles()
+        if active is None:
+            try:
+                active = ds.active_profile()
+            except Exception:  # noqa: BLE001
+                active = ""
         for p in profs:
             self._profile_combo.append(p, p + ("  (active)" if p == active else ""))
         if active in profs:
@@ -903,6 +1005,8 @@ class DisplaysPanel(Gtk.Box):
         box.set_spacing(8)
         box.pack_start(Gtk.Label(label="Profile name:"), False, False, 0)
         entry = Gtk.Entry(); entry.set_placeholder_text("Office, Couch, Solo…")
+        a11y(entry, name="New display profile name",
+             tooltip="Name to save this display layout as a reusable profile")
         box.pack_start(entry, False, False, 0)
         dlg.show_all()
         resp = dlg.run()
@@ -947,7 +1051,17 @@ class DisplaysPanel(Gtk.Box):
                     label = f"{name} — {props['friendly_name']}"
                 self._greeter_specific_combo.append(name, label)
 
-        current = ds.lightdm_active_monitor()
+        # Prefer the snapshot value (gathered off-main-thread); fall back
+        # to a live call only when no snapshot has landed yet. After an
+        # initial snapshot, "None" is a meaningful value (greeter is on
+        # all monitors) so we must not re-probe in that case.
+        _SENTINEL = object()
+        current = getattr(self, "_snap_lightdm_active", _SENTINEL)
+        if current is _SENTINEL:
+            try:
+                current = ds.lightdm_active_monitor()
+            except Exception:  # noqa: BLE001
+                current = None
         if current is None:
             self._greeter_all_radio.set_active(True)
             self._greeter_status.set_text(

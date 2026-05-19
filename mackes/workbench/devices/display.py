@@ -16,7 +16,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    a11y, error_label, info_label, labeled_row, panel_box, section_header, title_label,
 )
 
 
@@ -87,6 +87,8 @@ class DisplayPanel(Gtk.Box):
             subprocess.Popen(["xfce4-display-settings"], stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL)
         launch.connect("clicked", on_launch)
+        a11y(launch, name="Launch the XFCE display-arrangement dialog",
+             tooltip="Open xfce4-display-settings for live monitor arrangement")
         box.pack_start(launch, False, False, 0)
 
         box.pack_start(section_header("Defaults"), False, False, 0)
@@ -97,6 +99,8 @@ class DisplayPanel(Gtk.Box):
         def on_scale(s):
             xf.set("xsettings", "/Gdk/WindowScalingFactor", float(s.get_value()), type_hint="double")
         scale.connect("value-changed", on_scale)
+        a11y(scale, name="Window scaling factor for HiDPI displays",
+             tooltip="GDK scale factor for windows and text (0.5–3.0)")
         box.pack_start(labeled_row("Window scaling factor", scale), False, False, 0)
 
         return box

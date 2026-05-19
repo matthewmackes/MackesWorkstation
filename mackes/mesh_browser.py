@@ -31,6 +31,18 @@ This module is also what `mackes shares` reads.
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_browser is deprecated. The mesh:// virtual-share "
+    "surface is now driven by the authoritative topology snapshot in "
+    "`mackesd_core::topology` (docs/design/v12.0-enterprise-mesh.md, "
+    "docs/MIGRATION_TO_MACKESD.md). This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import socket
 
 from mackes.logging import log_action

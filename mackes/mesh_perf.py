@@ -32,6 +32,20 @@ the Mesh Performance panel, and the headless CLI):
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_perf is deprecated. Mesh-fabric perf observation is "
+    "now driven by `mackesd_core::telemetry` (latency / loss / "
+    "throughput tracking) and applied through the reconcile loop in "
+    "`mackesd_core::reconcile`. See "
+    "docs/design/v12.0-enterprise-mesh.md and "
+    "docs/MIGRATION_TO_MACKESD.md. This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import shutil
 import subprocess

@@ -65,6 +65,16 @@
   </provides>
 
   <releases>
+    <release version="1.1.0" date="2026-05-19">
+      <description>
+        <p>Win10 layout. Single bottom taskbar replaces top bar + Plank dock. Right-click Start opens a Fedora admin menu (Root Terminal / DNF / journalctl / systemctl / SELinux / firewall / disk-clean) in terminator. Win10-style desktop watermark visible when DNF updates are pending (4 h poll). Focused-app hero slides into the bar with 280 ms Material easing. Carbon Icon Mapper accessible via right-click on every app entry. window_buttons retired in favor of i3 keybinds + native CSD.</p>
+      </description>
+    </release>
+    <release version="1.0.8" date="2026-05-19">
+      <description>
+        <p>First-boot hotfix companion to mackes-shell 1.0.8: status-cluster click target uses mackes --focus &lt;slug&gt; into the Workbench. Float rule for the Workbench WM_CLASS shipped in the default i3 config.</p>
+      </description>
+    </release>
     <release version="1.0.7" type="development" date="2026-05-19">
       <description>
         <p>Plank-parity dock (pinned launchers + tasklist + window grouping), live numeric status cluster, AT-SPI accessibility names, top-bar strut height tracking, in-process drawer focus path.</p>

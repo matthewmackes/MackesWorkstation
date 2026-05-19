@@ -65,14 +65,19 @@
   </provides>
 
   <releases>
-    <release version="1.6.7" date="2026-05-17">
+    <release version="1.1.0" date="2026-05-19">
       <description>
-        <p>apply_panel_layout now drives xfce4-panel-profiles for a robust default panel.</p>
+        <p>Win10 layout reskin. Single bottom taskbar replaces the top bar + Plank dock. Right-click Start opens a 9-item Fedora admin menu (Root Terminal / DNF / journalctl / systemctl / SELinux / firewall / disk-clean) in terminator with the shell kept open. Win10-style desktop watermark shows in the lower-right when DNF updates are pending (4 h poll). Status-cluster click toggles the Workbench closed on a repeated press. XDG user-dirs remapped to mesh-sync targets (Music/Pictures/Videos/Documents to ~/QNM-Mesh/, Downloads stays local). XFCE menu hides expanded to every replaced component + propagated to existing users on every login.</p>
+      </description>
+    </release>
+    <release version="1.0.8" date="2026-05-19">
+      <description>
+        <p>First-boot hotfix. The mackes-enforce-session autostart converges every login onto i3 + mackes-panel (no xfwm4, no xfce4-panel, no xfdesktop). WorkbenchWindow WM_CLASS pinned to Mackes-shell + i3 float rule. Status-cluster icons open the Workbench focused on the relevant panel via mackes --focus &lt;slug&gt;.</p>
       </description>
     </release>
     <release version="1.0.7" type="development" date="2026-05-18">
       <description>
-        <p>Plank-parity dock with pinned launchers, tasklist, and window grouping. Live status cluster (icon + number, 2 s poll, opens drawer on click). Optional i3 tiling WM via mackes-wm switcher. About Mackes window. Drawer probes now wired to live data sources (pactl, bluetoothctl, tailscale, MPRIS, UPower).</p>
+        <p>Plank-parity dock with pinned launchers, tasklist, and window grouping. Live status cluster (icon + number, 2 s poll, opens drawer on click). Optional i3 tiling WM via mackes-wm switcher. About Mackes window. Drawer probes now wired to live data sources (pactl, bluetoothctl, tailscale, MPRIS, UPower). The legacy 1.6.7 release on the 2.x line is intentionally omitted from this history; that build pre-dates the 1.0.x reset.</p>
       </description>
     </release>
     <release version="1.0.6" date="2026-05-18">

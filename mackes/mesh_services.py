@@ -8,6 +8,21 @@ optionally pushes to NATS `mesh.services` for cross-peer sharing.
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_services is deprecated. Polling port-probe scans are "
+    "superseded by the heartbeat + service surface in "
+    "`mackesd_core::telemetry` (per-peer rows under "
+    "`~/QNM-Shared/<peer>/mackesd/heartbeat.json`) and the typed "
+    "health view in `mackesd_core::health` "
+    "(docs/design/v12.0-enterprise-mesh.md, "
+    "docs/MIGRATION_TO_MACKESD.md). This Python module is retained "
+    "for the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import socket
 import subprocess

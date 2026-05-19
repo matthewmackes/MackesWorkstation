@@ -281,6 +281,11 @@ class RemoteDesktopPanel(Gtk.Box):
 
         self._x11vnc_switch = Gtk.Switch()
         self._x11vnc_switch.connect("notify::active", self._on_x11vnc_toggle)
+        self._x11vnc_switch.set_tooltip_text(
+            "Enable / disable x11vnc@:0.service for live desktop mirroring")
+        _ax = self._x11vnc_switch.get_accessible()
+        if _ax is not None:
+            _ax.set_name("Enable live desktop mirror via x11vnc")
         ds_tile.pack(_form_row(
             "Enable live mirror",
             helper="Streams whatever is on your :0 display to mesh viewers. "
@@ -292,6 +297,10 @@ class RemoteDesktopPanel(Gtk.Box):
             self._x11vnc_display.append_text(d)
         self._x11vnc_display.set_active(0)
         self._x11vnc_display.connect("changed", self._on_x11vnc_display)
+        self._x11vnc_display.set_tooltip_text("Which local X display x11vnc captures")
+        _ax = self._x11vnc_display.get_accessible()
+        if _ax is not None:
+            _ax.set_name("X display captured by x11vnc")
         ds_tile.pack(_form_row(
             "X display",
             helper="Which local X display x11vnc captures.",
@@ -299,6 +308,11 @@ class RemoteDesktopPanel(Gtk.Box):
 
         self._x11vnc_view_only = Gtk.Switch()
         self._x11vnc_view_only.connect("notify::active", self._on_x11vnc_view_only)
+        self._x11vnc_view_only.set_tooltip_text(
+            "Block remote viewers from controlling the mouse and keyboard")
+        _ax = self._x11vnc_view_only.get_accessible()
+        if _ax is not None:
+            _ax.set_name("View-only mode for x11vnc (no remote input)")
         ds_tile.pack(_form_row(
             "View-only mode",
             helper="Remote viewers see your screen but cannot move the mouse "
@@ -319,6 +333,10 @@ class RemoteDesktopPanel(Gtk.Box):
 
         self._xrdp_switch = Gtk.Switch()
         self._xrdp_switch.connect("notify::active", self._on_xrdp_toggle)
+        self._xrdp_switch.set_tooltip_text("Enable / disable xrdp.service on port 3389")
+        _ax = self._xrdp_switch.get_accessible()
+        if _ax is not None:
+            _ax.set_name("Enable xrdp remote-desktop server")
         rdp_tile.pack(_form_row(
             "Enable RDP server",
             helper="Lets RDP clients connect to a NEW XFCE session on port "
@@ -330,6 +348,11 @@ class RemoteDesktopPanel(Gtk.Box):
             self._xrdp_session_type.append_text(v)
         self._xrdp_session_type.set_active(0)
         self._xrdp_session_type.connect("changed", self._on_xrdp_session_type)
+        self._xrdp_session_type.set_tooltip_text(
+            "Xorg = direct X server, Xvnc = nest in TigerVNC")
+        _ax = self._xrdp_session_type.get_accessible()
+        if _ax is not None:
+            _ax.set_name("xrdp session backend (Xorg or Xvnc)")
         rdp_tile.pack(_form_row(
             "Session backend",
             helper="Xorg = direct X server (recommended). Xvnc = nest in "
@@ -338,6 +361,11 @@ class RemoteDesktopPanel(Gtk.Box):
 
         self._xrdp_max = Gtk.SpinButton.new_with_range(1, 50, 1)
         self._xrdp_max.connect("value-changed", self._on_xrdp_max)
+        self._xrdp_max.set_tooltip_text(
+            "Maximum concurrent xrdp sessions (1–50)")
+        _ax = self._xrdp_max.get_accessible()
+        if _ax is not None:
+            _ax.set_name("Maximum concurrent RDP sessions")
         rdp_tile.pack(_form_row(
             "Max concurrent sessions",
             helper="Hard cap on simultaneous RDP logins. Default 10.",
@@ -372,6 +400,11 @@ class RemoteDesktopPanel(Gtk.Box):
 
         self._tomcat_switch = Gtk.Switch()
         self._tomcat_switch.connect("notify::active", self._on_tomcat_toggle)
+        self._tomcat_switch.set_tooltip_text(
+            "Enable / disable Tomcat hosting the Guacamole gateway")
+        _ax = self._tomcat_switch.get_accessible()
+        if _ax is not None:
+            _ax.set_name("Enable Tomcat hosting Guacamole at media.mesh/desktop/")
         ctrl = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         ctrl.set_valign(Gtk.Align.CENTER)
         ctrl_lbl = Gtk.Label(label="Tomcat")
@@ -419,16 +452,24 @@ class RemoteDesktopPanel(Gtk.Box):
         sel_bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         sel_bar.set_margin_top(8)
         sel_bar.pack_start(Button("★ Toggle favorite", kind=ButtonKind.TERTIARY,
-                                   on_click=self._on_toggle_fav),
+                                   on_click=self._on_toggle_fav,
+                                   accessible_name="Toggle favourite on the selected connection",
+                                   tooltip="Mark / unmark the selected connection as a favourite"),
                             False, False, 0)
         sel_bar.pack_start(Button("Hide / unhide", kind=ButtonKind.TERTIARY,
-                                   on_click=self._on_toggle_hide),
+                                   on_click=self._on_toggle_hide,
+                                   accessible_name="Hide or unhide the selected connection",
+                                   tooltip="Toggle whether the selected connection appears in the list"),
                             False, False, 0)
         sel_bar.pack_start(Button("Rename…", kind=ButtonKind.TERTIARY,
-                                   on_click=self._on_rename),
+                                   on_click=self._on_rename,
+                                   accessible_name="Rename the selected connection",
+                                   tooltip="Open a dialog to rename the selected connection"),
                             False, False, 0)
         sel_bar.pack_start(Button("Open in browser", kind=ButtonKind.GHOST,
-                                   on_click=self._on_open_browser),
+                                   on_click=self._on_open_browser,
+                                   accessible_name="Open the selected connection in a web browser",
+                                   tooltip="Launch the Guacamole web client for this connection"),
                             False, False, 0)
         outer.pack_start(sel_bar, False, False, 0)
 
@@ -439,6 +480,11 @@ class RemoteDesktopPanel(Gtk.Box):
         sync_tile = Tile()
         self._sync_interval = Gtk.SpinButton.new_with_range(10, 600, 5)
         self._sync_interval.connect("value-changed", self._on_sync_interval)
+        self._sync_interval.set_tooltip_text(
+            "Seconds between Headscale → Guacamole connection-roster syncs (10–600)")
+        _ax = self._sync_interval.get_accessible()
+        if _ax is not None:
+            _ax.set_name("Auto-discovery sync interval in seconds")
         sync_tile.pack(_form_row(
             "Sync interval (seconds)",
             helper="How often mackes-remote-sync regenerates the Guacamole "
@@ -735,6 +781,10 @@ class RemoteDesktopPanel(Gtk.Box):
         entry = Gtk.Entry()
         entry.set_text(conn.name)
         entry.set_size_request(360, -1)
+        entry.set_tooltip_text(f"New display name for connection {conn.id}")
+        _ax = entry.get_accessible()
+        if _ax is not None:
+            _ax.set_name(f"New name for connection {conn.id}")
         body.pack_start(Gtk.Label(label=f"Rename {conn.id}:"), False, False, 0)
         body.pack_start(entry, False, False, 0)
         body.pack_start(Gtk.Label(label="(leave empty to clear the override)"),

@@ -17,7 +17,8 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from mackes.logging import log_action
 from mackes.workbench._async import async_probe
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_description, section_header, title_label,
+    a11y, error_state, info_label, labeled_row, panel_box,
+    section_description, section_header, title_label,
 )
 
 
@@ -137,9 +138,21 @@ class FirewallPanel(Gtk.Box):
         self._content_root.remove(self._loading)
 
         if not state.has_fw_cmd:
+            # Phase 11.5: labeled error tile instead of a one-line dim
+            # message; the user needs to know what to do next.
             self._content_root.pack_start(
-                info_label("firewall-cmd not available — install firewalld."),
-                False, False, 0,
+                error_state(
+                    "firewalld not available",
+                    "`firewall-cmd` isn't installed or the firewalld "
+                    "service isn't reachable. Install firewalld "
+                    "(Maintain → Dependencies) and restart it with "
+                    "`sudo systemctl enable --now firewalld`.",
+                    retry_label="Retry",
+                    on_retry=lambda: async_probe(
+                        _gather_firewall_state, self._apply_state
+                    ),
+                ),
+                True, True, 0,
             )
             self._content_root.show_all()
             return
@@ -154,6 +167,8 @@ class FirewallPanel(Gtk.Box):
             zone_combo.append_text(z)
         cur = state.default_zone
         zone_combo.set_active(zones.index(cur) if cur in zones else 0)
+        a11y(zone_combo, name="Change default firewalld zone",
+             tooltip="Set the zone applied to unclassified network connections")
 
         def on_zone(combo: Gtk.ComboBoxText) -> None:
             txt = combo.get_active_text()
@@ -197,6 +212,8 @@ class FirewallPanel(Gtk.Box):
             row.pack_start(lbl, False, False, 0)
             sw = Gtk.Switch()
             sw.set_active(svc in enabled)
+            a11y(sw, name=f"Toggle firewalld service {svc} in default zone",
+                 tooltip=f"Allow/deny inbound traffic for the {svc} service")
 
             def _on_toggle(switch: Gtk.Switch, _g: object, name: str = svc) -> None:
                 enable = switch.get_active()

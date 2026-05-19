@@ -11,6 +11,19 @@ peer's qnmd watcher reads + dispatches to xfce4-notifyd via notify-send.
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_notifications is deprecated. Distributed notification "
+    "events now flow through the append-only event log in "
+    "`mackesd_core::events` (config/auth/lifecycle events with "
+    "per-event alerting hooks — docs/design/v12.0-enterprise-mesh.md, "
+    "docs/MIGRATION_TO_MACKESD.md). This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import secrets
 import shutil
 import socket

@@ -1,0 +1,25 @@
+# Systemd user preset for Mackes Shell.
+#
+# Fedora's systemd-preset mechanism reads files under
+# /usr/lib/systemd/user-preset/ in lexical order to decide whether a
+# unit is enabled by default for new users. `enable` here means
+# "enable this user unit on first encounter unless the user has
+# explicitly disabled it." Existing installs are unaffected — preset
+# only governs first-time enable decisions.
+#
+# 1.1.0 — User reported the mesh clipboard wasn't running after a
+# fresh install. The clipboard daemon's `WantedBy=graphical-session
+# .target` requires that the unit be enabled in the user's systemd
+# instance; shipping the unit file alone wasn't enough. This preset
+# closes that gap for new accounts; mackes-enforce-session enables
+# it explicitly for existing accounts on the next login.
+
+enable mackes-clipboard-daemon.service
+enable mackes-gvfsd-mesh.service
+enable mackes-remmina-sync.service
+enable mackes-remmina-sync.timer
+enable mackes-media-sync.service
+enable mackes-media-sync.timer
+
+# Phase 13.5 — KDE Connect bridge user unit (1.1.0+).
+enable mackesd-kdc-bridge.service

@@ -17,7 +17,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk  # noqa: E402
 
 from mackes.workbench._common import (
-    info_label, panel_box, section_header, title_label,
+    a11y, info_label, panel_box, section_header, title_label,
 )
 
 
@@ -174,6 +174,9 @@ class WindowManagerPanel(Gtk.Box):
                 ["mackes", "--wizard"],
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             ))
+            a11y(btn,
+                 name="Launch the Mackes Setup Wizard to switch to i3",
+                 tooltip="Open the Mackes wizard to re-run the WM migration")
             banner.pack_end(btn, False, False, 0)
             box.pack_start(banner, False, False, 0)
 
@@ -205,18 +208,80 @@ class WindowManagerPanel(Gtk.Box):
             grid.attach(tile, i % 3, i // 3, 1, 1)
         body.pack_start(grid, False, False, 0)
 
+        # 1.1.0 — Gaps profile picker (5 popular configs, user lock
+        # 2026-05-19). Lives below the Layouts grid since it's a more
+        # persistent decision than a single-shot layout apply.
+        body.pack_start(section_header("Gaps"), False, False, 0)
+        body.pack_start(info_label(
+            "Pick a gaps profile — applies immediately via i3-msg reload. "
+            "Picks land in ~/.config/i3/config.d/mackes-gaps.conf so "
+            "they survive `mackes-wm reset`."
+        ), False, False, 0)
+        body.pack_start(self._build_gaps_grid(), False, False, 0)
+
         # Helpful footer with the reload + reset actions.
         body.pack_start(section_header("Config"), False, False, 0)
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         reload_btn = Gtk.Button(label="Reload i3 config")
         reload_btn.connect("clicked", lambda *_: _i3_msg("reload"))
+        a11y(reload_btn, name="Reload i3 window-manager configuration",
+             tooltip="Tell i3 to reload its config (i3-msg reload)")
         actions.pack_start(reload_btn, False, False, 0)
         reset_btn = Gtk.Button(label="Reset to Mackes default")
         reset_btn.connect("clicked", self._on_reset_i3_config)
+        a11y(reset_btn, name="Reset i3 configuration to the Mackes default",
+             tooltip="Restore the shipped Mackes i3 config — clears user overrides")
         actions.pack_start(reset_btn, False, False, 0)
         body.pack_start(actions, False, False, 0)
 
         return body
+
+    def _build_gaps_grid(self) -> Gtk.Widget:
+        """5-tile grid for the 1.1.0 gaps profiles."""
+        from mackes import i3_gaps as _gaps
+
+        current = _gaps.detect_current()
+        grid = Gtk.Grid()
+        grid.set_row_spacing(8)
+        grid.set_column_spacing(8)
+        grid.set_margin_top(8)
+        grid.set_margin_bottom(8)
+        grid.set_column_homogeneous(True)
+        for i, profile in enumerate(_gaps.PROFILES):
+            grid.attach(
+                self._gaps_tile(profile, is_current=(profile.key == current)),
+                i % 3, i // 3, 1, 1,
+            )
+        return grid
+
+    def _gaps_tile(self, profile, is_current: bool) -> Gtk.Widget:
+        from mackes import i3_gaps as _gaps
+
+        btn = Gtk.Button()
+        btn.set_relief(Gtk.ReliefStyle.NORMAL)
+        btn.set_tooltip_text(
+            f"{profile.description}\n"
+            f"inner={profile.inner}px · outer={profile.outer}px"
+        )
+        if is_current:
+            btn.get_style_context().add_class("suggested-action")
+        col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        col.set_margin_top(8); col.set_margin_bottom(8)
+        col.set_margin_start(12); col.set_margin_end(12)
+        title = Gtk.Label(label=profile.label)
+        title.get_style_context().add_class("mackes-tile-title")
+        title.set_xalign(0)
+        col.pack_start(title, False, False, 0)
+        sub = Gtk.Label(label=f"{profile.inner}px inner · {profile.outer}px outer")
+        sub.get_style_context().add_class("mackes-tile-sub")
+        sub.set_xalign(0)
+        col.pack_start(sub, False, False, 0)
+        btn.add(col)
+        key = profile.key
+        btn.connect("clicked", lambda *_: (
+            _gaps.apply_profile(key), self._render(),
+        ))
+        return btn
 
     def _layout_tile(self, label: str, desc: str, cmd: str,
                      interactive: bool) -> Gtk.Widget:

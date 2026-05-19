@@ -352,17 +352,38 @@ def remove_packages(packages: list[str], *, category: str = "bloat") -> list[str
 # ---------------------------------------------------------------------------
 
 
+class PackageProbeError(RuntimeError):
+    """Raised when the RPM probe fails — distinguishes 'no packages found'
+    (impossible on Fedora) from 'rpm isn't installed' / 'rpm timed out'
+    so callers can surface a labeled error state. Phase 11.5."""
+
+
 def list_installed_packages() -> list[tuple[str, str]]:
-    """Returns [(name, version)] for every installed RPM."""
+    """Returns [(name, version)] for every installed RPM.
+
+    Raises :class:`PackageProbeError` when rpm is missing or fails — a
+    fresh Fedora system always has ``rpm`` available, so an empty
+    return value would silently misrepresent the failure as "no
+    packages installed". Phase 11.5.
+    """
     if not shutil.which("rpm"):
-        return []
+        raise PackageProbeError(
+            "rpm not found on $PATH — install rpm or run under a "
+            "Fedora-like distro"
+        )
     try:
         out = subprocess.check_output(
             ["rpm", "-qa", "--qf", "%{NAME}\\t%{VERSION}-%{RELEASE}\\n"],
             text=True, stderr=subprocess.DEVNULL, timeout=15,
         )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-        return []
+    except subprocess.CalledProcessError as exc:
+        raise PackageProbeError(
+            f"rpm exited {exc.returncode}"
+        ) from exc
+    except subprocess.TimeoutExpired:
+        raise PackageProbeError(
+            "rpm -qa timed out after 15 s — RPM DB may be locked"
+        ) from None
     pairs: list[tuple[str, str]] = []
     for line in out.splitlines():
         if "\t" in line:

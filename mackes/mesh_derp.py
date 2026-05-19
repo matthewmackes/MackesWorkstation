@@ -28,6 +28,20 @@ Public API:
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_derp is deprecated. Private DERP relay placement, "
+    "drift detection, and auto-repair dispatch are now owned by "
+    "`mackesd_core::topology` (relay-as-topology-node) and "
+    "`mackesd_core::reconcile` (drift + repair). See "
+    "docs/design/v12.0-enterprise-mesh.md and "
+    "docs/MIGRATION_TO_MACKESD.md. This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import shutil
 import subprocess

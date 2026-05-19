@@ -199,6 +199,9 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         help_button.set_image(Gtk.Image.new_from_icon_name("help-browser-symbolic", Gtk.IconSize.BUTTON))
         help_button.set_tooltip_text("Help / User Guide")
         help_button.connect("clicked", self._on_help)
+        ax = help_button.get_accessible()
+        if ax is not None:
+            ax.set_name("Open Workbench user guide")
         header.pack_end(help_button)
 
         self._notebook = Gtk.Notebook()

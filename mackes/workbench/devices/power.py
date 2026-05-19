@@ -7,7 +7,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_header, title_label,
+    a11y, error_label, info_label, labeled_row, panel_box, section_header, title_label,
 )
 
 
@@ -40,6 +40,8 @@ class PowerPanel(Gtk.Box):
             profile_combo.append_text(p)
         xf.bind_combo(profile_combo, CHANNEL, "/xfce4-power-manager/power-profile",
                       PROFILES, "balanced")
+        a11y(profile_combo, name="Power profile (XFCE power manager)",
+             tooltip="Pick performance, balanced, or power-saver")
         box.pack_start(labeled_row("Power profile", profile_combo), False, False, 0)
 
         box.pack_start(section_header("Lid close"), False, False, 0)
@@ -57,6 +59,8 @@ class PowerPanel(Gtk.Box):
             if i >= 0:
                 xf.set(CHANNEL, "/xfce4-power-manager/lid-action-on-battery", int(LID_VALUES[i]))
         lid_battery.connect("changed", on_lid_battery)
+        a11y(lid_battery, name="Lid-close action when on battery",
+             tooltip="What happens when the laptop lid closes on battery power")
         box.pack_start(labeled_row("On battery", lid_battery), False, False, 0)
 
         lid_ac = Gtk.ComboBoxText()
@@ -69,6 +73,8 @@ class PowerPanel(Gtk.Box):
             if i >= 0:
                 xf.set(CHANNEL, "/xfce4-power-manager/lid-action-on-ac", int(LID_VALUES[i]))
         lid_ac.connect("changed", on_lid_ac)
+        a11y(lid_ac, name="Lid-close action when on AC power",
+             tooltip="What happens when the laptop lid closes while plugged in")
         box.pack_start(labeled_row("On AC power", lid_ac), False, False, 0)
 
         box.pack_start(section_header("Idle"), False, False, 0)
@@ -77,6 +83,8 @@ class PowerPanel(Gtk.Box):
         def on_susp(s):
             xf.set(CHANNEL, "/xfce4-power-manager/inactivity-on-battery", int(s.get_value()))
         suspend.connect("value-changed", on_susp)
+        a11y(suspend, name="Idle-suspend timeout in minutes (on battery)",
+             tooltip="Minutes of inactivity before suspending — 0 disables (0–120)")
         box.pack_start(labeled_row("Suspend after (min)", suspend), False, False, 0)
 
         return box

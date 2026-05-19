@@ -26,6 +26,7 @@ from mackes.fleet import (
     FleetPeer, build_inventory, current_peer_name,
     list_playbooks, run_local_pull, run_push,
 )
+from mackes.workbench._common import a11y
 
 
 # ---- shared visual helpers -----------------------------------------------
@@ -109,7 +110,8 @@ class FleetInventoryPanel(Gtk.Box):
         # mesh. Off-main-thread; the status box stays empty until the
         # probe lands.
         from mackes.workbench._async import async_probe
-        async_probe(build_inventory, self._apply_refresh)
+        async_probe(build_inventory, self._apply_refresh,
+                    on_error=self._apply_refresh_error)
 
     def _build(self) -> None:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -178,13 +180,59 @@ class FleetInventoryPanel(Gtk.Box):
     def _refresh(self, *_) -> None:
         """Re-probe (button click + post-action refresh). Always async."""
         from mackes.workbench._async import async_probe
-        async_probe(build_inventory, self._apply_refresh)
+        async_probe(build_inventory, self._apply_refresh,
+                    on_error=self._apply_refresh_error)
+
+    def _apply_refresh_error(self, exc: BaseException) -> None:
+        """Phase 11.5: render an error tile in place of the peer list
+        when ``build_inventory()`` raises. Retry re-runs the probe."""
+        from mackes.workbench._common import error_state, format_probe_error
+
+        for c in list(self._status_notif_box.get_children()):
+            self._status_notif_box.remove(c)
+        for child in list(self._listbox.get_children()):
+            self._listbox.remove(child)
+
+        # Drop the error widget into a wrapper row of the listbox so the
+        # existing scroller still works.
+        row = Gtk.ListBoxRow()
+        row.set_selectable(False)
+        row.add(error_state(
+            "Couldn't load the fleet inventory",
+            format_probe_error(exc),
+            on_retry=self._refresh,
+        ))
+        self._listbox.add(row)
+        self._listbox.show_all()
+        self._peers = []
 
     def _apply_refresh(self, peers) -> None:
 
         # Status notification
         for c in list(self._status_notif_box.get_children()):
             self._status_notif_box.remove(c)
+
+        # Phase 11.5: explicit empty state — `build_inventory()` returns
+        # an empty list when the mesh isn't joined.
+        if not peers:
+            from mackes.workbench._common import empty_state
+
+            for child in list(self._listbox.get_children()):
+                self._listbox.remove(child)
+            empty_row = Gtk.ListBoxRow()
+            empty_row.set_selectable(False)
+            empty_row.add(empty_state(
+                "No peers in the fleet yet",
+                "Join the mesh from Network → Mesh VPN (or run "
+                "`mackes mesh join`) — peers appear here within "
+                "30 seconds of their first ansible-pull.",
+                icon_name="network-workgroup-symbolic",
+            ))
+            self._listbox.add(empty_row)
+            self._listbox.show_all()
+            self._peers = []
+            return
+
         online = sum(1 for p in peers if p.online)
         ok_24h = sum(1 for p in peers if p.last_pull_ok is True)
         if online == len(peers) and ok_24h > 0:
@@ -307,6 +355,8 @@ class FleetInventoryPanel(Gtk.Box):
         for pb in list_playbooks():
             pb_combo.append_text(pb.name)
         pb_combo.set_active(0)
+        a11y(pb_combo, name="Ansible playbook to run",
+             tooltip="Pick a curated playbook or use the default site.yml")
         body.pack_start(pb_combo, False, False, 0)
 
         modal = Modal(self.get_toplevel(), title, body, size=ModalSize.MEDIUM)

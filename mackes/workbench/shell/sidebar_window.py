@@ -608,6 +608,9 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
                 b.get_style_context().add_class("checked")
             b.set_tooltip_text(tip)
             b.set_relief(Gtk.ReliefStyle.NONE)
+            _ax = b.get_accessible()
+            if _ax is not None:
+                _ax.set_name(f"Switch to {label} mode — {tip}")
             header.pack_start(b, False, False, 0)
 
         # Spacer
@@ -624,6 +627,9 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         # removed. Repoint at the Setup Wizard so the chip is still
         # functional: it's the canonical preset-swap surface now.
         chip.connect("clicked", self._on_open_wizard)
+        _ax_chip = chip.get_accessible()
+        if _ax_chip is not None:
+            _ax_chip.set_name(f"Active preset is {preset_label} — click to open the Setup Wizard")
         header.pack_end(chip, False, False, 0)
 
         import getpass, socket
@@ -639,6 +645,9 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         ident.get_style_context().add_class("mackes-header-action")
         ident.set_relief(Gtk.ReliefStyle.NONE)
         ident.set_tooltip_text("Active user @ hostname")
+        _ax_id = ident.get_accessible()
+        if _ax_id is not None:
+            _ax_id.set_name(f"Signed in as {user} on {host}")
         header.pack_end(ident, False, False, 0)
 
         # Help button (one-click access)
@@ -648,6 +657,9 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         help_btn.set_relief(Gtk.ReliefStyle.NONE)
         help_btn.set_tooltip_text("Help")
         help_btn.connect("clicked", lambda *_: self.go_to("help"))
+        _ax_help = help_btn.get_accessible()
+        if _ax_help is not None:
+            _ax_help.set_name("Open Workbench help")
         header.pack_end(help_btn, False, False, 0)
 
         # v1.4.1 — always-visible Setup Wizard button (next to Help).
@@ -661,6 +673,9 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         wiz_btn.set_relief(Gtk.ReliefStyle.NONE)
         wiz_btn.set_tooltip_text("Open the Setup Wizard — re-run birthright")
         wiz_btn.connect("clicked", self._on_open_wizard)
+        _ax_wiz = wiz_btn.get_accessible()
+        if _ax_wiz is not None:
+            _ax_wiz.set_name("Open the Setup Wizard to re-run birthright")
         header.pack_end(wiz_btn, False, False, 0)
 
         # ---- Admin session lock/unlock button (v1.4.0) -------------------
@@ -670,6 +685,10 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         self._unlock_btn.get_style_context().add_class("mackes-header-action")
         self._unlock_btn.set_relief(Gtk.ReliefStyle.NONE)
         self._unlock_btn.connect("clicked", self._on_unlock_clicked)
+        _ax_unlock = self._unlock_btn.get_accessible()
+        if _ax_unlock is not None:
+            # Updated dynamically in _update_unlock_button.
+            _ax_unlock.set_name("Toggle admin session — locked or unlocked")
         self._update_unlock_button()
         self._admin.add_listener(lambda _ok: self._update_unlock_button())
         header.pack_end(self._unlock_btn, False, False, 0)
@@ -699,6 +718,14 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         self._unlock_btn.add(row)
         self._unlock_btn.show_all()
         self._unlock_btn.set_tooltip_text(tip)
+        _ax = self._unlock_btn.get_accessible()
+        if _ax is not None:
+            # Match the current state in the accessible name so screen
+            # readers don't say "Toggle admin session" forever.
+            _ax.set_name(
+                "Lock admin session" if self._admin.is_unlocked()
+                else "Unlock admin session"
+            )
 
     def _on_unlock_clicked(self, *_) -> None:
         if self._admin.is_unlocked():
@@ -764,6 +791,15 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
 
         btn.add(row)
         btn.connect("clicked", lambda *_: self.go_to(item.key))
+        # Side-nav buttons are the primary navigation surface — every
+        # one needs a screen-reader-friendly name. We include the group
+        # label implicitly via the item.label ("Wi-Fi & Ethernet" reads
+        # better than just "wifi" so we use the visible label).
+        btn.set_tooltip_text(f"Open the {item.label} panel")
+        _ax = btn.get_accessible()
+        if _ax is not None:
+            badge_suffix = f" ({item.badge})" if item.badge else ""
+            _ax.set_name(f"Open {item.label}{badge_suffix}")
         return btn
 
     def _build_status_bar(self) -> Gtk.Widget:
@@ -896,6 +932,11 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
                 ctx.add_class("active")
             else:
                 ctx.remove_class("active")
+
+        # 1.1.0 — expose the active panel key for the --focus toggle
+        # detector in app.py (suggestion #5: second click on the same
+        # status-cluster slug closes the workbench).
+        self._active_panel_key = item.key
 
         # Persist active panel — skip the disk write if unchanged.
         if self._tweaks.get("active_panel") != item.key:

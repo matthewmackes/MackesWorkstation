@@ -31,12 +31,20 @@ Mackes ships a complete peer-to-peer mesh built on five layers:
 - **[Mesh Media Services](mesh-services.md)** — discover Jellyfin, Airsonic, Plex, etc. across the mesh
 - **[Headless Node Mode](headless.md)** — full mesh on fileservers without a display
 
+## Phones & tablets
+
+- **[KDE Connect](kde-connect.md)** — paired phones / tablets surface in
+  Workbench Connect, and the mesh-mDNS bridge keeps them reachable when
+  they leave your LAN.
+
 ## Quick links
 
 - **[Getting Started](getting-started.md)** — first-run wizard walkthrough
 - **[Presets](presets.md)** — the 4+1 shipped presets explained
 - **[CLI Reference](cli-reference.md)** — every `mackes` subcommand
 - **[Keyboard shortcuts](keybindings.md)**
+- **[Wayland support](wayland.md)** — what works on Wayland today (and
+  why GNOME-shell on Wayland is not supported)
 - **[Troubleshooting](troubleshooting.md)**
 
 ## About

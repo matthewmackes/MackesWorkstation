@@ -13,7 +13,7 @@ from mackes.presets import apply_preset, list_presets, load_preset
 from mackes.snapshots import create_snapshot
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    error_label, info_label, labeled_row, panel_box, section_description, section_header, title_label,
+    a11y, error_label, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -50,6 +50,8 @@ class ResetToPresetPanel(Gtk.Box):
             combo.append_text(lbl)
         active = self.state.active_preset or names[0]
         combo.set_active(names.index(active) if active in names else 0)
+        a11y(combo, name="Choose preset to apply",
+             tooltip="Pick which built-in preset to reset to")
         box.pack_start(labeled_row("Apply", combo), False, False, 0)
 
         self._description = Gtk.Label(label=presets[0].description)
@@ -67,11 +69,16 @@ class ResetToPresetPanel(Gtk.Box):
         for sect in ("appearance", "shell", "devices", "system", "network"):
             cb = Gtk.CheckButton(label=sect.title())
             cb.set_active(True)
+            a11y(cb, name=f"Include {sect} when resetting to preset",
+                 tooltip=f"Overwrite {sect} settings to match the chosen preset")
             box.pack_start(cb, False, False, 0)
             self._section_checks[sect] = cb
 
         self._snapshot_first = Gtk.CheckButton(label="Create a snapshot first (recommended)")
         self._snapshot_first.set_active(True)
+        a11y(self._snapshot_first,
+             name="Create a snapshot before applying the preset",
+             tooltip="Save the current configuration as a snapshot so you can roll back")
         box.pack_start(self._snapshot_first, False, False, 0)
 
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -82,6 +89,8 @@ class ResetToPresetPanel(Gtk.Box):
             if i >= 0:
                 self._apply(names[i])
         apply_btn.connect("clicked", _on_apply)
+        a11y(apply_btn, name="Apply the chosen preset now (destructive)",
+             tooltip="Overwrite the selected sections with the chosen preset")
         bar.pack_start(apply_btn, False, False, 0)
         box.pack_start(bar, False, False, 0)
 

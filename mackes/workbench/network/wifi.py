@@ -10,15 +10,29 @@ from gi.repository import Gtk, GLib  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
+    a11y, empty_state, error_state, format_probe_error,
     info_label, panel_box, section_description, section_header, title_label,
 )
+
+
+class _NmcliError(RuntimeError):
+    """nmcli ran but exited non-zero — wrapped so the panel can distinguish
+    a probe failure from a legitimately empty result. Phase 11.5."""
 
 
 def _nmcli(*args: str, timeout: int = 8) -> str:
     try:
         return subprocess.check_output(["nmcli", *args], text=True, stderr=subprocess.STDOUT,
                                        timeout=timeout).strip()
-    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except (FileNotFoundError, subprocess.CalledProcessError,
+            subprocess.TimeoutExpired) as exc:
+        raise _NmcliError(format_probe_error(exc)) from exc
+
+
+def _nmcli_or_blank(*args: str, timeout: int = 8) -> str:
+    try:
+        return _nmcli(*args, timeout=timeout)
+    except _NmcliError:
         return ""
 
 
@@ -60,9 +74,14 @@ class WifiPanel(Gtk.Box):
             "Changes here apply the moment you click."
         ), False, False, 0)
 
-        if not _nmcli("--version"):
-            box.pack_start(info_label("nmcli not available — install NetworkManager."),
-                           False, False, 0)
+        if not _nmcli_or_blank("--version"):
+            box.pack_start(error_state(
+                "NetworkManager not available",
+                "`nmcli` isn't installed or isn't on $PATH. Install "
+                "NetworkManager (Maintain → Dependencies) and reopen "
+                "this panel.",
+                retry_label=None,
+            ), True, True, 0)
             self.add(box); return
 
         # Active connections section
@@ -77,6 +96,8 @@ class WifiPanel(Gtk.Box):
 
         refresh = Gtk.Button(label="Rescan")
         refresh.connect("clicked", lambda *_: self._async_refresh())
+        a11y(refresh, name="Rescan for Wi-Fi networks",
+             tooltip="Re-run nmcli device wifi list to refresh the network list")
         box.pack_start(refresh, False, False, 0)
 
         self._async_refresh()
@@ -103,6 +124,8 @@ class WifiPanel(Gtk.Box):
                 log_action(f"network: disconnected {name}")
                 GLib.idle_add(self._refresh)
             disc.connect("clicked", _on_disc)
+            a11y(disc, name=f"Disconnect from {c['name']}",
+                 tooltip=f"Tear down the {c['name']} connection on {c['device']}")
             row.pack_end(disc, False, False, 0)
             self._conn_list.pack_start(row, False, False, 0)
         if not any_row:
@@ -124,6 +147,9 @@ class WifiPanel(Gtk.Box):
             def _on_connect(_b, ssid=net["ssid"], secured=bool(net["security"])):
                 self._connect_dialog(ssid, secured)
             connect.connect("clicked", _on_connect)
+            sec_label = net["security"] or "open"
+            a11y(connect, name=f"Connect to Wi-Fi network {net['ssid']} ({sec_label})",
+                 tooltip=f"Join the {net['ssid']} network — {sec_label}, signal {net['signal']}%")
             row.pack_end(connect, False, False, 0)
             self._scan_list.pack_start(row, False, False, 0)
         if not any_row:
@@ -141,6 +167,8 @@ class WifiPanel(Gtk.Box):
         pwd = Gtk.Entry()
         pwd.set_visibility(False)
         pwd.set_placeholder_text("Password")
+        a11y(pwd, name=f"Password for Wi-Fi network {ssid}",
+             tooltip="Password is hidden as you type")
         if secured:
             content.add(Gtk.Label(label="Password:"))
             content.add(pwd)

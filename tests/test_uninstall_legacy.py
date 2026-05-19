@@ -1,0 +1,387 @@
+"""Tests for `apply_uninstall_legacy_xfce` (Phase 10.6.6).
+
+Three behavioral guarantees the step has to satisfy:
+
+  (a) panel-swap prerequisite — refuses to call dnf when mackes-panel
+      isn't running or apply_panel_swap hasn't written the user-side
+      xfce4-panel.desktop autostart override with Hidden=true.
+
+  (b) idempotency — if none of the six canonical packages are installed
+      (already removed, or never installed), the step skips the dnf
+      call cleanly.
+
+  (c) command shape — when both gates pass and at least one package is
+      installed, the step issues exactly ONE `dnf remove -y` invocation
+      listing the canonical six packages.
+
+All three tests mock `shutil.which`, `subprocess.run`, and the
+AdminSession runner so they never touch the developer's real dnf
+or pgrep. No fixtures used — the file is _run_without_pytest-compatible.
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import List
+from unittest.mock import patch
+
+
+# ---------------------------------------------------------------------------
+# Test scaffolding
+# ---------------------------------------------------------------------------
+
+
+_LEGACY = (
+    "xfce4-panel",
+    "xfdesktop",
+    "xfce4-whiskermenu-plugin",
+    "xfce4-docklike-plugin",
+    "xfce4-pulseaudio-plugin",
+    "xfce4-power-manager-plugin",
+)
+
+
+class _FakeProc:
+    """subprocess.run() return-value stand-in (returncode-only)."""
+
+    __slots__ = ("returncode", "stdout", "stderr")
+
+    def __init__(self, rc: int = 0, stdout: str = "", stderr: str = "") -> None:
+        self.returncode = rc
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+def _make_subprocess_run(scenarios: dict):
+    """Return a callable suitable to replace `subprocess.run` in the
+    birthright module. `scenarios` is a dict of {first-arg: _FakeProc}
+    keyed on the command's argv[0] (`pgrep`, `rpm`, etc.). A "default"
+    key catches unmatched calls."""
+    def run(cmd, *a, **kw):
+        # Allow per-cmd[0:2] override (e.g. (rpm,-q,xfce4-panel))
+        key = tuple(cmd[:2]) if len(cmd) >= 2 else (cmd[0] if cmd else "default",)
+        if key in scenarios:
+            return scenarios[key]
+        if cmd and cmd[0] in scenarios:
+            return scenarios[cmd[0]]
+        return scenarios.get("default", _FakeProc(rc=0))
+    return run
+
+
+def _make_run(stdout: str = "", rc: int = 0):
+    """Replacement for birthright._run that returns (rc, out)."""
+    def fake_run(cmd, *, timeout=60):
+        return rc, stdout
+    return fake_run
+
+
+def _make_run_root(captured: List[list]):
+    """Replacement for birthright._run_root that appends each call's
+    argv into `captured` and returns (0, '')."""
+    def fake_run_root(cmd, *, timeout=300):
+        captured.append(list(cmd))
+        return 0, ""
+    return fake_run_root
+
+
+def _make_run_root_failing(captured: List[list], rc: int = 1,
+                            output: str = "Error: nothing to do"):
+    def fake_run_root(cmd, *, timeout=300):
+        captured.append(list(cmd))
+        return rc, output
+    return fake_run_root
+
+
+# ---------------------------------------------------------------------------
+# (a) Prerequisite detection
+# ---------------------------------------------------------------------------
+
+
+def test_skips_when_mackes_panel_not_running():
+    """Gate (a): pgrep -x mackes-panel returns rc=1 → step is a no-op."""
+    from mackes import birthright
+
+    # pgrep -x mackes-panel → not found (rc=1). dnf is present so we
+    # get past the first early-return.
+    sp_scenarios = {
+        ("pgrep", "-x"): _FakeProc(rc=1),
+        "default":      _FakeProc(rc=0),
+    }
+    captured: List[list] = []
+    with patch.object(birthright.shutil, "which", side_effect=lambda c: f"/usr/bin/{c}"):
+        with patch.object(birthright.subprocess, "run",
+                          side_effect=_make_subprocess_run(sp_scenarios)):
+            with patch.object(birthright, "_run_root",
+                              side_effect=_make_run_root(captured)):
+                with patch.object(birthright, "_run",
+                                  side_effect=_make_run()):
+                    actions = birthright.apply_uninstall_legacy_xfce(None)
+
+    assert captured == [], (
+        f"expected no _run_root calls when mackes-panel not running; got {captured}"
+    )
+    joined = "\n".join(actions)
+    assert "panel-swap prerequisite not met" in joined, joined
+    assert "mackes-panel is not running" in joined, joined
+
+
+def test_skips_when_autostart_override_missing():
+    """Gate (a) part 2: even with mackes-panel running, no autostart
+    override (~/.config/autostart/xfce4-panel.desktop) means the swap
+    didn't finish on this account."""
+    from mackes import birthright
+
+    sp_scenarios = {
+        ("pgrep", "-x"): _FakeProc(rc=0),  # mackes-panel IS running
+        "default":      _FakeProc(rc=0),
+    }
+    captured: List[list] = []
+    # Point HOME at an empty tmpdir so the autostart file doesn't exist
+    # AND xfce4-panel exists at /usr/bin so we don't short-circuit on
+    # "no xfce4-panel ever installed".
+    with tempfile.TemporaryDirectory() as td:
+        old_home = os.environ.get("HOME")
+        os.environ["HOME"] = td
+        try:
+            def which(cmd):
+                # Pretend everything is available, including xfce4-panel.
+                return f"/usr/bin/{cmd}"
+            with patch.object(birthright.shutil, "which", side_effect=which):
+                with patch.object(birthright.subprocess, "run",
+                                  side_effect=_make_subprocess_run(sp_scenarios)):
+                    with patch.object(birthright, "_run_root",
+                                      side_effect=_make_run_root(captured)):
+                        with patch.object(birthright, "_run",
+                                          side_effect=_make_run()):
+                            actions = birthright.apply_uninstall_legacy_xfce(None)
+        finally:
+            if old_home is not None:
+                os.environ["HOME"] = old_home
+            else:
+                del os.environ["HOME"]
+
+    assert captured == [], (
+        f"expected no _run_root call when autostart override missing; got {captured}"
+    )
+    joined = "\n".join(actions)
+    assert "panel-swap prerequisite not met" in joined, joined
+    assert "apply_panel_swap" in joined or "hasn't been run" in joined, joined
+
+
+# ---------------------------------------------------------------------------
+# (b) Idempotency — no packages installed → no dnf call
+# ---------------------------------------------------------------------------
+
+
+def test_idempotent_when_no_packages_installed():
+    """Gate (b): apply_panel_swap has succeeded AND none of the six
+    legacy packages are present → still no-op. Re-runs after the first
+    cleanup should never re-shell out to dnf."""
+    from mackes import birthright
+
+    sp_scenarios = {
+        ("pgrep", "-x"): _FakeProc(rc=0),  # mackes-panel running
+        "default":      _FakeProc(rc=0),
+    }
+    captured_root: List[list] = []
+    captured_run: List[list] = []
+
+    def fake_run(cmd, *, timeout=60):
+        captured_run.append(list(cmd))
+        # `rpm -q <pkg>` always reports not-installed (rc=1).
+        if cmd and cmd[0] == "rpm" and cmd[1:2] == ["-q"]:
+            return 1, "package not installed"
+        return 0, ""
+
+    with tempfile.TemporaryDirectory() as td:
+        # Stage the autostart override so the panel-swap gate passes.
+        autostart = Path(td) / ".config" / "autostart" / "xfce4-panel.desktop"
+        autostart.parent.mkdir(parents=True, exist_ok=True)
+        autostart.write_text(
+            "[Desktop Entry]\nType=Application\nHidden=true\n"
+            "X-XFCE-Autostart-enabled=false\n", encoding="utf-8")
+        old_home = os.environ.get("HOME")
+        os.environ["HOME"] = td
+        try:
+            with patch.object(birthright.shutil, "which",
+                              side_effect=lambda c: f"/usr/bin/{c}"):
+                with patch.object(birthright.subprocess, "run",
+                                  side_effect=_make_subprocess_run(sp_scenarios)):
+                    with patch.object(birthright, "_run_root",
+                                      side_effect=_make_run_root(captured_root)):
+                        with patch.object(birthright, "_run", side_effect=fake_run):
+                            actions = birthright.apply_uninstall_legacy_xfce(None)
+        finally:
+            if old_home is not None:
+                os.environ["HOME"] = old_home
+            else:
+                del os.environ["HOME"]
+
+    # The step should have rpm-queried all six packages (idempotency probe).
+    rpm_q_calls = [c for c in captured_run if c[:2] == ["rpm", "-q"]]
+    assert len(rpm_q_calls) == len(_LEGACY), (
+        f"expected an rpm -q probe for each of {len(_LEGACY)} legacy "
+        f"packages; got {len(rpm_q_calls)} ({rpm_q_calls})"
+    )
+    # …and skipped the dnf call entirely.
+    assert captured_root == [], (
+        f"expected no dnf call when no packages installed; got {captured_root}"
+    )
+    joined = "\n".join(actions)
+    assert "no legacy XFCE packages installed" in joined, joined
+
+
+# ---------------------------------------------------------------------------
+# (c) The right dnf remove invocation
+# ---------------------------------------------------------------------------
+
+
+def test_emits_canonical_dnf_remove_command():
+    """Gate (c): when both gates pass and at least one of the six
+    packages is installed, the step calls `_run_root` exactly once
+    with the canonical `dnf remove -y <six packages>` argv."""
+    from mackes import birthright
+
+    sp_scenarios = {
+        ("pgrep", "-x"): _FakeProc(rc=0),
+        "default":      _FakeProc(rc=0),
+    }
+    captured_root: List[list] = []
+
+    def fake_run(cmd, *, timeout=60):
+        # Pretend xfce4-panel + xfdesktop are installed; the rest aren't.
+        if cmd[:2] == ["rpm", "-q"]:
+            if cmd[2] in ("xfce4-panel", "xfdesktop"):
+                return 0, "xfce4-panel-4.x"
+            return 1, "package not installed"
+        return 0, ""
+
+    with tempfile.TemporaryDirectory() as td:
+        autostart = Path(td) / ".config" / "autostart" / "xfce4-panel.desktop"
+        autostart.parent.mkdir(parents=True, exist_ok=True)
+        autostart.write_text(
+            "[Desktop Entry]\nType=Application\nHidden=true\n",
+            encoding="utf-8")
+        old_home = os.environ.get("HOME")
+        os.environ["HOME"] = td
+        try:
+            with patch.object(birthright.shutil, "which",
+                              side_effect=lambda c: f"/usr/bin/{c}"):
+                with patch.object(birthright.subprocess, "run",
+                                  side_effect=_make_subprocess_run(sp_scenarios)):
+                    with patch.object(birthright, "_run_root",
+                                      side_effect=_make_run_root(captured_root)):
+                        with patch.object(birthright, "_run", side_effect=fake_run):
+                            actions = birthright.apply_uninstall_legacy_xfce(None)
+        finally:
+            if old_home is not None:
+                os.environ["HOME"] = old_home
+            else:
+                del os.environ["HOME"]
+
+    assert len(captured_root) == 1, (
+        f"expected exactly one dnf remove call; got {len(captured_root)} "
+        f"({captured_root})"
+    )
+    cmd = captured_root[0]
+    assert cmd[0] == "dnf", f"argv[0] should be dnf, got {cmd!r}"
+    assert cmd[1] == "remove", f"argv[1] should be remove, got {cmd!r}"
+    assert cmd[2] == "-y", f"argv[2] should be -y, got {cmd!r}"
+    # Every canonical package must appear, in the locked order.
+    assert tuple(cmd[3:]) == _LEGACY, (
+        f"argv tail should be the six legacy packages in lock order;\n"
+        f"  got      {cmd[3:]!r}\n  expected {list(_LEGACY)!r}"
+    )
+    joined = "\n".join(actions)
+    assert "uninstall-legacy-xfce: removed" in joined, joined
+    # The action log should mention what was actually installed (not the
+    # whole canonical list) so the user sees what dnf actually dropped.
+    assert "xfce4-panel" in joined and "xfdesktop" in joined, joined
+
+
+# ---------------------------------------------------------------------------
+# (d) Failure path — dnf returned non-zero
+# ---------------------------------------------------------------------------
+
+
+def test_dnf_failure_is_reported_not_raised():
+    """Birthright steps never raise — failures land in the action log."""
+    from mackes import birthright
+
+    sp_scenarios = {
+        ("pgrep", "-x"): _FakeProc(rc=0),
+        "default":      _FakeProc(rc=0),
+    }
+    captured: List[list] = []
+
+    def fake_run(cmd, *, timeout=60):
+        if cmd[:2] == ["rpm", "-q"] and cmd[2] == "xfce4-panel":
+            return 0, "xfce4-panel-4.x"
+        if cmd[:2] == ["rpm", "-q"]:
+            return 1, ""
+        return 0, ""
+
+    with tempfile.TemporaryDirectory() as td:
+        autostart = Path(td) / ".config" / "autostart" / "xfce4-panel.desktop"
+        autostart.parent.mkdir(parents=True, exist_ok=True)
+        autostart.write_text("[Desktop Entry]\nHidden=true\n", encoding="utf-8")
+        old_home = os.environ.get("HOME")
+        os.environ["HOME"] = td
+        try:
+            with patch.object(birthright.shutil, "which",
+                              side_effect=lambda c: f"/usr/bin/{c}"):
+                with patch.object(birthright.subprocess, "run",
+                                  side_effect=_make_subprocess_run(sp_scenarios)):
+                    with patch.object(birthright, "_run_root",
+                                      side_effect=_make_run_root_failing(
+                                          captured, rc=1,
+                                          output="Error: yum lock held")):
+                        with patch.object(birthright, "_run", side_effect=fake_run):
+                            actions = birthright.apply_uninstall_legacy_xfce(None)
+        finally:
+            if old_home is not None:
+                os.environ["HOME"] = old_home
+            else:
+                del os.environ["HOME"]
+
+    joined = "\n".join(actions)
+    assert "dnf remove failed" in joined, joined
+    assert "yum lock held" in joined, joined
+
+
+# ---------------------------------------------------------------------------
+# (e) Spec audit: every legacy package is Obsoleted by the renamed RPM
+# ---------------------------------------------------------------------------
+
+
+def test_spec_obsoletes_all_six_legacy_packages():
+    """The spec must Obsolete every package the runtime step removes,
+    so `dnf install mackes-xfce-workstation` cleans them up on upgrade."""
+    repo_root = Path(__file__).resolve().parent.parent
+    spec_path = repo_root / "packaging" / "fedora" / "mackes-shell.spec"
+    text = spec_path.read_text(encoding="utf-8")
+    missing = []
+    for pkg in _LEGACY:
+        # Match "Obsoletes:<whitespace>pkg" at line start.
+        # Accept a trailing version constraint or end-of-line.
+        needle = f"Obsoletes:"
+        found = False
+        for line in text.splitlines():
+            if line.strip().startswith(needle):
+                rhs = line.split(":", 1)[1].strip()
+                # Strip an optional " < 3.0"-style suffix
+                head = rhs.split(None, 1)[0]
+                if head == pkg:
+                    found = True
+                    break
+        if not found:
+            missing.append(pkg)
+    assert not missing, (
+        f"spec is missing Obsoletes: entries for {missing}. "
+        "apply_uninstall_legacy_xfce removes them at runtime but "
+        "dnf install mackes-xfce-workstation won't sweep them on upgrade."
+    )

@@ -126,6 +126,12 @@ class MaintainHub(Gtk.Box):
         btn = Gtk.Button()
         btn.set_relief(Gtk.ReliefStyle.NONE)
         btn.connect("clicked", lambda *_: self._on_open(key))
+        # Accessible name = the card's title + description so screen
+        # readers say more than just the icon when the user tabs in.
+        btn.set_tooltip_text(f"{title} — {desc}")
+        ax = btn.get_accessible()
+        if ax is not None:
+            ax.set_name(f"Open Maintain → {title}")
 
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         card.get_style_context().add_class("mackes-app-card")

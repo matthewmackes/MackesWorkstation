@@ -33,6 +33,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 from mackes.admin_session import AdminSession
 from mackes.probe_cache import cached, invalidate
 from mackes.workbench._common import (
+    a11y,
     info_label,
     panel_box,
     section_description,
@@ -163,11 +164,16 @@ class BootLoginPanel(Gtk.Box):
         box.pack_start(self._plymouth_current, False, False, 0)
 
         self._plymouth_combo = Gtk.ComboBoxText()
+        a11y(self._plymouth_combo, name="Choose Plymouth boot-splash theme",
+             tooltip="Pick the boot animation theme")
         box.pack_start(self._plymouth_combo, False, False, 0)
 
         self._plymouth_apply = Gtk.Button(label="Apply boot theme")
         self._plymouth_apply.get_style_context().add_class("suggested-action")
         self._plymouth_apply.connect("clicked", lambda *_: self._apply_plymouth())
+        a11y(self._plymouth_apply,
+             name="Apply the chosen Plymouth boot-splash theme (rebuilds initramfs)",
+             tooltip="Run plymouth-set-default-theme — requires authentication")
         box.pack_start(self._plymouth_apply, False, False, 0)
 
         self._plymouth_status = Gtk.Label(label="")
@@ -194,12 +200,20 @@ class BootLoginPanel(Gtk.Box):
         row.set_margin_top(8)
         self._autologin_entry = Gtk.Entry()
         self._autologin_entry.set_placeholder_text("username to auto-log-in")
+        a11y(self._autologin_entry, name="Username for auto-login",
+             tooltip="System account that should auto-log-in at boot")
         row.pack_start(self._autologin_entry, True, True, 0)
         self._autologin_apply = Gtk.Button(label="Set auto-login")
         self._autologin_apply.connect("clicked", lambda *_: self._apply_autologin(True))
+        a11y(self._autologin_apply,
+             name="Enable auto-login for the typed user (requires authentication)",
+             tooltip="Configure LightDM to skip the login prompt for this user")
         row.pack_start(self._autologin_apply, False, False, 0)
         self._autologin_disable = Gtk.Button(label="Disable auto-login")
         self._autologin_disable.connect("clicked", lambda *_: self._apply_autologin(False))
+        a11y(self._autologin_disable,
+             name="Disable auto-login (require login prompt for everyone)",
+             tooltip="Remove the LightDM auto-login configuration")
         row.pack_start(self._autologin_disable, False, False, 0)
         box.pack_start(row, False, False, 0)
 

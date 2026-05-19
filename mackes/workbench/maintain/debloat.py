@@ -153,12 +153,16 @@ class DebloatPanel(Gtk.Box):
         apply_row.pack_start(
             Button("Apply debloat level", kind=ButtonKind.DANGER,
                    icon_name="user-trash-symbolic",
-                   on_click=self._on_apply),
+                   on_click=self._on_apply,
+                   accessible_name="Apply the selected debloat level (destructive — removes packages)",
+                   tooltip="Run dnf remove for every package in the selected level"),
             False, False, 0)
         apply_row.pack_start(
             Button("Open snapshots first", kind=ButtonKind.TERTIARY,
                    icon_name="document-revert-symbolic",
-                   on_click=self._on_open_snapshots),
+                   on_click=self._on_open_snapshots,
+                   accessible_name="Open the Snapshots panel to create a restore point",
+                   tooltip="Navigate to Maintain → Snapshots — create one before debloat"),
             False, False, 0)
         apply_tile.pack(apply_row)
         outer.pack_start(apply_tile, False, False, 0)
@@ -191,6 +195,10 @@ class DebloatPanel(Gtk.Box):
         if lvl.n == self._selected_level:
             radio.set_active(True)
         radio.connect("toggled", self._on_level_toggled, lvl.n)
+        radio.set_tooltip_text(f"L{lvl.n} — {lvl.name}: {lvl.blurb}")
+        ax = radio.get_accessible()
+        if ax is not None:
+            ax.set_name(f"Select debloat level L{lvl.n} ({lvl.name})")
         row.pack_start(radio, False, False, 0)
 
         text_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)

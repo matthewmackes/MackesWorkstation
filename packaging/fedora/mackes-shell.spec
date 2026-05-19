@@ -5,7 +5,7 @@
 %global debug_package %{nil}
 
 Name:           mackes-xfce-workstation
-Version:        1.0.8
+Version:        1.1.0
 Release:        1%{?dist}
 Summary:        Mackes XFCE Workstation — unified shell, panel, dock, and mesh for Fedora
 
@@ -19,6 +19,21 @@ Source0:        mackes-shell-%{version}.tar.gz
 # package. dnf upgrade auto-replaces installations on the 2.x train.
 Provides:       mackes-shell = %{version}-%{release}
 Obsoletes:      mackes-shell < 3.0
+
+# Phase 10.6.6 — mackes-panel (Rust) fully replaces the legacy XFCE
+# panel + desktop + plugin stack. Listing them as Obsoletes means
+# `dnf install mackes-xfce-workstation` removes them cleanly on
+# upgrade boxes, paralleling the apply_uninstall_legacy_xfce
+# birthright step (which handles the runtime/on-disk cleanup for
+# already-installed nodes). The `< 999` upper-bound silences the
+# rpmlint unversioned-Obsoletes warning while still covering every
+# real-world version (current xfce4-panel is 4.20.x).
+Obsoletes:      xfce4-panel < 999
+Obsoletes:      xfdesktop < 999
+Obsoletes:      xfce4-whiskermenu-plugin < 999
+Obsoletes:      xfce4-docklike-plugin < 999
+Obsoletes:      xfce4-pulseaudio-plugin < 999
+Obsoletes:      xfce4-power-manager-plugin < 999
 
 # Arch-specific (was BuildArch:noarch in 0.x): the package now carries a
 # compiled C xfce4-panel external plugin under %{_libdir}/xfce4/panel/
@@ -58,16 +73,25 @@ Requires:       i3
 Requires:       i3status
 Requires:       dmenu
 
-# 1.6.7 — the wizard's apply_panel_layout step now drives
-# `xfce4-panel-profiles load` rather than writing xfconf keys by hand.
-# Hard Require: without the tool the panel layout step no-ops and the
-# user gets xfce4-panel's own default layout — annoying but not broken.
-Requires:       xfce4-panel-profiles
+# Phase 10.6.6 (1.1.0) — xfce4-panel-profiles + the three xfce4-panel
+# plugins are NOT required any more: mackes-panel replaces xfce4-panel
+# entirely, and the four Obsoletes above mean dnf will refuse to pull
+# them back in. apply_panel_layout (birthright) skips itself gracefully
+# when xfce4-panel-profiles isn't installed; the wizard's legacy
+# panel-archive step preserves any pre-1.0 layout for reference.
+#
+# 1.1.0 — Right-click Start menu spawns the comprehensive Fedora admin
+# action set (Root Terminal / DNF / journalctl / systemctl / SELinux /
+# firewall / sudoedit / disk-clean) inside a terminator window with
+# the shell kept open after the command finishes (Q15/Q16 lock).
+Requires:       terminator
 
-# XFCE shell pieces required by the standard layout (Q19 lock)
-Requires:       xfce4-whiskermenu-plugin
-Requires:       xfce4-docklike-plugin
-Requires:       xfce4-pulseaudio-plugin
+# Phase 13.1.1 — KDE Connect Option A integration. Mackes ships its
+# own Workbench GUI talking `org.kde.kdeconnect.*` DBus + a mesh-mDNS
+# bridge so remote phones feel local. The upstream `kdeconnectd`
+# daemon stays user-session-autostarted (handled by upstream's own
+# `.desktop`); only its tray indicator is suppressed below.
+Requires:       kdeconnectd
 # Note: on Fedora 44+ the power-manager panel plugin ships inside the
 # parent xfce4-power-manager package (libxfce4powermanager.so); there
 # is no separate xfce4-power-manager-plugin RPM.
@@ -365,6 +389,13 @@ install -D -m 0755 bin/mackes-wm                              %{buildroot}%{_bin
 # 1.0.7 — default i3 config shipped to /usr/share/mackes-shell/i3/.
 # mackes-wm seeds ~/.config/i3/config from this file on first switch.
 install -D -m 0644 data/i3/config %{buildroot}%{_datadir}/%{name}/i3/config
+# 1.1.x — Phase 6.4 hotkeys + Phase 3.6 apple-menu shortcut land as a
+# config.d drop-in so user overrides at
+# ~/.config/i3/config.d/mackes-overrides.conf load alphabetically
+# after our defaults. The main config already `include`s the
+# directory (added 1.1.0 for the gaps profile picker).
+install -D -m 0644 data/i3/config.d/mackes-defaults.conf \
+    %{buildroot}%{_datadir}/%{name}/i3/config.d/mackes-defaults.conf
 # headscale.service is owned by the upstream `headscale` RPM at the same
 # path; shipping our copy would cause a file-conflict on dnf install.
 # Our data/systemd/headscale.service is kept in the source tree as a
@@ -372,6 +403,15 @@ install -D -m 0644 data/i3/config %{buildroot}%{_datadir}/%{name}/i3/config
 # systemd drop-in at /etc/systemd/system/headscale.service.d/mackes.conf.
 install -d %{buildroot}%{_userunitdir}
 install -m 0644 data/systemd/mackes-gvfsd-mesh.service       %{buildroot}%{_userunitdir}/
+
+# 1.1.0 — systemd user-preset for the Mackes user units. Fedora reads
+# files under /usr/lib/systemd/user-preset/ in lexical order to decide
+# whether a unit is enabled by default on first encounter for new
+# accounts. Without this, the clipboard daemon shipped fine but never
+# auto-started (reported as a 1.0.x bug — the mesh clipboard service
+# wasn't running after install).
+install -D -m 0644 data/systemd/90-mackes.preset \
+    %{buildroot}%{_prefix}/lib/systemd/user-preset/90-mackes.preset
 
 # 4c. Tumbler thumbnailer
 install -D -m 0644 data/thumbnailers/mackes-mesh.thumbnailer \
@@ -479,6 +519,25 @@ install -m 0755 bin/mackes-enforce-session \
 install -D -m 0644 data/applications/mackes-enforce-session.desktop \
     %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-enforce-session.desktop
 
+# 6c-bis. Phase 13.1.1 — kdeconnect-indicator autostart override.
+# Mackes ships its own Workbench Connect GUI, so the upstream tray
+# indicator would double up next to it. The daemon (`kdeconnectd`)
+# stays autostarted by its own .desktop; only the indicator is
+# suppressed.
+install -d %{buildroot}%{_sysconfdir}/xdg/autostart
+cat > %{buildroot}%{_sysconfdir}/xdg/autostart/kdeconnect-indicator.desktop <<'KDC_EOF'
+[Desktop Entry]
+Type=Application
+Name=KDE Connect indicator (disabled by Mackes)
+Comment=Mackes Workbench Connect provides the native UI.
+Exec=true
+Hidden=true
+NoDisplay=true
+X-XFCE-Autostart-enabled=false
+X-GNOME-Autostart-enabled=false
+KDC_EOF
+chmod 0644 %{buildroot}%{_sysconfdir}/xdg/autostart/kdeconnect-indicator.desktop
+
 # 6c. xfce4-panel autostart override — Hidden=true, mirrors the
 # xfdesktop override at line ~400. xfce4-panel ships its own
 # /etc/xdg/autostart/xfce4-panel.desktop, so we install ours at a
@@ -559,6 +618,7 @@ fi
 %config %{_sysconfdir}/xdg/autostart/xfdesktop.desktop
 %config %{_sysconfdir}/xdg/autostart/mackes-enforce-session.desktop
 %config %{_sysconfdir}/xdg/autostart/mackes-suppress-xfce4-panel.desktop
+%config %{_sysconfdir}/xdg/autostart/kdeconnect-indicator.desktop
 %{_metainfodir}/io.github.matthewmackes.MackesShell.metainfo.xml
 %{_metainfodir}/shell.mackes.Panel.metainfo.xml
 %{_datadir}/gvfs/mounts/mesh.mount
@@ -572,6 +632,7 @@ fi
 %{_unitdir}/mackes-ansible-pull.timer
 %{_userunitdir}/mackes-gvfsd-mesh.service
 %{_userunitdir}/mackes-clipboard-daemon.service
+%{_prefix}/lib/systemd/user-preset/90-mackes.preset
 %{_userunitdir}/mackes-remmina-sync.service
 %{_userunitdir}/mackes-remmina-sync.timer
 %{_userunitdir}/mackes-media-sync.service

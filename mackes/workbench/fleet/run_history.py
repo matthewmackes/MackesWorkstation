@@ -23,6 +23,7 @@ from mackes.carbon import (
 from mackes.fleet import (
     RunRecord, build_inventory, list_playbooks, list_runs, prune_runs,
 )
+from mackes.workbench._common import a11y
 
 
 # ---- shared helpers ------------------------------------------------------
@@ -90,7 +91,8 @@ class FleetRunHistoryPanel(Gtk.Box):
         # 11.9 reliability: build_inventory + list_playbooks + list_runs
         # together take ~7 s on a 16-peer mesh. Off-main-thread.
         from mackes.workbench._async import async_probe
-        async_probe(self._gather_refresh_state, self._apply_refresh)
+        async_probe(self._gather_refresh_state, self._apply_refresh,
+                    on_error=self._apply_refresh_error)
 
     def _gather_refresh_state(self):
         peers = build_inventory()
@@ -136,6 +138,8 @@ class FleetRunHistoryPanel(Gtk.Box):
         self._peer_combo.append_text("All peers")
         self._peer_combo.set_active(0)
         self._peer_combo.connect("changed", self._on_filter_peer)
+        a11y(self._peer_combo, name="Filter fleet runs by peer",
+             tooltip="Show only Ansible runs from the chosen mesh peer")
         filter_row.pack_start(self._peer_combo, False, False, 0)
 
         lbl2 = Gtk.Label(label="Playbook:"); lbl2.set_xalign(0)
@@ -145,6 +149,8 @@ class FleetRunHistoryPanel(Gtk.Box):
         self._pb_combo.append_text("All playbooks")
         self._pb_combo.set_active(0)
         self._pb_combo.connect("changed", self._on_filter_playbook)
+        a11y(self._pb_combo, name="Filter fleet runs by playbook",
+             tooltip="Show only runs of the chosen Ansible playbook")
         filter_row.pack_start(self._pb_combo, False, False, 0)
 
         filter_row.pack_end(Button("Prune now", kind=ButtonKind.GHOST,
@@ -189,7 +195,36 @@ class FleetRunHistoryPanel(Gtk.Box):
     def _refresh(self, *_) -> None:
         """Re-probe (button + filter changes). Always async."""
         from mackes.workbench._async import async_probe
-        async_probe(self._gather_refresh_state, self._apply_refresh)
+        async_probe(self._gather_refresh_state, self._apply_refresh,
+                    on_error=self._apply_refresh_error)
+
+    def _apply_refresh_error(self, exc: BaseException) -> None:
+        """Phase 11.5: replace the table with an error tile when the
+        gathering probe (build_inventory + list_playbooks + list_runs)
+        raises. Retry re-runs the probe."""
+        from mackes.workbench._common import error_state, format_probe_error
+
+        for c in list(self._stats_box.get_children()):
+            self._stats_box.remove(c)
+        self._records = []
+        self._table.set_rows([])
+        # Park the error widget right next to the (now empty) table.
+        slot = getattr(self, "_error_slot", None)
+        if slot is None:
+            slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            parent = self._table.get_parent()
+            if parent is not None and hasattr(parent, "pack_start"):
+                parent.pack_start(slot, False, False, 0)
+            self._error_slot = slot
+        for c in list(slot.get_children()):
+            slot.remove(c)
+        slot.set_size_request(-1, 200)
+        slot.pack_start(error_state(
+            "Couldn't load run history",
+            format_probe_error(exc),
+            on_retry=self._refresh,
+        ), True, True, 0)
+        slot.show_all()
 
     def _apply_refresh(self, gathered) -> None:
         peers, playbooks, records = gathered
@@ -253,6 +288,41 @@ class FleetRunHistoryPanel(Gtk.Box):
             })
         self._table.set_rows(rows)
         self._row_index = {f"{r.peer}_{int(r.timestamp)}": r for r in self._records}
+
+        # Phase 11.5: clear any prior error tile and show an empty state
+        # when no runs match the current filter.
+        slot = getattr(self, "_error_slot", None)
+        if slot is None:
+            slot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+            parent = self._table.get_parent()
+            if parent is not None and hasattr(parent, "pack_start"):
+                parent.pack_start(slot, False, False, 0)
+            self._error_slot = slot
+        for c in list(slot.get_children()):
+            slot.remove(c)
+        if not self._records:
+            from mackes.workbench._common import empty_state
+
+            slot.set_size_request(-1, 180)
+            filter_hint = ""
+            if self._filter_peer or self._filter_playbook:
+                bits = []
+                if self._filter_peer:
+                    bits.append(f"peer = {self._filter_peer}")
+                if self._filter_playbook:
+                    bits.append(f"playbook = {self._filter_playbook}")
+                filter_hint = (
+                    " Clear the filter (" + ", ".join(bits) + ") to see all runs."
+                )
+            slot.pack_start(empty_state(
+                "No runs to show",
+                "Playbook runs appear here within seconds of finishing."
+                + filter_hint,
+                icon_name="view-list-symbolic",
+            ), True, True, 0)
+            slot.show_all()
+        else:
+            slot.set_size_request(-1, 0)
 
     @staticmethod
     def _reset_combo(combo: Gtk.ComboBoxText, items: list[str],

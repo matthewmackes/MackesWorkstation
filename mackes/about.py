@@ -60,6 +60,9 @@ def build_about_window(application: Optional[Gtk.Application] = None) -> Gtk.Win
         win.set_position(Gtk.WindowPosition.CENTER)
     win.get_style_context().add_class("mackes-app-window")
     win.get_style_context().add_class("mackes-about")
+    # Phase 11.2 a11y: Escape dismisses the About window.
+    from mackes.workbench._common import close_on_escape
+    close_on_escape(win)
 
     outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
 
@@ -121,6 +124,10 @@ def build_about_window(application: Optional[Gtk.Application] = None) -> Gtk.Win
     footer.pack_start(contact, True, True, 0)
     close = Gtk.Button(label="Close")
     close.connect("clicked", lambda *_: win.close())
+    close.set_tooltip_text("Close the About Mackes window (Esc)")
+    _ax = close.get_accessible()
+    if _ax is not None:
+        _ax.set_name("Close the About Mackes window")
     footer.pack_end(close, False, False, 0)
     outer.pack_start(footer, False, False, 0)
 

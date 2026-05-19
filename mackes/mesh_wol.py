@@ -18,6 +18,20 @@ Public API:
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_wol is deprecated. Per-peer MAC inventory comes from "
+    "the topology snapshot in `mackesd_core::topology`, and Wake-on-LAN "
+    "dispatch is reconciled (request → ack → retry) through "
+    "`mackesd_core::reconcile`. See "
+    "docs/design/v12.0-enterprise-mesh.md and "
+    "docs/MIGRATION_TO_MACKESD.md. This Python module is retained for "
+    "the 1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import re
 import socket

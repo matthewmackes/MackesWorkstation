@@ -48,9 +48,10 @@ from mackes.logging import log_action
 from mackes.birthright import (
     apply_apps, apply_clipboard_daemon, apply_dnf_update, apply_drawer,
     apply_enforce_i3, apply_flathub, apply_fleet, apply_fonts, apply_hotkey,
-    apply_lightdm, apply_media_clients, apply_panel_layout,
-    apply_plymouth, apply_qnm, apply_remote_desktop, apply_themes,
-    apply_third_party_repos, apply_thunar_autostart,
+    apply_lightdm, apply_media_clients, apply_panel_archive,
+    apply_panel_layout, apply_panel_swap, apply_plymouth, apply_qnm,
+    apply_remote_desktop, apply_themes, apply_third_party_repos,
+    apply_thunar_autostart, apply_uninstall_legacy_xfce, apply_user_dirs,
 )
 from mackes.presets import (
     Preset, apply_appearance, apply_devices, apply_mesh, apply_network,
@@ -361,7 +362,19 @@ class ApplyPage(Gtk.Box):
             _Step("Mesh clipboard",    lambda: apply_clipboard_daemon(merged)),
             _Step("Quick Network Mesh", lambda: apply_qnm(merged)),
             _Step("Thunar on login",   lambda: apply_thunar_autostart(merged)),
+            _Step("XDG user dirs",     lambda: apply_user_dirs(merged)),
             _Step("Super+M hotkey",    lambda: apply_hotkey(merged)),
+            # Phase 10.6.1-4: archive the user's pre-1.0 xfce4-panel state,
+            # then start mackes-panel and retire xfce4-panel + xfdesktop.
+            _Step("Archive legacy panel", lambda: apply_panel_archive(merged)),
+            _Step("Panel swap",        lambda: apply_panel_swap(merged)),
+            # Phase 8.8: i3 is now the only window manager. Migrate
+            # upgraded 1.0.6 installs that still have xfwm4 running.
+            _Step("Enforce i3",        lambda: apply_enforce_i3(merged)),
+            # Phase 10.6.6: dnf-remove the six legacy XFCE packages
+            # mackes-panel has supplanted. Hard-gated on panel-swap.
+            _Step("Uninstall legacy XFCE",
+                                       lambda: apply_uninstall_legacy_xfce(merged)),
             _Step("Mesh",              lambda: apply_mesh(merged)),
             _Step("VPN import",        self._step_vpn),
             _Step("Menu",              self._step_menu),
@@ -619,6 +632,10 @@ _STEP_SUBTITLES = {
     "Mesh clipboard":   "Bidirectional XA_CLIPBOARD ↔ QNM-Shared sync with secret-filter.",
     "Quick Network Mesh": "dnf install qnm + qnmctl init + qnm.service.",
     "Thunar on login":  "Open Thunar at ~/QNM-Mesh every graphical login (XDG autostart).",
+    "Archive legacy panel": "Copying pre-1.0 ~/.config/xfce4/panel/ to ~/.config/mackes-panel/legacy-xfce-panel/.",
+    "Panel swap":       "Starting mackes-panel · stopping xfce4-panel + xfdesktop · rebinding the Whisker Super-key.",
+    "Enforce i3":       "Making i3 the active window manager and retiring mackes-maximizer.",
+    "Uninstall legacy XFCE": "dnf remove xfce4-panel + xfdesktop + whisker + docklike + pulseaudio + power-manager plugins.",
     "Mesh":             "Headscale + Tailscale keypair + QNM-Shared bucket dirs.",
     "VPN import":       "Optional — imports the .ovpn / .conf you picked earlier.",
     "Menu":             "Hides xfce4-settings entries · installs mackes-shell.desktop.",

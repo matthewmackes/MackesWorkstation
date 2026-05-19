@@ -19,7 +19,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_description, section_header, title_label,
+    a11y, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -95,6 +95,8 @@ class PowerPanel(Gtk.Box):
         box.pack_start(section_header("Profile"), False, False, 0)
         self._combo = Gtk.ComboBoxText()
         self._combo.connect("changed", self._on_changed)
+        a11y(self._combo, name="Select power-profile (powerprofilesctl)",
+             tooltip="Switch between Power-saver, Balanced, and Performance")
         box.pack_start(labeled_row("Active", self._combo), False, False, 0)
 
         self._status = Gtk.Label(label="")
@@ -110,6 +112,8 @@ class PowerPanel(Gtk.Box):
 
         refresh = Gtk.Button(label="Refresh")
         refresh.connect("clicked", lambda *_: self._refresh())
+        a11y(refresh, name="Re-query power-profile state",
+             tooltip="Re-run powerprofilesctl get/list and tlp-stat")
         box.pack_start(refresh, False, False, 0)
 
         self.add(box)

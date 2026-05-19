@@ -26,9 +26,10 @@ from mackes.carbon import (
     Notification, NotificationKind,
 )
 from mackes.mesh_services import (
-    ServiceHit, load_catalog, load_registry, probe_all, url_for, launch,
+    ServiceDef, ServiceHit, load_catalog, load_registry, probe_all, url_for, launch,
 )
 from mackes.mdns_relay import DEFAULT_RELAYED_TYPES, DEFAULT_PRIVATE_TYPES
+from mackes.workbench._async import async_probe
 
 
 # ---- shared bits (mirror mesh_ssh.py — keep DRY-but-local) ---------------
@@ -98,10 +99,25 @@ def _pill_button(label: str, *, active: bool, on_click) -> Gtk.Button:
     else:
         btn.get_style_context().add_class("neutral")
     btn.connect("clicked", lambda *_: on_click())
+    # Pill-buttons in Mesh Services are filter chips — describe them
+    # for screen readers in a way that conveys it's a filter, not the
+    # service name itself.
+    btn.set_tooltip_text(f"Filter services by {label}")
+    _ax = btn.get_accessible()
+    if _ax is not None:
+        state_word = "active" if active else "inactive"
+        _ax.set_name(f"Filter services: {label} (currently {state_word})")
     return btn
 
 
 # ---- panel ----------------------------------------------------------------
+
+
+def _gather_services_state() -> tuple[list[ServiceHit], list[ServiceDef]]:
+    """Off-main-thread: read the cached registry + parse the YAML
+    catalog. Both are file I/O — fine on a worker, costly enough on
+    construction (~140 ms) to push out of the GTK main loop."""
+    return list(load_registry()), list(load_catalog())
 
 
 class MeshServicesPanel(Gtk.Box):
@@ -110,7 +126,10 @@ class MeshServicesPanel(Gtk.Box):
         self._filter = "all"   # "all" | peer name
         self._gateway_on = False
         self._build()
-        self._refresh()
+        # 11.9 reliability: file-read of the discovery registry + YAML
+        # catalog parse moved to a worker thread so the panel renders
+        # in < 10 ms. The grid pops in when the probe completes.
+        async_probe(_gather_services_state, self._apply_state)
 
     def _build(self) -> None:
         outer = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -201,9 +220,16 @@ class MeshServicesPanel(Gtk.Box):
         right.pack_start(gw_lbl, False, False, 0)
         self._gw_switch = Gtk.Switch()
         self._gw_switch.connect("notify::active", self._on_gateway_toggled)
+        self._gw_switch.set_tooltip_text(
+            "Enable the Caddy mesh gateway at https://media.mesh/")
+        _ax_gw = self._gw_switch.get_accessible()
+        if _ax_gw is not None:
+            _ax_gw.set_name("Enable the Caddy mesh services gateway")
         right.pack_start(self._gw_switch, False, False, 0)
         ca_btn = Button("Install CA", kind=ButtonKind.TERTIARY,
-                        on_click=self._on_install_ca)
+                        on_click=self._on_install_ca,
+                        accessible_name="Install the Mackes mesh root CA into the system trust store",
+                        tooltip="Trust the mesh-gateway's private certificate authority")
         right.pack_start(ca_btn, False, False, 0)
         gw_head.pack_end(right, False, False, 0)
         gw_tile.pack(gw_head)
@@ -268,7 +294,15 @@ class MeshServicesPanel(Gtk.Box):
     # ---- refresh -------------------------------------------------------
 
     def _refresh(self) -> None:
-        hits = load_registry()
+        """Re-probe registry + catalog off-main-thread, then re-render."""
+        async_probe(_gather_services_state, self._apply_state)
+
+    def _apply_state(self, payload: tuple[list[ServiceHit], list[ServiceDef]]) -> None:
+        """Main thread — rebuild pills + grid + gateway preview from
+        the probe payload (registry hits, parsed catalog)."""
+        hits, catalog_defs = payload
+        catalog = {d.name: d for d in catalog_defs}
+
         # Filter pills — based on unique peers in current hits
         peer_names = sorted({h.peer for h in hits})
         for c in list(self._pills_box.get_children()):
@@ -291,7 +325,6 @@ class MeshServicesPanel(Gtk.Box):
         for c in list(self._svc_grid.get_children()):
             self._svc_grid.remove(c)
         filtered = hits if self._filter == "all" else [h for h in hits if h.peer == self._filter]
-        catalog = {d.name: d for d in load_catalog()}
         self._service_count.set_text(
             f"{len(filtered)} service(s) on {len({h.peer for h in filtered})} peer(s)"
         )
@@ -329,30 +362,41 @@ class MeshServicesPanel(Gtk.Box):
     # ---- actions -------------------------------------------------------
 
     def _on_scan_now(self) -> None:
-        peers = []
-        try:
-            from mackes.mesh_vpn import headscale_list_peers
-            peers = [p.name for p in headscale_list_peers()]
-        except Exception:  # noqa: BLE001
-            pass
-        if not peers:
-            import os
-            home = Path(os.path.expanduser("~"))
-            mesh_root = home / "QNM-Mesh"
-            if mesh_root.exists():
-                peers = [d.name for d in mesh_root.iterdir() if d.is_dir()]
-        probe_all(peers)
-        self._refresh()
+        # Resolve peer list + run probes off-main-thread; headscale +
+        # per-peer TCP probes can each be several hundred ms.
+        def _scan() -> tuple[list[ServiceHit], list[ServiceDef]]:
+            peers: list[str] = []
+            try:
+                from mackes.mesh_vpn import headscale_list_peers
+                peers = [p.name for p in headscale_list_peers()]
+            except Exception:  # noqa: BLE001
+                pass
+            if not peers:
+                import os
+                home = Path(os.path.expanduser("~"))
+                mesh_root = home / "QNM-Mesh"
+                if mesh_root.exists():
+                    peers = [d.name for d in mesh_root.iterdir() if d.is_dir()]
+            probe_all(peers)
+            return _gather_services_state()
+
+        async_probe(_scan, self._apply_state)
 
     def _on_gateway_toggled(self, switch: Gtk.Switch, _gp) -> None:
         self._gateway_on = switch.get_active()
         if self._gateway_on:
-            try:
-                from mackes.caddy_gateway import enable_gateway
-                enable_gateway()
-            except Exception:  # noqa: BLE001
-                pass
-        self._refresh()
+            # enable_gateway() writes Caddyfile + restarts the service —
+            # off-main-thread to keep the toggle responsive.
+            def _do() -> None:
+                try:
+                    from mackes.caddy_gateway import enable_gateway
+                    enable_gateway()
+                except Exception:  # noqa: BLE001
+                    pass
+
+            async_probe(_do, lambda _v: self._refresh())
+        else:
+            self._refresh()
 
     def _on_install_ca(self) -> None:
         try:

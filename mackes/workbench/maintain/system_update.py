@@ -18,7 +18,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.logging import log_action
-from mackes.workbench._common import info_label, panel_box, section_description, section_header, title_label
+from mackes.workbench._common import a11y, info_label, panel_box, section_description, section_header, title_label
 
 
 class SystemUpdatePanel(Gtk.Box):
@@ -53,16 +53,23 @@ class SystemUpdatePanel(Gtk.Box):
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._check_btn = Gtk.Button(label="Check for updates")
         self._check_btn.connect("clicked", lambda *_: self._run(["dnf", "check-update"], auth=False))
+        a11y(self._check_btn, name="Check dnf for available updates",
+             tooltip="Run dnf check-update — no changes are made")
         actions.pack_start(self._check_btn, False, False, 0)
 
         self._install_btn = Gtk.Button(label="Install all updates")
         self._install_btn.connect("clicked",
                                   lambda *_: self._run(["dnf", "upgrade", "-y", "--refresh"], auth=True))
+        a11y(self._install_btn,
+             name="Install all available system updates (requires authentication)",
+             tooltip="Run dnf upgrade — pkexec will prompt for your password")
         actions.pack_start(self._install_btn, False, False, 0)
 
         self._cancel_btn = Gtk.Button(label="Cancel")
         self._cancel_btn.set_sensitive(False)
         self._cancel_btn.connect("clicked", lambda *_: self._cancel())
+        a11y(self._cancel_btn, name="Cancel the running update",
+             tooltip="Send SIGTERM to the active dnf process")
         actions.pack_start(self._cancel_btn, False, False, 0)
         box.pack_start(actions, False, False, 0)
 

@@ -146,3 +146,13 @@ for_window [window_type="dialog"] floating enable
 # No i3bar — mackes-panel-top + mackes-panel-dock replace it
 # ---------------------------------------------------------------------------
 # (intentionally no `bar { ... }` block)
+
+# ---------------------------------------------------------------------------
+# Mackes-managed includes (1.1.0)
+# ---------------------------------------------------------------------------
+# Drop-in directory for Mackes-managed config fragments. Currently
+# populated by the gaps-profile picker (Workbench → System → Window
+# Manager → Gaps); other panels may add fragments here later (e.g. a
+# keybinding-overrides editor in 1.2.0). User edits to this directory
+# are preserved — `mackes-wm reset` does NOT clear it.
+include ~/.config/i3/config.d/*.conf

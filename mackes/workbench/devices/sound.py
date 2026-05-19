@@ -13,7 +13,7 @@ from gi.repository import Gtk  # noqa: E402
 
 from mackes.logging import log_action
 from mackes.workbench._common import (
-    info_label, labeled_row, panel_box, section_header, title_label,
+    a11y, info_label, labeled_row, panel_box, section_header, title_label,
 )
 
 
@@ -109,6 +109,8 @@ class SoundPanel(Gtk.Box):
             if txt:
                 _set_default_sink(txt)
         sink_combo.connect("changed", on_sink)
+        a11y(sink_combo, name="Default audio output (PulseAudio sink)",
+             tooltip="Choose where sound is sent by default")
         box.pack_start(labeled_row("Default sink", sink_combo), False, False, 0)
 
         box.pack_start(section_header("Input"), False, False, 0)
@@ -127,6 +129,8 @@ class SoundPanel(Gtk.Box):
             txt = c.get_active_text()
             if txt:
                 _set_default_source(txt)
+        a11y(src_combo, name="Default audio input (PulseAudio source)",
+             tooltip="Choose which microphone or recording device is used by default")
         src_combo.connect("changed", on_src)
         box.pack_start(labeled_row("Default source", src_combo), False, False, 0)
 

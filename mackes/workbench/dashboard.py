@@ -144,6 +144,12 @@ def _notification(kind: str, title: str, body: str,
             btn = Gtk.Button(label=label)
             btn.get_style_context().add_class("cds-button-tertiary")
             btn.connect("clicked", lambda _b, f=fn: f())
+            # Notification action — accessible name + tooltip pair so
+            # screen readers and hover hints both reach the same target.
+            btn.set_tooltip_text(f"{label} — notification action")
+            ax = btn.get_accessible()
+            if ax is not None:
+                ax.set_name(f"{label} notification action")
             row.pack_start(btn, False, False, 0)
         notif.pack_start(row, False, False, 0)
     return notif
@@ -329,19 +335,29 @@ class DashboardView(Gtk.Box):
     def _quick_actions(self) -> Gtk.Widget:
         wrap = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         wrap.set_margin_top(0)
-        actions: List[Tuple[str, Callable[[], None]]] = [
-            ("Appearance",     lambda: self.navigate("look_and_feel")),
-            ("Display",        lambda: self.navigate("devices")),
-            ("Network",        lambda: self.navigate("wifi")),
-            ("Create snapshot", self._on_snapshot),
-            ("Health check",   lambda: self.navigate("maintain")),
-            ("Open log",       lambda: self.navigate("maintain")),
+        actions: List[Tuple[str, Callable[[], None], str]] = [
+            ("Appearance",     lambda: self.navigate("look_and_feel"),
+             "Open Look and Feel"),
+            ("Display",        lambda: self.navigate("devices"),
+             "Open Devices — display settings"),
+            ("Network",        lambda: self.navigate("wifi"),
+             "Open Network — Wi-Fi"),
+            ("Create snapshot", self._on_snapshot,
+             "Create a system snapshot of the active preset"),
+            ("Health check",   lambda: self.navigate("maintain"),
+             "Open Maintain — health check"),
+            ("Open log",       lambda: self.navigate("maintain"),
+             "Open Maintain — log viewer"),
         ]
-        for label, fn in actions:
+        for label, fn, desc in actions:
             btn = Gtk.Button(label=label)
             btn.get_style_context().add_class("cds-button-tertiary")
             btn.set_size_request(-1, 40)
             btn.connect("clicked", lambda _b, f=fn: f())
+            btn.set_tooltip_text(desc)
+            ax = btn.get_accessible()
+            if ax is not None:
+                ax.set_name(desc)
             wrap.pack_start(btn, True, True, 0)
         return wrap
 
@@ -349,8 +365,14 @@ class DashboardView(Gtk.Box):
         try:
             create_snapshot("dashboard-quick-snapshot",
                             source_preset=self.state.active_preset)
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as exc:  # noqa: BLE001
+            # Phase 11.5: surface failures through the recent-activity log
+            # so the user sees why the snapshot button "did nothing".
+            self._last_action_error = (
+                f"Quick snapshot failed: {exc!s}"
+            )
+        else:
+            self._last_action_error = None
         self._render()
 
     # ---- Recent activity -------------------------------------------------
@@ -360,15 +382,28 @@ class DashboardView(Gtk.Box):
         wrap.get_style_context().add_class("mackes-code")
         wrap.set_margin_top(0)
 
+        # If the last user action errored, hoist it to the top so the
+        # user notices instead of wondering why the button "did nothing".
+        last_err = getattr(self, "_last_action_error", None)
+        if last_err:
+            err_lbl = Gtk.Label(label=last_err)
+            err_lbl.set_xalign(0); err_lbl.set_line_wrap(True)
+            err_lbl.get_style_context().add_class("mackes-notif-body")
+            err_lbl.get_style_context().add_class("error")
+            wrap.pack_start(err_lbl, False, False, 0)
+
         log = LOG_DIR / "mackes.log"
         lines: List[str] = []
+        read_error: str | None = None
         if log.exists():
             try:
                 lines = log.read_text(encoding="utf-8", errors="ignore").splitlines()[-8:]
-            except OSError:
-                pass
-        if not lines:
-            lines = ["(no activity yet)"]
+            except OSError as exc:
+                read_error = f"Couldn't read {log}: {exc}"
+        if read_error and not lines:
+            lines = [read_error]
+        elif not lines:
+            lines = ["(no activity yet — actions you take in Mackes will appear here)"]
         for line in lines:
             lbl = Gtk.Label(label=line)
             lbl.set_xalign(0); lbl.set_line_wrap(False)

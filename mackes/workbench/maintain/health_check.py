@@ -6,6 +6,12 @@ and offering a fix link where possible.
 
 Runs synchronously on demand — the checks are cheap (subprocess probes,
 file existence). No background polling.
+
+11.9 reliability sweep: the initial run-on-open in `__init__` used to
+block for ~325 ms (15+ `which`/`xfconf-query` probes + service health
+probe). The first run now happens off-main-thread via
+`mackes.workbench._async.async_probe`; the result list renders as
+"Running…" until the probe lands.
 """
 from __future__ import annotations
 
@@ -16,8 +22,9 @@ from gi.repository import Gtk  # noqa: E402
 from mackes.state import (
     HOME, LOG_DIR, SNAPSHOT_DIR, have, service_health,
 )
+from mackes.workbench._async import async_probe
 from mackes.workbench._common import (
-    info_label, panel_box, section_description, section_header, title_label,
+    a11y, info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -92,6 +99,10 @@ class HealthCheckPanel(Gtk.Box):
     def __init__(self) -> None:
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=0)
         self._build()
+        # 11.9 reliability: the first-run probe happens off-main-thread.
+        # Subsequent "Run all checks" clicks also route through async_probe
+        # so the panel never blocks on `service_health()` or 7× `which`.
+        async_probe(_run_all_checks, self._apply_results)
 
     def _build(self) -> None:
         box = panel_box()
@@ -109,22 +120,35 @@ class HealthCheckPanel(Gtk.Box):
         run = Gtk.Button(label="Run all checks")
         run.get_style_context().add_class("suggested-action")
         run.connect("clicked", lambda *_: self._run())
+        a11y(run, name="Re-run every health check",
+             tooltip="Re-evaluate every health check in the background")
         bar.pack_start(run, False, False, 0)
-        self._summary = Gtk.Label(label="—"); self._summary.set_xalign(0)
+        self._summary = Gtk.Label(label="Running…"); self._summary.set_xalign(0)
         bar.pack_start(self._summary, True, True, 0)
         box.pack_start(bar, False, False, 0)
 
         box.pack_start(section_header("Results"), False, False, 0)
         self._results = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self._results.pack_start(info_label("Running checks in the background…"),
+                                  False, False, 0)
         box.pack_start(self._results, False, False, 0)
 
         self.add(box)
-        self._run()
 
     def _run(self) -> None:
+        """Re-run all checks — async to keep the UI responsive."""
+        self._summary.set_text("Running…")
         for child in list(self._results.get_children()):
             self._results.remove(child)
-        results = _run_all_checks()
+        self._results.pack_start(info_label("Running checks in the background…"),
+                                  False, False, 0)
+        self._results.show_all()
+        async_probe(_run_all_checks, self._apply_results)
+
+    def _apply_results(self, results: list[tuple[str, str, str, str]]) -> None:
+        """Render the result rows on the GTK main thread."""
+        for child in list(self._results.get_children()):
+            self._results.remove(child)
 
         counts = {"ok": 0, "warn": 0, "fail": 0, "info": 0}
         for _, sev, _, _ in results:

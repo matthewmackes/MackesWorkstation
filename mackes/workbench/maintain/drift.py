@@ -28,7 +28,7 @@ from mackes.presets import (
 )
 from mackes.state import MackesState
 from mackes.workbench._common import (
-    info_label, panel_box, section_description, section_header, title_label,
+    a11y, info_label, panel_box, section_description, section_header, title_label,
 )
 from mackes.xfconf_bridge import get_bridge
 
@@ -65,10 +65,15 @@ class DriftPanel(Gtk.Box):
         actions = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         refresh = Gtk.Button(label="Refresh")
         refresh.connect("clicked", lambda *_: self._refresh())
+        a11y(refresh, name="Re-scan settings for drift",
+             tooltip="Recompute the drift list against the active preset")
         actions.pack_start(refresh, False, False, 0)
 
         revert_all = Gtk.Button(label="Revert ALL to preset")
         revert_all.connect("clicked", lambda *_: self._revert_all())
+        a11y(revert_all,
+             name="Revert every divergence to the active preset (destructive)",
+             tooltip="Write every preset-defined value back over the live settings")
         actions.pack_start(revert_all, False, False, 0)
         box.pack_start(actions, False, False, 0)
 
@@ -130,11 +135,20 @@ class DriftPanel(Gtk.Box):
         btns = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         b_revert = Gtk.Button(label="Revert to preset")
         b_revert.connect("clicked", lambda *_: self._revert(preset, it))
+        a11y(b_revert,
+             name=f"Revert {it.section}.{it.field} to preset value {it.expected!r}",
+             tooltip=f"Write preset value {it.expected!r} back over live value {it.actual!r}")
         b_adopt = Gtk.Button(label="Adopt into preset")
         b_adopt.set_sensitive(False)  # writing user-override YAML is Phase 2 of drift work
         b_adopt.set_tooltip_text("Writing user-override YAML is not implemented yet.")
+        ax = b_adopt.get_accessible()
+        if ax is not None:
+            ax.set_name(f"Adopt live {it.section}.{it.field} into preset (not yet implemented)")
         b_ignore = Gtk.Button(label="Ignore")
         b_ignore.connect("clicked", lambda *_: self._ignore(it))
+        a11y(b_ignore,
+             name=f"Hide {it.section}.{it.field} drift for this session",
+             tooltip="Stop showing this divergence until the panel is reopened")
         btns.pack_start(b_revert, False, False, 0)
         btns.pack_start(b_adopt, False, False, 0)
         btns.pack_start(b_ignore, False, False, 0)

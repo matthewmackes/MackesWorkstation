@@ -14,7 +14,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from mackes.state import LOG_DIR
 from mackes.workbench._common import (
-    info_label, panel_box, section_description, section_header, title_label,
+    a11y, info_label, panel_box, section_description, section_header, title_label,
 )
 
 
@@ -70,8 +70,12 @@ class LogsPanel(Gtk.Box):
         bar = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         copy = Gtk.Button(label="Copy mackes.log path")
         copy.connect("clicked", lambda *_: self._copy_path())
+        a11y(copy, name="Copy mackes.log path to the clipboard",
+             tooltip="Copy the on-disk path of mackes.log so you can paste it elsewhere")
         refresh = Gtk.Button(label="Refresh now")
         refresh.connect("clicked", lambda *_: self._refresh(force=True))
+        a11y(refresh, name="Reload both log views now",
+             tooltip="Re-read mackes.log and xfsettingsd journal immediately")
         bar.pack_start(refresh, False, False, 0)
         bar.pack_start(copy, False, False, 0)
         box.pack_start(bar, False, False, 0)

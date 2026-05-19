@@ -527,17 +527,56 @@ def collect_state() -> LiveState:
     )
 
 
+def _cache_root() -> Path:
+    """Resolve the cache root, honoring `$XDG_CACHE_HOME` explicitly
+    so tests can redirect via environment variable (GLib's resolver
+    memoizes the first call and ignores later env changes)."""
+    import os
+    env = os.environ.get("XDG_CACHE_HOME")
+    if env:
+        return Path(env)
+    return Path(GLib.get_user_cache_dir())
+
+
 def _load_pending_notifications() -> list:
     """Read from ~/.cache/mackes/notifications.json (written by other
     Mackes services as they emit events). Empty list when there's
-    nothing to surface."""
-    path = Path(GLib.get_user_cache_dir()) / "mackes" / "notifications.json"
-    if not path.is_file():
-        return []
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return []
+    nothing to surface.
+
+    Phase 13.4 — also merges mirrored KDE Connect notifications from
+    ~/.cache/mackes/kdeconnect-notifications.json so phone events
+    surface in the drawer with an ``origin: "phone"`` marker
+    (rendered by `_notifications_section` with a 📱 badge).
+    """
+    notes = []
+    cache = _cache_root()
+    path = cache / "mackes" / "notifications.json"
+    if path.is_file():
+        try:
+            notes = list(json.loads(path.read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError):
+            notes = []
+    # Merge KDE Connect mirrored notifications (Phase 13.4). Each
+    # mirrored entry gets `origin: "phone"` so the drawer can show
+    # the phone glyph badge without an extra DBus call.
+    phone_path = cache / "mackes" / "kdeconnect-notifications.json"
+    if phone_path.is_file():
+        try:
+            phone_raw = json.loads(phone_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            phone_raw = []
+        if not isinstance(phone_raw, list):
+            phone_raw = []
+        for n in phone_raw:
+            if not isinstance(n, dict):
+                continue
+            merged = dict(n)
+            merged.setdefault("origin", "phone")
+            merged.setdefault("app", n.get("device", "phone"))
+            merged.setdefault("title", n.get("title", "(no title)"))
+            merged.setdefault("body", n.get("text") or n.get("body", ""))
+            notes.append(merged)
+    return notes
 
 
 def write_state_file(state: LiveState, *, drawer_open: bool) -> None:
@@ -634,6 +673,9 @@ def _header(state: LiveState, on_close) -> Gtk.Widget:
     close.set_relief(Gtk.ReliefStyle.NONE)
     close.connect("clicked", lambda *_: on_close())
     close.set_tooltip_text("Close (Esc)")
+    _ax = close.get_accessible()
+    if _ax is not None:
+        _ax.set_name("Close the notification drawer")
     row.pack_end(close, False, False, 0)
     box.pack_start(row, False, False, 0)
 
@@ -705,6 +747,11 @@ def _quick_toggles_section(state: LiveState) -> Gtk.Widget:
                                  classes=("mackes-drawer-chip-status",)),
                           False, False, 0)
         chip.add(inner)
+        chip.set_tooltip_text(f"{label}: {status} — click to toggle")
+        _ax = chip.get_accessible()
+        if _ax is not None:
+            state_word = "on" if on else "off"
+            _ax.set_name(f"{label} toggle, currently {state_word} ({status})")
         # Capture handler in closure (Python default-arg trick to avoid
         # the classic "last handler wins" loop-binding bug).
         chip.connect("button-press-event",
@@ -732,6 +779,10 @@ def _quick_toggles_section(state: LiveState) -> Gtk.Widget:
                            adjustment=adj)
         scale.set_draw_value(False)
         scale.set_hexpand(True)
+        scale.set_tooltip_text(f"{name} — drag to adjust (0–100%)")
+        _ax_scale = scale.get_accessible()
+        if _ax_scale is not None:
+            _ax_scale.set_name(f"{name} level slider")
         # Mute indicator on the Volume row: clicking the row label
         # toggles mute. Saves screen real-estate vs. a separate icon.
         if name == "Volume" and state.audio_muted:
@@ -903,6 +954,10 @@ def _notifications_section(state: LiveState, on_clear) -> Gtk.Widget:
     clear_btn = Gtk.Button(label="clear all")
     clear_btn.set_relief(Gtk.ReliefStyle.NONE)
     clear_btn.connect("clicked", lambda *_: on_clear())
+    clear_btn.set_tooltip_text("Clear every pending notification")
+    _ax_clear = clear_btn.get_accessible()
+    if _ax_clear is not None:
+        _ax_clear.set_name("Clear all pending notifications")
     head.pack_end(clear_btn, False, False, 0)
 
     for n in state.notifications[:8]:
@@ -911,7 +966,16 @@ def _notifications_section(state: LiveState, on_clear) -> Gtk.Widget:
         nbox.get_style_context().add_class("mackes-drawer-notif")
         if u in ("warn", "crit"):
             nbox.get_style_context().add_class(u)
+        # Phase 13.4 — KDE Connect mirrored notifications carry
+        # `origin: "phone"` so we prefix the app row with a phone
+        # glyph badge. Falls through cleanly for non-phone origins.
         app_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        if n.get("origin") == "phone":
+            app_row.pack_start(_label("📱",
+                                        classes=("mackes-drawer-meta",
+                                                 "mackes-drawer-mono",
+                                                 "mackes-drawer-notif-phone")),
+                                False, False, 0)
         app_row.pack_start(_label(n.get("app", "system"),
                                     classes=("mackes-drawer-meta",
                                              "mackes-drawer-mono")),

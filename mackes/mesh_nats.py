@@ -31,6 +31,20 @@ Public API:
 """
 from __future__ import annotations
 
+import warnings as _warnings
+
+_warnings.warn(
+    "mackes.mesh_nats is deprecated. The NATS JetStream substrate has "
+    "been replaced by the SQLite-backed state store + append-only "
+    "event log inside mackesd — see `mackesd_core::store` and "
+    "`mackesd_core::events` (docs/design/v12.0-enterprise-mesh.md, "
+    "docs/MIGRATION_TO_MACKESD.md). The 12.A.3 lock removes the "
+    "networked API entirely. This Python module is retained for the "
+    "1.x compatibility window and will be removed in 2.0.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import shutil
 import subprocess
