@@ -12,9 +12,11 @@
 resolver = "2"
 members  = [
     "crates/mackes-config",
+    "crates/mackes-kdc",
     "crates/mackes-mesh-types",
     "crates/mackes-panel",
     "crates/mackesd",
+    "crates/mde-files",
 ]
 
 [workspace.package]

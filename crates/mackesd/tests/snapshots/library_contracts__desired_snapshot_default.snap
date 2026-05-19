@@ -1,0 +1,8 @@
+---
+source: crates/mackesd/tests/library_contracts.rs
+expression: snap
+---
+{
+  "nodes": [],
+  "allow_east_west": []
+}

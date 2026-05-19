@@ -193,4 +193,189 @@ mod tests {
         assert_eq!(DockState::Urgent { unread: 0 }.unread_count(), None);
         assert_eq!(DockState::Urgent { unread: 5 }.unread_count(), Some(5));
     }
+
+    // ---------------------------------------------------------------
+    // Phase 9.2 — GTK widget tests
+    //
+    // Cover `render_module` by feeding it a hand-rolled `DockModule`
+    // impl whose state can be parameterized per test. Skipped when no
+    // X display is available (`try_init_gtk_serialized` returns false).
+    // ---------------------------------------------------------------
+
+    /// Minimal in-test `DockModule` impl. Holds owned strings so each
+    /// test can pin `id` / `icon_name` / `tooltip` to a fresh value
+    /// without leaking statics. `on_click` is a no-op — render_module
+    /// stores the handler but the test never emits a click; we only
+    /// assert on the widget tree's structure.
+    struct FakeModule {
+        id: String,
+        icon_name: String,
+        tooltip: String,
+        state: DockState,
+        categories: Vec<String>,
+    }
+
+    impl FakeModule {
+        fn new(id: &str, state: DockState) -> Self {
+            Self {
+                id: id.to_owned(),
+                icon_name: "application-x-executable-symbolic".to_owned(),
+                tooltip: format!("tooltip for {id}"),
+                state,
+                categories: Vec::new(),
+            }
+        }
+    }
+
+    impl DockModule for FakeModule {
+        fn id(&self) -> String {
+            self.id.clone()
+        }
+        fn icon_name(&self) -> &str {
+            &self.icon_name
+        }
+        fn tooltip(&self) -> &str {
+            &self.tooltip
+        }
+        fn state(&self) -> DockState {
+            self.state
+        }
+        fn categories(&self) -> &[String] {
+            &self.categories
+        }
+        fn on_click(&self) {}
+    }
+
+    #[test]
+    fn render_module_idle_has_no_unread_badge() {
+        let _g = crate::test_env::env_lock();
+        if !crate::test_env::try_init_gtk_serialized() {
+            eprintln!("dock: no display, skipping render_module_idle test");
+            return;
+        }
+        let module = FakeModule::new("dock-idle", DockState::Idle);
+        let event_box = render_module(&module);
+        // Widget name encodes the module id so the panel CSS can
+        // target individual slots — pin both.
+        assert_eq!(
+            event_box.widget_name().as_str(),
+            "mackes-dock-item-dock-idle"
+        );
+        // Tooltip routes the module's tooltip() through.
+        assert_eq!(
+            event_box.tooltip_text().map(|s| s.to_string()),
+            Some("tooltip for dock-idle".to_owned())
+        );
+        // Inner column = exactly two slots: overlay + state-dot.
+        // Idle state injects neither a dot CSS class nor an unread
+        // badge, but the carrier widgets still exist.
+        let column = event_box
+            .child()
+            .and_then(|c| c.downcast::<gtk::Box>().ok())
+            .expect("event_box wraps a Box");
+        let kids = column.children();
+        assert_eq!(kids.len(), 2, "column = overlay + state-dot");
+        let overlay = kids[0]
+            .clone()
+            .downcast::<gtk::Overlay>()
+            .expect("first child is overlay");
+        // Overlay has just the icon child — no unread badge overlay.
+        // `gtk::Overlay::children()` reports the main child only;
+        // overlays attach via add_overlay() and aren't in children().
+        // Use the overlay's actual `Container::children` instead.
+        let overlay_kids = overlay.children();
+        assert_eq!(
+            overlay_kids.len(),
+            1,
+            "Idle has no unread badge overlay (got {} kids)",
+            overlay_kids.len()
+        );
+    }
+
+    #[test]
+    fn render_module_urgent_adds_unread_badge() {
+        let _g = crate::test_env::env_lock();
+        if !crate::test_env::try_init_gtk_serialized() {
+            eprintln!("dock: no display, skipping render_module_urgent test");
+            return;
+        }
+        let module = FakeModule::new("dock-urgent", DockState::Urgent { unread: 7 });
+        let event_box = render_module(&module);
+        let column = event_box
+            .child()
+            .and_then(|c| c.downcast::<gtk::Box>().ok())
+            .expect("event_box wraps a Box");
+        let overlay = column.children()[0]
+            .clone()
+            .downcast::<gtk::Overlay>()
+            .expect("overlay");
+        // Overlay now carries the icon AND the unread badge.
+        assert_eq!(
+            overlay.children().len(),
+            2,
+            "Urgent overlays the unread badge on top of the icon"
+        );
+        // Find the badge label and confirm it carries the unread count.
+        let badge = overlay
+            .children()
+            .into_iter()
+            .find_map(|w| w.downcast::<gtk::Label>().ok())
+            .expect("badge label present");
+        assert_eq!(badge.text().as_str(), "7");
+    }
+
+    #[test]
+    fn render_module_state_dot_carries_accent_class_when_focused() {
+        let _g = crate::test_env::env_lock();
+        if !crate::test_env::try_init_gtk_serialized() {
+            eprintln!("dock: no display, skipping state-dot-accent test");
+            return;
+        }
+        let module = FakeModule::new("dock-focused", DockState::Focused);
+        let event_box = render_module(&module);
+        let column = event_box
+            .child()
+            .and_then(|c| c.downcast::<gtk::Box>().ok())
+            .expect("event_box wraps a Box");
+        let kids = column.children();
+        // State dot is the second child (Frame).
+        let dot = kids[1]
+            .clone()
+            .downcast::<gtk::Frame>()
+            .expect("state dot is a Frame");
+        assert!(
+            dot.style_context().has_class("accent"),
+            "Focused state → state-dot carries `accent` class"
+        );
+        // And it does NOT carry the muted / alert classes.
+        assert!(!dot.style_context().has_class("muted"));
+        assert!(!dot.style_context().has_class("alert"));
+    }
+
+    #[test]
+    fn render_module_unread_badge_caps_at_99_plus() {
+        let _g = crate::test_env::env_lock();
+        if !crate::test_env::try_init_gtk_serialized() {
+            eprintln!("dock: no display, skipping unread cap test");
+            return;
+        }
+        // 100 → "99+", per the dock badge convention shared with the
+        // notification bell (`render_badge_count`).
+        let module = FakeModule::new("dock-spammy", DockState::Urgent { unread: 100 });
+        let event_box = render_module(&module);
+        let column = event_box
+            .child()
+            .and_then(|c| c.downcast::<gtk::Box>().ok())
+            .expect("event_box wraps a Box");
+        let overlay = column.children()[0]
+            .clone()
+            .downcast::<gtk::Overlay>()
+            .unwrap();
+        let badge = overlay
+            .children()
+            .into_iter()
+            .find_map(|w| w.downcast::<gtk::Label>().ok())
+            .expect("badge label");
+        assert_eq!(badge.text().as_str(), "99+");
+    }
 }

@@ -94,3 +94,64 @@ jobs:
 
       - name: cargo test
         run: cargo test --workspace
+
+  panel-smoke:
+    # 1.1.0 (#13): Xvfb-driven smoke for the live mackes-panel binary.
+    # Boots the panel under a virtual X server, asserts the bottom
+    # taskbar window appears at the expected geometry, then exercises
+    # `mackes --focus mesh_join` to confirm the click-through CLI path
+    # still drives the workbench. Both gates are blocking — a PR that
+    # regresses panel boot or the --focus CLI fails CI.
+    name: panel smoke (Xvfb, Fedora 44)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    needs: rust
+    steps:
+      - name: Install runtime + test deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git rust cargo gcc make pkgconfig gtk3-devel \
+            xorg-x11-server-Xvfb wmctrl xdotool \
+            python3 python3-pip python3-pyyaml python3-gobject \
+            gtk3 xfconf cairo-gobject-devel \
+            python3-cairo python3-textual python3-pytest
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build mackes-panel (release)
+        run: cargo build --release -p mackes-panel
+
+      - name: Run Xvfb panel smoke + click-through pytest
+        env:
+          DISPLAY: ":99"
+        run: |
+          # Start Xvfb on display :99 with a 1920x1080 root.
+          Xvfb :99 -screen 0 1920x1080x24 &
+          XVFB_PID=$!
+          # Give the X server a beat to come up.
+          for i in $(seq 1 50); do
+            xdotool getactivewindow 2>/dev/null && break || sleep 0.1
+          done
+          # Run the new pytest gates (panel boot + --focus round-trip).
+          python3 -m pytest tests/test_panel_xvfb_smoke.py -v --tb=short
+          kill $XVFB_PID 2>/dev/null || true
+
+      - name: Phase 9.4 — bench-panel.sh perf gate
+        env:
+          DISPLAY: ":98"
+          PANEL_BIN: target/release/mackes-panel
+          DISPLAY_NUM: ":98"
+        run: |
+          # Separate Xvfb on :98 so the smoke run doesn't poison the
+          # cold-start measurement. bench-panel.sh expects the panel
+          # binary to exist at $PANEL_BIN (we built it above).
+          Xvfb :98 -screen 0 1920x1080x24 &
+          BENCH_XVFB_PID=$!
+          sleep 0.5
+          install-helpers/bench-panel.sh
+          kill $BENCH_XVFB_PID 2>/dev/null || true

@@ -324,4 +324,108 @@ mod tests {
             .iter()
             .any(|s| s == "notifications"));
     }
+
+    #[test]
+    fn unpin_app_removes_matching_entry() {
+        let mut cfg = default_config();
+        pin_app(&mut cfg, "firefox.desktop");
+        pin_app(&mut cfg, "thunar.desktop");
+        unpin_app(&mut cfg, "firefox.desktop");
+        assert_eq!(cfg.dock.items.len(), 1);
+        assert_eq!(
+            cfg.dock.items[0],
+            DockItem::App {
+                desktop: "thunar.desktop".into()
+            }
+        );
+    }
+
+    #[test]
+    fn unpin_app_is_idempotent_when_missing() {
+        let mut cfg = default_config();
+        pin_app(&mut cfg, "firefox.desktop");
+        unpin_app(&mut cfg, "not-there.desktop");
+        assert_eq!(cfg.dock.items.len(), 1);
+    }
+
+    #[test]
+    fn unpin_app_leaves_mesh_entries_untouched() {
+        let mut cfg = default_config();
+        cfg.dock.items.push(DockItem::Mesh {
+            id: "peer:anvil".into(),
+        });
+        pin_app(&mut cfg, "firefox.desktop");
+        unpin_app(&mut cfg, "firefox.desktop");
+        // Mesh entry must remain — unpin_app only sweeps App variants.
+        assert_eq!(cfg.dock.items.len(), 1);
+        assert_eq!(
+            cfg.dock.items[0],
+            DockItem::Mesh {
+                id: "peer:anvil".into()
+            }
+        );
+    }
+
+    #[test]
+    fn reorder_dock_noop_when_indices_equal() {
+        let mut cfg = default_config();
+        pin_app(&mut cfg, "a.desktop");
+        pin_app(&mut cfg, "b.desktop");
+        let before = cfg.dock.items.clone();
+        reorder_dock(&mut cfg, 1, 1);
+        assert_eq!(cfg.dock.items, before);
+    }
+
+    #[test]
+    fn topbar_can_disable_appmenu() {
+        let doc = r"
+            [top_bar]
+            appmenu = false
+        ";
+        let cfg = parse(doc).expect("parse");
+        assert!(!cfg.top_bar.appmenu);
+        // Status items default still in place.
+        assert_eq!(cfg.top_bar.status_items.len(), 6);
+    }
+
+    #[test]
+    fn topbar_custom_status_items_override_default() {
+        let doc = r#"
+            [top_bar]
+            status_items = ["volume", "battery"]
+        "#;
+        let cfg = parse(doc).expect("parse");
+        assert_eq!(cfg.top_bar.status_items, vec!["volume", "battery"]);
+    }
+
+    #[test]
+    fn mesh_replicate_can_be_disabled() {
+        let doc = r"
+            [mesh]
+            replicate = false
+        ";
+        let cfg = parse(doc).expect("parse");
+        assert!(!cfg.mesh.replicate);
+        // drift_check_seconds default preserved.
+        assert_eq!(cfg.mesh.drift_check_seconds, 300);
+    }
+
+    #[test]
+    fn malformed_toml_returns_error() {
+        // Unbalanced bracket — parser must fail loudly.
+        let doc = "[top_bar\n";
+        assert!(parse(doc).is_err());
+    }
+
+    #[test]
+    fn unknown_dock_item_kind_rejected() {
+        // Tagged enum with rename_all=snake_case — `other` isn't a
+        // declared variant, so deserialization must error.
+        let doc = r"
+            [[dock.items]]
+            kind = 'other'
+            payload = 'nope'
+        ";
+        assert!(parse(doc).is_err());
+    }
 }

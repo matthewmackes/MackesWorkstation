@@ -10,7 +10,35 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod audit;
+pub mod enrollment;
+pub mod events;
+pub mod health;
+pub mod identity;
+pub mod leader;
+pub mod legacy_inventory;
+pub mod logging;
+pub mod metrics;
+pub mod passcode;
+pub mod policy;
+pub mod reconcile;
+pub mod revisions;
+pub mod secrets;
+pub mod settings;
 pub mod store;
+pub mod telemetry;
+pub mod topology;
+pub mod validation;
+pub mod worker;
+
+// v2.0.0 Phase A modules — async surface for the unified backend.
+// Gated behind `async-services` so the legacy sync read-API still
+// builds with only the original Phase 12 deps. Library consumers
+// that need DBus / async workers enable the feature.
+#[cfg(feature = "async-services")]
+pub mod ipc;
+#[cfg(feature = "async-services")]
+pub mod workers;
 
 /// Crate-wide error type. Every public function returns
 /// `Result<T, mackesd_core::Error>` so callers don't have to import

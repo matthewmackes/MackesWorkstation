@@ -276,6 +276,10 @@ where
 {
     let button = gtk::Button::with_label(label);
     button.set_relief(gtk::ReliefStyle::None);
+    button.set_tooltip_text(Some(label));
+    if let Some(atk) = button.accessible() {
+        atk.set_name(label);
+    }
     // Left-align the label inside the button.
     if let Some(child) = button.child() {
         if let Some(lbl) = child.downcast_ref::<gtk::Label>() {

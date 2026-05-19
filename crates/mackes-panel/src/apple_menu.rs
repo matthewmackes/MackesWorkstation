@@ -197,4 +197,78 @@ mod tests {
         let names: Vec<&str> = cats[0].entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, vec!["Aria", "blender", "zoom"]);
     }
+
+    #[test]
+    fn every_canonical_bucket_can_be_populated() {
+        // Exercises every arm of CATEGORY_RULES — important when a
+        // future commit adds or reorders rules.
+        let v = vec![
+            entry("Firefox", &["WebBrowser"]),
+            entry("VLC", &["AudioVideo"]),
+            entry("Krita", &["Graphics"]),
+            entry("LibreOffice", &["Office"]),
+            entry("VSCode", &["Development"]),
+            entry("Nethack", &["Game"]),
+            entry("Settings", &["System"]),
+            entry("Calc", &["Utility"]),
+        ];
+        let cats = build(&v);
+        let labels: Vec<&str> = cats.iter().map(|c| c.label).collect();
+        for expected in [
+            "Internet",
+            "Multimedia",
+            "Graphics",
+            "Office",
+            "Development",
+            "Games",
+            "System",
+            "Utilities",
+        ] {
+            assert!(labels.contains(&expected), "missing bucket {expected}");
+        }
+    }
+
+    #[test]
+    fn category_render_order_matches_rules() {
+        let v = vec![
+            entry("VSCode", &["Development"]),
+            entry("Firefox", &["WebBrowser"]),
+            entry("Nethack", &["Game"]),
+        ];
+        let cats = build(&v);
+        // Per CATEGORY_RULES order, Internet (0) before Development (4)
+        // before Games (5).
+        let idx = |label: &str| cats.iter().position(|c| c.label == label).unwrap();
+        assert!(idx("Internet") < idx("Development"));
+        assert!(idx("Development") < idx("Games"));
+    }
+
+    #[test]
+    fn other_bucket_renders_after_real_buckets() {
+        let v = vec![
+            entry("Mystery", &["UnknownBucket"]),
+            entry("Firefox", &["WebBrowser"]),
+        ];
+        let cats = build(&v);
+        let labels: Vec<&str> = cats.iter().map(|c| c.label).collect();
+        // Other lands at the end per build()'s push-after-zip.
+        assert_eq!(labels.last(), Some(&"Other"));
+        assert_eq!(labels[0], "Internet");
+    }
+
+    #[test]
+    fn empty_categories_array_sends_entry_to_other() {
+        let v = vec![entry("Naked", &[])];
+        let cats = build(&v);
+        assert_eq!(cats.len(), 1);
+        assert_eq!(cats[0].label, "Other");
+    }
+
+    #[test]
+    fn case_insensitive_category_tags() {
+        let v = vec![entry("Firefox", &["network"])];
+        let cats = build(&v);
+        assert_eq!(cats.len(), 1);
+        assert_eq!(cats[0].label, "Internet");
+    }
 }

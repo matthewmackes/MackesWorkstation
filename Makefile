@@ -67,6 +67,14 @@ rust-check:
 	cargo clippy --workspace --all-targets -- -D warnings
 	cargo check --workspace --all-targets
 
+# Phase 12.12.2 — library reference. Renders the public API for
+# `mackesd-core` (and the rest of the workspace's libs) as HTML +
+# stashes it where the Workbench Help tab can link to it.
+docs:
+	cargo doc --no-deps --workspace
+	@echo "Generated docs under target/doc/. Install target:"
+	@echo "  sudo cp -r target/doc /usr/share/mackes-shell/help/cargo-doc/"
+
 install-deps:
 	@echo 'On Fedora: sudo dnf install python3-pytest python3-pyyaml python3-gobject gtk3 xfconf xfce4-whiskermenu-plugin xfce4-pulseaudio-plugin xfce4-power-manager-plugin rust cargo rustfmt clippy'
 

@@ -118,7 +118,13 @@ fn write_default(path: &Path) {
 /// `unpin_app` so a single file-system round-trip carries each change.
 /// Caller's mutator runs against a fresh load, so concurrent pins from
 /// the dock + the Workbench can interleave without losing each other.
-fn mutate<F>(mutator: F)
+///
+/// Phase 5.7 — exposed publicly under the `with_mut` name so the
+/// drag-and-drop visual layer (and any future call site that needs to
+/// rewrite `panel.toml`) can pass an arbitrary mutator that calls into
+/// `mackes_config::pin_app` / `reorder_dock` / etc. without re-implementing
+/// the load → mutate → write dance.
+pub fn with_mut<F>(mutator: F)
 where
     F: FnOnce(&mut PanelConfig),
 {
@@ -159,7 +165,7 @@ pub fn pin_app(desktop: &str) {
     } else {
         format!("{desktop}.desktop")
     };
-    mutate(|cfg| cfg_pin_app(cfg, &name));
+    with_mut(|cfg| cfg_pin_app(cfg, &name));
 }
 
 /// Persistently unpin a `.desktop` from the dock. Mirrors `pin_app`.
@@ -169,5 +175,5 @@ pub fn unpin_app(desktop: &str) {
     } else {
         format!("{desktop}.desktop")
     };
-    mutate(|cfg| cfg_unpin_app(cfg, &name));
+    with_mut(|cfg| cfg_unpin_app(cfg, &name));
 }

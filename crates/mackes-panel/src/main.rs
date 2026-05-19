@@ -14,21 +14,52 @@
 
 #![forbid(unsafe_code)]
 
+mod admin_menu;
 mod app_module;
+mod app_switcher;
 mod apple_menu;
+mod clipboard_manager;
 mod config_store;
 mod desktop_files;
 mod dock;
+mod dock_dnd;
+// Drawer-to-Rust port (Phase 4.3): still using mackes/drawer.py
+// (Python). The 1.1.0 `start_menu.rs` is the first Rust slice of
+// the eventual drawer surface; remaining sections continue to live
+// in Python until the full production port lands.
+mod hero;
+mod i3_cluster;
+mod icon_mapper;
 mod icons;
+mod logout_dialog;
+mod network_manager;
+mod notification_bell;
+mod notification_center;
+mod recover;
+mod root_menu;
+mod start_menu;
+mod watermark;
 mod mesh_module;
 mod mesh_sync;
 mod recents;
 mod status_cluster;
 mod strut;
+mod toasts;
 mod top_bar;
 mod weather;
-mod window_buttons;
+// window_buttons retired in 1.1.0 (Q11/Q12): i3 has no built-in
+// window buttons, modern GTK/Qt apps draw their own CSD chrome, and
+// the design's Win10 layout doesn't carry a top-bar control cluster.
+// Mod+q / Mod+f / Mod+space (data/i3/config) cover the actions for
+// every X11 app, CSD or otherwise.
 mod windows;
+
+// Test-only synchronization for env-var-mutating tests across all
+// sibling modules in this binary. Without this, parallel tests that
+// read/write `HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME` race against
+// each other and intermittently fail.
+#[cfg(test)]
+mod test_env;
 
 use std::path::{Path, PathBuf};
 
@@ -36,11 +67,15 @@ use gdk::prelude::*;
 use gdk_pixbuf::Pixbuf;
 use gtk::prelude::*;
 
+/// 1.1.0 Win10 layout: single 40 px bottom taskbar (Q3 lock).
+/// Replaces the prior 20 px top bar + 48 px Plank-parity dock split.
+/// Layout (left → center → right): Start + pinned apps | i3 cluster |
+/// status cluster + clock.
+const TASKBAR_HEIGHT_PX: i32 = 40;
+
+/// Legacy constants retained for backward compat with any code paths
+/// still referencing them. New code should use `TASKBAR_HEIGHT_PX`.
 const TOP_BAR_HEIGHT_PX: i32 = 20;
-/// Vertical padding around `DOCK_ICON_PX` (40 px in 1.0.7b): 4 px above
-/// plus 4 px below produces a 48-px dock — same 5:6 icon-to-dock ratio
-/// as macOS's medium Dock. The earlier 24/28 prototype felt too thin
-/// per design feedback ("match the ratio that mac OS uses").
 const DOCK_PADDING_PX: i32 = 8;
 const APP_ID: &str = "shell.mackes.Panel";
 
@@ -148,12 +183,30 @@ const PLACEHOLDER_CSS: &[u8] = b"
     .mackes-dock-strip > *,
     #mackes-dock-tasklist > * {
         padding: 0 4px;
-        transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1);
+        transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1),
+                    opacity          180ms cubic-bezier(0.2, 0, 0, 1);
     }
     .mackes-dock-strip > *:hover,
     #mackes-dock-tasklist > *:hover {
         background-color: rgba(244, 244, 244, 0.07);
         border-radius: 6px;
+    }
+    /* Phase 5.7 -- drag-and-drop visual feedback. .dragging dims the
+       source row to ~half opacity for the duration of the drag;
+       .drop-hover outlines the drop target with the brand accent so
+       the user can see where the release will land. */
+    .mackes-dock-strip > *.dragging,
+    #mackes-dock-tasklist > *.dragging,
+    eventbox.dragging {
+        opacity: 0.5;
+    }
+    .mackes-dock-strip > *.drop-hover,
+    #mackes-dock-tasklist > *.drop-hover,
+    eventbox.drop-hover,
+    #mackes-taskbar-pinned.drop-hover {
+        background-color: rgba(43, 154, 243, 0.18);
+        border-radius: 6px;
+        box-shadow: inset 0 0 0 1px rgba(43, 154, 243, 0.55);
     }
     #mackes-dock-state-dot {
         min-height: 2px;
@@ -259,6 +312,31 @@ const TOKEN_CSS_PATHS: &[&str] = &[
 const DEFAULT_WALLPAPER: &str = "/usr/share/mackes-shell/branding/standard-wallpaper.png";
 
 fn main() -> glib::ExitCode {
+    // Phase 10.6.8 — `--recover` is a read-only preview of the
+    // birthright rollback ledger. It prints which steps would be
+    // reversed (and the dnf install argv the operator should run via
+    // `mackes recover all`) and exits BEFORE we touch GTK. Done by
+    // hand rather than via clap to keep mackes-panel dependency-light.
+    let argv: Vec<String> = std::env::args().collect();
+    if argv.iter().any(|a| a == "--recover" || a == "-R") {
+        let code = recover::run_preview();
+        return glib::ExitCode::from(code);
+    }
+    // Phase 6.1 — Super+Tab handler. The i3 config in
+    // `data/i3/config.d/mackes-defaults.conf` binds `$mod+Tab` to
+    // `mackes-panel --app-switcher`; the binary spins up an isolated
+    // GTK main loop, runs the modal, and exits the moment the user
+    // commits or dismisses. No `gtk::Application` scaffolding so the
+    // overlay never collides with a running panel instance.
+    if argv.iter().any(|a| a == "--app-switcher") {
+        app_switcher::run_switcher_modal();
+        return glib::ExitCode::from(0i32);
+    }
+    if argv.iter().any(|a| a == "--help" || a == "-h") {
+        print_cli_help();
+        return glib::ExitCode::from(0i32);
+    }
+
     let app = gtk::Application::builder()
         .application_id(APP_ID)
         .flags(gio::ApplicationFlags::FLAGS_NONE)
@@ -283,6 +361,20 @@ fn main() -> glib::ExitCode {
     app.run()
 }
 
+/// Minimal CLI help. Surfaced by `--help` / `-h` (so a user who Cmd-Tabs
+/// here from `mackes --help` doesn't see a GTK window spawn). Listing is
+/// short on purpose — the real reference doc is `docs/help/cli-reference.md`.
+fn print_cli_help() {
+    println!("mackes-panel — Mackes XFCE Workstation panel\n");
+    println!("USAGE:");
+    println!("    mackes-panel                launch the panel (default)");
+    println!("    mackes-panel --recover      print the birthright rollback");
+    println!("                                preview and exit (Phase 10.6.8)");
+    println!("    mackes-panel --app-switcher open the Super+Tab app switcher");
+    println!("                                overlay and exit (Phase 6.1)");
+    println!("    mackes-panel --help         this message");
+}
+
 fn build_surfaces(app: &gtk::Application) {
     install_global_styling();
     let cfg = config_store::load_or_default();
@@ -296,10 +388,27 @@ fn build_surfaces(app: &gtk::Application) {
     });
     std::mem::forget(monitor);
 
-    let geom = primary_monitor_geometry().unwrap_or_default();
-    build_desktop(app, &geom);
-    build_top_bar(app, &geom);
-    build_bottom_dock(app, &geom, &cfg);
+    // 1.1.0 (#16) — render one wallpaper layer per connected monitor.
+    // The Win10 watermark is rendered as an overlay child on the
+    // primary monitor's window only (current `apply_wallpaper`
+    // behavior); secondary monitors get the wallpaper without the
+    // watermark, mirroring Win10's "Recent Windows-1 desktop"
+    // convention.
+    let monitors = all_monitor_geometries();
+    if monitors.is_empty() {
+        let geom = FallbackGeometry::default();
+        build_desktop(app, &geom, true);
+        build_bottom_taskbar(app, &geom, &cfg);
+        return;
+    }
+    for (i, geom) in monitors.iter().enumerate() {
+        build_desktop(app, geom, i == 0);
+    }
+    // 1.1.0 (Q1/Q2/Q3 lock): single bottom taskbar replaces the
+    // prior top bar + Plank dock split. The taskbar renders on the
+    // primary monitor only (Win10 behavior — secondary monitors
+    // show wallpaper only).
+    build_bottom_taskbar(app, &monitors[0], &cfg);
 }
 
 /// Load `PatternFly` tokens (data/css/tokens.css) into the screen-wide
@@ -338,8 +447,27 @@ fn install_global_styling() {
     }
 }
 
-/// Fullscreen wallpaper layer that replaces xfdesktop.
-fn build_desktop(app: &gtk::Application, geom: &FallbackGeometry) {
+/// Fullscreen wallpaper layer that replaces xfdesktop. `with_watermark`
+/// controls whether the Win10-style update watermark is overlaid in
+/// the lower-right — primary monitor gets the watermark, secondary
+/// monitors get wallpaper only (1.1.0 #16 multi-monitor lock).
+///
+/// Phase 8.4 — right-clicking anywhere on the wallpaper drops the
+/// `root_menu` (Change wallpaper / Open mesh share / Send file to peer
+/// / Display settings). We bind `button-press-event` directly on this
+/// Desktop-type window rather than `XGrabButton`-ing the X11 root,
+/// because:
+///
+///  1. The window already covers every pixel of the wallpaper.
+///  2. `WindowTypeHint::Desktop` keeps it strictly below every other
+///     window, so panel / app clicks still take priority by Z-order.
+///  3. GTK gives us event delivery without an external `x11`/`xcb`
+///     dependency or manual root-grab teardown on shutdown.
+///
+/// Left-click falls through (matches macOS's "click on Desktop does
+/// nothing"); middle and other buttons also fall through. Only
+/// `event.button() == 3` opens the menu.
+fn build_desktop(app: &gtk::Application, geom: &FallbackGeometry, with_watermark: bool) {
     let window = gtk::ApplicationWindow::builder()
         .application(app)
         .title("mackes-panel-desktop")
@@ -353,11 +481,172 @@ fn build_desktop(app: &gtk::Application, geom: &FallbackGeometry) {
     window.set_widget_name("mackes-desktop");
     window.set_default_size(geom.width, geom.height);
     window.move_(geom.x, geom.y);
-    apply_wallpaper(&window, geom);
+    apply_wallpaper(&window, geom, with_watermark);
+
+    // GTK toplevels don't pick up BUTTON_PRESS_MASK by default — and
+    // because we set `accept_focus(false)` above, GTK is even more
+    // conservative about the events it requests. Add the masks
+    // explicitly so right-click reaches our handler.
+    window.add_events(gdk::EventMask::BUTTON_PRESS_MASK);
+
+    window.connect_button_press_event(|_, ev| {
+        if ev.button() == 3 {
+            let menu = root_menu::build();
+            menu.show_all();
+            menu.popup_easy(3, ev.time());
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+
     window.show_all();
 }
 
-/// Top status bar — 20 px Dock-hint window with three named layout slots.
+/// 1.1.0 — Single bottom taskbar replacing the 1.0.x top bar + Plank
+/// dock split (Q1/Q2/Q3 lock). Layout:
+///
+/// ```text
+/// ┌─────────────────────────────────────────────────────────────────┐
+/// │ [M] [pinned…]      [SPLIT][LAYOUT][WINDOW]      [tray…] [clock] │
+/// └─────────────────────────────────────────────────────────────────┘
+/// ```
+///
+/// - **Left**: Start button (`apple_menu_button` — left-click drops the
+///   apple menu; right-click drops the 9-item Fedora admin menu) + the
+///   pinned-apps dock strip (re-skin of the prior Plank dock, same
+///   logic + sources, just 18 px icons in 40 px slots per Q9).
+/// - **Center**: i3 cluster (`i3_cluster::build()`).
+/// - **Right**: status cluster (`status_cluster::build()`) + the
+///   two-line clock (Q13 lock — `top_bar::clock()` carries the date
+///   line per its 1.1.0 update).
+///
+/// `_NET_WM_STRUT_PARTIAL` is set via the bottom-strut helper so i3
+/// reserves the row for non-floating windows.
+fn build_bottom_taskbar(
+    app: &gtk::Application,
+    geom: &FallbackGeometry,
+    cfg: &mackes_config::PanelConfig,
+) {
+    // .desktop scan shared with the dock strip — only one filesystem
+    // walk per panel boot.
+    let by_id: std::rc::Rc<std::collections::HashMap<String, desktop_files::DesktopEntry>> =
+        std::rc::Rc::new(
+            desktop_files::scan()
+                .into_iter()
+                .map(|e| (e.id.clone(), e))
+                .collect(),
+        );
+
+    let window = gtk::ApplicationWindow::builder()
+        .application(app)
+        .title("mackes-panel-taskbar")
+        .decorated(false)
+        .skip_taskbar_hint(true)
+        .skip_pager_hint(true)
+        .resizable(false)
+        .type_hint(gdk::WindowTypeHint::Dock)
+        .build();
+    window.set_widget_name("mackes-taskbar");
+    window.set_default_size(geom.width, TASKBAR_HEIGHT_PX);
+    window.move_(geom.x, geom.y + geom.height - TASKBAR_HEIGHT_PX);
+
+    let bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    bar.set_widget_name("mackes-taskbar-layout");
+
+    // ---- LEFT: Start + pinned-apps strip ------------------------------
+    let left = build_slot("mackes-taskbar-left");
+    left.set_spacing(2);
+    left.pack_start(&top_bar::apple_menu_button(), false, false, 0);
+
+    let pinned = build_slot("mackes-taskbar-pinned");
+    pinned.set_spacing(0);
+    let tasklist = build_tasklist_strip();
+    tasklist.set_spacing(0);
+    // Phase 5.7 — install the pinned-strip drop target ONCE (its
+    // children are torn down + rebuilt every 2 s, but the strip
+    // itself outlives the panel). Tasklist items dragged here call
+    // `mackes_config::pin_app` via `config_store::with_mut`.
+    dock_dnd::attach_pinned_strip_target(&pinned);
+    refresh_dock(&pinned, &tasklist, cfg, &by_id);
+    left.pack_start(&pinned, false, false, 0);
+    left.pack_start(&tasklist, false, false, 0);
+
+    // ---- CENTER: hero slot + i3 cluster ------------------------------
+    // 1.1.0 (Q10): the focused-app hero lives immediately to the left
+    // of the i3 cluster. Hidden by default; revealed via GTK's native
+    // slide-left transition when an i3 window::focus event arrives.
+    let center = build_slot("mackes-taskbar-center");
+    center.pack_start(&hero::build(), false, false, 0);
+    center.pack_start(&i3_cluster::build(), false, false, 0);
+
+    // ---- RIGHT: NM icon + tray (status cluster) + bell + clock -------
+    // 1.1.0 (#24): the NetworkManager button sits to the LEFT of the
+    // status cluster — live interface state + click-popover with the
+    // full nmcli surface (connections, Wi-Fi scan/connect, airplane,
+    // editor launch).
+    // 1.1.0 (Rust-Desktop notification handoff): bell + unread badge
+    // sits between the status cluster and the clock. Click opens the
+    // mesh-synced Notification Center modal (70% screen, dimmed
+    // backdrop, Esc / outside-click dismiss).
+    let right = build_slot("mackes-taskbar-right");
+    right.set_spacing(2);
+    right.pack_start(&network_manager::build(), false, false, 0);
+    right.pack_start(&status_cluster::build(), false, false, 0);
+    right.pack_start(&notification_bell::build(), false, false, 0);
+    right.pack_start(&top_bar::clock(), false, false, 0);
+
+    bar.pack_start(&left, false, false, 0);
+    bar.set_center_widget(Some(&center));
+    bar.pack_end(&right, false, false, 0);
+
+    window.add(&bar);
+    window.show_all();
+
+    // Reserve the row via `_NET_WM_STRUT_PARTIAL` so i3 + xfsettingsd
+    // don't tile windows beneath us.
+    strut::set_bottom_strut(&window, geom, TASKBAR_HEIGHT_PX);
+
+    // 2 s refresh on the pinned + tasklist segments — same cadence as
+    // the prior dock. Live-reloads panel.toml so Pin / Unpin actions
+    // from right-click menus surface promptly.
+    {
+        // The dock refresh timer is the last consumer of `pinned` /
+        // `tasklist`, so move them directly into the closure rather
+        // than cloning.
+        let by_id_for_timer = std::rc::Rc::clone(&by_id);
+        glib::timeout_add_seconds_local(2, move || {
+            let live_cfg = config_store::load_or_default();
+            refresh_dock(&pinned, &tasklist, &live_cfg, &by_id_for_timer);
+            glib::ControlFlow::Continue
+        });
+    }
+    // Track realized height — the GTK layout may push past
+    // TASKBAR_HEIGHT_PX once fonts + icons settle. Same polling
+    // pattern as the legacy `build_top_bar` (size-allocate is
+    // unreliable on Dock-hint toplevels).
+    {
+        let geom_for_strut = *geom;
+        let last_h: std::rc::Rc<std::cell::Cell<i32>> =
+            std::rc::Rc::new(std::cell::Cell::new(TASKBAR_HEIGHT_PX));
+        glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
+            let h = window.allocated_height();
+            if h > 0 && h != last_h.get() {
+                last_h.set(h);
+                let new_y = geom_for_strut.y + geom_for_strut.height - h;
+                window.move_(geom_for_strut.x, new_y);
+                strut::set_bottom_strut(&window, &geom_for_strut, h);
+            }
+            glib::ControlFlow::Continue
+        });
+    }
+}
+
+/// Dead code as of 1.1.0 — kept compiling so any external reference
+/// (tests, helper scripts) still links. The actual surface is gone;
+/// `build_surfaces` calls `build_bottom_taskbar` instead. Remove
+/// entirely on the next release cut.
+#[allow(dead_code)]
 fn build_top_bar(app: &gtk::Application, geom: &FallbackGeometry) {
     let window = gtk::ApplicationWindow::builder()
         .application(app)
@@ -385,10 +674,7 @@ fn build_top_bar(app: &gtk::Application, geom: &FallbackGeometry) {
     left.pack_start(&top_bar::apple_menu_button(), false, false, 0);
     center.pack_start(&top_bar::clock(), false, false, 0);
     right.pack_start(&status_cluster::build(), false, false, 0);
-    // Phase 8.7: window-management buttons (min / max / close) sit
-    // past the status cluster at the far-right corner. i3 is the
-    // only WM as of Phase 8.8, so they're unconditionally packed.
-    right.pack_start(&window_buttons::build(), false, false, 0);
+    // 1.1.0: window_buttons retired (i3-native + CSD only).
 
     bar.pack_start(&left, false, false, 0);
     bar.set_center_widget(Some(&center));
@@ -421,12 +707,11 @@ fn build_top_bar(app: &gtk::Application, geom: &FallbackGeometry) {
     }
 }
 
-/// Bottom dock — Dock-hint window whose height is the icon size plus a
-/// small Carbon-grid padding. Plank-parity layout: pinned launchers on
-/// the left, a tasklist segment on the right that lists running windows
-/// that don't already belong to a pinned launcher (window grouping).
-/// Polling refreshes both segments every 2 s so launcher state dots
-/// follow window focus/open/close without a libwnck dependency.
+/// Dead code as of 1.1.0 — superseded by `build_bottom_taskbar` which
+/// fuses the dock + top bar contents into a single 40 px surface. Kept
+/// in-tree for one release cycle so any helper that calls into it
+/// keeps compiling; remove at 1.2.0.
+#[allow(dead_code)]
 fn build_bottom_dock(
     app: &gtk::Application,
     geom: &FallbackGeometry,
@@ -578,6 +863,11 @@ fn refresh_dock(
     let snap = DockSnapshot::capture();
     let mut pinned_classes: std::collections::HashSet<String> = std::collections::HashSet::new();
 
+    // `cfg.dock.items` is the source-of-truth ordering; the visible
+    // index drives the drag payload (Phase 5.7). Mesh entries with an
+    // unrecognised id are skipped without consuming a slot, so we
+    // increment manually rather than using `.enumerate()`.
+    let mut slot_index: usize = 0;
     for item in &cfg.dock.items {
         match item {
             mackes_config::DockItem::App { desktop } => {
@@ -588,8 +878,13 @@ fn refresh_dock(
                 let class = launcher_class(entry);
                 let app_windows = snap.windows_for_class(&class);
                 let widget = build_launcher_item(entry, &app_windows, snap.active.as_deref());
+                // Phase 5.7 — drag source + drop target. Source emits
+                // the current slot index; drop calls
+                // `mackes_config::reorder_dock(cfg, from, slot_index)`.
+                dock_dnd::attach_dock_slot(&widget, slot_index);
                 pinned_classes.insert(class);
                 strip.pack_start(&widget, false, false, 0);
+                slot_index += 1;
             }
             mackes_config::DockItem::Mesh { id } => {
                 if let Some(resource) = mesh_module::parse_id(id) {
@@ -613,7 +908,11 @@ fn refresh_dock(
                         }
                         glib::Propagation::Stop
                     });
+                    // Mesh items participate in the same reorder grammar
+                    // as App items — same atom, same index space.
+                    dock_dnd::attach_dock_slot(&widget, slot_index);
                     strip.pack_start(&widget, false, false, 0);
+                    slot_index += 1;
                 } else {
                     eprintln!("mackes-panel: unrecognised mesh dock id: {id}");
                 }
@@ -795,6 +1094,25 @@ fn launcher_context_menu(
     }
 
     menu.append(&gtk::SeparatorMenuItem::new());
+
+    // 1.1.0 (#14) — Carbon Icon Mapper integration. Right-click on
+    // any dock app shows "Change icon…" which drops a popover with
+    // every Mackes-Carbon icon as a tappable thumbnail; clicking
+    // writes a user override to ~/.local/share/applications/<id>.
+    let change_icon = gtk::MenuItem::with_label("Change icon…");
+    let id_for_icon = desktop_id.to_owned();
+    let name_for_icon = name.to_owned();
+    change_icon.connect_activate(move |item| {
+        // Anchor the popover to the menu item itself — gives a
+        // sensible visual handoff from the right-click cascade.
+        icon_mapper::open_for(
+            item.upcast_ref::<gtk::Widget>(),
+            &id_for_icon,
+            &name_for_icon,
+        );
+    });
+    menu.append(&change_icon);
+
     let unpin = gtk::MenuItem::with_label("Unpin from Dock");
     let id_owned = desktop_id.to_owned();
     unpin.connect_activate(move |_| config_store::unpin_app(&id_owned));
@@ -911,6 +1229,15 @@ fn build_tasklist_item(
     // found a matching DesktopEntry; tasklist items spawned by apps
     // without a `.desktop` (random Qt tools, etc.) can't be pinned.
     let pin_target: Option<String> = entry.map(|e| e.id.clone());
+
+    // Phase 5.7 — drag source. The user can drag a running tasklist
+    // item onto the pinned strip to pin it. Only wired when we have a
+    // resolvable .desktop id (matches the right-click "Pin to Dock"
+    // menu's availability rule). The payload is the basename, e.g.
+    // `firefox.desktop`; the strip's drop handler calls
+    // `mackes_config::pin_app(cfg, desktop_id)`.
+    dock_dnd::attach_tasklist_source(&event_box, pin_target.as_deref());
+
     event_box.connect_button_press_event(move |_, ev| match ev.button() {
         1 => {
             windows::toggle_window(&window_id);
@@ -989,16 +1316,30 @@ fn tasklist_context_menu(window_id: &str, title: &str, pin_target: Option<&str>)
 /// Draws the wallpaper as a scaled-to-fit Image inside the desktop window.
 /// If no wallpaper is found, falls back to the `PatternFly` dark surface
 /// so the user never sees an unconfigured window background.
-fn apply_wallpaper(window: &gtk::ApplicationWindow, geom: &FallbackGeometry) {
+fn apply_wallpaper(
+    window: &gtk::ApplicationWindow,
+    geom: &FallbackGeometry,
+    with_watermark: bool,
+) {
     let path = resolve_wallpaper_path();
     let pixbuf = path
         .as_deref()
         .and_then(|p| Pixbuf::from_file_at_scale(p, geom.width, geom.height, false).ok());
 
+    // 1.1.0 (Q19/Q20/Q21 + suggestions #2/#10): wrap the wallpaper in
+    // a Gtk.Overlay so the Win10-style watermark can render in the
+    // lower-right corner — but only on the primary monitor (#16
+    // multi-monitor lock: secondary monitors get wallpaper without
+    // the watermark, mirroring Win10's primary-only chrome).
+    let overlay = gtk::Overlay::new();
     if let Some(pb) = pixbuf {
         let image = gtk::Image::from_pixbuf(Some(&pb));
-        window.add(&image);
+        overlay.add(&image);
     }
+    if with_watermark {
+        overlay.add_overlay(&watermark::build());
+    }
+    window.add(&overlay);
 }
 
 /// Locate the active wallpaper. Looks in the running user's mackes-shell
@@ -1052,6 +1393,9 @@ impl Default for FallbackGeometry {
 
 /// Primary monitor's geometry in CSS pixels. Returns `None` if there's no
 /// connected display (CI / sandboxed builds) so callers fall back.
+/// Superseded in 1.1.0 by `all_monitor_geometries` (#16); kept around
+/// for the deprecated `build_top_bar` / `build_bottom_dock` paths.
+#[allow(dead_code)]
 fn primary_monitor_geometry() -> Option<FallbackGeometry> {
     let display = gdk::Display::default()?;
     let monitor = display.primary_monitor()?;
@@ -1062,4 +1406,47 @@ fn primary_monitor_geometry() -> Option<FallbackGeometry> {
         width: rect.width(),
         height: rect.height(),
     })
+}
+
+/// 1.1.0 (#16) — every connected monitor's geometry in CSS pixels.
+/// `gdk::Display::n_monitors` + `monitor(i)` enumerates the live
+/// outputs. Returns an empty vec when no display is connected (CI /
+/// sandboxed builds). The first entry is the primary monitor when
+/// the display reports one — used by the taskbar + watermark.
+fn all_monitor_geometries() -> Vec<FallbackGeometry> {
+    let Some(display) = gdk::Display::default() else {
+        return Vec::new();
+    };
+    let n = display.n_monitors();
+    let primary = display.primary_monitor();
+    let mut out: Vec<FallbackGeometry> = Vec::with_capacity(usize::try_from(n).unwrap_or(0));
+    // Push the primary first so callers that index [0] get the
+    // canonical surface.
+    if let Some(m) = primary.as_ref() {
+        let r = m.geometry();
+        out.push(FallbackGeometry {
+            x: r.x(),
+            y: r.y(),
+            width: r.width(),
+            height: r.height(),
+        });
+    }
+    for i in 0..n {
+        if let Some(m) = display.monitor(i) {
+            if primary
+                .as_ref()
+                .is_some_and(|pm| pm.model() == m.model() && pm.geometry() == m.geometry())
+            {
+                continue;
+            }
+            let r = m.geometry();
+            out.push(FallbackGeometry {
+                x: r.x(),
+                y: r.y(),
+                width: r.width(),
+                height: r.height(),
+            });
+        }
+    }
+    out
 }

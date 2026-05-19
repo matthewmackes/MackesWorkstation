@@ -253,4 +253,133 @@ mod tests {
         assert!(!parse_bool("0"));
         assert!(!parse_bool(""));
     }
+
+    #[test]
+    fn missing_section_returns_none() {
+        // No `[Desktop Entry]` at all — even though Name/Exec are
+        // present they live in no section so they're ignored.
+        let text = "Name=Stray\nExec=stray\n";
+        assert!(parse_text("stray.desktop", text).is_none());
+    }
+
+    #[test]
+    fn comments_and_blank_lines_ignored() {
+        let text = "\
+            # the build comment\n\
+            \n\
+            [Desktop Entry]\n\
+            # a leading comment\n\
+            Name=Real\n\
+            \n\
+            Exec=real %F\n";
+        let e = parse_text("real.desktop", text).expect("parses");
+        assert_eq!(e.name, "Real");
+        assert_eq!(e.exec, "real %F");
+    }
+
+    #[test]
+    fn startup_wm_class_is_parsed() {
+        let text = "\
+            [Desktop Entry]\n\
+            Name=Code\n\
+            Exec=code\n\
+            StartupWMClass=Code\n";
+        let e = parse_text("code.desktop", text).expect("parses");
+        assert_eq!(e.startup_wm_class.as_deref(), Some("Code"));
+    }
+
+    #[test]
+    fn categories_skip_empty_segments_from_trailing_semicolon() {
+        let text = "\
+            [Desktop Entry]\n\
+            Name=X\n\
+            Exec=x\n\
+            Categories=;Network;;System;;\n";
+        let e = parse_text("x.desktop", text).expect("parses");
+        assert_eq!(e.categories, vec!["Network", "System"]);
+    }
+
+    #[test]
+    fn parse_file_returns_none_for_missing_path() {
+        let p = std::path::Path::new("/does/not/exist/xyzzzz.desktop");
+        assert!(parse_file(p).is_none());
+    }
+
+    #[test]
+    fn parse_file_reads_real_temp_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("real.desktop");
+        std::fs::write(
+            &path,
+            "[Desktop Entry]\nName=Real\nExec=real\n",
+        )
+        .unwrap();
+        let e = parse_file(&path).expect("parses");
+        assert_eq!(e.id, "real.desktop");
+        assert_eq!(e.name, "Real");
+    }
+
+    #[test]
+    fn no_display_false_still_parses() {
+        // Explicit false should NOT skip the entry.
+        let text = "[Desktop Entry]\nName=Visible\nExec=x\nNoDisplay=false\n";
+        assert!(parse_text("v.desktop", text).is_some());
+    }
+
+    #[test]
+    fn unknown_keys_are_silently_dropped() {
+        let text = "\
+            [Desktop Entry]\n\
+            Name=X\n\
+            Exec=x\n\
+            UnknownKey=ignored\n\
+            Version=1.0\n";
+        let e = parse_text("x.desktop", text).expect("parses");
+        assert_eq!(e.name, "X");
+    }
+
+    #[test]
+    fn lines_without_equals_are_ignored() {
+        let text = "\
+            [Desktop Entry]\n\
+            Name=Y\n\
+            Exec=y\n\
+            no-equals-here\n";
+        let e = parse_text("y.desktop", text).expect("parses");
+        assert_eq!(e.name, "Y");
+    }
+
+    #[test]
+    fn scan_returns_only_valid_desktop_entries() {
+        let _g = crate::test_env::env_lock();
+        // scan() reads $HOME/.local/share/applications. Point HOME at
+        // a tempdir, drop one .desktop, and verify it surfaces.
+        let dir = tempfile::tempdir().unwrap();
+        let apps = dir.path().join(".local/share/applications");
+        std::fs::create_dir_all(&apps).unwrap();
+        std::fs::write(
+            apps.join("only.desktop"),
+            "[Desktop Entry]\nName=OnlyOne\nExec=only\n",
+        )
+        .unwrap();
+        std::fs::write(apps.join("non-desktop.txt"), "ignored").unwrap();
+        // Hidden entry must be skipped.
+        std::fs::write(
+            apps.join("hidden.desktop"),
+            "[Desktop Entry]\nName=Hidden\nExec=h\nHidden=true\n",
+        )
+        .unwrap();
+
+        let prior_home = std::env::var_os("HOME");
+        std::env::set_var("HOME", dir.path());
+        let entries = scan();
+        match prior_home {
+            Some(h) => std::env::set_var("HOME", h),
+            None => std::env::remove_var("HOME"),
+        }
+
+        // System dirs may add more entries; we only assert our own.
+        assert!(entries.iter().any(|e| e.id == "only.desktop"));
+        assert!(!entries.iter().any(|e| e.id == "hidden.desktop"));
+    }
 }

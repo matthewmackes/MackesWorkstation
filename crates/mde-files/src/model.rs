@@ -1,0 +1,249 @@
+//! Data model for the Artifact Manager — Rust port of the FM_* types in the prototype.
+
+/// A mesh peer (the rows in the sidebar's MESH section + the cards in the overview).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Peer {
+    pub id: &'static str,
+    pub host: &'static str,
+    pub label: &'static str,
+    pub kind: PeerKind,
+    pub addr: &'static str,
+    pub status: PeerStatus,
+    /// Milliseconds. `None` when the peer is offline.
+    pub latency: Option<u32>,
+    pub files: u32,
+    pub shared: u32,
+    /// Human-readable "last seen" stamp (e.g. `"now"`, `"3 min"`, `"2 h ago"`).
+    pub last: &'static str,
+    pub derp: &'static str,
+}
+
+/// The local node ("this node"). Distinguished from peers because the UI tints it
+/// with the rust accent instead of the success-green online dot.
+#[derive(Debug, Clone, Copy)]
+pub struct SelfNode {
+    pub id: &'static str,
+    pub host: &'static str,
+    pub label: &'static str,
+    pub addr: &'static str,
+    pub files: u32,
+    pub shared: u32,
+}
+
+/// One row in a file list. `mesh` and `from` both attribute the file to a peer; the
+/// prototype uses `mesh` for Downloads-style listings and `from` for Inbox-style
+/// listings. The visual pill is the same in both cases.
+#[derive(Debug, Clone, Copy)]
+pub struct FileRow {
+    pub name: &'static str,
+    pub mime: Mime,
+    pub size: &'static str,
+    pub age: &'static str,
+    pub mesh: Option<&'static str>,
+    pub from: Option<&'static str>,
+}
+
+impl FileRow {
+    #[must_use]
+    pub fn local(name: &'static str, mime: Mime, size: &'static str, age: &'static str) -> Self {
+        Self { name, mime, size, age, mesh: None, from: None }
+    }
+
+    #[must_use]
+    pub fn with_mesh(mut self, peer_host: &'static str) -> Self {
+        self.mesh = Some(peer_host);
+        self
+    }
+
+    #[must_use]
+    pub fn with_from(mut self, peer_host: &'static str) -> Self {
+        self.from = Some(peer_host);
+        self
+    }
+
+    #[must_use]
+    pub fn origin(&self) -> Option<&'static str> {
+        self.mesh.or(self.from)
+    }
+
+    #[must_use]
+    pub fn is_mesh(&self) -> bool {
+        self.origin().is_some()
+    }
+}
+
+/// A pin in the local-veil grid (Home / Documents / Pictures / …).
+#[derive(Debug, Clone, Copy)]
+pub struct LocalPin {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub path: &'static str,
+    pub icon: PinIcon,
+}
+
+/// Which icon a local pin should use. Maps onto `icons::svg_for_pin`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PinIcon {
+    Home,
+    Doc2,
+    Image,
+    Doc,
+    Player,
+    Rust,
+    Hdd,
+    Trash,
+}
+
+/// A short transfer-log row in the Mesh Overview.
+#[derive(Debug, Clone, Copy)]
+pub struct Transfer {
+    pub dir: TxDir,
+    pub name: &'static str,
+    pub peer: &'static str,
+    pub size: &'static str,
+    pub age: &'static str,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TxDir {
+    In,
+    Out,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeerStatus {
+    Online,
+    Idle,
+    Offline,
+    Self_,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PeerKind {
+    Desktop,
+    Server,
+    Phone,
+    Ci,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mime {
+    Folder,
+    Doc,
+    Image,
+    Pdf,
+    Archive,
+    Disk,
+}
+
+/// Current routing target for the main content area.
+///
+/// Default is `MeshOverview` — the mesh is the home base, not the local filesystem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    MeshOverview,
+    Inbox,
+    Peer(&'static str),
+    Downloads,
+    Local,
+}
+
+impl Default for View {
+    fn default() -> Self {
+        Self::MeshOverview
+    }
+}
+
+impl View {
+    /// True for any view that operates on mesh content (mesh overview, inbox, a peer folder).
+    #[must_use]
+    pub fn is_mesh(self) -> bool {
+        matches!(self, Self::MeshOverview | Self::Inbox | Self::Peer(_))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Layout {
+    #[default]
+    List,
+    Grid,
+}
+
+/// Format an `u32` the way the prototype's `fmt()` does: ≥1000 → `4.9k`, ≥10000 → `18k`.
+#[must_use]
+pub fn fmt_count(n: u32) -> String {
+    if n >= 10_000 {
+        format!("{}k", n / 1000)
+    } else if n >= 1000 {
+        let kilos = n as f32 / 1000.0;
+        format!("{kilos:.1}k")
+    } else {
+        n.to_string()
+    }
+}
+
+/// Latency colour bucket for peer-card meta rows. Matches `lat-good` (<50 ms) and `lat-ok` (<150 ms).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LatencyBucket {
+    Good,
+    Ok,
+    Slow,
+}
+
+#[must_use]
+pub fn latency_bucket(latency_ms: u32) -> LatencyBucket {
+    if latency_ms < 50 {
+        LatencyBucket::Good
+    } else if latency_ms < 150 {
+        LatencyBucket::Ok
+    } else {
+        LatencyBucket::Slow
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fmt_count_thresholds_match_prototype() {
+        assert_eq!(fmt_count(0), "0");
+        assert_eq!(fmt_count(999), "999");
+        assert_eq!(fmt_count(1000), "1.0k");
+        assert_eq!(fmt_count(4912), "4.9k");
+        assert_eq!(fmt_count(10_000), "10k");
+        assert_eq!(fmt_count(18_403), "18k");
+    }
+
+    #[test]
+    fn latency_buckets_split_at_50_and_150() {
+        assert_eq!(latency_bucket(14), LatencyBucket::Good);
+        assert_eq!(latency_bucket(49), LatencyBucket::Good);
+        assert_eq!(latency_bucket(50), LatencyBucket::Ok);
+        assert_eq!(latency_bucket(149), LatencyBucket::Ok);
+        assert_eq!(latency_bucket(220), LatencyBucket::Slow);
+    }
+
+    #[test]
+    fn view_is_mesh_recognises_peer_variants() {
+        assert!(View::MeshOverview.is_mesh());
+        assert!(View::Inbox.is_mesh());
+        assert!(View::Peer("pine").is_mesh());
+        assert!(!View::Downloads.is_mesh());
+        assert!(!View::Local.is_mesh());
+    }
+
+    #[test]
+    fn file_row_origin_prefers_mesh_then_from() {
+        let r = FileRow::local("a", Mime::Doc, "1 KB", "now").with_mesh("pine.mesh");
+        assert_eq!(r.origin(), Some("pine.mesh"));
+        assert!(r.is_mesh());
+
+        let r2 = FileRow::local("b", Mime::Doc, "1 KB", "now").with_from("oak.mesh");
+        assert_eq!(r2.origin(), Some("oak.mesh"));
+
+        let r3 = FileRow::local("c", Mime::Doc, "1 KB", "now");
+        assert_eq!(r3.origin(), None);
+        assert!(!r3.is_mesh());
+    }
+}

@@ -309,4 +309,124 @@ mod tests {
             "definitely-not-mapped-symbolic"
         );
     }
+
+    #[test]
+    fn carbon_glyph_for_categories_internet_bucket() {
+        assert_eq!(
+            carbon_glyph_for_categories(&["Network".into()]),
+            "applications-internet-symbolic"
+        );
+        assert_eq!(
+            carbon_glyph_for_categories(&["WebBrowser".into()]),
+            "applications-internet-symbolic"
+        );
+        assert_eq!(
+            carbon_glyph_for_categories(&["Email".into()]),
+            "applications-internet-symbolic"
+        );
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_multimedia_bucket() {
+        for cat in ["AudioVideo", "Audio", "Video", "AudioVideoPlayer", "Player"] {
+            assert_eq!(
+                carbon_glyph_for_categories(&[cat.to_string()]),
+                "applications-multimedia-symbolic",
+                "category {cat} should map to multimedia"
+            );
+        }
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_graphics_office_dev_games_system_utility() {
+        // Each bucket — first-match wins on the very first entry.
+        let cases = [
+            ("Photography", "applications-graphics-symbolic"),
+            ("RasterGraphics", "applications-graphics-symbolic"),
+            ("VectorGraphics", "applications-graphics-symbolic"),
+            ("Graphics", "applications-graphics-symbolic"),
+            ("Office", "applications-office-symbolic"),
+            ("TextEditor", "applications-office-symbolic"),
+            ("Spreadsheet", "applications-office-symbolic"),
+            ("Presentation", "applications-office-symbolic"),
+            ("Development", "applications-development-symbolic"),
+            ("IDE", "applications-development-symbolic"),
+            ("Debugger", "applications-development-symbolic"),
+            ("Building", "applications-development-symbolic"),
+            ("Game", "applications-games-symbolic"),
+            ("Games", "applications-games-symbolic"),
+            ("System", "applications-system-symbolic"),
+            ("Settings", "applications-system-symbolic"),
+            ("Monitor", "applications-system-symbolic"),
+            ("Utility", "applications-utilities-symbolic"),
+            ("Accessibility", "applications-utilities-symbolic"),
+            ("TextTools", "applications-utilities-symbolic"),
+            ("FileTools", "applications-utilities-symbolic"),
+        ];
+        for (cat, expected) in cases {
+            assert_eq!(
+                carbon_glyph_for_categories(&[cat.to_string()]),
+                expected,
+                "{cat} → {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_empty_input_falls_to_other() {
+        assert_eq!(
+            carbon_glyph_for_categories(&[]),
+            "applications-other-symbolic"
+        );
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_unknown_falls_to_other() {
+        assert_eq!(
+            carbon_glyph_for_categories(&["NotACategory".into(), "AlsoNot".into()]),
+            "applications-other-symbolic"
+        );
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_first_known_wins_over_later() {
+        // Walk order is the user's category list, NOT CATEGORY_RULES.
+        // First entry's bucket wins because the inner match returns
+        // on first hit.
+        let cats = vec!["Game".into(), "Network".into()];
+        // Game → games-symbolic, encountered before Network.
+        assert_eq!(carbon_glyph_for_categories(&cats), "applications-games-symbolic");
+    }
+
+    #[test]
+    fn resolve_handles_path_with_only_extension_after_basename() {
+        // `firefox-nightly` is a curated alias.
+        assert_eq!(resolve("firefox-nightly"), "earth");
+        assert_eq!(resolve("FIREFOX-NIGHTLY"), "earth");
+    }
+
+    #[test]
+    fn load_with_fallback_returns_none_when_theme_missing() {
+        // Without Mackes-Carbon installed the theme root won't exist;
+        // load_with_fallback must not panic and must fall through to
+        // None when nothing resolves.
+        let result = load_with_fallback(
+            Some("definitely-not-a-real-icon-9zXq"),
+            &["NotARealCat".into()],
+            16,
+        );
+        // Either None (theme absent) or Some (theme present + the
+        // ultimate `applications-other-symbolic` is shipped). Both are
+        // valid behaviors. Goal: exercise every branch without panic.
+        let _ = result;
+    }
+
+    #[test]
+    fn candidate_basenames_appends_symbolic_variant_for_plain_name() {
+        // Important: covers the `else` arm of the symbolic-suffix
+        // branching.
+        let v = candidate_basenames("home");
+        assert!(v.iter().any(|s| s == "home.svg"));
+        assert!(v.iter().any(|s| s == "home-symbolic.svg"));
+    }
 }

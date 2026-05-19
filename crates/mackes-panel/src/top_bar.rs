@@ -14,7 +14,7 @@ use std::process::Command;
 
 use gtk::prelude::*;
 
-use crate::{apple_menu, desktop_files, icons, recents, weather};
+use crate::{admin_menu, apple_menu, desktop_files, icons, recents, start_menu, weather};
 
 /// Default coords for the weather popover until `panel.toml` grows a
 /// `[weather]` section (8.5.3 follow-up). London works as a sane non-zero
@@ -54,30 +54,52 @@ pub fn apple_menu_button() -> gtk::Button {
         button.set_label("M");
     }
 
-    button.set_tooltip_text(Some("Mackes menu — About, Settings, Applications, Power"));
+    button.set_tooltip_text(Some(
+        "Mackes menu — left-click: app & power actions · right-click: Fedora admin"
+    ));
     if let Some(atk) = button.accessible() {
         atk.set_name("Mackes menu");
-        atk.set_description("Open the Apple-style menu with About, Settings, Applications, Recent items, and Power actions");
+        atk.set_description("Left-click: Apple-style menu with About, Settings, Applications, Recent items, and Power actions. Right-click: Fedora admin shortcuts (Root Terminal, DNF update, journalctl, systemctl, SELinux, firewall, disk-clean).");
     }
 
-    let button_for_handler = button.clone();
-    button.connect_clicked(move |_| {
-        let menu = build_apple_menu();
-        menu.show_all();
-        menu.popup_at_widget(
-            &button_for_handler,
-            gdk::Gravity::SouthWest,
-            gdk::Gravity::NorthWest,
-            None,
-        );
+    // 1.1.0:
+    // - Left-click  → new Start menu popover (`start_menu::build`).
+    //   Replaces the legacy `gtk::Menu` apple menu per Q5 lock —
+    //   apple-menu actions live as the Quick Actions row inside the
+    //   new popover, plus Toggles + Volume + Brightness.
+    // - Right-click → 9-item Fedora admin menu (Q15/Q16) in
+    //   terminator-launched shells. The legacy `build_apple_menu` is
+    //   retained below as dead code for one release cycle.
+    let button_for_left = button.clone();
+    let button_for_right = button.clone();
+    button.connect_button_press_event(move |_, ev| {
+        match ev.button() {
+            3 => {
+                let menu = admin_menu::build();
+                menu.show_all();
+                menu.popup_at_widget(
+                    &button_for_right,
+                    gdk::Gravity::SouthWest,
+                    gdk::Gravity::NorthWest,
+                    Some(ev),
+                );
+                glib::Propagation::Stop
+            }
+            1 => {
+                let popover = start_menu::build(button_for_left.upcast_ref::<gtk::Widget>());
+                popover.popup();
+                glib::Propagation::Stop
+            }
+            _ => glib::Propagation::Proceed,
+        }
     });
     button
 }
 
-/// Construct the full Apple-menu `gtk::Menu`. Composition matches the
-/// design lock's Q24 ordering:
-///   About / ─ / Settings / Software Update / ─ / Recent → / Applications →
-///   / ─ / Force Quit / ─ / Sleep / Restart / Shut Down / ─ / Lock / Sign Out
+/// Dead code as of 1.1.0 — the apple menu's actions migrated into the
+/// new `start_menu` popover (Q5 lock). Kept compiling for one release
+/// cycle so any external caller still links.
+#[allow(dead_code)]
 fn build_apple_menu() -> gtk::Menu {
     let menu = gtk::Menu::new();
     menu.set_widget_name("mackes-apple-menu");

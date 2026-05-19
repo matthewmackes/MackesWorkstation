@@ -113,4 +113,76 @@ mod tests {
         assert!(online.label().contains("online"));
         assert!(offline.label().contains("offline"));
     }
+
+    #[test]
+    fn mounted_share_id_and_label() {
+        let r = MeshResource::MountedShare {
+            peer: "anvil".into(),
+            bucket: "code".into(),
+        };
+        assert_eq!(r.id(), "share:anvil:code");
+        let l = r.label();
+        assert!(l.contains("anvil"));
+        assert!(l.contains("code"));
+    }
+
+    #[test]
+    fn service_label_carries_peer_and_slug() {
+        let r = MeshResource::Service {
+            peer: "anvil".into(),
+            slug: "sublime-music".into(),
+            url: "http://anvil.mesh:4040".into(),
+        };
+        let l = r.label();
+        assert!(l.contains("anvil"));
+        assert!(l.contains("sublime-music"));
+    }
+
+    #[test]
+    fn round_trips_through_json_for_every_variant() {
+        let cases = vec![
+            MeshResource::Peer {
+                name: "anvil".into(),
+                mesh_ip: Some("100.64.0.7".into()),
+                online: true,
+            },
+            MeshResource::MountedShare {
+                peer: "anvil".into(),
+                bucket: "code".into(),
+            },
+            MeshResource::Service {
+                peer: "anvil".into(),
+                slug: "sublime-music".into(),
+                url: "http://example.test".into(),
+            },
+        ];
+        for r in cases {
+            let s = serde_json::to_string(&r).expect("serialize");
+            let back: MeshResource = serde_json::from_str(&s).expect("deserialize");
+            assert_eq!(back, r);
+        }
+    }
+
+    #[test]
+    fn equal_resources_hash_equal_and_clone() {
+        use std::collections::HashSet;
+        let a = MeshResource::Peer {
+            name: "anvil".into(),
+            mesh_ip: None,
+            online: true,
+        };
+        let b = a.clone();
+        let mut set: HashSet<MeshResource> = HashSet::new();
+        set.insert(a);
+        // Same variant + fields → dedupe.
+        assert!(set.contains(&b));
+        // Different variant → distinct entry.
+        let svc = MeshResource::Service {
+            peer: "anvil".into(),
+            slug: "x".into(),
+            url: "u".into(),
+        };
+        set.insert(svc.clone());
+        assert_eq!(set.len(), 2);
+    }
 }

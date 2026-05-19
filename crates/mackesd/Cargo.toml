@@ -56,6 +56,13 @@ chrono = { version = "0.4", features = ["serde"] }
 sha2 = "0.10"
 rand = "0.8"
 
+# Phase 12.10.4 — zero-on-drop for bearer tokens + passcodes.
+zeroize = { version = "1.7", features = ["zeroize_derive"] }
+
+# Phase 12.3.2 — per-node Ed25519 identity (signed enrollment + audit
+# row signing).
+ed25519-dalek = { version = "2", features = ["rand_core"] }
+
 # Filesystem locking for the leader-election lockfile (12.A.5).
 fs2 = "0.4"
 
@@ -72,10 +79,77 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # Directory resolution that honors $XDG_*_HOME with sensible fallbacks.
 dirs = "5"
 
+# Phase 12.5 — SIGTERM/SIGINT handling for `mackesd reconcile`. Used
+# only by the binary; the library never installs signal handlers.
+# Pinned to the same major as the published 0.3.x line so the build
+# stays reproducible across the workspace.
+signal-hook = { version = "0.4", features = ["iterator"] }
+
+# Phase 12.11.2 — testcontainers-based E2E integration suite. Gated
+# behind the `docker-tests` feature so `cargo test` stays Docker-free
+# on a fresh checkout. Pinned to 0.25 because the workspace's rust-
+# version (1.85) is below the 1.88 minimum of 0.27+. Used only by
+# `tests/integration_testcontainers.rs`. Cargo disallows optional
+# dev-dependencies, so it lives in [dependencies] under a feature
+# gate; the library/binary code never touches it.
+testcontainers = { version = "0.25", features = ["blocking"], optional = true }
+
+# --- v2.0.0 Phase A — async surface for in-process worker pool + DBus ---
+#
+# These three deps are gated behind the `async-services` feature so the
+# existing sync code (rusqlite store, reconcile loop on std::thread,
+# leader lockfile via fs2) builds untouched on a fresh checkout. The
+# binary at src/bin/mackesd.rs enables the feature when it spawns the
+# tokio runtime + supervisor + zbus servers; library consumers (the
+# mackes-panel link target) can ignore it.
+
+# Async runtime — full features (rt-multi-thread + macros + signal +
+# fs + net + io-util + sync + time) for the new worker pool. Locked
+# 2026-05-19.
+tokio = { version = "1", features = ["full"], optional = true }
+
+# Erlang-style worker supervisor: restart back-off, periodic health
+# checks via tick(), runtime add/remove through SupervisorHandle.
+# v0.4 chosen per the 2026 stack survey 2026-05-19.
+task-supervisor = { version = "0.4", optional = true }
+
+# DBus session-bus services for org.mackes.{Shell,Settings,
+# Notifications,Session,Fleet}. tokio feature so the zbus runtime
+# cooperates with the worker pool; default-features disabled to skip
+# the async-io thread launches. blocking-api stays off — the library
+# never blocks.
+zbus = { version = "5", default-features = false, features = ["tokio"], optional = true }
+
+# v2.0.0 Phase A — async-trait for object-safe `Worker` boxing in the
+# in-process supervisor (`crate::workers::Worker`). Native async-fn-
+# in-trait is stable on 1.75+ but isn't object-safe for `Box<dyn>`
+# storage, which the supervisor needs. Locked 2026-05-19.
+async-trait = { version = "0.1", optional = true }
+
 [dev-dependencies]
 # Deterministic snapshot diffs for library-contract tests (12.11.5).
-insta    = { version = "1", features = ["json"] }
+insta    = { version = "1", features = ["json", "redactions"] }
 tempfile = "3"
+
+[features]
+# Phase 12.11.2 — opt-in E2E suite that needs a running Docker daemon.
+# Run with `cargo test -p mackesd --features docker-tests`. Tests
+# self-skip when the daemon isn't reachable so they're safe to enable
+# in CI without forcing every developer to install Docker.
+docker-tests = ["dep:testcontainers"]
+
+# v2.0.0 Phase A — opt-in async worker pool + DBus surface. Enabled by
+# `cargo build --features async-services` and by `mackesd serve` in
+# the binary. The library's `workers/`, `ipc/`, and `settings/`
+# modules compile only with this feature; downstream library
+# consumers that just want the existing sync read-API can leave it
+# off. Locked 2026-05-19.
+async-services = ["dep:tokio", "dep:task-supervisor", "dep:zbus", "dep:async-trait"]
+
+[package.metadata.docs.rs]
+# Skip the docker-tests feature on docs.rs — it pulls a network
+# dependency tree that adds build time without exposing public API.
+no-default-features = true
 
 [lints]
 workspace = true

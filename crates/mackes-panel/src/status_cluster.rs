@@ -309,13 +309,20 @@ pub fn build() -> gtk::Box {
         button.add(&pair);
 
         let slug = item.slug;
+        let button_for_handler = button.clone();
         button.connect_clicked(move |_| {
-            // 1.0.8 (Q-lock 2026-05-19): every status icon opens the
-            // Mackes Workbench focused on the panel its slug maps to.
-            // The Python side (`mackes/app.py`) owns the slug → panel
-            // translation; unknown slugs fall through to the
-            // dashboard. The drawer is no longer wired to this
-            // cluster.
+            // 1.1.0 (Q21 lock): the clipboard slug opens an in-process
+            // Rust popover (live mesh history, click-to-paste) rather
+            // than the Workbench. Every other slug continues with the
+            // 1.0.8 behavior — `mackes --focus <slug>` opens the
+            // Workbench focused on that panel.
+            if slug == "clipboard" {
+                let popover = crate::clipboard_manager::build(
+                    button_for_handler.upcast_ref::<gtk::Widget>(),
+                );
+                popover.popup();
+                return;
+            }
             if let Err(e) = Command::new("mackes")
                 .args(["--focus", slug])
                 .spawn()
@@ -348,6 +355,7 @@ mod tests {
 
     #[test]
     fn cache_dir_prefers_xdg() {
+        let _g = crate::test_env::env_lock();
         std::env::set_var("XDG_CACHE_HOME", "/tmp/xdg-cache-test");
         assert_eq!(cache_dir(), PathBuf::from("/tmp/xdg-cache-test"));
         std::env::remove_var("XDG_CACHE_HOME");

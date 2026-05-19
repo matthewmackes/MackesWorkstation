@@ -159,6 +159,7 @@ mod tests {
 
     #[test]
     fn load_returns_empty_on_missing_file() {
+        let _g = crate::test_env::env_lock();
         // Hard-redirect XDG to a path that doesn't exist.
         let v = std::env::var_os("XDG_DATA_HOME");
         std::env::set_var("XDG_DATA_HOME", "/definitely/not/here");
@@ -169,5 +170,110 @@ mod tests {
             None => std::env::remove_var("XDG_DATA_HOME"),
         }
         assert!(items.is_empty());
+    }
+
+    #[test]
+    fn extract_attr_returns_none_when_missing() {
+        // No `href=` attribute → None.
+        let line = r#"<bookmark added="x" modified="y">"#;
+        assert!(extract_attr(line, "href").is_none());
+    }
+
+    #[test]
+    fn extract_attr_returns_none_on_unterminated_quote() {
+        // Opening quote but no closing — must not panic.
+        let line = "<bookmark href=\"only-open";
+        assert!(extract_attr(line, "href").is_none());
+    }
+
+    #[test]
+    fn parse_returns_multiple_entries_sorted_by_load() {
+        let doc = r#"
+<bookmark href="file:///a" modified="2026-01-01T00:00:00Z">
+  <title>A</title>
+</bookmark>
+<bookmark href="file:///b" modified="2026-05-01T00:00:00Z">
+  <title>B</title>
+</bookmark>
+<bookmark href="file:///c" modified="2026-03-01T00:00:00Z">
+  <title>C</title>
+</bookmark>"#;
+        let v = parse(doc);
+        assert_eq!(v.len(), 3);
+        // Parse preserves order — load() does the sort.
+        assert_eq!(v[0].uri, "file:///a");
+        assert_eq!(v[1].uri, "file:///b");
+        assert_eq!(v[2].uri, "file:///c");
+    }
+
+    #[test]
+    fn load_returns_entries_when_xbel_present() {
+        let _g = crate::test_env::env_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let xbel = dir.path().join("recently-used.xbel");
+        std::fs::write(
+            &xbel,
+            r#"<?xml version="1.0"?>
+<xbel>
+<bookmark href="file:///x.md" modified="2026-05-18T19:01:00Z">
+  <title>x.md</title>
+</bookmark>
+<bookmark href="file:///y.md" modified="2026-05-19T19:01:00Z">
+  <title>y.md</title>
+</bookmark>
+</xbel>"#,
+        )
+        .unwrap();
+
+        let prior = std::env::var_os("XDG_DATA_HOME");
+        std::env::set_var("XDG_DATA_HOME", dir.path());
+        let items = load(10);
+        match prior {
+            Some(p) => std::env::set_var("XDG_DATA_HOME", p),
+            None => std::env::remove_var("XDG_DATA_HOME"),
+        }
+        // load() sorts most-recent first.
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].uri, "file:///y.md");
+        assert_eq!(items[1].uri, "file:///x.md");
+    }
+
+    #[test]
+    fn load_respects_limit() {
+        let _g = crate::test_env::env_lock();
+        let dir = tempfile::tempdir().unwrap();
+        let xbel = dir.path().join("recently-used.xbel");
+        // The parser pushes entries when a line beginning with
+        // `</bookmark>` arrives — so each bookmark needs its closing
+        // tag on its own line. GTK's emitter does the same.
+        let body = (0..5)
+            .map(|i| {
+                format!(
+                    "<bookmark href=\"file:///f{i}.md\" modified=\"2026-05-1{i}T00:00:00Z\">\n  <title>f{i}</title>\n</bookmark>"
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        std::fs::write(&xbel, format!("<xbel>\n{body}\n</xbel>")).unwrap();
+
+        let prior = std::env::var_os("XDG_DATA_HOME");
+        std::env::set_var("XDG_DATA_HOME", dir.path());
+        let items = load(2);
+        match prior {
+            Some(p) => std::env::set_var("XDG_DATA_HOME", p),
+            None => std::env::remove_var("XDG_DATA_HOME"),
+        }
+        assert_eq!(items.len(), 2);
+    }
+
+    #[test]
+    fn empty_title_falls_back_to_basename() {
+        let doc = r#"
+<bookmark href="file:///tmp/x.txt" modified="2026-05-18T19:01:00Z">
+  <title></title>
+</bookmark>"#;
+        let v = parse(doc);
+        assert_eq!(v.len(), 1);
+        assert_eq!(v[0].label, "x.txt");
     }
 }
