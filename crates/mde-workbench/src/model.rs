@@ -1,0 +1,405 @@
+//! Sidebar group + panel model, ported from
+//! `mackes/workbench/shell/sidebar_window.py::_build_nav`.
+//!
+//! The v1.x nav was a GTK [`NavGroup`] list with lazy panel-import
+//! lambdas; CB-1 retires that surface in favour of a pure-data
+//! [`nav_model`] that the Iced sidebar consumes.
+
+use std::fmt;
+
+/// One of the nine top-level sidebar groups per
+/// `.claude/CLAUDE.md` §4 Index ("Sidebar shell" row) and the
+/// CB-1.2 lock ("9 groups (Dashboard / Apps / Devices / Fleet /
+/// Look & Feel / Maintain / Network / System / Help)"). Order is
+/// load-bearing — it drives the Ctrl+1..9 keyboard hotkey
+/// dispatch (CB-1.2 keyboard nav lock).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Group {
+    Dashboard,
+    Apps,
+    Devices,
+    Fleet,
+    LookAndFeel,
+    Maintain,
+    Network,
+    System,
+    Help,
+}
+
+impl Group {
+    /// Stable kebab-case slug used in deep-link URLs
+    /// (`mde --focus <group>.<panel>`).
+    #[must_use]
+    pub const fn slug(self) -> &'static str {
+        match self {
+            Self::Dashboard => "dashboard",
+            Self::Apps => "apps",
+            Self::Devices => "devices",
+            Self::Fleet => "fleet",
+            Self::LookAndFeel => "look_and_feel",
+            Self::Maintain => "maintain",
+            Self::Network => "network",
+            Self::System => "system",
+            Self::Help => "help",
+        }
+    }
+
+    /// Sentence-case label shown in the sidebar.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Dashboard => "Dashboard",
+            Self::Apps => "Apps",
+            Self::Devices => "Devices",
+            Self::Fleet => "Fleet",
+            Self::LookAndFeel => "Look & Feel",
+            Self::Maintain => "Maintain",
+            Self::Network => "Network",
+            Self::System => "System",
+            Self::Help => "Help",
+        }
+    }
+
+    /// Stable display order (drives the Ctrl+1..9 hotkey dispatch).
+    #[must_use]
+    pub const fn all() -> [Self; 9] {
+        [
+            Self::Dashboard,
+            Self::Apps,
+            Self::Devices,
+            Self::Fleet,
+            Self::LookAndFeel,
+            Self::Maintain,
+            Self::Network,
+            Self::System,
+            Self::Help,
+        ]
+    }
+
+    /// Parse a kebab-case slug back into the matching group.
+    #[must_use]
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        Self::all().into_iter().find(|g| g.slug() == slug)
+    }
+}
+
+impl fmt::Display for Group {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.label())
+    }
+}
+
+/// Per-group leaf panel. Slug + label are stable — the Iced view
+/// layer indexes panels by [`Panel::slug`] for deep-link routing.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Panel {
+    slug: &'static str,
+    label: &'static str,
+}
+
+impl Panel {
+    #[must_use]
+    pub const fn new(slug: &'static str, label: &'static str) -> Self {
+        Self { slug, label }
+    }
+
+    #[must_use]
+    pub const fn slug(&self) -> &'static str {
+        self.slug
+    }
+
+    #[must_use]
+    pub const fn label(&self) -> &'static str {
+        self.label
+    }
+}
+
+/// One full sidebar row: a group plus its ordered leaf panels.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NavEntry {
+    pub group: Group,
+    pub panels: Vec<Panel>,
+}
+
+/// Active view in the right pane. Either a group landing page
+/// (no leaf selected) or a specific panel under that group.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum View {
+    Group(Group),
+    Panel { group: Group, panel: &'static str },
+}
+
+impl Default for View {
+    fn default() -> Self {
+        Self::Group(Group::Dashboard)
+    }
+}
+
+impl View {
+    /// Active group regardless of whether a leaf panel is selected.
+    #[must_use]
+    pub const fn group(self) -> Group {
+        match self {
+            Self::Group(g) | Self::Panel { group: g, .. } => g,
+        }
+    }
+
+    /// Selected panel slug, if any.
+    #[must_use]
+    pub const fn panel_slug(self) -> Option<&'static str> {
+        match self {
+            Self::Group(_) => None,
+            Self::Panel { panel, .. } => Some(panel),
+        }
+    }
+}
+
+/// Canonical sidebar nav model — the source of truth for the
+/// sidebar widget + keyboard dispatch + deep-link routing.
+///
+/// Panel lists mirror the v1.x `_build_nav` shape except for
+/// surfaces the CB-1 lock retires:
+///   * Look & Feel drops `polybar_editor` (CB-1.6 lock — sway
+///     replaces polybar; the panel surface is gone).
+///   * Apps drops the legacy `search` panel (subsumed by the
+///     unified `installed` panel in CB-1.3).
+#[must_use]
+pub fn nav_model() -> Vec<NavEntry> {
+    vec![
+        NavEntry {
+            group: Group::Dashboard,
+            panels: vec![Panel::new("home", "Home")],
+        },
+        NavEntry {
+            group: Group::Apps,
+            panels: vec![
+                Panel::new("installed", "Installed"),
+                Panel::new("sources", "Sources"),
+                Panel::new("panel", "Panel Apps"),
+            ],
+        },
+        NavEntry {
+            group: Group::Devices,
+            panels: vec![
+                Panel::new("displays", "Displays"),
+                Panel::new("power", "Power"),
+                Panel::new("sound", "Sound"),
+                Panel::new("printers", "Printers"),
+                Panel::new("removable", "Removable Media"),
+            ],
+        },
+        NavEntry {
+            group: Group::Fleet,
+            panels: vec![
+                Panel::new("inventory", "Inventory"),
+                Panel::new("playbooks", "Playbooks"),
+                Panel::new("run_history", "Run History"),
+                Panel::new("settings", "Settings"),
+                Panel::new("revisions", "Revisions"),
+            ],
+        },
+        NavEntry {
+            group: Group::LookAndFeel,
+            panels: vec![
+                Panel::new("themes", "Themes"),
+                Panel::new("fonts", "Fonts"),
+            ],
+        },
+        NavEntry {
+            group: Group::Maintain,
+            panels: vec![
+                Panel::new("hub", "Hub"),
+                Panel::new("snapshots", "Snapshots"),
+                Panel::new("debloat", "Debloat"),
+                Panel::new("health_check", "Health Check"),
+                Panel::new("repair", "Repair"),
+                Panel::new("drift", "Drift"),
+            ],
+        },
+        NavEntry {
+            group: Group::Network,
+            panels: vec![
+                Panel::new("wifi", "Wi-Fi"),
+                Panel::new("mesh_control", "Mesh Control"),
+                Panel::new("mesh_pending", "Mesh Pending"),
+                Panel::new("mesh_history", "Mesh History"),
+                Panel::new("mesh_join", "Mesh Join"),
+                Panel::new("mesh_ssh", "Mesh SSH"),
+                Panel::new("mesh_topology", "Mesh Topology"),
+                Panel::new("mesh_services", "Mesh Services"),
+                Panel::new("vpn", "VPN"),
+                Panel::new("firewall", "Firewall"),
+                Panel::new("remote_desktop", "Remote Desktop"),
+                Panel::new("kde_connect", "KDE Connect"),
+            ],
+        },
+        NavEntry {
+            group: Group::System,
+            panels: vec![
+                Panel::new("datetime", "Date & Time"),
+                Panel::new("default_apps", "Default Apps"),
+                Panel::new("session", "Session"),
+                Panel::new("notifications", "Notifications"),
+                Panel::new("window_manager", "Window Manager"),
+            ],
+        },
+        NavEntry {
+            group: Group::Help,
+            panels: vec![Panel::new("index", "Help Topics")],
+        },
+    ]
+}
+
+/// Resolve a deep-link slug into the matching [`View`]. Accepts
+/// `<group>` or `<group>.<panel>` forms (e.g. `network` or
+/// `network.mesh_ssh`). Unknown slugs return `None`.
+#[must_use]
+pub fn view_from_focus_slug(slug: &str) -> Option<View> {
+    let (group_slug, panel_slug) = slug
+        .split_once('.')
+        .map_or((slug, None), |(g, p)| (g, Some(p)));
+    let group = Group::from_slug(group_slug)?;
+    match panel_slug {
+        None => Some(View::Group(group)),
+        Some(p) => nav_model()
+            .into_iter()
+            .find(|e| e.group == group)
+            .and_then(|e| {
+                e.panels
+                    .iter()
+                    .find(|panel| panel.slug() == p)
+                    .map(|panel| View::Panel {
+                        group,
+                        panel: panel.slug(),
+                    })
+            }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nav_model_has_nine_groups_in_locked_order() {
+        let nav = nav_model();
+        assert_eq!(nav.len(), 9);
+        let order: Vec<Group> = nav.iter().map(|e| e.group).collect();
+        assert_eq!(order, Group::all().to_vec());
+    }
+
+    #[test]
+    fn every_group_has_at_least_one_panel() {
+        for entry in nav_model() {
+            assert!(
+                !entry.panels.is_empty(),
+                "group {:?} has no panels — sidebar would render a dead row",
+                entry.group
+            );
+        }
+    }
+
+    #[test]
+    fn group_slugs_are_unique_and_kebab_case() {
+        let slugs: Vec<&str> = Group::all().iter().map(|g| g.slug()).collect();
+        let mut sorted = slugs.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(slugs.len(), sorted.len(), "duplicate group slug");
+        for slug in slugs {
+            assert!(
+                slug.chars().all(|c| c.is_ascii_lowercase() || c == '_'),
+                "group slug {slug} must be lowercase + underscore only"
+            );
+        }
+    }
+
+    #[test]
+    fn panel_slugs_unique_within_each_group() {
+        for entry in nav_model() {
+            let slugs: Vec<&str> = entry.panels.iter().map(Panel::slug).collect();
+            let mut sorted = slugs.clone();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(
+                slugs.len(),
+                sorted.len(),
+                "duplicate panel slug under {:?}: {slugs:?}",
+                entry.group
+            );
+        }
+    }
+
+    #[test]
+    fn group_from_slug_round_trips() {
+        for g in Group::all() {
+            assert_eq!(Group::from_slug(g.slug()), Some(g));
+        }
+        assert_eq!(Group::from_slug("not-a-group"), None);
+    }
+
+    #[test]
+    fn view_default_is_dashboard_group() {
+        assert_eq!(View::default(), View::Group(Group::Dashboard));
+    }
+
+    #[test]
+    fn view_group_extractor_works_for_both_variants() {
+        assert_eq!(View::Group(Group::Apps).group(), Group::Apps);
+        assert_eq!(
+            View::Panel {
+                group: Group::Network,
+                panel: "mesh_ssh"
+            }
+            .group(),
+            Group::Network
+        );
+    }
+
+    #[test]
+    fn view_panel_slug_extractor_distinguishes_variants() {
+        assert_eq!(View::Group(Group::Help).panel_slug(), None);
+        assert_eq!(
+            View::Panel {
+                group: Group::Help,
+                panel: "index"
+            }
+            .panel_slug(),
+            Some("index")
+        );
+    }
+
+    #[test]
+    fn focus_slug_resolves_group_only() {
+        assert_eq!(
+            view_from_focus_slug("network"),
+            Some(View::Group(Group::Network))
+        );
+    }
+
+    #[test]
+    fn focus_slug_resolves_group_and_panel() {
+        assert_eq!(
+            view_from_focus_slug("network.mesh_ssh"),
+            Some(View::Panel {
+                group: Group::Network,
+                panel: "mesh_ssh"
+            })
+        );
+    }
+
+    #[test]
+    fn focus_slug_rejects_unknown_group() {
+        assert_eq!(view_from_focus_slug("not-a-group"), None);
+    }
+
+    #[test]
+    fn focus_slug_rejects_unknown_panel_under_known_group() {
+        assert_eq!(view_from_focus_slug("network.not-a-panel"), None);
+    }
+
+    #[test]
+    fn group_display_renders_label() {
+        assert_eq!(format!("{}", Group::LookAndFeel), "Look & Feel");
+    }
+}

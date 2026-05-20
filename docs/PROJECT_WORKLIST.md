@@ -1354,27 +1354,55 @@ under 9 groups). The Q3 lock requires it rewritten in Iced before
 v2.0.0 cuts. New crate `crates/mde-workbench/` mirrors the panel
 group structure with one Iced view per panel.
 
-- [ ] **CB-1.1 `crates/mde-workbench/` scaffold** — new workspace
-  member. `Cargo.toml` with iced 0.13 + libcosmic + zbus 5 (tokio
-  feature) + mde-config + mde-mesh-types + the existing `mackes`
-  Python sliver retired. `src/lib.rs` exposes `App`, `Message`,
-  `View::*` enum mirroring 1.x sidebar groups. `src/main.rs` opens
-  the toplevel window (Iced layer-shell or floating per Iced 0.13
-  conventions); WM_CLASS pinned to `mde-workbench` for sway window
-  rules. Single-instance via the already-shipped
-  `dev.mackes.MDE.Shell` D-Bus surface (existing service registers
-  the workbench when one is already running, else launches).
-  ~10 unit tests covering Message reducer + View routing + the
-  D-Bus single-instance handshake.
-- [ ] **CB-1.2 Sidebar nav + breadcrumbs** — port
-  `mackes/workbench/shell/sidebar_window.py:_build_nav` to Iced.
-  9 groups (Dashboard / Apps / Devices / Fleet / Look & Feel /
-  Maintain / Network / System / Help) rendered as a collapsible
-  Iced sidebar. Breadcrumb + page_title + page_subtitle helpers
-  ported from `_common.py` to a new `crates/mde-workbench/src/
-  carbon.rs` (renamed to `patternfly.rs` once 0.7 CSS namespace
-  rename lands). Keyboard nav: Tab cycles sidebar → main pane;
-  Ctrl+1..9 jumps to group; Escape closes detail. 8 tests.
+- [✓] **CB-1.1 `crates/mde-workbench/` scaffold** — shipped
+  2026-05-20. New workspace member `crates/mde-workbench/` with
+  `Cargo.toml` (iced 0.13 default-features=false +
+  ["wgpu","tiny-skia","tokio","advanced"], zbus 5 with tokio
+  feature, tokio 1, mde-config, mde-mesh-types, tracing). `src/
+  lib.rs` re-exports `App`, `Message`, `View`, `Group`,
+  `NavEntry`, `Panel`, `PrimaryStatus`, `decide_primary_status`,
+  `BUS_NAME`, `OBJECT_PATH`. `src/main.rs` calls `App::run()`
+  which dispatches into `iced::application(title, update,
+  view).theme(Theme::Dark).window_size(1180×760).run()`.
+  Single-instance: `src/single_instance.rs` ships
+  `BUS_NAME = "dev.mackes.MDE.Workbench"` constant plus the
+  pure-fn `decide_primary_status(RequestNameReply)` that maps
+  every zbus reply variant (`PrimaryOwner` / `AlreadyOwner` →
+  Primary, `Exists` / `InQueue` → Existing). The live zbus
+  connection + Focus hand-off land alongside CB-1.13; the
+  decision-logic seam is testable today. Iced's Wayland
+  back-end picks up the binary basename `mde-workbench` as the
+  app_id automatically — sway window rules in
+  `data/sway/config` can match `^mde-workbench$` without extra
+  config. 11 reducer / View-routing / focus-slug tests in
+  `app::tests` + 6 single-instance tests = 17 directly on the
+  CB-1.1 surface (plus the 37 from CB-1.2 below).
+- [✓] **CB-1.2 Sidebar nav + breadcrumbs** — shipped 2026-05-20.
+  `src/model.rs` ships `Group` (9-variant enum in locked order),
+  `Panel` (slug + label), `NavEntry`, `View::{Group, Panel}`,
+  the canonical `nav_model() -> Vec<NavEntry>` (50 panels across
+  the 9 groups, mirroring v1.x `_build_nav` minus the retired
+  surfaces — Look & Feel drops `polybar_editor` per CB-1.6 lock,
+  Apps drops standalone `search` per CB-1.3 subsumption), and
+  `view_from_focus_slug` for the CB-1.13 deep-link router.
+  `src/sidebar.rs` renders the collapsible Iced sidebar
+  (`SidebarState` tracks user-expanded groups; the active group
+  is implicitly expanded). `src/patternfly.rs` ports
+  `_common.py`'s breadcrumb / page_title / page_subtitle helpers
+  as pure-fn data builders — file name skips the
+  Phase 0.7 "carbon → patternfly" rename round-trip per the
+  v2.0.0 PatternFly token lock (memory:
+  `project_v2_0_patternfly.md`). `src/keyboard.rs` ships
+  `interpret_key(Key, Modifiers, Pane) -> KeyAction` covering
+  the locked vocabulary: Tab cycles sidebar↔main pane,
+  Shift-Tab reverses (two-pane cycle ⇒ next = prev), Ctrl+1..9
+  jumps to the matching group from `Group::all()[n-1]`,
+  Escape collapses panel view back to its parent group landing,
+  Ctrl+Tab passes through so the panel's app-switcher chord
+  stays uncaptured. 12 model + 8 patternfly + 8 keyboard +
+  5 sidebar = 33 tests directly on the CB-1.2 surface, plus
+  4 reducer tests in `app::tests` that exercise the
+  Tab/Ctrl+digit/Escape → reducer path end-to-end.
 - [ ] **CB-1.3 Apps group port (4 panels)** — Ported from
   `mackes/workbench/apps/{installed.py, sources.py, panel.py,
   search.py}`. Backend calls route through `dev.mackes.MDE.Shell.

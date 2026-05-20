@@ -24,6 +24,7 @@ members  = [
     "crates/mde-mesh-types",
     "crates/mde-session",
     "crates/mde-theme-alias",
+    "crates/mde-workbench",
     "crates/mded",
 ]
 

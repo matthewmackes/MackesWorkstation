@@ -3073,6 +3073,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "mde-workbench"
+version = "0.0.0"
+dependencies = [
+ "iced",
+ "mde-config",
+ "mde-mesh-types",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zbus",
+]
+
+[[package]]
 name = "mded"
 version = "0.0.0"
 dependencies = [
