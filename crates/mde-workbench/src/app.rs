@@ -24,8 +24,8 @@ use crate::panels::{
     power as power_panel, printers as printers_panel, removable as removable_panel,
     repair as repair_panel, resources as resources_panel, run_history as run_history_panel,
     session as session_panel, snapshots as snapshots_panel, sound as sound_panel,
-    system_update as system_update_panel, themes as themes_panel, wallpaper as wallpaper_panel,
-    wifi as wifi_panel, window_manager as window_manager_panel,
+    system_update as system_update_panel, themes as themes_panel, vpn as vpn_panel,
+    wallpaper as wallpaper_panel, wifi as wifi_panel, window_manager as window_manager_panel,
 };
 use crate::patternfly::{breadcrumb, page_subtitle, page_title};
 use crate::sidebar::SidebarState;
@@ -111,6 +111,8 @@ pub enum Message {
     Firewall(firewall_panel::Message),
     /// CB-1.8 partial — Network → Wi-Fi panel sub-message.
     Wifi(wifi_panel::Message),
+    /// CB-1.8 partial — Network → VPN panel sub-message.
+    Vpn(vpn_panel::Message),
     /// CB-1.5 partial — Fleet settings panel sub-message.
     FleetSettings(fleet_settings_panel::Message),
     /// CB-1.5 partial — Fleet revisions panel sub-message.
@@ -153,6 +155,7 @@ pub struct App {
     apps_sources: apps_sources_panel::AppsSourcesPanel,
     firewall: firewall_panel::FirewallPanel,
     wifi: wifi_panel::WifiPanel,
+    vpn: vpn_panel::VpnPanel,
     fleet_settings: fleet_settings_panel::FleetSettingsPanel,
     fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel,
     wallpaper: wallpaper_panel::WallpaperPanel,
@@ -218,6 +221,7 @@ impl App {
             apps_sources: apps_sources_panel::AppsSourcesPanel::new(),
             firewall: firewall_panel::FirewallPanel::new(),
             wifi: wifi_panel::WifiPanel::new(),
+            vpn: vpn_panel::VpnPanel::new(),
             fleet_settings: fleet_settings_panel::FleetSettingsPanel::new(),
             fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel::new(),
             wallpaper: wallpaper_panel::WallpaperPanel::new(),
@@ -389,6 +393,12 @@ impl App {
         &self.wifi
     }
 
+    /// Read-only view of the vpn panel state.
+    #[must_use]
+    pub fn vpn(&self) -> &vpn_panel::VpnPanel {
+        &self.vpn
+    }
+
     /// Read-only view of the fleet settings panel state.
     #[must_use]
     pub fn fleet_settings(&self) -> &fleet_settings_panel::FleetSettingsPanel {
@@ -502,6 +512,7 @@ impl App {
             Message::AppsSources(msg) => self.apps_sources.update(msg),
             Message::Firewall(msg) => self.firewall.update(msg),
             Message::Wifi(msg) => self.wifi.update(msg),
+            Message::Vpn(msg) => self.vpn.update(msg),
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
@@ -542,6 +553,7 @@ impl App {
             (Group::Apps, "sources") => apps_sources_panel::AppsSourcesPanel::load(),
             (Group::Network, "firewall") => firewall_panel::FirewallPanel::load(),
             (Group::Network, "wifi") => wifi_panel::WifiPanel::load(),
+            (Group::Network, "vpn") => vpn_panel::VpnPanel::load(),
             (Group::Fleet, "revisions") => fleet_revisions_panel::FleetRevisionsPanel::load(),
             // Fleet settings has no Load — it's a push-only
             // surface, so navigation doesn't fan a refresh.
@@ -729,6 +741,10 @@ impl App {
                 group: Group::Network,
                 panel: "wifi",
             } => self.wifi.view(),
+            View::Panel {
+                group: Group::Network,
+                panel: "vpn",
+            } => self.vpn.view(),
             View::Panel {
                 group: Group::Fleet,
                 panel: "settings",
