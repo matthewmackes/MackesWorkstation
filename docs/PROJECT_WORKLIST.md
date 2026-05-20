@@ -1407,27 +1407,25 @@ group structure with one Iced view per panel.
   2026-05-20)** — actual panels under
   `mackes/workbench/apps/`: installed, install, panel, remove,
   sources (no `search.py` despite the original sketch).
-  **Partial progress 2026-05-20:** installed shipped — Iced
-  panel shells out to `rpm -qa --queryformat=...` for the
-  package list + `pkexec dnf remove <name>` for the per-row
-  remove. Pure parsers + filter helpers isolated for tests
-  (11 unit tests). The original sketch routed everything
-  through a new `dev.mackes.MDE.Shell.Apps` zbus surface +
-  AdminSession — rejected for the same reason every other
-  CB-1.x panel: rpm / dnf already gate themselves via
-  polkit, and the daemon-side wrapper buys nothing but
-  latency.
+  **Partial progress 2026-05-20:** installed (searchable RPM
+  list + pkexec dnf remove) + sources (dnf repo
+  enable/disable via pkexec dnf config-manager) shipped.
+  The original sketch routed everything through a new
+  `dev.mackes.MDE.Shell.Apps` zbus surface + AdminSession —
+  rejected for the same reason every other CB-1.x panel:
+  rpm / dnf already polkit-gate themselves, and the
+  daemon-side wrapper just adds latency.
 
-  4 remaining: install, panel, remove, sources. Each needs
+  3 remaining: install, panel, remove. Each needs
   more substantial reframing — `panel.py` is 497 lines of
   XFCE panel-plugin orchestration; `remove.py` depends on
   `mackes.presets.default_preset` which is xfconf-era;
   `install.py` is a curated-list installer. Captured as
   follow-ups below.
 
-- [ ] **CB-1.3 follow-up: install / panel / remove / sources
-  panels** — each of these v1.x Apps panels needs either a
-  v2.0.0 reframing or a more substantial port:
+- [ ] **CB-1.3 follow-up: install / panel / remove panels** —
+  each of these v1.x Apps panels needs either a v2.0.0
+  reframing or a more substantial port:
     * `apps/install.py` — curated app installer. Could ship
       as an Iced "Browse → click to dnf install" panel
       using the same pkexec dnf wrapper.
@@ -1437,8 +1435,24 @@ group structure with one Iced view per panel.
     * `apps/remove.py` — bloat-list one-click remover.
       Needs the v2.0.0 bloat list (separate from xfconf
       presets); captured for a future visit.
-    * `apps/sources.py` — dnf repo enable/disable. Should
-      port directly (pkexec dnf config-manager wrapper).
+
+- [ ] **CB-1.3 follow-up: sources panel — Flathub + RPM Fusion
+  + fedora-workstation-repos sections** — the v1.x panel had
+  three "enable a known third-party source" sections beyond
+  the raw dnf-repo list. Each needs its own install
+  workflow:
+    * Flathub: `flatpak remote-add --user flathub https://…`
+      with a one-time prompt.
+    * RPM Fusion free + nonfree: pkexec dnf install
+      `https://download1.rpmfusion.org/free|nonfree/fedora/
+      rpmfusion-{free,nonfree}-release-$(rpm -E %fedora).
+      noarch.rpm`.
+    * fedora-workstation-repositories: pkexec dnf install
+      fedora-workstation-repositories (ships Chrome, Steam,
+      NVIDIA repos as disabled).
+  The bare dnf-repolist + per-row toggle covers the
+  acceptance for CB-1.3 sources; these three extras are
+  v2.0.0 nice-to-haves.
 - [✓] **CB-1.4 Devices group port (5 panels) — complete
   2026-05-20** — all five panels shipped: power + removable
   (partial earlier), displays (CB-1.4.a), sound (CB-1.4.b),

@@ -16,8 +16,8 @@ use crate::dbus::PendingFocus;
 use crate::keyboard::{KeyAction, Pane};
 use crate::model::{view_from_focus_slug, Group, View};
 use crate::panels::{
-    apps_installed as apps_installed_panel, datetime as datetime_panel,
-    default_apps as default_apps_panel, displays as displays_panel,
+    apps_installed as apps_installed_panel, apps_sources as apps_sources_panel,
+    datetime as datetime_panel, default_apps as default_apps_panel, displays as displays_panel,
     fleet_revisions as fleet_revisions_panel, fleet_settings as fleet_settings_panel,
     fonts as fonts_panel, inventory as inventory_panel, logs as logs_panel,
     notifications as notifications_panel, playbooks as playbooks_panel, power as power_panel,
@@ -104,6 +104,8 @@ pub enum Message {
     Repair(repair_panel::Message),
     /// CB-1.3 partial — Apps → Installed panel sub-message.
     AppsInstalled(apps_installed_panel::Message),
+    /// CB-1.3 partial — Apps → Sources panel sub-message.
+    AppsSources(apps_sources_panel::Message),
     /// CB-1.5 partial — Fleet settings panel sub-message.
     FleetSettings(fleet_settings_panel::Message),
     /// CB-1.5 partial — Fleet revisions panel sub-message.
@@ -143,6 +145,7 @@ pub struct App {
     system_update: system_update_panel::SystemUpdatePanel,
     repair: repair_panel::RepairPanel,
     apps_installed: apps_installed_panel::AppsInstalledPanel,
+    apps_sources: apps_sources_panel::AppsSourcesPanel,
     fleet_settings: fleet_settings_panel::FleetSettingsPanel,
     fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel,
     wallpaper: wallpaper_panel::WallpaperPanel,
@@ -205,6 +208,7 @@ impl App {
             system_update: system_update_panel::SystemUpdatePanel::new(),
             repair: repair_panel::RepairPanel::new(),
             apps_installed: apps_installed_panel::AppsInstalledPanel::new(),
+            apps_sources: apps_sources_panel::AppsSourcesPanel::new(),
             fleet_settings: fleet_settings_panel::FleetSettingsPanel::new(),
             fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel::new(),
             wallpaper: wallpaper_panel::WallpaperPanel::new(),
@@ -358,6 +362,12 @@ impl App {
         &self.apps_installed
     }
 
+    /// Read-only view of the apps-sources panel state.
+    #[must_use]
+    pub fn apps_sources(&self) -> &apps_sources_panel::AppsSourcesPanel {
+        &self.apps_sources
+    }
+
     /// Read-only view of the fleet settings panel state.
     #[must_use]
     pub fn fleet_settings(&self) -> &fleet_settings_panel::FleetSettingsPanel {
@@ -468,6 +478,7 @@ impl App {
             Message::SystemUpdate(msg) => self.system_update.update(msg),
             Message::Repair(msg) => self.repair.update(msg),
             Message::AppsInstalled(msg) => self.apps_installed.update(msg),
+            Message::AppsSources(msg) => self.apps_sources.update(msg),
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
@@ -505,6 +516,7 @@ impl App {
             (Group::Maintain, "resources") => resources_panel::ResourcesPanel::load(),
             (Group::Maintain, "system_update") => system_update_panel::SystemUpdatePanel::load(),
             (Group::Apps, "installed") => apps_installed_panel::AppsInstalledPanel::load(),
+            (Group::Apps, "sources") => apps_sources_panel::AppsSourcesPanel::load(),
             (Group::Fleet, "revisions") => fleet_revisions_panel::FleetRevisionsPanel::load(),
             // Fleet settings has no Load — it's a push-only
             // surface, so navigation doesn't fan a refresh.
@@ -680,6 +692,10 @@ impl App {
                 group: Group::Apps,
                 panel: "installed",
             } => self.apps_installed.view(),
+            View::Panel {
+                group: Group::Apps,
+                panel: "sources",
+            } => self.apps_sources.view(),
             View::Panel {
                 group: Group::Fleet,
                 panel: "settings",

@@ -5,6 +5,7 @@
 //! [`Element<'_, crate::Message>`].
 
 pub mod apps_installed;
+pub mod apps_sources;
 pub mod datetime;
 pub mod default_apps;
 pub mod displays;
