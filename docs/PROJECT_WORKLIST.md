@@ -3470,16 +3470,29 @@ under `LICENSES/`.
   the ansible-pull output. Acceptance: scrollable list of
   past runs with status + per-peer outcome.
 
-- [ ] **CB-1.4.a Devices displays panel (Iced)** — port
-  `mackes/workbench/devices/displays.py`. F.4 already wired
-  the 4 settings keys (display.primary / .scale /
-  .night_light / .night_light_temp) — Iced port reuses the
-  Backend trait. Needs an output enumerator: subprocess
-  `swaymsg -t get_outputs` and parse the JSON OR pull
-  swayipc-async into the workbench. Acceptance: panel lists
-  connected outputs, primary picker writes display.primary,
-  scale slider writes display.scale, night-light toggle +
-  temp slider write their keys.
+- [✓] **CB-1.4.a Devices displays panel (Iced) — shipped
+  2026-05-20** — port of `mackes/workbench/devices/displays.py`
+  to Iced. New `crates/mde-workbench/src/panels/displays.rs`
+  (4 settings keys: display.primary / .scale / .night_light /
+  .night_light_temp through the shared Backend trait + Phase
+  F.4 `dev.mackes.MDE.Settings.Get/Set`). Output enumeration
+  via subprocess `swaymsg -t get_outputs` parsed by a pure
+  `parse_outputs_json(json) -> Vec<String>` helper (the
+  alternative — pulling swayipc-async into the workbench — was
+  rejected; subprocess matches the fleet_settings /
+  fleet_revisions pattern + keeps the dep surface small).
+  Iced controls: PrimaryDisplay pick_list, Scale slider
+  (0.5–4.0 step 0.25 matching v1.x Gtk.Adjustment), Night
+  light checkbox, Colour-temperature text_input (1000–10000 K
+  range, validated). Empty state ("No displays detected")
+  preserved for TTY / non-sway compositor paths. App wired
+  via `Message::Displays` + view dispatch on
+  `(Group::Devices, "displays")` + load-on-navigation. 17
+  unit tests (parse_outputs_json: 4, parse_scale: 2,
+  clamp_scale: 1, resolve_temp: 1, Loaded fallback paths: 2,
+  Loaded clamp: 1, field-mutators: 1, save-validation: 1,
+  busy-noop: 1, tokio save shape: 1, constant locks: 3).
+  Total workbench unit tests: 164 → 181.
 
 - [ ] **CB-1.4.b Devices sound panel (Iced)** — port
   `mackes/workbench/devices/sound.py`. New Iced UI over

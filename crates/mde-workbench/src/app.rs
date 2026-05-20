@@ -16,10 +16,10 @@ use crate::dbus::PendingFocus;
 use crate::keyboard::{KeyAction, Pane};
 use crate::model::{view_from_focus_slug, Group, View};
 use crate::panels::{
-    fleet_revisions as fleet_revisions_panel, fleet_settings as fleet_settings_panel,
-    fonts as fonts_panel, notifications as notifications_panel, power as power_panel,
-    removable as removable_panel, session as session_panel, themes as themes_panel,
-    wallpaper as wallpaper_panel,
+    displays as displays_panel, fleet_revisions as fleet_revisions_panel,
+    fleet_settings as fleet_settings_panel, fonts as fonts_panel,
+    notifications as notifications_panel, power as power_panel, removable as removable_panel,
+    session as session_panel, themes as themes_panel, wallpaper as wallpaper_panel,
 };
 use crate::patternfly::{breadcrumb, page_subtitle, page_title};
 use crate::sidebar::SidebarState;
@@ -60,6 +60,8 @@ pub enum Message {
     Power(power_panel::Message),
     /// CB-1.4 partial — Devices removable panel sub-message.
     Removable(removable_panel::Message),
+    /// CB-1.4.a — Devices displays panel sub-message.
+    Displays(displays_panel::Message),
     /// CB-1.5 partial — Fleet settings panel sub-message.
     FleetSettings(fleet_settings_panel::Message),
     /// CB-1.5 partial — Fleet revisions panel sub-message.
@@ -84,6 +86,7 @@ pub struct App {
     notifications: notifications_panel::NotificationsPanel,
     power: power_panel::PowerPanel,
     removable: removable_panel::RemovablePanel,
+    displays: displays_panel::DisplaysPanel,
     fleet_settings: fleet_settings_panel::FleetSettingsPanel,
     fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel,
     wallpaper: wallpaper_panel::WallpaperPanel,
@@ -131,6 +134,7 @@ impl App {
             notifications: notifications_panel::NotificationsPanel::new(),
             power: power_panel::PowerPanel::new(),
             removable: removable_panel::RemovablePanel::new(),
+            displays: displays_panel::DisplaysPanel::new(),
             fleet_settings: fleet_settings_panel::FleetSettingsPanel::new(),
             fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel::new(),
             wallpaper: wallpaper_panel::WallpaperPanel::new(),
@@ -192,6 +196,12 @@ impl App {
     #[must_use]
     pub fn removable(&self) -> &removable_panel::RemovablePanel {
         &self.removable
+    }
+
+    /// Read-only view of the displays panel state.
+    #[must_use]
+    pub fn displays(&self) -> &displays_panel::DisplaysPanel {
+        &self.displays
     }
 
     /// Read-only view of the fleet settings panel state.
@@ -287,6 +297,7 @@ impl App {
             Message::Notifications(msg) => self.notifications.update(msg, self.backend()),
             Message::Power(msg) => self.power.update(msg, self.backend()),
             Message::Removable(msg) => self.removable.update(msg, self.backend()),
+            Message::Displays(msg) => self.displays.update(msg, self.backend()),
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
@@ -310,6 +321,7 @@ impl App {
             }
             (Group::Devices, "power") => power_panel::PowerPanel::load(self.backend()),
             (Group::Devices, "removable") => removable_panel::RemovablePanel::load(self.backend()),
+            (Group::Devices, "displays") => displays_panel::DisplaysPanel::load(self.backend()),
             (Group::Fleet, "revisions") => fleet_revisions_panel::FleetRevisionsPanel::load(),
             // Fleet settings has no Load — it's a push-only
             // surface, so navigation doesn't fan a refresh.
@@ -425,6 +437,10 @@ impl App {
                 group: Group::Devices,
                 panel: "removable",
             } => self.removable.view(),
+            View::Panel {
+                group: Group::Devices,
+                panel: "displays",
+            } => self.displays.view(),
             View::Panel {
                 group: Group::Fleet,
                 panel: "settings",
