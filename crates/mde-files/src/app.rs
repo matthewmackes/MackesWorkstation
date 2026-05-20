@@ -8,6 +8,7 @@ use crate::model::{Layout, View};
 use crate::panels::{
     ContextMenu, ContextMenuItem, DetailsPanel, DragSession, DragTarget, OperationDrawer, OpRow,
 };
+use crate::prefs::Accessibility;
 use crate::selection::Selection;
 use crate::theme as t;
 use crate::views;
@@ -75,6 +76,20 @@ pub enum Message {
     DragDrop,
     /// v2.0.0 Phase 1.6 — user pressed Escape mid-drag.
     DragCancel,
+    /// v2.0.0 Phase 5.1 — Tab cycles keyboard focus through panes.
+    TabFocus,
+    /// v2.0.0 Phase 5.1 — Shift-Tab reverses.
+    ShiftTabFocus,
+    /// v2.0.0 Phase 5.1 — Ctrl/Cmd-F focuses the toolbar search
+    /// field.
+    FocusSearch,
+    /// v2.0.0 Phase 5.1 — any keyboard input arrived. Flips
+    /// `keyboard_active = true` so `FocusVisibility::Auto`
+    /// renders rings.
+    KeyboardActivity,
+    /// v2.0.0 Phase 5.1 — mouse moved / clicked. Flips
+    /// `keyboard_active = false`.
+    PointerActivity,
     /// No-op message used by buttons that don't have a wired behaviour yet
     /// (e.g. the sidebar's panel-toggle, the peer card's `…` button).
     Noop,
@@ -105,6 +120,54 @@ pub struct MdeFiles {
     pub op_drawer: OperationDrawer,
     /// v2.0.0 Phase 1.6 — drag-and-drop session state.
     pub drag: DragSession,
+    /// v2.0.0 Phase 5.x — accessibility prefs (direction / motion
+    /// / focus-ring policy). Loaded once at startup from
+    /// `Accessibility::load_from_env`. View code reads these each
+    /// frame.
+    pub a11y: Accessibility,
+    /// v2.0.0 Phase 5.1 — which pane currently owns keyboard focus.
+    /// Tab cycles through the locked order: Toolbar → Sidebar →
+    /// FileList. Used by the focus-ring renderer + the keyboard
+    /// dispatcher.
+    pub keyboard_pane: KeyboardPane,
+    /// v2.0.0 Phase 5.1 — whether the most recent input was a
+    /// keyboard interaction. `FocusVisibility::Auto` consults this
+    /// to decide whether to render focus rings.
+    pub keyboard_active: bool,
+}
+
+/// v2.0.0 Phase 5.1 — pane currently receiving keyboard input.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum KeyboardPane {
+    /// Toolbar (search input + layout toggle).
+    Toolbar,
+    /// Left-rail sidebar (peer + pin list).
+    Sidebar,
+    /// Main file-list pane.
+    #[default]
+    FileList,
+}
+
+impl KeyboardPane {
+    /// Tab order: Toolbar → Sidebar → FileList → Toolbar.
+    #[must_use]
+    pub fn next(self) -> Self {
+        match self {
+            Self::Toolbar => Self::Sidebar,
+            Self::Sidebar => Self::FileList,
+            Self::FileList => Self::Toolbar,
+        }
+    }
+
+    /// Shift-Tab: reverse direction.
+    #[must_use]
+    pub fn prev(self) -> Self {
+        match self {
+            Self::Toolbar => Self::FileList,
+            Self::Sidebar => Self::Toolbar,
+            Self::FileList => Self::Sidebar,
+        }
+    }
 }
 
 impl MdeFiles {
@@ -225,6 +288,20 @@ impl MdeFiles {
             Message::DragCancel => {
                 let _ = self.drag.cancel();
             }
+            Message::TabFocus => {
+                self.keyboard_pane = self.keyboard_pane.next();
+                self.keyboard_active = true;
+            }
+            Message::ShiftTabFocus => {
+                self.keyboard_pane = self.keyboard_pane.prev();
+                self.keyboard_active = true;
+            }
+            Message::FocusSearch => {
+                self.keyboard_pane = KeyboardPane::Toolbar;
+                self.keyboard_active = true;
+            }
+            Message::KeyboardActivity => self.keyboard_active = true,
+            Message::PointerActivity => self.keyboard_active = false,
             Message::Refresh
             | Message::TitlebarMinimize
             | Message::TitlebarMaximize
@@ -546,6 +623,54 @@ mod tests {
         let _ = s.update(Message::DragStart(vec!["a".into()]));
         let _ = s.update(Message::DragCancel);
         assert!(!s.drag.is_active());
+    }
+
+    #[test]
+    fn tab_focus_cycles_through_panes() {
+        let mut s = MdeFiles::default();
+        assert_eq!(s.keyboard_pane, KeyboardPane::FileList);
+        let _ = s.update(Message::TabFocus);
+        assert_eq!(s.keyboard_pane, KeyboardPane::Toolbar);
+        let _ = s.update(Message::TabFocus);
+        assert_eq!(s.keyboard_pane, KeyboardPane::Sidebar);
+        let _ = s.update(Message::TabFocus);
+        assert_eq!(s.keyboard_pane, KeyboardPane::FileList);
+    }
+
+    #[test]
+    fn shift_tab_focus_reverses() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::ShiftTabFocus);
+        assert_eq!(s.keyboard_pane, KeyboardPane::Sidebar);
+        let _ = s.update(Message::ShiftTabFocus);
+        assert_eq!(s.keyboard_pane, KeyboardPane::Toolbar);
+    }
+
+    #[test]
+    fn focus_search_jumps_to_toolbar() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::FocusSearch);
+        assert_eq!(s.keyboard_pane, KeyboardPane::Toolbar);
+        assert!(s.keyboard_active);
+    }
+
+    #[test]
+    fn keyboard_activity_toggles_keyboard_active_flag() {
+        let mut s = MdeFiles::default();
+        assert!(!s.keyboard_active);
+        let _ = s.update(Message::KeyboardActivity);
+        assert!(s.keyboard_active);
+        let _ = s.update(Message::PointerActivity);
+        assert!(!s.keyboard_active);
+    }
+
+    #[test]
+    fn keyboard_pane_tab_order_is_three_step_cycle() {
+        let start = KeyboardPane::Toolbar;
+        let one = start.next();
+        let two = one.next();
+        let three = two.next();
+        assert_eq!(three, start, "Tab returns to start after 3 hops");
     }
 
     #[test]

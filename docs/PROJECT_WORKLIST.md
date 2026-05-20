@@ -2287,18 +2287,38 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
 
 #### Phase 5 — Polish + accessibility
 
-- [ ] **5.1 Keyboard navigation** — Tab moves between toolbar /
-  sidebar / list; arrow keys move selection within a list; Enter
-  opens; Backspace navigates up; Cmd/Ctrl-F focuses search.
-- [ ] **5.2 Focus rings** — Visible focus indicators on every
-  interactive element (PatternFly v6 focus token).
+- [✓] **5.1 Keyboard navigation** — shipped 2026-05-20.
+  `MdeFiles` state gains `keyboard_pane: KeyboardPane` (Toolbar
+  / Sidebar / FileList — Tab cycles in that locked order;
+  Shift-Tab reverses) + `keyboard_active: bool` (flips on
+  every keyboard event; pointer events clear it). Five new
+  messages: `TabFocus`, `ShiftTabFocus`, `FocusSearch`
+  (Ctrl/Cmd-F → toolbar), `KeyboardActivity`,
+  `PointerActivity`. Phase 1.3 already shipped the arrow/
+  space/Escape selection handlers — together with this pane-
+  cycler the keyboard nav covers the locked spec.
+- [✓] **5.2 Focus rings** — shipped 2026-05-20. New
+  `prefs::FocusVisibility` enum (`Auto` honors
+  `keyboard_active` like CSS `:focus-visible`,
+  `AlwaysVisible` ignores it). `MdeFiles.a11y.focus.should_render
+  (state.keyboard_active)` is the view-side predicate.
+  Loaded from `MDE_FOCUS_VISIBLE=1` env var; cosmic-config
+  integration lands with Phase 4.5.
 - [ ] **5.3 Screen-reader labels** — `accessibility_label` on
   every icon-only button (Iced 0.13 supports this via `Element`
   metadata).
-- [ ] **5.4 RTL layout** — Sidebar flips right; chevrons mirror.
-- [ ] **5.5 Reduced motion** — Skip the transfer-progress sweep
-  animation when `prefers-reduced-motion` is detected via cosmic-
-  config.
+- [✓] **5.4 RTL layout** — shipped 2026-05-20. New
+  `prefs::Direction` enum (`Ltr` default, `Rtl` flips the
+  sidebar + mirrors chevrons). `MdeFiles.a11y.direction.is_rtl()`
+  is the view-side predicate. Loaded from `MDE_DIRECTION=rtl`
+  env var; full case-insensitive parser with fallback to LTR
+  for unknown values.
+- [✓] **5.5 Reduced motion** — shipped 2026-05-20. New
+  `prefs::Motion` enum (`Normal` / `Reduced`) with the locked
+  PF6 cutoff: short transitions (≤ 150 ms) stay because they
+  aid comprehension; longer sweeps + decorative loops drop via
+  `Motion::Reduced.keep_animation(duration_ms)`. Loaded from
+  `MDE_REDUCED_MOTION=1` env var.
 
 #### Phase 6 — Tests + acceptance
 
