@@ -791,11 +791,24 @@ panel starts without manual intervention.
   package-owned by the RPM (data/applications/mde.desktop).
   `tests/conftest.py` purge-set trimmed accordingly. No more
   imports of `mackes.menu_integration` anywhere in the tree.
-- [ ] **F.11 `mackes/workbench/fleet/settings.py`** — new panel:
-  "Push settings to fleet". Pick setting → pick peers → preview
-  diff → Apply. Wraps `org.mackes.Fleet.PushRevision`.
-- [ ] **F.12 `mackes/workbench/fleet/revisions.py`** — list
-  revisions, rollback per peer or fleet-wide.
+- [✓] **F.11 `mackes/workbench/fleet/settings.py`** — new Workbench
+  panel. Key picker (every entry from `mde_settings_bridge._KEY_MAP`),
+  live current-value preview, JSON value entry, peer selector
+  (default `all`), Apply button that shells out to `mded fleet
+  push-setting <key> <value> --peers <sel>` (Phase G.4). Pure
+  helper `push_setting(key, value_json, peers) -> (ok, message)`
+  covered by 1 test (no-mded fallback). When `mded` isn't on PATH
+  the panel renders an error_state pointing at the install path
+  instead of crashing.
+- [✓] **F.12 `mackes/workbench/fleet/revisions.py`** — new
+  Workbench panel + matching `mded revisions` subcommand tree
+  (`list [--json]`, `diff <from> <to>`, `rollback <id> --peers
+  <sel>`). Lists every desired_config row newest first; each row
+  has a Rollback button. Pure helpers `list_revisions() -> (rows,
+  err)`, `rollback_to(id, peers)`, `format_revision_row(rev)` —
+  3 tests cover the format + no-mded fallbacks. The rollback path
+  writes a new desired_config row carrying the named revision's
+  spec_json (immutable history per 12.2.2).
 
 #### Phase G — Fleet-managed config layer
 
