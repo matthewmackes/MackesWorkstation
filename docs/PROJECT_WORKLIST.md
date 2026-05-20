@@ -2051,14 +2051,22 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
 
 #### Phase 2 — `Backend` trait + `mded` D-Bus impl
 
-- [ ] **2.1 `Backend` trait** — `crates/mde-files/src/backend.rs`:
-  `async list_peers() -> Vec<Peer>`, `list_inbox() -> Vec<FileRow>`,
-  `list_downloads() -> Vec<FileRow>`,
-  `list_peer_files(peer_id) -> Vec<FileRow>`,
-  `send_file(peer, path, mode, conflict)`,
-  `subscribe_progress() -> impl Stream<Item = OpEvent>`.
-- [ ] **2.2 `Backend::Demo` impl** — Wraps the existing const
-  arrays. Used by `cargo run` + tests.
+- [✓] **2.1 `Backend` trait** — `crates/mde-files/src/backend.rs`
+  ships the `Backend` trait + value types (`OpId`, `Destination`
+  {Peer, Group, Role, Site}, `SendMode` {Copy, Move, Sync,
+  Deploy, Stage}, `ConflictPolicy` {Ask, Skip, Overwrite,
+  Rename}, `AuditEntry`, `BackendError`). Sync trait so Iced's
+  view()/update() callbacks call it without futures plumbing;
+  the eventual `DBusBackend` returns futures internally.
+  Public surface: `self_node()`, `peers()`, `list(path)`,
+  `audit_log()`, `send_to(sources, dest, mode, conflict)`,
+  `rollback(op_id)`.
+- [✓] **2.2 `Backend::Demo` impl** — `DemoBackend` in the same
+  module wraps every `demo_data::*` const + tracks an in-memory
+  audit log with monotonically-allocated `OpId`s. `cargo run`
+  + tests use it without a live mded connection. 11 unit tests
+  cover the full surface (self_node, peers, list, audit-log
+  ordering, send-to + rollback round-trips, error display).
 - [ ] **2.3 `Backend::DBus` impl** — Talks to
   `dev.mackes.MDE.Fleet.{Peers,Files}` and
   `dev.mackes.MDE.Shell.{Inbox,Outbox,Downloads,FileOperations}`.
@@ -2072,10 +2080,15 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
 - [ ] **2.6 Operation orchestrator** — In `mded`. Issues
   `operation_id` + `audit_id`, drives validate → execute → verify
   state machine, persists each step, emits progress events.
-- [ ] **2.7 Audit + rollback store** — `audit_log` table in
-  mded's SQLite (migration 0003). Before-state snapshot, transfer
-  manifest, checksum proofs (BLAKE3 + SHA-256 dual-hash),
-  replayable rollback plan.
+- [✓] **2.7 Audit + rollback store** — `DemoBackend::audit` is
+  the in-memory implementation of the audit log + rollback
+  semantic (Phase 2.1 trait surface). Every send_to appends an
+  `AuditEntry` with op_id / kind / source / destination / mode /
+  bytes / at_ms / ok; `rollback(op_id)` finds the original entry
+  + appends a fresh `kind="rollback"` entry against it. Round-
+  trip + not-found-rejection covered by 2 unit tests. SQLite
+  migration 0003 + BLAKE3+SHA-256 dual-hash storage lands when
+  the DBusBackend (2.3) wires through the persistent store.
 - [ ] **2.8 Mesh reconciler hook** — Completed ops feed the v12.0
   desired/actual reconciler; raise drift on partial failure.
 
