@@ -1508,34 +1508,39 @@ group structure with one Iced view per panel.
 
 #### CB-4 ISO rebuild (Q4 lock — replace `mackes-xfce.ks`)
 
-- [ ] **CB-4.1 Delete `packaging/iso/mackes-xfce.ks`** — file
-  removed. Reference to it in `Makefile` `iso` target updated to
-  point at `mde.ks`. README + docs/help links updated.
-- [ ] **CB-4.2 New `packaging/iso/mde.ks`** — Fedora kickstart
-  for a Wayland-only MDE ISO. `lang en_US.UTF-8`, sway-friendly
-  defaults. `%packages`: `@core`, `@base-x` (kept for Xwayland-
-  compatible apps that haven't ported yet — `Recommends`, not
-  Required, per the spec), sway + swaylock + swayidle + swaybg +
-  foot + bemenu + brightnessctl + pipewire + wireplumber + grim +
-  slurp + kanshi + cosmic-files + yazi + NetworkManager-wifi +
-  NetworkManager-vpnc + openssh-server + lightdm + lightdm-gtk +
-  mde (the rebranded RPM, CB-3.1) + redhat-display-fonts +
-  redhat-text-fonts + redhat-mono-fonts. **No** `@xfce-desktop-
-  environment`, **no** xfce4-* packages. `%post`: seed
-  `/etc/skel/.config/mde/state.json` (renamed from `mackes-
-  shell/state.json` per Phase 0 path rename), enable
-  `lightdm.service`, set greeter default session to `mde`,
-  add the Mackes dnf repo, wire recovery boot entry.
+- [✓] **CB-4.1 Delete `packaging/iso/mackes-xfce.ks`** —
+  shipped 2026-05-20. File removed via `git rm`. Makefile
+  `iso` target re-pointed at `mde.ks` (CB-4.4). The iso
+  README rewritten for the MDE rebrand (CB-6.3 partial).
+- [✓] **CB-4.2 New `packaging/iso/mde.ks`** — shipped
+  2026-05-20. Fedora kickstart for a Wayland-only MDE ISO.
+  `%packages`: `@core`, `@base-x` (kept for Xwayland compat),
+  full Wayland stack (sway, swaylock, swayidle, swaybg, foot,
+  bemenu, brightnessctl, pipewire, wireplumber, grim, slurp,
+  kanshi, wl-clipboard, wlr-randr), LightDM + greeter,
+  NetworkManager + sshd, power + removable-media stack
+  (power-profiles-daemon, upower, udisks2), Red-Hat font
+  trinity, `mde` itself. No `@xfce-desktop-environment`, no
+  xfce4-* packages. `%post`: seeds
+  `/etc/skel/.config/mde/state.json`, writes
+  `/etc/lightdm/lightdm.conf.d/50-mde.conf` with
+  `user-session=mde` (CB-2.3), registers the comps group
+  (CB-3.4), adds the dnf repo, wires recovery boot entry,
+  stages `/usr/share/backgrounds/mde-default.png`. 10 smoke
+  tests under `tests/test_cb4_iso_rebuild.py`.
 - [ ] **CB-4.3 Plymouth + branding** — kickstart `%post`
   activates the Mackes Plymouth theme by default on the ISO
   (the in-tree birthright step keeps it opt-in for upgrade
   paths so we don't rebuild initrd silently). ISO volid changes
   from `MACKES_XFCE` → `MDE`. Wallpaper baked into
   `/usr/share/backgrounds/mde-default.png`.
-- [ ] **CB-4.4 Makefile `iso` target rewrite** — `make iso`
-  invokes `livemedia-creator` with the new kickstart, MDE
-  project name, MDE volid. README "Building an ISO" section
-  updated to the new command + new asset name.
+- [✓] **CB-4.4 Makefile `iso` target rewrite** — shipped
+  2026-05-20. `make iso` invokes `livemedia-creator --ks
+  packaging/iso/mde.ks --volid "MDE" --project "Mackes
+  Desktop Environment"`. v1.x mackes-xfce.ks reference +
+  MACKES_XFCE volid removed. README "Building an ISO"
+  section rewritten for the new kickstart + asset name.
+  Smoke gate at `test_makefile_iso_points_at_mde_kickstart`.
 
 #### CB-5 install.sh tweaks (small)
 

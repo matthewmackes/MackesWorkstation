@@ -51,13 +51,17 @@ iso:
 	@command -v livemedia-creator >/dev/null 2>&1 \
 	  || { echo 'Install lorax: sudo dnf install lorax pykickstart' >&2; exit 1; }
 	mkdir -p dist/iso
+	# CB-4.4 — v2.0.0 ISO builds from packaging/iso/mde.ks (the
+	# v1.x mackes-xfce.ks was deleted at CB-4.1). Volid + project
+	# names flip to MDE.
 	sudo livemedia-creator \
 	    --make-iso \
-	    --ks packaging/iso/mackes-xfce.ks \
+	    --ks packaging/iso/mde.ks \
 	    --no-virt \
 	    --resultdir dist/iso \
-	    --project "Mackes XFCE" --releasever "$$(rpm -E %fedora)" \
-	    --volid "MACKES_XFCE"
+	    --project "Mackes Desktop Environment" \
+	    --releasever "$$(rpm -E %fedora)" \
+	    --volid "MDE"
 
 rust:
 	cargo build --release --workspace
