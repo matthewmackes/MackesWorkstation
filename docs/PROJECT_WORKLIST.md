@@ -3379,6 +3379,27 @@ under `LICENSES/`.
   the C plugin entirely; at that point the Obsoletes can
   return.
 
+- [✓] **ci lint cleanup — unblock main (2026-05-20)** — ci on
+  main had been red since 1.1.2 / 1.1.3 because ruff accumulated
+  27 errors across 19 test files (F401 unused imports, F541
+  stray f-strings, E702 semicolon-joined statements, E741
+  ambiguous `l`). Local `make test-nodeps` never ran ruff so the
+  pre-commit gate missed them; ci's `ruff check tests/` step did.
+  `ruff check tests/ --fix` auto-fixed 19, hand-fixed 8 (E702
+  splits in test_cairo_rendering_smoke, test_panel_e2e_xdotool,
+  test_remmina_sync; E741 `l → ln` in test_panel_xvfb_smoke).
+  262 tests still pass / 94 skip / 0 fail. Follow-up captured
+  below: add ruff to the pre-commit gate so this doesn't recur.
+
+- [ ] **Pre-commit gate hardening: add `ruff check tests/` to the
+  local pre-commit flow** — `.claude/CLAUDE.md` §0.7 lists
+  `make test-nodeps` as the test gate but doesn't include lint.
+  Add `make lint` (or fold ruff into `make test-nodeps`) so the
+  pre-commit gate catches ruff failures before they reach ci.
+  Acceptance: editing a test file with a stray `f""` causes
+  `make test-nodeps` (or whichever gate the rulebook names) to
+  fail locally with the same error ci would have caught.
+
 - [✓] **1.1.4 install fix — drop all XFCE Obsoletes (dnf5 take 2, 2026-05-20)** —
   1.1.3 RPM still crashed dnf5 (libdnf5 ≤ 5.2.x) with an
   `implicit_ts_elements.empty()` assertion: even the 5 remaining
