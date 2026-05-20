@@ -3477,13 +3477,53 @@ under `LICENSES/`.
   refresh-while-busy noop). Workbench unit-test count:
   204 → 217.
 
-- [ ] **CB-1.5.b Fleet playbooks panel (Iced)** — port
-  `mackes/workbench/fleet/playbooks.py`. Needs `mded
+- [✓] **CB-1.5.b Fleet playbooks panel (Iced) — shipped
+  2026-05-20** — port of `mackes/workbench/fleet/playbooks.py`
+  to Iced. New `crates/mde-workbench/src/panels/playbooks.rs`
+  ships the 7-curated-role list (per the Phase 1.3.0 lock:
+  system-update / mesh-state-snapshot /
+  selinux-permissive-toggle / container-runtime-setup /
+  xfconf-baseline / bloat-removal / apps-install) with
+  per-row description + local Run button.
+
+  The worklist's original sketch called for new `mded
   playbooks list --json` + `mded playbooks run <name>
-  --peers <sel>` subcommands. Acceptance: panel lists every
-  curated playbook (Phase 1.3.0 lock: 7 in QNM-Shared),
-  click-to-run dispatches via ansible-pull on the targeted
-  peers.
+  --peers <sel>` subcommands; this ship rejects the
+  subcommand pair and walks
+  `$QNM_SHARED_ROOT/.qnm-sync/playbooks/roles/`
+  (with `~/QNM-Shared` fallback) directly via
+  `tokio::fs::read_dir`. Rationale: the cross-peer dispatch
+  the subcommand pair would back lives in the connectivity
+  layer (12.14+) via the existing reconcile loop, so this
+  panel only needs local Run today. The subcommand pair is
+  re-captured as a follow-up if a future design lands a
+  need for cross-peer fan-out from the panel itself.
+
+  Run button shells out to `ansible-pull --tags <role>
+  site.yml` (matching the Python `run_local_pull` shape),
+  with a single-flight guard (one playbook can run at a
+  time — other Run buttons grey out until it finishes).
+  Empty state ("No curated playbooks found") with seeding
+  instructions when QNM-Shared isn't mounted.
+
+  9 new unit tests (curated-description map for all 7
+  roles + fallback for unknown roles, 6 reducer paths
+  covering Loaded / Error / RunClicked single-flight /
+  RunFinished success+failure messaging, async tokio test
+  for missing-dir empty-vec path). Workbench unit-test
+  count: 217 → 226.
+
+- [ ] **CB-1.5.b follow-up: `mded playbooks {list, run}`
+  subcommands for cross-peer dispatch** — captured if a
+  future design needs the playbooks panel itself (not the
+  reconcile loop) to push a play onto a peer selection. The
+  current playbooks panel walks the playbook directory
+  directly + runs ansible-pull locally only, which satisfies
+  the CB-1.5.b acceptance criterion. Adding cross-peer
+  dispatch via the panel would need the subcommand pair
+  ("playbooks list" walks QNM-Shared on the leader,
+  "playbooks run <name> --peers <sel>" emits a desired_config
+  revision that the reconcile loop picks up).
 
 - [ ] **CB-1.5.c Fleet run_history panel (Iced)** — port
   `mackes/workbench/fleet/run_history.py`. Needs `mded

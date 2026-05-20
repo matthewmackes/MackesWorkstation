@@ -11,6 +11,7 @@ pub mod fonts;
 pub mod inventory;
 pub mod json_helpers;
 pub mod notifications;
+pub mod playbooks;
 pub mod power;
 pub mod printers;
 pub mod removable;
