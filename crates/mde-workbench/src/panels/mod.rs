@@ -5,6 +5,7 @@
 //! [`Element<'_, crate::Message>`].
 
 pub mod datetime;
+pub mod default_apps;
 pub mod displays;
 pub mod fleet_revisions;
 pub mod fleet_settings;

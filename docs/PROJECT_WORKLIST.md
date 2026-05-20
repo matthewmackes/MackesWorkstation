@@ -3680,16 +3680,41 @@ under `LICENSES/`.
   timedatectl-unavailable, 4 reducer paths). Workbench
   unit-test count: 237 → 249.
 
-- [ ] **CB-1.9.b System default_apps panel (Iced)** — port
-  `mackes/workbench/system/default_apps.py`. Reads + writes
-  `~/.config/mimeapps.list`. No new backend needed — the
-  panel can read/write the XDG mimeapps file directly through
-  the existing `mde-config` crate (or a new helper). Lists
-  the canonical handler categories (browser, mail, terminal,
-  text editor, image viewer, video, music, file manager) +
-  per-category picker over installed `.desktop` files.
-  Acceptance: change a handler, restart sway, xdg-open picks
-  the new one.
+- [✓] **CB-1.9.b System default_apps panel (Iced) — shipped
+  2026-05-20** — port of `mackes/workbench/system/default_apps.py`
+  to Iced. New `crates/mde-workbench/src/panels/default_apps.rs`
+  walks XDG application dirs for .desktop files + reads/writes
+  `~/.config/mimeapps.list` directly. No mded subcommand
+  needed — pure file I/O against the user's $HOME, no polkit
+  gating. 9-category lock matches the v1.x panel: Web browser,
+  Email, File manager, Terminal, Text editor, Image viewer,
+  Video player, Audio player, PDF viewer (each fronts 1–3
+  canonical MIME types; picking a default writes the same
+  desktop-id to all MIMEs in the group).
+
+  Pure helpers isolated for testability:
+  * `parse_desktop_entry(id, raw)` — handles
+    `[Desktop Entry]` sections, ignores
+    `[Desktop Action *]` blocks, falls back to id-stem when
+    `Name=` absent, skips NoDisplay=true / Hidden=true.
+  * `handler_mime_types(raw)` — extracts the
+    semicolon-separated MimeType= list.
+  * `parse_mimeapps_defaults(raw)` — reads only the
+    `[Default Applications]` block; Added/Removed sections
+    are intentionally ignored.
+  * `rewrite_mimeapps(existing, mimes, desktop_id)` —
+    in-place section rewriter that preserves every other
+    block verbatim; appends the section if it didn't exist.
+  * `current_defaults_for_categories(mimeapps)` — first-MIME
+    -wins resolver matching the v1.x semantic.
+
+  16 new unit tests (9-category lock, 4 desktop-entry parser
+  paths including hidden/nodisplay filter + non-entry section
+  ignore + name fallback, 2 mime-type extraction paths,
+  mimeapps default-section parser, current-default resolver,
+  4 rewrite paths covering replace / append-section /
+  append-mime-to-existing / multi-mime, 3 reducer paths).
+  Workbench unit-test count: 249 → 265.
 
 - [ ] **CB-1.9.c System window_manager panel (Iced)** — port
   `mackes/workbench/system/window_manager.py`. F.8 already

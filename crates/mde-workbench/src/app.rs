@@ -16,7 +16,7 @@ use crate::dbus::PendingFocus;
 use crate::keyboard::{KeyAction, Pane};
 use crate::model::{view_from_focus_slug, Group, View};
 use crate::panels::{
-    datetime as datetime_panel, displays as displays_panel,
+    datetime as datetime_panel, default_apps as default_apps_panel, displays as displays_panel,
     fleet_revisions as fleet_revisions_panel, fleet_settings as fleet_settings_panel,
     fonts as fonts_panel, inventory as inventory_panel, notifications as notifications_panel,
     playbooks as playbooks_panel, power as power_panel, printers as printers_panel,
@@ -85,6 +85,8 @@ pub enum Message {
     RunHistory(run_history_panel::Message),
     /// CB-1.9.a — System date/time panel sub-message.
     DateTime(datetime_panel::Message),
+    /// CB-1.9.b — System default-apps panel sub-message.
+    DefaultApps(default_apps_panel::Message),
     /// CB-1.5 partial — Fleet settings panel sub-message.
     FleetSettings(fleet_settings_panel::Message),
     /// CB-1.5 partial — Fleet revisions panel sub-message.
@@ -116,6 +118,7 @@ pub struct App {
     playbooks: playbooks_panel::PlaybooksPanel,
     run_history: run_history_panel::RunHistoryPanel,
     datetime: datetime_panel::DateTimePanel,
+    default_apps: default_apps_panel::DefaultAppsPanel,
     fleet_settings: fleet_settings_panel::FleetSettingsPanel,
     fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel,
     wallpaper: wallpaper_panel::WallpaperPanel,
@@ -170,6 +173,7 @@ impl App {
             playbooks: playbooks_panel::PlaybooksPanel::new(),
             run_history: run_history_panel::RunHistoryPanel::new(),
             datetime: datetime_panel::DateTimePanel::new(),
+            default_apps: default_apps_panel::DefaultAppsPanel::new(),
             fleet_settings: fleet_settings_panel::FleetSettingsPanel::new(),
             fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel::new(),
             wallpaper: wallpaper_panel::WallpaperPanel::new(),
@@ -275,6 +279,12 @@ impl App {
         &self.datetime
     }
 
+    /// Read-only view of the default-apps panel state.
+    #[must_use]
+    pub fn default_apps(&self) -> &default_apps_panel::DefaultAppsPanel {
+        &self.default_apps
+    }
+
     /// Read-only view of the fleet settings panel state.
     #[must_use]
     pub fn fleet_settings(&self) -> &fleet_settings_panel::FleetSettingsPanel {
@@ -377,6 +387,7 @@ impl App {
             Message::Playbooks(msg) => self.playbooks.update(msg),
             Message::RunHistory(msg) => self.run_history.update(msg),
             Message::DateTime(msg) => self.datetime.update(msg),
+            Message::DefaultApps(msg) => self.default_apps.update(msg),
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
@@ -407,6 +418,7 @@ impl App {
             (Group::Fleet, "playbooks") => playbooks_panel::PlaybooksPanel::load(),
             (Group::Fleet, "run_history") => run_history_panel::RunHistoryPanel::load(),
             (Group::System, "datetime") => datetime_panel::DateTimePanel::load(),
+            (Group::System, "default_apps") => default_apps_panel::DefaultAppsPanel::load(),
             (Group::Fleet, "revisions") => fleet_revisions_panel::FleetRevisionsPanel::load(),
             // Fleet settings has no Load — it's a push-only
             // surface, so navigation doesn't fan a refresh.
@@ -550,6 +562,10 @@ impl App {
                 group: Group::System,
                 panel: "datetime",
             } => self.datetime.view(),
+            View::Panel {
+                group: Group::System,
+                panel: "default_apps",
+            } => self.default_apps.view(),
             View::Panel {
                 group: Group::Fleet,
                 panel: "settings",
