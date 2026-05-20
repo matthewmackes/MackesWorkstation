@@ -1498,13 +1498,10 @@ group structure with one Iced view per panel.
   `mackes/workbench/maintain/`: logs, power, repair,
   reset_to_preset, resources, snapshots, system_update,
   uninstall. **Partial progress 2026-05-20:** snapshots
-  shipped (CB-1.9.d, re-tagged as Maintain) + logs shipped
-  (new `crates/mde-workbench/src/panels/logs.rs` — tails
-  mackes.log + sway user-session journal, drops the
-  xfsettingsd tail that v1.x had since Phase D retires
-  xfconf; 5 unit tests for the pure tail_lines helper +
-  reducer paths). 6 remaining: power, repair,
-  reset_to_preset, resources, system_update, uninstall.
+  (CB-1.9.d, re-tagged as Maintain), logs (tails mackes.log
+  + sway journal), and resources (CPU/RAM/disk via /proc +
+  df) shipped. 5 remaining: power, repair, reset_to_preset,
+  system_update, uninstall.
 - [ ] **CB-1.8 Network group port (~14 panels)** — largest group.
   `mesh_control.py` (9-tab notebook) + `mesh_pending.py` +
   `mesh_history.py` + `mesh_join.py` + `mesh_ssh.py` +

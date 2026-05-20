@@ -20,9 +20,10 @@ use crate::panels::{
     fleet_revisions as fleet_revisions_panel, fleet_settings as fleet_settings_panel,
     fonts as fonts_panel, inventory as inventory_panel, logs as logs_panel,
     notifications as notifications_panel, playbooks as playbooks_panel, power as power_panel,
-    printers as printers_panel, removable as removable_panel, run_history as run_history_panel,
-    session as session_panel, snapshots as snapshots_panel, sound as sound_panel,
-    themes as themes_panel, wallpaper as wallpaper_panel, window_manager as window_manager_panel,
+    printers as printers_panel, removable as removable_panel, resources as resources_panel,
+    run_history as run_history_panel, session as session_panel, snapshots as snapshots_panel,
+    sound as sound_panel, themes as themes_panel, wallpaper as wallpaper_panel,
+    window_manager as window_manager_panel,
 };
 use crate::patternfly::{breadcrumb, page_subtitle, page_title};
 use crate::sidebar::SidebarState;
@@ -94,6 +95,8 @@ pub enum Message {
     Snapshots(snapshots_panel::Message),
     /// CB-1.7 partial — Maintain logs panel sub-message.
     Logs(logs_panel::Message),
+    /// CB-1.7 partial — Maintain resources panel sub-message.
+    Resources(resources_panel::Message),
     /// CB-1.5 partial — Fleet settings panel sub-message.
     FleetSettings(fleet_settings_panel::Message),
     /// CB-1.5 partial — Fleet revisions panel sub-message.
@@ -129,6 +132,7 @@ pub struct App {
     window_manager: window_manager_panel::WindowManagerPanel,
     snapshots: snapshots_panel::SnapshotsPanel,
     logs: logs_panel::LogsPanel,
+    resources: resources_panel::ResourcesPanel,
     fleet_settings: fleet_settings_panel::FleetSettingsPanel,
     fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel,
     wallpaper: wallpaper_panel::WallpaperPanel,
@@ -187,6 +191,7 @@ impl App {
             window_manager: window_manager_panel::WindowManagerPanel::new(),
             snapshots: snapshots_panel::SnapshotsPanel::new(),
             logs: logs_panel::LogsPanel::new(),
+            resources: resources_panel::ResourcesPanel::new(),
             fleet_settings: fleet_settings_panel::FleetSettingsPanel::new(),
             fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel::new(),
             wallpaper: wallpaper_panel::WallpaperPanel::new(),
@@ -316,6 +321,12 @@ impl App {
         &self.logs
     }
 
+    /// Read-only view of the resources panel state.
+    #[must_use]
+    pub fn resources(&self) -> &resources_panel::ResourcesPanel {
+        &self.resources
+    }
+
     /// Read-only view of the fleet settings panel state.
     #[must_use]
     pub fn fleet_settings(&self) -> &fleet_settings_panel::FleetSettingsPanel {
@@ -422,6 +433,7 @@ impl App {
             Message::WindowManager(msg) => self.window_manager.update(msg),
             Message::Snapshots(msg) => self.snapshots.update(msg),
             Message::Logs(msg) => self.logs.update(msg),
+            Message::Resources(msg) => self.resources.update(msg),
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
@@ -456,6 +468,7 @@ impl App {
             (Group::System, "window_manager") => window_manager_panel::WindowManagerPanel::load(),
             (Group::Maintain, "snapshots") => snapshots_panel::SnapshotsPanel::load(),
             (Group::Maintain, "logs") => logs_panel::LogsPanel::load(),
+            (Group::Maintain, "resources") => resources_panel::ResourcesPanel::load(),
             (Group::Fleet, "revisions") => fleet_revisions_panel::FleetRevisionsPanel::load(),
             // Fleet settings has no Load — it's a push-only
             // surface, so navigation doesn't fan a refresh.
@@ -615,6 +628,10 @@ impl App {
                 group: Group::Maintain,
                 panel: "logs",
             } => self.logs.view(),
+            View::Panel {
+                group: Group::Maintain,
+                panel: "resources",
+            } => self.resources.view(),
             View::Panel {
                 group: Group::Fleet,
                 panel: "settings",
