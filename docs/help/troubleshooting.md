@@ -80,17 +80,18 @@ Mesh VPN goes through Headscale's control plane. Possible causes:
 - Wrong username? Default is the wizard-running user; Mackes → Network
   → Mesh SSH → Key Distribution lets you override per peer.
 
-## "Mackes Shell won't start"
+## "MDE won't start"
 
-Recovery mode:
+Recovery mode (works on the 2.0.0+ binary `mde`; the 1.x binary
+`mackes` is still installed for one release as a transitional alias):
 ```bash
-$ python3 -m mackes.recover --list      # list snapshots
-$ python3 -m mackes.recover --latest    # restore most recent snapshot
+$ mde recover --list      # list snapshots
+$ mde recover --latest    # restore most recent snapshot
 ```
 
 Or boot the recovery target via GRUB:
 ```
-mackes-recovery.target
+mde-recovery.target
 ```
 Drops you to a console with snapshot restore tools.
 

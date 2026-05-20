@@ -53,7 +53,7 @@ class MeshJoinPanel(Gtk.Box):
         outer.set_margin_top(12); outer.set_margin_bottom(0)
         outer.set_margin_start(16); outer.set_margin_end(16)
 
-        outer.pack_start(_breadcrumb(["Mackes Shell", "Network", "Get Online"]),
+        outer.pack_start(_breadcrumb(["MDE", "Network", "Get Online"]),
                          False, False, 0)
         # The wizard page renders its own page-title + subtitle. We add a
         # small contextual subtitle ABOVE its body to call out that this is

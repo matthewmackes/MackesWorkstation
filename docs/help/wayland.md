@@ -1,9 +1,12 @@
 # Wayland support
 
-Mackes Shell is **X11-only** by design. The Mackes XFCE Workstation
-stack assumes XFCE + i3 + xfsettingsd, all of which require an X11
-session. Wayland is a work-in-progress port (see
-`docs/design/wayland-readiness.md` for the per-surface audit).
+**v2.0.0 reverses the historical X11-only stance.** Mackes Desktop
+Environment (MDE) 2.0.0 is **Wayland-only** — sway is the compositor,
+the panel is Iced + libcosmic on layer-shell, applets use
+wlr-protocols. The legacy "Mackes Shell" 1.x stack (XFCE + i3 +
+xfsettingsd, all X11) is the documented baseline below for users still
+running 1.x — see `docs/design/wayland-readiness.md` for the per-
+surface audit and the Phase E rewrite tracker.
 
 ## Status line
 

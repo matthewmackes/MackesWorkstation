@@ -127,7 +127,7 @@ def _page_subtitle(text: str) -> Gtk.Widget:
 def _breadcrumb() -> Gtk.Widget:
     bc = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
     bc.get_style_context().add_class("mackes-breadcrumb")
-    for i, p in enumerate(("Mackes Shell", "Apps")):
+    for i, p in enumerate(("MDE", "Apps")):
         lab = Gtk.Label(label=p); lab.set_xalign(0)
         bc.pack_start(lab, False, False, 0)
         if i != 1:

@@ -26,7 +26,7 @@ $ mackes init
 `mackes init` runs through the wizard equivalent using pure stdin prompts:
 
 ```
-→ Welcome to Mackes Shell 1.0.0 (headless mode)
+→ Welcome to Mackes Desktop Environment (MDE) 2.0.0 (headless mode)
 
 → Environment scan...
    Hostname:  fileserver
@@ -146,7 +146,7 @@ notifications from a headless node to a desktop peer.
 
 ```ini
 [Unit]
-Description=Mackes Shell — mesh node services
+Description=Mackes Desktop Environment (MDE) — mesh node services
 After=network-online.target
 Wants=network-online.target
 

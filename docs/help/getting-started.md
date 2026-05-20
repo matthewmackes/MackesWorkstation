@@ -1,12 +1,13 @@
 # Getting Started
 
-The first time you launch Mackes Shell on a fresh machine, it runs the
-**first-run wizard** — a 9-screen flow that brings a stock Fedora XFCE
-install to a known-good state.
+The first time you launch **Mackes Desktop Environment (MDE)** on a
+fresh machine, it runs the **first-run wizard** — a 9-screen flow that
+brings a stock Fedora install to a known-good MDE state (Wayland +
+sway as the compositor by 2.0.0).
 
 ## Wizard screens
 
-1. **Welcome** — spare splash with the Mackes logo.
+1. **Welcome** — spare splash with the MDE logo.
 2. **Environment Scan** — detected hardware, OS, XFCE version, missing
    required packages.
 3. **Choose Preset** — pick from `#!` (default), `Mackes`, `Daylight`, or

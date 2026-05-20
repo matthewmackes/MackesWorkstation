@@ -168,7 +168,7 @@ class WorkbenchWindow(Gtk.ApplicationWindow):
         super().__init__(application=application)
         self.set_default_size(1180, 740)
         from mackes.workbench._common import versioned_title
-        self.set_title(versioned_title("Mackes Shell"))
+        self.set_title(versioned_title("MDE"))
         self.state = state
 
         header = Gtk.HeaderBar()

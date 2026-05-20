@@ -231,14 +231,20 @@ binary symlink) and in CHANGELOG history.
   → `mde/` for whatever Python sliver survives the Rust port
   (Phase F Workbench panels). `from mackes.X` → `from mde.X`
   sweep. `pyproject.toml` / `setup.py` `name = "mde"`.
-- [ ] **0.11 User-visible string sweep** — README,
-  CHANGELOG header for 2.0.0, About dialog, window titles,
-  panel labels, help docs under `docs/help/`, error/log
-  messages, journald `SyslogIdentifier=` fields. "Mackes Shell"
-  → "Mackes Desktop Environment (MDE)" on first reference,
-  "MDE" thereafter. CHANGELOG history (1.x entries) is **not**
-  rewritten — those releases shipped as "Mackes Shell" and the
-  log preserves that truth.
+- [✓] **0.11 User-visible string sweep** — 2026-05-19. Workbench
+  breadcrumb roots flipped from "Mackes Shell" → "MDE" across
+  every panel: `help`, `apps/sources`, `apps/panel`,
+  `look_and_feel/appearance`, `fleet/playbooks`,
+  `fleet/run_history`, `maintain/hub`, `maintain/snapshots`,
+  `maintain/debloat`, `network/mesh_join`, `network/mesh_ssh`,
+  `network/remote_desktop`, plus `workbench/window.py` window
+  title. Help-doc first-references rewritten in
+  `docs/help/{index,getting-started,keybindings,
+  troubleshooting,wayland,headless}.md` — first reference is
+  "Mackes Desktop Environment (MDE)", "MDE" thereafter.
+  CHANGELOG 1.x history preserved as historical truth (per the
+  lock). Module import smoke clean for every touched Python
+  module.
 - [✓] **0.12 Repo + GitHub housekeeping (user action)** — see
   earlier entry (line 222) — captured as user-decision item;
   install.sh asset resolver already accepts both prefixes via

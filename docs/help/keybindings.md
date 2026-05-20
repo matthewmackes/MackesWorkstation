@@ -1,9 +1,10 @@
 # Keyboard shortcuts
 
-Mackes Shell respects standard XFCE keybindings + ships a small set of
-Mackes-specific accelerators when the workbench window is focused.
+**Mackes Desktop Environment (MDE)** ships its own keybindings under
+sway (replacing the XFCE accelerators 1.x carried) + a small set of
+MDE-specific accelerators when the workbench window is focused.
 
-## Mackes window
+## MDE workbench window
 
 | Shortcut | Action |
 |---|---|

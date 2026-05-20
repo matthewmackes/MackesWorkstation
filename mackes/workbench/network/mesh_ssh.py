@@ -112,7 +112,7 @@ class MeshSshPanel(Gtk.Box):
         outer.set_margin_top(12); outer.set_margin_bottom(12)
         outer.set_margin_start(16); outer.set_margin_end(16)
 
-        outer.pack_start(_breadcrumb(["Mackes Shell", "Network", "Mesh SSH"]),
+        outer.pack_start(_breadcrumb(["MDE", "Network", "Mesh SSH"]),
                          False, False, 0)
         outer.pack_start(_page_title("Mesh SSH"), False, False, 0)
         outer.pack_start(_page_subtitle(

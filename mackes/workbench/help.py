@@ -316,7 +316,7 @@ class HelpPanel(Gtk.Box):
         crumb = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         crumb.set_margin_top(12); crumb.set_margin_start(16); crumb.set_margin_end(16)
         crumb.get_style_context().add_class("mackes-breadcrumb")
-        for i, p in enumerate(("Mackes Shell", "Help")):
+        for i, p in enumerate(("MDE", "Help")):
             lab = Gtk.Label(label=p); lab.set_xalign(0)
             crumb.pack_start(lab, False, False, 0)
             if i != 1:

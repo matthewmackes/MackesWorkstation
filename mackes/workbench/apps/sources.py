@@ -107,7 +107,7 @@ class SourcesPanel(Gtk.Box):
         outer.set_margin_top(12); outer.set_margin_bottom(12)
         outer.set_margin_start(16); outer.set_margin_end(16)
 
-        outer.pack_start(_breadcrumb(["Mackes Shell", "Apps", "Sources & Repos"]),
+        outer.pack_start(_breadcrumb(["MDE", "Apps", "Sources & Repos"]),
                          False, False, 0)
         title = Gtk.Label(label="Sources & Repos")
         title.set_xalign(0); title.get_style_context().add_class("mackes-page-title")
