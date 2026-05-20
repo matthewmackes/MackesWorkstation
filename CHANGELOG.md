@@ -3,7 +3,7 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
-## 1.1.1 — Iced MDE Workbench preview (2026-05-20)
+## 1.1.2 — Iced MDE Workbench preview (2026-05-20)
 
 First v2.0.0-line preview shipped inside a v1.x point release.
 `mde-workbench` is a new Iced binary that ports an early slice
