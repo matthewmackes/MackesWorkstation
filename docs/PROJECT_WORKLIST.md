@@ -736,15 +736,33 @@ panel starts without manual intervention.
   DBus `theme.*` and `font.*`.
 - [ ] **F.4 `mackes/workbench/devices/displays.py`** — DBus
   `display.*` (compositor-aware via mackesd worker).
-- [ ] **F.5 `mackes/workbench/system/notifications.py`** — DBus
-  `org.mackes.Notifications.SetDoNotDisturb`.
-- [ ] **F.6 `mackes/workbench/system/session.py`** — DBus
-  `org.mackes.Session.SetSaveOnLogout`.
+- [✓] **F.5 `mackes/workbench/system/notifications.py`** — full
+  rewrite to `mackes.mde_settings_bridge`: Placement combo writes
+  `notification.location` (5 corners); DND switch toggles the
+  `$XDG_CACHE_HOME/mde/notifications-dnd` flag file (same one the
+  notifications_server worker honors); Default-duration spin
+  writes `notification.default_expire_ms`. xfce4-notifyd-only
+  knobs (fade / slide / primary-monitor / theme name) dropped —
+  v2.0.0 server handles visuals via libcosmic theme tokens, not
+  user toggles.
+- [✓] **F.6 `mackes/workbench/system/session.py`** — full
+  rewrite to the bridge for the 3 lifecycle toggles
+  (session.save_on_exit / session.lock_on_suspend /
+  session.auto_save). Routes through new
+  `$XDG_CACHE_HOME/mde/session-prefs.json` sidecar; mde-session
+  reads at login. Autostart-entry list logic unchanged. No more
+  XfconfBridge import.
 - [ ] **F.7 `mackes/workbench/system/snapshots.py`** — DBus
   `org.mackes.Settings.{Snapshot,Restore}`.
 - [ ] **F.8 `mackes/workbench/system/window_manager.py`** — drop
   i3-msg; swayipc via tiny `mackes/sway_ipc.py` async wrapper.
-- [ ] **F.9 `mackes/drawer.py:415–438`** — DBus DND + caffeine.
+- [✓] **F.9 `mackes/drawer.py:415–438`** — `_dnd_state` / `_dnd_toggle`
+  + `_caffeine_state` / `_caffeine_toggle` rewritten to read +
+  toggle the flag files at `$XDG_CACHE_HOME/mde/notifications-dnd`
+  and `$XDG_CACHE_HOME/mde/power-caffeine` respectively. Same
+  files the notifications_server worker + mde-session honor; the
+  drawer is now consistent with the rest of the v2.0.0 surface.
+  No more xfconf-query for these toggles.
 - [ ] **F.10 Delete `mackes/menu_integration.py`** — XFCE settings
   panels no longer installed.
 - [ ] **F.11 `mackes/workbench/fleet/settings.py`** — new panel:

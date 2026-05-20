@@ -366,43 +366,54 @@ def _bluetooth_toggle() -> None:
 
 
 def _dnd_state() -> bool:
-    """Do-Not-Disturb is xfce4-notifyd's `/do-not-disturb` xfconf key
-    when the daemon is installed. Returns False when notifyd isn't
-    installed; the toggle then becomes a no-op with a visible warning
-    in the row's status line."""
-    rc, out = _run_cmd(
-        ["xfconf-query", "-c", "xfce4-notifyd", "-p", "/do-not-disturb"]
-    )
-    return rc == 0 and out.strip().lower() == "true"
+    """Do-Not-Disturb — v2.0.0 Phase F.9 reads the MDE flag file at
+    `$XDG_CACHE_HOME/mde/notifications-dnd`. The notifications_server
+    worker (Phase B.10) honors the same file."""
+    from mackes.mde_settings_bridge import sidecar_path
+    return sidecar_path("notifications-dnd").exists()
 
 
 def _dnd_toggle() -> None:
-    state = _dnd_state()
-    _run_cmd([
-        "xfconf-query", "-c", "xfce4-notifyd",
-        "-p", "/do-not-disturb",
-        "-n", "-t", "bool", "-s", "false" if state else "true",
-    ])
+    """Flip DND on/off by writing or removing the flag file."""
+    from mackes.mde_settings_bridge import sidecar_path
+    path = sidecar_path("notifications-dnd")
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.write_text("")
+        except OSError:
+            pass
 
 
 def _caffeine_state() -> bool:
-    """Caffeine = xfce4-power-manager's presentation-mode. When `true`,
-    the screensaver/blank suppress is active — the standard 'keep awake'
-    semantic everyone expects from a Caffeine button."""
-    rc, out = _run_cmd([
-        "xfconf-query", "-c", "xfce4-power-manager",
-        "-p", "/xfce4-power-manager/presentation-mode",
-    ])
-    return rc == 0 and out.strip().lower() == "true"
+    """Caffeine — v2.0.0 Phase F.9 reads the MDE flag file at
+    `$XDG_CACHE_HOME/mde/power-caffeine` (written by the
+    PowerPresentationMode applier, Phase C.4). mde-session inhibits
+    idle/lock via swayidle drop-in when the file is present."""
+    from mackes.mde_settings_bridge import sidecar_path
+    return sidecar_path("power-caffeine").exists()
 
 
 def _caffeine_toggle() -> None:
-    state = _caffeine_state()
-    _run_cmd([
-        "xfconf-query", "-c", "xfce4-power-manager",
-        "-p", "/xfce4-power-manager/presentation-mode",
-        "-n", "-t", "bool", "-s", "false" if state else "true",
-    ])
+    """Flip caffeine on/off by writing or removing the flag file."""
+    from mackes.mde_settings_bridge import sidecar_path
+    path = sidecar_path("power-caffeine")
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    else:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.write_text("")
+        except OSError:
+            pass
 
 
 def _mesh_toggle(on: bool) -> None:

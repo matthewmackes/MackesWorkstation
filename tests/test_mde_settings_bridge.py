@@ -131,7 +131,8 @@ def test_key_map_covers_every_implemented_phase_c_key():
         # font
         "font.name", "font.monospace", "font.hinting", "font.antialias",
         # power (sidecar — profile via powerprofilesctl is separate)
-        "power.lid_action", "power.suspend_idle_battery_s", "power.suspend_idle_ac_s",
+        "power.lid_action", "power.suspend_idle_battery_s",
+        "power.suspend_idle_ac_s",
         # display (sidecar — brightness via brightnessctl is separate)
         "display.primary", "display.scale",
         "display.night_light", "display.night_light_temp",
@@ -141,5 +142,9 @@ def test_key_map_covers_every_implemented_phase_c_key():
         "wallpaper.path", "wallpaper.mode",
         # notification (DND is a flag file, not a sidecar)
         "notification.location", "notification.default_expire_ms",
+        # session — Phase F.6
+        "session.save_on_exit", "session.lock_on_suspend", "session.auto_save",
+        # snapshots — Phase F.7
+        "snapshots.retention_days", "snapshots.compress",
     }
     assert set(_KEY_MAP.keys()) == expected

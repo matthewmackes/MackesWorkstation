@@ -1,10 +1,13 @@
-"""System → Session & Startup.
+"""System → Session & Startup (v2.0.0 Phase F.6 — switched to MDE bridge).
 
 Two responsibilities:
-  - xfce4-session save-on-exit / logout prompt behavior (xfconf channel
-    `xfce4-session`).
-  - Autostart `.desktop` files under ~/.config/autostart/ — list, toggle the
-    Hidden field, add a new entry by picking an executable.
+  - Session lifecycle toggles (save-on-exit, lock-on-suspend,
+    auto-save) — read + written through `mackes.mde_settings_bridge`,
+    which routes to `$XDG_CACHE_HOME/mde/session-prefs.json`.
+    `mde-session` reads the sidecar at login to honor each flag.
+  - Autostart `.desktop` files under ~/.config/autostart/ — list,
+    toggle the Hidden field, add a new entry by picking an
+    executable. Unchanged from v1.x.
 """
 from __future__ import annotations
 
@@ -15,15 +18,12 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk  # noqa: E402
 
+from mackes import mde_settings_bridge as _b
 from mackes.logging import log_action
 from mackes.state import HOME
-from mackes.xfconf_bridge import XfconfError, get_bridge
 from mackes.workbench._common import (
-    a11y, error_label, info_label, labeled_row, panel_box, section_description, section_header, title_label,
+    a11y, info_label, labeled_row, panel_box, section_description, section_header, title_label,
 )
-
-
-CHANNEL = "xfce4-session"
 AUTOSTART_DIR = HOME / ".config" / "autostart"
 SYSTEM_AUTOSTART_DIRS = [
     Path("/etc/xdg/autostart"),
@@ -140,37 +140,42 @@ class SessionPanel(Gtk.Box):
             "the app — only its auto-launch."
         ), False, False, 0)
 
-        # Session behavior
-        try:
-            xf = get_bridge()
-        except XfconfError as e:
-            box.pack_start(error_label(str(e)), False, False, 0)
-        else:
-            box.pack_start(section_header("Session"), False, False, 0)
+        # Session behavior — routes through mde_settings_bridge
+        # (session-prefs.json sidecar; mde-session reads at login).
+        box.pack_start(section_header("Session"), False, False, 0)
 
-            save_on_exit = Gtk.Switch()
-            save_on_exit.set_active(bool(xf.get(CHANNEL, "/general/SaveOnExit", True)))
-            save_on_exit.connect("notify::active",
-                                 lambda s, _g: xf.set(CHANNEL, "/general/SaveOnExit", s.get_active()))
-            a11y(save_on_exit, name="Save the session on logout",
-                 tooltip="Remember open apps and restore them next login")
-            box.pack_start(labeled_row("Save session on logout", save_on_exit), False, False, 0)
+        save_on_exit = Gtk.Switch()
+        save_on_exit.set_active(bool(_b.get_setting("session.save_on_exit") or True))
+        save_on_exit.connect(
+            "notify::active",
+            lambda s, _g: _b.set_setting("session.save_on_exit", bool(s.get_active())),
+        )
+        a11y(save_on_exit, name="Save the session on logout",
+             tooltip="Remember open apps and restore them next login")
+        box.pack_start(labeled_row("Save session on logout", save_on_exit),
+                       False, False, 0)
 
-            prompt = Gtk.Switch()
-            prompt.set_active(bool(xf.get(CHANNEL, "/shutdown/LockScreen", False)))
-            prompt.connect("notify::active",
-                           lambda s, _g: xf.set(CHANNEL, "/shutdown/LockScreen", s.get_active()))
-            a11y(prompt, name="Lock the screen before suspending",
-                 tooltip="Require password to wake the machine from suspend")
-            box.pack_start(labeled_row("Lock screen before suspend", prompt), False, False, 0)
+        prompt = Gtk.Switch()
+        prompt.set_active(bool(_b.get_setting("session.lock_on_suspend") or False))
+        prompt.connect(
+            "notify::active",
+            lambda s, _g: _b.set_setting("session.lock_on_suspend", bool(s.get_active())),
+        )
+        a11y(prompt, name="Lock the screen before suspending",
+             tooltip="Require password to wake the machine from suspend")
+        box.pack_start(labeled_row("Lock screen before suspend", prompt),
+                       False, False, 0)
 
-            auto_save = Gtk.Switch()
-            auto_save.set_active(bool(xf.get(CHANNEL, "/general/AutoSave", False)))
-            auto_save.connect("notify::active",
-                              lambda s, _g: xf.set(CHANNEL, "/general/AutoSave", s.get_active()))
-            a11y(auto_save, name="Auto-save the session periodically",
-                 tooltip="Periodically write the session state so it survives crashes")
-            box.pack_start(labeled_row("Auto-save session periodically", auto_save), False, False, 0)
+        auto_save = Gtk.Switch()
+        auto_save.set_active(bool(_b.get_setting("session.auto_save") or False))
+        auto_save.connect(
+            "notify::active",
+            lambda s, _g: _b.set_setting("session.auto_save", bool(s.get_active())),
+        )
+        a11y(auto_save, name="Auto-save the session periodically",
+             tooltip="Periodically write the session state so it survives crashes")
+        box.pack_start(labeled_row("Auto-save session periodically", auto_save),
+                       False, False, 0)
 
         # Autostart entries
         box.pack_start(section_header("Autostart"), False, False, 0)

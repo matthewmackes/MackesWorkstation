@@ -171,6 +171,13 @@ _KEY_MAP: dict[str, tuple] = {
     # notification.* — Phase C.5 (notification.do_not_disturb is a flag file, not a sidecar)
     "notification.location":            ("sidecar", "notifications-prefs.json", "location"),
     "notification.default_expire_ms":   ("sidecar", "notifications-prefs.json", "default_expire_ms"),
+    # session.* — Phase F.6 (read by mde-session at login)
+    "session.save_on_exit":             ("sidecar", "session-prefs.json", "save_on_exit"),
+    "session.lock_on_suspend":          ("sidecar", "session-prefs.json", "lock_on_suspend"),
+    "session.auto_save":                ("sidecar", "session-prefs.json", "auto_save"),
+    # snapshots.* — Phase F.7 (sidecar replaces xfconf-channel snapshots)
+    "snapshots.retention_days":         ("sidecar", "snapshots-prefs.json", "retention_days"),
+    "snapshots.compress":               ("sidecar", "snapshots-prefs.json", "compress"),
 }
 
 
