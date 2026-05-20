@@ -3716,14 +3716,51 @@ under `LICENSES/`.
   append-mime-to-existing / multi-mime, 3 reducer paths).
   Workbench unit-test count: 249 → 265.
 
-- [ ] **CB-1.9.c System window_manager panel (Iced)** — port
-  `mackes/workbench/system/window_manager.py`. F.8 already
-  shipped the `mackes.sway_ipc` helper + the panel's swaymsg
-  routing. Iced port talks to swaymsg via subprocess (matching
-  the v1.x pattern) or via the swayipc-async crate (matches
-  the v2.0.0 Phase E lock for mde-panel). Acceptance: gaps
-  sliders + workspace count + layout-default combo, save
-  reloads sway config.
+- [✓] **CB-1.9.c System window_manager panel (Iced) — shipped
+  2026-05-20** — port of the sway-mode branch of
+  `mackes/workbench/system/window_manager.py`. v2.0.0's
+  Wayland-only target retires xfwm4 entirely, so the Iced
+  port ships only the sway mode (the legacy xfwm4 branch is
+  dropped, not ported). New
+  `crates/mde-workbench/src/panels/window_manager.rs` ships
+  three sway controls:
+    * Inner gaps (px text_input, validated)
+    * Outer gaps (px text_input, validated)
+    * Default layout (pick_list over splith / splitv /
+      tabbed / stacking)
+
+  Read path: shells out to `swaymsg -t get_version` to detect
+  sway availability + `swaymsg -t get_tree` to pull the
+  current focused-workspace layout. Pure
+  `focused_workspace_layout(tree_json) -> Option<String>`
+  parser isolated for tests — two-pass DFS that prefers
+  focused workspaces and falls back to the first workspace
+  in tree order for fresh-boot sway.
+
+  Apply path: three swaymsg commands — `gaps inner all set N`,
+  `gaps outer all set N`, `layout <name>`. Runtime-only —
+  the changes don't persist across sway restarts. The
+  follow-up "persist sway settings to config file" tracks
+  the missing piece (Phase C applier job that edits
+  `~/.config/sway/config`).
+
+  Empty state ("sway IPC unavailable") for non-MDE sessions.
+  14 new unit tests (LAYOUTS lock, parse_gap empty/positive
+  /garbage paths, 3 focused_workspace_layout paths covering
+  focused / fallback-to-first / no-workspace, 3 Loaded paths,
+  3 reducer paths covering ApplyClicked validation +
+  busy-guard, mutator + Error + Applied paths). Workbench
+  unit-test count: 265 → 279.
+
+- [ ] **CB-1.9.c follow-up: persist sway gaps + layout to
+  config file** — the panel ships runtime sway IPC apply
+  (changes apply immediately but don't survive a sway
+  restart). The persistence path needs a Phase C applier
+  that edits `~/.config/sway/config` (or a sourced
+  drop-in like `~/.config/sway/config.d/mde-overrides.conf`)
+  so settings round-trip across sessions. Acceptance:
+  apply gaps + layout, restart sway, settings remain in
+  effect.
 
 - [ ] **CB-1.9.d System snapshots panel (Iced)** — port
   `mackes/workbench/maintain/snapshots.py` (the Workbench

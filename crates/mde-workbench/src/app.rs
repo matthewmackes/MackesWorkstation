@@ -22,6 +22,7 @@ use crate::panels::{
     playbooks as playbooks_panel, power as power_panel, printers as printers_panel,
     removable as removable_panel, run_history as run_history_panel, session as session_panel,
     sound as sound_panel, themes as themes_panel, wallpaper as wallpaper_panel,
+    window_manager as window_manager_panel,
 };
 use crate::patternfly::{breadcrumb, page_subtitle, page_title};
 use crate::sidebar::SidebarState;
@@ -87,6 +88,8 @@ pub enum Message {
     DateTime(datetime_panel::Message),
     /// CB-1.9.b — System default-apps panel sub-message.
     DefaultApps(default_apps_panel::Message),
+    /// CB-1.9.c — System window-manager panel sub-message.
+    WindowManager(window_manager_panel::Message),
     /// CB-1.5 partial — Fleet settings panel sub-message.
     FleetSettings(fleet_settings_panel::Message),
     /// CB-1.5 partial — Fleet revisions panel sub-message.
@@ -119,6 +122,7 @@ pub struct App {
     run_history: run_history_panel::RunHistoryPanel,
     datetime: datetime_panel::DateTimePanel,
     default_apps: default_apps_panel::DefaultAppsPanel,
+    window_manager: window_manager_panel::WindowManagerPanel,
     fleet_settings: fleet_settings_panel::FleetSettingsPanel,
     fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel,
     wallpaper: wallpaper_panel::WallpaperPanel,
@@ -174,6 +178,7 @@ impl App {
             run_history: run_history_panel::RunHistoryPanel::new(),
             datetime: datetime_panel::DateTimePanel::new(),
             default_apps: default_apps_panel::DefaultAppsPanel::new(),
+            window_manager: window_manager_panel::WindowManagerPanel::new(),
             fleet_settings: fleet_settings_panel::FleetSettingsPanel::new(),
             fleet_revisions: fleet_revisions_panel::FleetRevisionsPanel::new(),
             wallpaper: wallpaper_panel::WallpaperPanel::new(),
@@ -285,6 +290,12 @@ impl App {
         &self.default_apps
     }
 
+    /// Read-only view of the window-manager panel state.
+    #[must_use]
+    pub fn window_manager(&self) -> &window_manager_panel::WindowManagerPanel {
+        &self.window_manager
+    }
+
     /// Read-only view of the fleet settings panel state.
     #[must_use]
     pub fn fleet_settings(&self) -> &fleet_settings_panel::FleetSettingsPanel {
@@ -388,6 +399,7 @@ impl App {
             Message::RunHistory(msg) => self.run_history.update(msg),
             Message::DateTime(msg) => self.datetime.update(msg),
             Message::DefaultApps(msg) => self.default_apps.update(msg),
+            Message::WindowManager(msg) => self.window_manager.update(msg),
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
@@ -419,6 +431,7 @@ impl App {
             (Group::Fleet, "run_history") => run_history_panel::RunHistoryPanel::load(),
             (Group::System, "datetime") => datetime_panel::DateTimePanel::load(),
             (Group::System, "default_apps") => default_apps_panel::DefaultAppsPanel::load(),
+            (Group::System, "window_manager") => window_manager_panel::WindowManagerPanel::load(),
             (Group::Fleet, "revisions") => fleet_revisions_panel::FleetRevisionsPanel::load(),
             // Fleet settings has no Load — it's a push-only
             // surface, so navigation doesn't fan a refresh.
@@ -566,6 +579,10 @@ impl App {
                 group: Group::System,
                 panel: "default_apps",
             } => self.default_apps.view(),
+            View::Panel {
+                group: Group::System,
+                panel: "window_manager",
+            } => self.window_manager.view(),
             View::Panel {
                 group: Group::Fleet,
                 panel: "settings",

@@ -22,3 +22,4 @@ pub mod session;
 pub mod sound;
 pub mod themes;
 pub mod wallpaper;
+pub mod window_manager;
