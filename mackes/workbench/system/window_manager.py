@@ -38,7 +38,18 @@ def _xfwm_themes() -> list[str]:
 
 
 def _detect_wm() -> str:
-    """Return the running WM's `Name:` from `wmctrl -m`, or empty string."""
+    """Return the running WM's `Name:`.
+
+    v2.0.0 Phase F.8 — checks sway via `mackes.sway_ipc.is_sway_running()`
+    first (Wayland path, X11-only wmctrl is unreliable on Wayland);
+    falls back to `wmctrl -m` for the v1.x X11 line.
+    """
+    try:
+        from mackes import sway_ipc
+        if sway_ipc.is_sway_running():
+            return "sway"
+    except Exception:  # noqa: BLE001
+        pass
     try:
         out = subprocess.run(
             ["wmctrl", "-m"], capture_output=True, text=True,
@@ -52,9 +63,41 @@ def _detect_wm() -> str:
     return ""
 
 
-def _i3_msg(*args: str) -> None:
-    """Fire a one-shot i3-msg with no error feedback to the UI.
-    Caller is expected to refresh the panel afterwards if state matters."""
+def _wm_msg(*args: str) -> None:
+    """Fire a one-shot window-manager IPC command.
+
+    v2.0.0 Phase F.8 — routes through `mackes.sway_ipc` when sway is
+    the active compositor; falls back to `i3-msg` for the v1.x X11
+    line. Specifically handles the layout-toggle vocabulary the
+    panel emits:
+
+       layout splith / splitv / tabbed / stacking / default
+       kill
+
+    Anything else passes through unchanged to the legacy i3-msg
+    spawn path.
+    """
+    try:
+        from mackes import sway_ipc
+        if sway_ipc.is_sway_running():
+            if len(args) >= 2 and args[0] == "layout":
+                sway_ipc.set_layout(args[1])
+                return
+            if args == ("kill",):
+                sway_ipc.kill_focused()
+                return
+            # Other commands fall through to swaymsg with the same
+            # argv shape (sway accepts every i3-msg layout verb).
+            try:
+                subprocess.run(
+                    ["swaymsg", *args],
+                    capture_output=True, timeout=2, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            return
+    except Exception:  # noqa: BLE001
+        pass
     if not shutil.which("i3-msg"):
         return
     try:
@@ -63,6 +106,11 @@ def _i3_msg(*args: str) -> None:
         )
     except (OSError, subprocess.TimeoutExpired):
         pass
+
+
+# v1.x callers used _i3_msg; keep the name as an alias so existing
+# call sites continue to work without an audit pass.
+_i3_msg = _wm_msg
 
 
 def _mackes_wm(target: str) -> None:

@@ -774,8 +774,18 @@ panel starts without manual intervention.
   `settings.json` writer above. The
   `mackes/snapshots.py:30–43 XFCONF_CHANNELS` constant retires
   with the v2.0.0 cut alongside the rest of the xfconf stack.
-- [ ] **F.8 `mackes/workbench/system/window_manager.py`** — drop
-  i3-msg; swayipc via tiny `mackes/sway_ipc.py` async wrapper.
+- [✓] **F.8 `mackes/workbench/system/window_manager.py`** — new
+  `mackes/sway_ipc.py` thin wrapper around swaymsg
+  (is_sway_running, current_workspace, focus_workspace, set_layout,
+  kill_focused, get_tree, reload_config). window_manager.py's
+  `_detect_wm()` prefers sway when available (falls back to
+  `wmctrl -m` for the v1.x X11 line); new `_wm_msg(...)`
+  dispatcher routes layout + kill commands through sway_ipc when
+  sway is the active compositor, falls back to i3-msg otherwise.
+  `_i3_msg` retained as an alias so existing call sites work
+  unchanged. 8 unit tests for sway_ipc cover the no-swaymsg
+  fallback for every public function + the invalid-layout
+  rejection helper.
 - [✓] **F.9 `mackes/drawer.py:415–438`** — `_dnd_state` / `_dnd_toggle`
   + `_caffeine_state` / `_caffeine_toggle` rewritten to read +
   toggle the flag files at `$XDG_CACHE_HOME/mde/notifications-dnd`
