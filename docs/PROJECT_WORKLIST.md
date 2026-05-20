@@ -1491,13 +1491,20 @@ group structure with one Iced view per panel.
     (matching shape) + 3 app integration (panel selection,
     save round-trip, fonts field mutation) = 33 new
     tests.
-- [ ] **CB-1.7 Maintain group port (6 panels)** —
-  `{hub.py, snapshots.py, debloat.py, health_check.py, repair.py,
-  drift.py}`. Snapshots panel keeps its `mackes.snapshots` library
-  (F.7 already wired settings.json dump); Iced UI calls
-  `create_snapshot`/`restore_snapshot` via a new zbus surface
-  `dev.mackes.MDE.Shell.Snapshots`. health_check + repair shell
-  out via AdminSession.
+- [>] **CB-1.7 Maintain group port (8 panels — list corrected
+  2026-05-20)** — the original worklist sketch named hub /
+  debloat / health_check / drift panels that don't exist in
+  the v1.x tree. Actual panels under
+  `mackes/workbench/maintain/`: logs, power, repair,
+  reset_to_preset, resources, snapshots, system_update,
+  uninstall. **Partial progress 2026-05-20:** snapshots
+  shipped (CB-1.9.d, re-tagged as Maintain) + logs shipped
+  (new `crates/mde-workbench/src/panels/logs.rs` — tails
+  mackes.log + sway user-session journal, drops the
+  xfsettingsd tail that v1.x had since Phase D retires
+  xfconf; 5 unit tests for the pure tail_lines helper +
+  reducer paths). 6 remaining: power, repair,
+  reset_to_preset, resources, system_update, uninstall.
 - [ ] **CB-1.8 Network group port (~14 panels)** — largest group.
   `mesh_control.py` (9-tab notebook) + `mesh_pending.py` +
   `mesh_history.py` + `mesh_join.py` + `mesh_ssh.py` +

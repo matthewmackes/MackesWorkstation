@@ -19,7 +19,7 @@
 //! networked machine, falls through to shell access if
 //! someone really needs it).
 
-use iced::widget::{button, checkbox, column, pick_list, row, text};
+use iced::widget::{checkbox, column, pick_list, row, text};
 use iced::{Element, Length, Padding, Task};
 use tokio::process::Command;
 

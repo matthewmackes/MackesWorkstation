@@ -12,6 +12,7 @@ pub mod fleet_settings;
 pub mod fonts;
 pub mod inventory;
 pub mod json_helpers;
+pub mod logs;
 pub mod notifications;
 pub mod playbooks;
 pub mod power;
