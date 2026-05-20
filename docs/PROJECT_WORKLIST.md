@@ -2119,8 +2119,20 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   table on PeerFolder; from-pills on Inbox; mixed pills on
   Downloads; explainer-card + pin-grid + recent-modified on
   LocalVeil.
-- [ ] **1.3 Selection + multi-select model** — Track focused row
-  + Shift/Ctrl multi-select; expose `Selected` for bulk actions.
+- [✓] **1.3 Selection + multi-select model** — shipped 2026-05-20.
+  New module `crates/mde-files/src/selection.rs` ships the
+  `Selection` struct with anchor + focus + selected-set fields and
+  the canonical click semantics: `click()` (replace), `ctrl_click()`
+  (toggle, anchor moves), `shift_click(key, ordered_rows)` (range
+  from anchor, Finder/Files semantics — out-of-range rows drop),
+  `clear()`, plus keyboard nav `focus_next/prev(rows)` (wrap-around),
+  `toggle_focused()` (space-bar), and `iter_sorted()` for the
+  deterministic bulk-action audit trail. `MdeFiles` state gains
+  `selection: Selection` + 8 new Message variants (`RowClick`,
+  `RowCtrlClick`, `RowShiftClick`, `FocusNext`, `FocusPrev`,
+  `ToggleFocused`, `ClearSelection`, plus view-change clears).
+  17 selection-module + 8 app-wiring tests, taking the mde-files
+  total from 31 → 56.
 - [ ] **1.4 Details panel** — Right-side panel showing metadata,
   permissions, mesh availability, operation history for the focused
   row. Hidden when nothing selected.

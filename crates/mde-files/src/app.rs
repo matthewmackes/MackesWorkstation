@@ -5,6 +5,7 @@ use iced::{Background, Border, Color, Element, Length, Padding, Size, Task, Them
 
 use crate::demo_data as data;
 use crate::model::{Layout, View};
+use crate::selection::Selection;
 use crate::theme as t;
 use crate::views;
 
@@ -21,6 +22,24 @@ pub enum Message {
     PeerCardBrowse(&'static str),
     PeerCardSend(&'static str),
     PrimaryAction,
+    /// v2.0.0 Phase 1.3 — plain click on a file row.
+    RowClick(String),
+    /// v2.0.0 Phase 1.3 — ctrl-click on a file row (toggle in
+    /// selection).
+    RowCtrlClick(String),
+    /// v2.0.0 Phase 1.3 — shift-click on a file row. The view
+    /// passes the visible row order so the selection model can
+    /// build the inclusive range.
+    RowShiftClick(String, Vec<String>),
+    /// v2.0.0 Phase 1.3 — keyboard down / up arrows. The visible
+    /// row order is supplied so wrap-around behaves correctly.
+    FocusNext(Vec<String>),
+    /// v2.0.0 Phase 1.3 — keyboard up arrow.
+    FocusPrev(Vec<String>),
+    /// v2.0.0 Phase 1.3 — keyboard space-bar: toggle focused row.
+    ToggleFocused,
+    /// v2.0.0 Phase 1.3 — keyboard Escape: clear selection.
+    ClearSelection,
     /// No-op message used by buttons that don't have a wired behaviour yet
     /// (e.g. the sidebar's panel-toggle, the peer card's `…` button).
     Noop,
@@ -40,6 +59,9 @@ pub struct MdeFiles {
     pub local_open: bool,
     pub layout: Layout,
     pub search: String,
+    /// v2.0.0 Phase 1.3 — row selection state (focus + anchor +
+    /// selected set). Cleared on view change.
+    pub selection: Selection,
 }
 
 impl MdeFiles {
@@ -77,18 +99,36 @@ impl MdeFiles {
                 if !matches!(v, View::Local) {
                     self.local_open = false;
                 }
+                // Phase 1.3 — selection is per-view; clear on
+                // navigation so stale row keys don't leak across
+                // peer folders.
+                self.selection.clear();
             }
             Message::ToggleLocal => {
                 self.local_open = !self.local_open;
                 if self.local_open && !matches!(self.view, View::Local) {
                     self.view = View::Local;
+                    self.selection.clear();
                 } else if !self.local_open && matches!(self.view, View::Local) {
                     self.view = View::default();
+                    self.selection.clear();
                 }
             }
             Message::SetLayout(l) => self.layout = l,
             Message::SearchChanged(s) => self.search = s,
-            Message::PeerCardBrowse(id) => self.view = View::Peer(id),
+            Message::PeerCardBrowse(id) => {
+                self.view = View::Peer(id);
+                self.selection.clear();
+            }
+            Message::RowClick(key) => self.selection.click(key),
+            Message::RowCtrlClick(key) => self.selection.ctrl_click(key),
+            Message::RowShiftClick(key, rows) => {
+                self.selection.shift_click(key, &rows);
+            }
+            Message::FocusNext(rows) => self.selection.focus_next(&rows),
+            Message::FocusPrev(rows) => self.selection.focus_prev(&rows),
+            Message::ToggleFocused => self.selection.toggle_focused(),
+            Message::ClearSelection => self.selection.clear(),
             Message::Refresh
             | Message::TitlebarMinimize
             | Message::TitlebarMaximize
@@ -241,6 +281,78 @@ mod tests {
         let mut s = MdeFiles::default();
         let _ = s.update(Message::PeerCardBrowse("pine"));
         assert_eq!(s.view, View::Peer("pine"));
+    }
+
+    #[test]
+    fn row_click_message_updates_selection() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::RowClick("doc.txt".into()));
+        assert_eq!(s.selection.len(), 1);
+        assert!(s.selection.is_selected("doc.txt"));
+    }
+
+    #[test]
+    fn row_ctrl_click_toggles() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::RowCtrlClick("a".into()));
+        let _ = s.update(Message::RowCtrlClick("b".into()));
+        assert_eq!(s.selection.len(), 2);
+        let _ = s.update(Message::RowCtrlClick("a".into()));
+        assert_eq!(s.selection.len(), 1);
+        assert!(s.selection.is_selected("b"));
+    }
+
+    #[test]
+    fn row_shift_click_extends_range() {
+        let mut s = MdeFiles::default();
+        let rows: Vec<String> = vec!["a".into(), "b".into(), "c".into()];
+        let _ = s.update(Message::RowClick("a".into()));
+        let _ = s.update(Message::RowShiftClick("c".into(), rows));
+        assert_eq!(s.selection.len(), 3);
+    }
+
+    #[test]
+    fn focus_next_and_prev_messages() {
+        let mut s = MdeFiles::default();
+        let rows: Vec<String> = vec!["a".into(), "b".into(), "c".into()];
+        let _ = s.update(Message::FocusNext(rows.clone()));
+        assert_eq!(s.selection.focused(), Some("a"));
+        let _ = s.update(Message::FocusPrev(rows));
+        assert_eq!(s.selection.focused(), Some("c"));
+    }
+
+    #[test]
+    fn toggle_focused_message() {
+        let mut s = MdeFiles::default();
+        let rows: Vec<String> = vec!["x".into()];
+        let _ = s.update(Message::FocusNext(rows));
+        let _ = s.update(Message::ToggleFocused);
+        assert!(s.selection.is_selected("x"));
+    }
+
+    #[test]
+    fn clear_selection_message_resets() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::RowClick("x".into()));
+        let _ = s.update(Message::ClearSelection);
+        assert!(s.selection.is_empty());
+    }
+
+    #[test]
+    fn view_change_clears_selection() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::RowClick("x".into()));
+        assert!(!s.selection.is_empty());
+        let _ = s.update(Message::SelectView(View::Inbox));
+        assert!(s.selection.is_empty(), "view change must clear selection");
+    }
+
+    #[test]
+    fn peer_card_browse_clears_selection() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::RowClick("x".into()));
+        let _ = s.update(Message::PeerCardBrowse("pine"));
+        assert!(s.selection.is_empty());
     }
 
     #[test]
