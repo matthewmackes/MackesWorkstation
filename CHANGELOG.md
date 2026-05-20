@@ -341,6 +341,18 @@ real data source.
   to a future phase, < 3 s first-packet SLO, < 10 s roaming
   handoff, no new security or monitoring requirements. Full Q&A
   + per-item evaluation in `docs/design/v12-connectivity-scope.md`.
+- **Phase 12.14 + 12.15 + 12.22 — connectivity primitives shipped.**
+  New worker `crates/mackesd/src/workers/lan_discovery.rs`
+  announces `_mackes-peer._udp.local` via `mdns-sd` 0.11 and runs
+  a tokio UDP probe loop (9-byte MPRB ping/pong, LE seq). RTT
+  samples land in a shared `Registry`. Pure-fn ranking ships:
+  `lan_direct_wins(lan_rtt, derp_rtt)` (Q23 throughput-first
+  proxy), `ipv6_direct_wins(ipv6_rtt, ipv4_derp_rtt)` (Q12.15
+  IPv6-first promotion), and
+  `higher_throughput_wins(a_bps, b_bps)` (Q23 bandwidth-wins
+  override). 16 unit tests cover encode/decode, registry
+  semantics, and the full 4-quadrant truth table for every
+  ranker.
 
 ### Phase 13 — KDE Connect integration (design lock)
 

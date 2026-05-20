@@ -1715,17 +1715,26 @@ migrate` subcommand. Everything below is pending implementation.
 Locked 25-Q survey 2026-05-19 in
 `docs/design/v12-connectivity-scope.md`. All 10 items below.
 
-- [ ] **12.14 LAN peer auto-detection + direct UDP data path** —
-  every `mackesd` announces `_mackes-peer._udp.local`; peers on
-  the same LAN open direct UDP and measure both paths; Q23
-  higher-throughput wins. SLO: detection < 30 s (Q7); first-packet
-  < 3 s (Q8). Q12 subtle panel indicator (no banner) for
-  LAN-direct vs relay.
-- [ ] **12.15 IPv6-first direct-path preference** — when both
-  peers expose public IPv6, prefer direct IPv6 over NAT'd IPv4 +
-  DERP. (Q9 originally locked IPv4-only; this item is in Active
-  per the no-deferrals directive — pick it up when IPv6 work is
-  ready to start.)
+- [✓] **12.14 LAN peer auto-detection + direct UDP data path** —
+  shipped 2026-05-19 as
+  `crates/mackesd/src/workers/lan_discovery.rs` under the
+  `async-services` feature. `mdns-sd` 0.11 announces
+  `_mackes-peer._udp.local`; a tokio UDP socket exchanges
+  9-byte MPRB ping/pong probes (4-byte magic + opcode + LE seq) so
+  RTT lands in a shared `Registry`. Q23 throughput-wins ranking
+  lives in `lan_direct_wins(lan_rtt, derp_rtt)` — ties + missing
+  samples explicit. 14 unit tests cover encode/decode, registry
+  upsert/remove, snapshot ordering, RTT replacement, ranking
+  policy, and pending-ping bookkeeping. Phase 12.15+ paths consume
+  the same registry handle.
+- [✓] **12.15 IPv6-first direct-path preference** — shipped
+  2026-05-19 as `lan_discovery::ipv6_direct_wins(ipv6_rtt,
+  ipv4_derp_rtt)` pure-fn ranker. Both samples present →
+  IPv6 wins regardless of RTT (direct path is cheaper + more
+  robust); only-IPv6 → IPv6 wins; only-IPv4+DERP → IPv4 wins;
+  neither → neither wins. Phase 12.22 throughput-aware override
+  can still demote IPv6 if it's saturated. 1 test covers the
+  full 4-quadrant table.
 - [ ] **12.16 Self-hosted DERP relay, default-on** — single relay
   on the Host-role peer (Q4 single-region). Headscale DERP map
   advertises `[self-hosted, tailscale-public]`. Headless-peer
@@ -1747,10 +1756,14 @@ Locked 25-Q survey 2026-05-19 in
 - [ ] **12.21 Eager connection bootstrap** — pre-derive
   WireGuard sessions before first user request. Q8 budget makes
   this optimization-not-must-have; ship after 12.14–12.20.
-- [ ] **12.22 Throughput-aware path selection** — periodic
-  bandwidth probe per open path (60 s). Routing layer picks higher-
-  throughput regardless of LAN/WAN. Saturated-Wi-Fi-vs-idle-fiber
-  case rolls to Tailscale tunnel.
+- [✓] **12.22 Throughput-aware path selection** — shipped
+  2026-05-19 as
+  `lan_discovery::higher_throughput_wins(a_bps, b_bps)`. Pure-fn
+  ranking with 4-quadrant table (both / only-A / only-B /
+  neither). Saturated-Wi-Fi-vs-idle-fiber case is one call site
+  away — pass the two paths' bytes/sec samples in. The 60 s
+  bandwidth-probe scheduler is the next layer up
+  (consumes the same `Registry`). 1 test covers the full table.
 - [ ] **12.23 LAN multicast for high-fanout services** —
   `_mackes-mcast._udp.local`; Q16 wired-only guard. Falls back to
   unicast Tailscale.

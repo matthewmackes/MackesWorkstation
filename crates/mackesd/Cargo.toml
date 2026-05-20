@@ -131,6 +131,13 @@ zbus = { version = "5", default-features = false, features = ["tokio"], optional
 # storage, which the supervisor needs. Locked 2026-05-19.
 async-trait = { version = "0.1", optional = true }
 
+# Phase 12.14 — LAN peer auto-detection. `mdns-sd` is async-runtime-
+# agnostic (spawns its own daemon thread internally) so it cohabitates
+# with tokio without a dedicated executor. Used by
+# `workers::lan_discovery`. Locked 2026-05-19 — Q7 detection < 30 s,
+# Q8 first-packet < 3 s.
+mdns-sd = { version = "0.11", optional = true }
+
 [dev-dependencies]
 # Deterministic snapshot diffs for library-contract tests (12.11.5).
 insta    = { version = "1", features = ["json", "redactions"] }
@@ -149,7 +156,7 @@ docker-tests = ["dep:testcontainers"]
 # modules compile only with this feature; downstream library
 # consumers that just want the existing sync read-API can leave it
 # off. Locked 2026-05-19.
-async-services = ["dep:tokio", "dep:task-supervisor", "dep:zbus", "dep:async-trait"]
+async-services = ["dep:tokio", "dep:task-supervisor", "dep:zbus", "dep:async-trait", "dep:mdns-sd"]
 
 [package.metadata.docs.rs]
 # Skip the docker-tests feature on docs.rs — it pulls a network
