@@ -8,15 +8,21 @@ Wants=network-online.target
 Type=simple
 User=mackesd
 Group=mackesd
-# Phase 12.1 — `mackesd` ships only `migrate` and `status` subcommands
-# today (the SQLite store + applied-migration counter). The reconcile
-# loop subcommand (`mackesd serve`) lands in 12.5; until then the
-# systemd unit just runs the migration on boot so the store stays
-# current as schema versions are added. ExecStart will switch to
-# `mackesd serve` once 12.5 ships.
+# v2.0.0 Phase B.12 + B.13 — ExecStart is now `mackesd serve`,
+# the unified worker-supervisor entry point. Runs the migration
+# first (idempotent) then starts the tokio supervisor + every
+# registered worker (clipboard, mdns, fs_sync, media_sync,
+# remmina_sync, ansible_pull, kdc_bridge, heartbeat,
+# notifications_server, notification_relay). Replaces the v1.x
+# `mackesd status` ExecStart that did nothing past the migration.
+# Also retires the 8 standalone systemd units per Phase B.13
+# (mackes-clipboard-daemon, mackes-gvfsd-mesh, mackes-mdns-relay,
+# mackes-remmina-sync.{service,timer}, mackes-media-sync.{service,
+# timer}, mackes-ansible-pull.{service,timer},
+# mackesd-kdc-bridge) — each is now a worker tick inside this
+# process.
 ExecStartPre=/usr/bin/mackesd migrate
-ExecStart=/usr/bin/mackesd status
-RemainAfterExit=yes
+ExecStart=/usr/bin/mackesd serve
 Restart=on-failure
 RestartSec=10
 StateDirectory=mackesd

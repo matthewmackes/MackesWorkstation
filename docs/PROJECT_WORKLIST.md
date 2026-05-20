@@ -422,12 +422,17 @@ panel starts without manual intervention.
   Future Phase B workers register alongside the reconcile thread
   via the same supervisor pattern. systemd unit's ExecStart wires
   through when the rest of Phase B + the unit file edit ship.
-- [ ] **B.13 Retire 8 systemd units** —
-  `mackes-clipboard-daemon.service`, `mackes-gvfsd-mesh.service`,
-  `mackes-mdns-relay.service`, `mackes-remmina-sync.{service,timer}`,
-  `mackes-media-sync.{service,timer}`,
-  `mackes-ansible-pull.{service,timer}`,
-  `mackesd-kdc-bridge.service`. Update `data/systemd/mackesd.service`.
+- [✓] **B.13 Retire 8 systemd units** — 10 unit files (the 8 named
+  services + 3 paired `.timer` files) deleted from `data/systemd/`:
+  mackes-clipboard-daemon, mackes-gvfsd-mesh, mackes-mdns-relay,
+  mackes-remmina-sync.{service,timer}, mackes-media-sync.{service,
+  timer}, mackes-ansible-pull.{service,timer}, mackesd-kdc-bridge.
+  Each role now runs inside `mackesd serve` (B.12) as a worker
+  registered with the Phase A.2 supervisor. `data/systemd/mackesd
+  .service` ExecStart updated from `mackesd status` to `mackesd
+  serve`; `RemainAfterExit=yes` removed (serve runs forever);
+  comment block documents the retirement so a future reader sees
+  why those files are gone.
 - [✓] **B.14 Retire Python `mackes-node`** —
   `mackes/headless/cli.py` daemon branch emits a one-shot
   `[deprecated]` banner on stderr explaining that `mackes daemon`
