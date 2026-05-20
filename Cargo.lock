@@ -3012,6 +3012,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
+name = "mde-config"
+version = "0.0.0"
+dependencies = [
+ "mackes-config",
+]
+
+[[package]]
 name = "mde-files"
 version = "0.0.0"
 dependencies = [
@@ -3022,11 +3029,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "mde-kdc"
+version = "0.0.0"
+dependencies = [
+ "mackes-kdc",
+]
+
+[[package]]
 name = "mde-logout-dialog"
 version = "0.0.0"
 dependencies = [
  "clap",
  "iced",
+]
+
+[[package]]
+name = "mde-mesh-types"
+version = "0.0.0"
+dependencies = [
+ "mackes-mesh-types",
 ]
 
 [[package]]
@@ -3042,6 +3063,20 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zbus",
+]
+
+[[package]]
+name = "mde-theme-alias"
+version = "0.0.0"
+dependencies = [
+ "mackes-theme",
+]
+
+[[package]]
+name = "mded"
+version = "0.0.0"
+dependencies = [
+ "mackesd",
 ]
 
 [[package]]

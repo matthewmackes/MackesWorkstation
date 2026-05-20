@@ -1,0 +1,30 @@
+[package]
+name        = "mded"
+description = "Mackes Desktop Environment (MDE) meta-daemon — re-export facade over mackesd_core during the v2.0.0 back-compat window."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+
+# Phase 0.2 — Cargo workspace rename facade.
+#
+# This crate exists so new Rust consumers can write
+# `use mded::…` instead of the legacy `use mackesd_core::…`
+# during the v2.0.0 back-compat window. It's a thin re-export
+# library — the implementation lives in mackesd.
+#
+# The directory rename (crates/mackesd → crates/mded) lands at
+# the v2.0.0 cut commit (CB-3.1). Until then both paths
+# resolve to the same code.
+
+[lib]
+name = "mded"
+path = "src/lib.rs"
+
+[dependencies]
+mackesd = { path = "../mackesd" }
+
+[lints]
+workspace = true

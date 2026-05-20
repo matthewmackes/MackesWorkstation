@@ -1,0 +1,19 @@
+[package]
+name        = "mde-mesh-types"
+description = "Mackes Desktop Environment (MDE) — re-export facade over mackes-mesh-types during the v2.0.0 back-compat window."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+
+[lib]
+name = "mde_mesh_types"
+path = "src/lib.rs"
+
+[dependencies]
+mackes-mesh-types = { path = "../mackes-mesh-types" }
+
+[lints]
+workspace = true

@@ -17,9 +17,14 @@ members  = [
     "crates/mackes-panel",
     "crates/mackes-theme",
     "crates/mackesd",
+    "crates/mde-config",
     "crates/mde-files",
+    "crates/mde-kdc",
     "crates/mde-logout-dialog",
+    "crates/mde-mesh-types",
     "crates/mde-session",
+    "crates/mde-theme-alias",
+    "crates/mded",
 ]
 
 [workspace.package]

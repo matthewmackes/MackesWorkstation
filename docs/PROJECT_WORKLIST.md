@@ -137,11 +137,25 @@ binary symlink) and in CHANGELOG history.
   | GitHub release tag | `vX.Y.Z` | `vX.Y.Z` (unchanged — versions continue from 2.0.0) |
   | Repo URL | `github.com/matthewmackes/MAP2-RELEASES.git` | unchanged (out-of-scope user action) |
 
-- [ ] **0.2 Cargo workspace rename** — Top-level `Cargo.toml`
-  workspace member rename + per-crate `[package] name =` updates
-  + path adjustments in `[workspace.dependencies]`. Inter-crate
-  `use mackesd::…` → `use mded::…` updated by `cargo fix` +
-  manual sweep.
+- [✓] **0.2 Cargo workspace rename (transitional aliases)** —
+  shipped 2026-05-20. Five new alias crates ship `pub use
+  mackes_<x>::*;` re-exports so new Rust code can call
+  `use mded::…` / `use mde_config::…` / `use mde_mesh_types::…`
+  / `use mde_kdc::…` / `use mde_theme::…` during the v2.0.0
+  back-compat window without touching any existing
+  `use mackesd_core::…` callsite. Type identity is preserved
+  (mded::Worker IS mackesd_core::Worker) because the facade
+  re-exports rather than wraps. New workspace members:
+  `crates/mded/`, `crates/mde-config/`, `crates/mde-mesh-types/`,
+  `crates/mde-kdc/`, `crates/mde-theme-alias/` (the directory
+  name keeps clear of the eventual `mackes-theme` rename to
+  `mde-theme`). 3 facade smoke tests confirm type identity for
+  HealthReport / PathPolicy / Orchestrator. The actual
+  directory + package-name rename (`crates/mackesd/` →
+  `crates/mded/` etc.) lands at the v2.0.0 cut commit per
+  CB-3.1; until then both paths resolve to the same code.
+  `mackes-panel` is binary-only — its rename lands with
+  the E.1 panel rewrite, not here.
 - [✓] **0.3 Binary + man-page rename** —
   `bin/mde`, `bin/mde-wm`, `bin/mde-enforce-session` ship as
   thin shell shims that exec the matching legacy `mackes-*`
