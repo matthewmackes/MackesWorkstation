@@ -558,9 +558,22 @@ panel starts without manual intervention.
   `hidden_overlay_text` covered by tests. Round-trip tests use
   a process-wide `Mutex<()>` so parallel `cargo test` workers
   don't race the shared `XDG_CONFIG_HOME` env var. 6 tests.
-- [ ] **C.10 `org.mackes.Settings` zbus service** —
-  `Get(key)`, `Set(key, value)`, `Snapshot()`, `Restore(snap)`,
-  `ListKeys()`, signals on change.
+- [✓] **C.10 `org.mackes.Settings` zbus service** — interface
+  surface from Phase A.3 (now under
+  `dev.mackes.MDE.Settings` per Phase 0.4) is fully wired:
+  `Get(key)` parses to `SettingKey`, calls
+  `crate::settings::current()`, JSON-encodes the result;
+  `Set(key, value_json)` parses both, calls
+  `crate::settings::apply()` (which validates shape, persists,
+  and runs the per-applier side effect); `ListKeys()` returns
+  every variant via `SettingKey::all()`; `Snapshot()` builds a
+  `Snapshot` value by iterating every key + best-effort current()
+  (errors silently skipped so a missing backend like brightnessctl
+  doesn't break unrelated keys); `Restore(snapshot_json)`
+  re-applies each entry, aborting on first failure. `Changed`
+  signal definition unchanged. 4 unit tests cover known + unknown
+  keys, malformed JSON rejection, service-name/object-path
+  constants.
 - [ ] **C.11 Retire `mackes/xfconf_bridge.py`** + all xfconf-query
   call sites. Delete the file.
 - [ ] **C.12 Retire snapshots xfconf channels** —

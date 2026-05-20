@@ -25,22 +25,29 @@ pub const OBJECT_PATH: &str = "/dev/mackes/MDE/Settings";
 #[interface(name = "dev.mackes.MDE.Settings")]
 impl SettingsService {
     /// Read a setting by dot-notated key. Returns the JSON-encoded
-    /// value as a string. Phase A: always returns the Phase A
-    /// "unimplemented" sentinel.
+    /// value as a string. v2.0.0 Phase C.10 — wired through to
+    /// `crate::settings::current()`.
     async fn get(&self, key: &str) -> zbus::fdo::Result<String> {
-        Err(zbus::fdo::Error::Failed(format!(
-            "Settings.Get({key}) — {}",
-            crate::settings::UNIMPLEMENTED
-        )))
+        let parsed: crate::settings::SettingKey = key
+            .parse()
+            .map_err(|e| zbus::fdo::Error::InvalidArgs(format!("{e}")))?;
+        let value = crate::settings::current(parsed)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("{e:#}")))?;
+        serde_json::to_string(&value)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("ser: {e}")))
     }
 
     /// Write a setting by dot-notated key. `value_json` is the
-    /// JSON-encoded payload. Phase A: stub.
-    async fn set(&self, key: &str, _value_json: &str) -> zbus::fdo::Result<()> {
-        Err(zbus::fdo::Error::Failed(format!(
-            "Settings.Set({key}) — {}",
-            crate::settings::UNIMPLEMENTED
-        )))
+    /// JSON-encoded payload. Routes through `crate::settings::apply()`
+    /// which validates value shape, persists, and runs the applier.
+    async fn set(&self, key: &str, value_json: &str) -> zbus::fdo::Result<()> {
+        let parsed_key: crate::settings::SettingKey = key
+            .parse()
+            .map_err(|e| zbus::fdo::Error::InvalidArgs(format!("{e}")))?;
+        let value: crate::settings::SettingValue = serde_json::from_str(value_json)
+            .map_err(|e| zbus::fdo::Error::InvalidArgs(format!("value_json: {e}")))?;
+        crate::settings::apply(parsed_key, &value)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("{e:#}")))
     }
 
     /// Enumerate every known setting key (dot-notated string form).
@@ -52,20 +59,39 @@ impl SettingsService {
             .collect()
     }
 
-    /// Snapshot every current value. Phase A: stub.
+    /// Snapshot every current value. Returns a JSON-encoded
+    /// [`crate::settings::Snapshot`] suitable for round-tripping
+    /// through [`Self::restore`]. Best-effort: keys whose `current()`
+    /// errors (e.g. brightnessctl missing in a container) are
+    /// skipped silently.
     async fn snapshot(&self) -> zbus::fdo::Result<String> {
-        Err(zbus::fdo::Error::Failed(format!(
-            "Settings.Snapshot — {}",
-            crate::settings::UNIMPLEMENTED
-        )))
+        let mut snap = crate::settings::Snapshot::default();
+        for &key in crate::settings::SettingKey::all() {
+            if let Ok(v) = crate::settings::current(key) {
+                snap.values.insert(key.as_str().to_string(), v);
+            }
+        }
+        snap.captured_at = Some(chrono::Utc::now());
+        serde_json::to_string_pretty(&snap)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("ser: {e}")))
     }
 
-    /// Restore from a snapshot JSON. Phase A: stub.
-    async fn restore(&self, _snapshot_json: &str) -> zbus::fdo::Result<()> {
-        Err(zbus::fdo::Error::Failed(format!(
-            "Settings.Restore — {}",
-            crate::settings::UNIMPLEMENTED
-        )))
+    /// Restore from a snapshot JSON. Each value re-applies through
+    /// `crate::settings::apply()`; the first failure aborts the
+    /// restore (so the operator sees an actionable error).
+    async fn restore(&self, snapshot_json: &str) -> zbus::fdo::Result<()> {
+        let snap: crate::settings::Snapshot =
+            serde_json::from_str(snapshot_json).map_err(|e| {
+                zbus::fdo::Error::InvalidArgs(format!("snapshot_json: {e}"))
+            })?;
+        for (key_str, value) in &snap.values {
+            let key: crate::settings::SettingKey = key_str
+                .parse()
+                .map_err(|e| zbus::fdo::Error::InvalidArgs(format!("{e}")))?;
+            crate::settings::apply(key, value)
+                .map_err(|e| zbus::fdo::Error::Failed(format!("{key_str}: {e:#}")))?;
+        }
+        Ok(())
     }
 
     /// Signal: a setting changed. `key` is the dot-notated key.
@@ -84,7 +110,7 @@ mod tests {
 
     #[tokio::test]
     async fn list_keys_returns_every_setting_key() {
-        let svc = SettingsService;
+        let svc = SettingsService::default();
         let keys = svc.list_keys().await;
         assert_eq!(keys.len(), crate::settings::SettingKey::all().len());
         assert!(keys.iter().any(|k| k == "theme.accent"));
@@ -92,10 +118,22 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_returns_unimplemented_in_phase_a() {
-        let svc = SettingsService;
-        let err = svc.get("theme.name").await.unwrap_err();
-        assert!(format!("{err}").to_lowercase().contains("phase c")
-            || format!("{err}").to_lowercase().contains("not implemented"));
+    async fn get_rejects_unknown_key() {
+        let svc = SettingsService::default();
+        let err = svc.get("never.a.real.key").await.unwrap_err();
+        assert!(format!("{err}").contains("unknown setting key"));
+    }
+
+    #[tokio::test]
+    async fn set_rejects_malformed_value_json() {
+        let svc = SettingsService::default();
+        let err = svc.set("theme.name", "{not json}").await.unwrap_err();
+        assert!(format!("{err}").contains("value_json"));
+    }
+
+    #[tokio::test]
+    async fn service_name_and_object_path_constants() {
+        assert_eq!(SERVICE_NAME, "dev.mackes.MDE.Settings");
+        assert_eq!(OBJECT_PATH, "/dev/mackes/MDE/Settings");
     }
 }
