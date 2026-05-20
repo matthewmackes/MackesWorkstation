@@ -790,8 +790,16 @@ panel starts without manual intervention.
   application that handles each on the v2.0.0 line. No more
   XfconfBridge import; no more async_probe needed (sidecar reads
   are sub-millisecond).
-- [ ] **F.3 `mackes/workbench/look_and_feel/{themes,fonts}.py`** —
-  DBus `theme.*` and `font.*`.
+- [✓] **F.3 `mackes/workbench/look_and_feel/{themes,fonts}.py`** —
+  shipped 2026-05-19. Two new panels (split off from the legacy
+  `appearance.py`) read / write `theme.*` (`name`, `icon_set`,
+  `mode`) and `font.*` (`name`, `monospace`, `hinting`,
+  `antialias`) keys through `mde_settings_bridge.set_setting`.
+  No xfconf reads / writes — `XfconfBridge` import gone from
+  both files. Theme + icon discovery walks the standard
+  `/usr/share/themes` + `~/.themes` etc roots and dedupes. 8
+  unit tests cover the discovery helpers, the bridge-only
+  import contract, and the locked-MDE-key references.
 - [ ] **F.4 `mackes/workbench/devices/displays.py`** — DBus
   `display.*` (compositor-aware via mackesd worker).
 - [✓] **F.5 `mackes/workbench/system/notifications.py`** — full
