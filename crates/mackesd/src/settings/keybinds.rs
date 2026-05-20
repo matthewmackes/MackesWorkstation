@@ -30,22 +30,32 @@ pub struct KeybindsMap {
 
 fn config_root() -> PathBuf {
     if let Ok(s) = std::env::var("XDG_CONFIG_HOME") {
-        if !s.is_empty() { return PathBuf::from(s); }
+        if !s.is_empty() {
+            return PathBuf::from(s);
+        }
     }
-    if let Some(home) = dirs::home_dir() { return home.join(".config"); }
+    if let Some(home) = dirs::home_dir() {
+        return home.join(".config");
+    }
     PathBuf::from(".")
 }
 
 /// Path of the sway-format bindings include file.
 #[must_use]
 pub fn sway_bindings_path() -> PathBuf {
-    config_root().join("sway").join("config.d").join("mackes-bindings.conf")
+    config_root()
+        .join("sway")
+        .join("config.d")
+        .join("mackes-bindings.conf")
 }
 
 /// Path of the i3-format bindings include file (for the v1.x line).
 #[must_use]
 pub fn i3_bindings_path() -> PathBuf {
-    config_root().join("i3").join("config.d").join("mackes-bindings.conf")
+    config_root()
+        .join("i3")
+        .join("config.d")
+        .join("mackes-bindings.conf")
 }
 
 /// Pure helper: render the bindings map into sway/i3 config syntax.
@@ -78,13 +88,11 @@ pub fn apply(key: SettingKey, value: &SettingValue) -> anyhow::Result<()> {
     let text = render_bindings_conf(&map);
     for path in [sway_bindings_path(), i3_bindings_path()] {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                anyhow::anyhow!("keybinds: mkdir {} failed: {e}", parent.display())
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| anyhow::anyhow!("keybinds: mkdir {} failed: {e}", parent.display()))?;
         }
-        std::fs::write(&path, &text).map_err(|e| {
-            anyhow::anyhow!("keybinds: write {} failed: {e}", path.display())
-        })?;
+        std::fs::write(&path, &text)
+            .map_err(|e| anyhow::anyhow!("keybinds: write {} failed: {e}", path.display()))?;
     }
     Ok(())
 }
@@ -123,7 +131,7 @@ mod tests {
         let r = body();
         match prev {
             Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
-            None    => std::env::remove_var("XDG_CONFIG_HOME"),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
         }
         r
     }
@@ -161,8 +169,11 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
             let map = make_map();
-            apply(SettingKey::KeybindsMap,
-                  &SettingValue::from_serde(&map).unwrap()).unwrap();
+            apply(
+                SettingKey::KeybindsMap,
+                &SettingValue::from_serde(&map).unwrap(),
+            )
+            .unwrap();
             assert!(sway_bindings_path().is_file(), "sway file must be written");
             assert!(i3_bindings_path().is_file(), "i3 file must be written");
         });
@@ -172,8 +183,11 @@ mod tests {
     fn apply_then_current_round_trips_through_sway_parse() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::KeybindsMap,
-                  &SettingValue::from_serde(&make_map()).unwrap()).unwrap();
+            apply(
+                SettingKey::KeybindsMap,
+                &SettingValue::from_serde(&make_map()).unwrap(),
+            )
+            .unwrap();
             let v = current(SettingKey::KeybindsMap).unwrap();
             let parsed: KeybindsMap = v.to_serde().unwrap();
             assert_eq!(parsed.bindings.get("Mod4+q").unwrap(), "kill");

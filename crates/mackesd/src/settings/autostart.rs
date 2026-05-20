@@ -69,7 +69,7 @@ pub fn apply(key: SettingKey, value: &SettingValue) -> anyhow::Result<()> {
     let list: AutostartList = value.to_serde()?;
     match key {
         SettingKey::AutostartHidden => apply_hidden(&list),
-        SettingKey::AutostartExtra  => apply_extra(&list),
+        SettingKey::AutostartExtra => apply_extra(&list),
         _ => anyhow::bail!("autostart: {key} is not an autostart key"),
     }
 }
@@ -119,7 +119,7 @@ fn apply_extra(list: &AutostartList) -> anyhow::Result<()> {
 pub fn current(key: SettingKey) -> anyhow::Result<SettingValue> {
     let want_hidden = match key {
         SettingKey::AutostartHidden => true,
-        SettingKey::AutostartExtra  => false,
+        SettingKey::AutostartExtra => false,
         _ => anyhow::bail!("autostart: {key} is not an autostart key"),
     };
     let mut ids: Vec<String> = Vec::new();
@@ -130,7 +130,9 @@ pub fn current(key: SettingKey) -> anyhow::Result<SettingValue> {
             if path.extension().and_then(|s| s.to_str()) != Some("desktop") {
                 continue;
             }
-            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
             if !text.contains("X-MDE-Generated=true") {
                 continue;
             }
@@ -164,7 +166,7 @@ mod tests {
         let r = body();
         match prev {
             Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
-            None    => std::env::remove_var("XDG_CONFIG_HOME"),
+            None => std::env::remove_var("XDG_CONFIG_HOME"),
         }
         r
     }
@@ -220,18 +222,26 @@ mod tests {
         with_xdg(tmp.path(), || {
             apply(
                 SettingKey::AutostartHidden,
-                &SettingValue::from_serde(&AutostartList { ids: vec!["a".into()] }).unwrap(),
-            ).unwrap();
+                &SettingValue::from_serde(&AutostartList {
+                    ids: vec!["a".into()],
+                })
+                .unwrap(),
+            )
+            .unwrap();
             apply(
                 SettingKey::AutostartExtra,
-                &SettingValue::from_serde(&AutostartList { ids: vec!["b".into()] }).unwrap(),
-            ).unwrap();
+                &SettingValue::from_serde(&AutostartList {
+                    ids: vec!["b".into()],
+                })
+                .unwrap(),
+            )
+            .unwrap();
             let hidden = current(SettingKey::AutostartHidden).unwrap();
-            let extra  = current(SettingKey::AutostartExtra).unwrap();
+            let extra = current(SettingKey::AutostartExtra).unwrap();
             let hidden_list: AutostartList = hidden.to_serde().unwrap();
-            let extra_list:  AutostartList = extra.to_serde().unwrap();
+            let extra_list: AutostartList = extra.to_serde().unwrap();
             assert_eq!(hidden_list.ids, vec!["a".to_string()]);
-            assert_eq!(extra_list.ids,  vec!["b".to_string()]);
+            assert_eq!(extra_list.ids, vec!["b".to_string()]);
         });
     }
 
@@ -246,19 +256,24 @@ mod tests {
             std::fs::write(
                 autostart.join("vendor.desktop"),
                 "[Desktop Entry]\nType=Application\nName=Vendor\nHidden=true\n",
-            ).unwrap();
+            )
+            .unwrap();
             let got = current(SettingKey::AutostartHidden).unwrap();
             let list: AutostartList = got.to_serde().unwrap();
-            assert!(list.ids.is_empty(),
-                    "non-MDE-generated entries must not show up: {:?}", list.ids);
+            assert!(
+                list.ids.is_empty(),
+                "non-MDE-generated entries must not show up: {:?}",
+                list.ids
+            );
         });
     }
 
     #[test]
     fn apply_rejects_non_autostart_key() {
-        let value = SettingValue::from_serde(
-            &AutostartList { ids: vec!["a".into()] }
-        ).unwrap();
+        let value = SettingValue::from_serde(&AutostartList {
+            ids: vec!["a".into()],
+        })
+        .unwrap();
         let r = apply(SettingKey::ThemeName, &value);
         assert!(r.is_err());
     }

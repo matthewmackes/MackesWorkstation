@@ -46,14 +46,22 @@ impl Default for DisplayPrefs {
     }
 }
 
-const fn default_scale() -> f64 { 1.0 }
-const fn default_night_temp() -> u32 { 4500 }
+const fn default_scale() -> f64 {
+    1.0
+}
+const fn default_night_temp() -> u32 {
+    4500
+}
 
 fn cache_root() -> PathBuf {
     if let Ok(s) = std::env::var("XDG_CACHE_HOME") {
-        if !s.is_empty() { return PathBuf::from(s); }
+        if !s.is_empty() {
+            return PathBuf::from(s);
+        }
     }
-    if let Some(home) = dirs::home_dir() { return home.join(".cache"); }
+    if let Some(home) = dirs::home_dir() {
+        return home.join(".cache");
+    }
     PathBuf::from("/tmp")
 }
 
@@ -73,8 +81,14 @@ pub fn parse_prefs_json(text: &str) -> DisplayPrefs {
 /// Returns `None` when `max == 0` (degenerate).
 #[must_use]
 pub fn brightness_percent(current: u64, max: u64) -> Option<u8> {
-    if max == 0 { return None; }
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    if max == 0 {
+        return None;
+    }
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
     let pct = ((current as f64 / max as f64) * 100.0).round();
     Some(pct.clamp(0.0, 100.0) as u8)
 }
@@ -132,18 +146,17 @@ pub fn apply(key: SettingKey, value: &SettingValue) -> anyhow::Result<()> {
 fn update_prefs(mut mutator: impl FnMut(&mut DisplayPrefs)) -> anyhow::Result<()> {
     let path = prefs_path();
     let mut prefs = std::fs::read_to_string(&path)
-        .map(|s| parse_prefs_json(&s)).unwrap_or_default();
+        .map(|s| parse_prefs_json(&s))
+        .unwrap_or_default();
     mutator(&mut prefs);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            anyhow::anyhow!("display: mkdir {} failed: {e}", parent.display())
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("display: mkdir {} failed: {e}", parent.display()))?;
     }
     let text = serde_json::to_string_pretty(&prefs)
         .map_err(|e| anyhow::anyhow!("display: serialize: {e}"))?;
-    std::fs::write(&path, text).map_err(|e| {
-        anyhow::anyhow!("display: write {} failed: {e}", path.display())
-    })
+    std::fs::write(&path, text)
+        .map_err(|e| anyhow::anyhow!("display: write {} failed: {e}", path.display()))
 }
 
 /// Read the current `display.*` setting.
@@ -153,16 +166,24 @@ fn update_prefs(mut mutator: impl FnMut(&mut DisplayPrefs)) -> anyhow::Result<()
 pub fn current(key: SettingKey) -> anyhow::Result<SettingValue> {
     match key {
         SettingKey::DisplayBrightness => {
-            let get = std::process::Command::new("brightnessctl").arg("get").output()
+            let get = std::process::Command::new("brightnessctl")
+                .arg("get")
+                .output()
                 .map_err(|e| anyhow::anyhow!("display: brightnessctl get failed: {e}"))?;
-            let max = std::process::Command::new("brightnessctl").arg("max").output()
+            let max = std::process::Command::new("brightnessctl")
+                .arg("max")
+                .output()
                 .map_err(|e| anyhow::anyhow!("display: brightnessctl max failed: {e}"))?;
             if !get.status.success() || !max.status.success() {
                 anyhow::bail!("display: brightnessctl returned non-zero");
             }
-            let cur: u64 = String::from_utf8_lossy(&get.stdout).trim().parse()
+            let cur: u64 = String::from_utf8_lossy(&get.stdout)
+                .trim()
+                .parse()
                 .map_err(|e| anyhow::anyhow!("display: brightnessctl get parse: {e}"))?;
-            let m: u64 = String::from_utf8_lossy(&max.stdout).trim().parse()
+            let m: u64 = String::from_utf8_lossy(&max.stdout)
+                .trim()
+                .parse()
                 .map_err(|e| anyhow::anyhow!("display: brightnessctl max parse: {e}"))?;
             let pct = brightness_percent(cur, m).unwrap_or(0);
             SettingValue::from_serde(&pct)
@@ -189,7 +210,8 @@ pub fn current(key: SettingKey) -> anyhow::Result<SettingValue> {
 
 fn read_prefs() -> DisplayPrefs {
     std::fs::read_to_string(prefs_path())
-        .map(|s| parse_prefs_json(&s)).unwrap_or_default()
+        .map(|s| parse_prefs_json(&s))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -205,15 +227,15 @@ mod tests {
         let r = body();
         match prev {
             Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
-            None    => std::env::remove_var("XDG_CACHE_HOME"),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
         }
         r
     }
 
     #[test]
     fn brightness_percent_handles_typical_values() {
-        assert_eq!(brightness_percent(0, 100),   Some(0));
-        assert_eq!(brightness_percent(50, 100),  Some(50));
+        assert_eq!(brightness_percent(0, 100), Some(0));
+        assert_eq!(brightness_percent(50, 100), Some(50));
         assert_eq!(brightness_percent(100, 100), Some(100));
         assert_eq!(brightness_percent(150, 200), Some(75));
     }
@@ -239,11 +261,15 @@ mod tests {
     fn apply_scale_rejects_out_of_range() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            let r = apply(SettingKey::DisplayScale,
-                          &SettingValue::from_serde(&5.0_f64).unwrap());
+            let r = apply(
+                SettingKey::DisplayScale,
+                &SettingValue::from_serde(&5.0_f64).unwrap(),
+            );
             assert!(r.is_err());
-            let r = apply(SettingKey::DisplayScale,
-                          &SettingValue::from_serde(&0.1_f64).unwrap());
+            let r = apply(
+                SettingKey::DisplayScale,
+                &SettingValue::from_serde(&0.1_f64).unwrap(),
+            );
             assert!(r.is_err());
         });
     }
@@ -252,10 +278,15 @@ mod tests {
     fn apply_scale_accepts_in_range() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::DisplayScale,
-                  &SettingValue::from_serde(&1.5_f64).unwrap()).unwrap();
+            apply(
+                SettingKey::DisplayScale,
+                &SettingValue::from_serde(&1.5_f64).unwrap(),
+            )
+            .unwrap();
             let scale: f64 = current(SettingKey::DisplayScale)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(scale, 1.5);
         });
     }
@@ -264,10 +295,15 @@ mod tests {
     fn apply_primary_round_trips() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::DisplayPrimary,
-                  &SettingValue::from_serde(&"DP-1,eDP-1".to_string()).unwrap()).unwrap();
+            apply(
+                SettingKey::DisplayPrimary,
+                &SettingValue::from_serde(&"DP-1,eDP-1".to_string()).unwrap(),
+            )
+            .unwrap();
             let s: String = current(SettingKey::DisplayPrimary)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(s, "DP-1,eDP-1");
         });
     }
@@ -276,11 +312,15 @@ mod tests {
     fn apply_night_light_temp_rejects_out_of_range() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            let r = apply(SettingKey::DisplayNightLightTemp,
-                          &SettingValue::from_serde(&500_u32).unwrap());
+            let r = apply(
+                SettingKey::DisplayNightLightTemp,
+                &SettingValue::from_serde(&500_u32).unwrap(),
+            );
             assert!(r.is_err());
-            let r = apply(SettingKey::DisplayNightLightTemp,
-                          &SettingValue::from_serde(&15_000_u32).unwrap());
+            let r = apply(
+                SettingKey::DisplayNightLightTemp,
+                &SettingValue::from_serde(&15_000_u32).unwrap(),
+            );
             assert!(r.is_err());
         });
     }
@@ -289,18 +329,25 @@ mod tests {
     fn apply_night_light_temp_round_trip() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::DisplayNightLightTemp,
-                  &SettingValue::from_serde(&3500_u32).unwrap()).unwrap();
+            apply(
+                SettingKey::DisplayNightLightTemp,
+                &SettingValue::from_serde(&3500_u32).unwrap(),
+            )
+            .unwrap();
             let k: u32 = current(SettingKey::DisplayNightLightTemp)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(k, 3500);
         });
     }
 
     #[test]
     fn apply_brightness_rejects_above_100() {
-        let r = apply(SettingKey::DisplayBrightness,
-                      &SettingValue::from_serde(&101_u8).unwrap());
+        let r = apply(
+            SettingKey::DisplayBrightness,
+            &SettingValue::from_serde(&101_u8).unwrap(),
+        );
         assert!(r.is_err());
     }
 
@@ -314,12 +361,20 @@ mod tests {
     fn apply_one_display_key_preserves_others() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::DisplayScale,
-                  &SettingValue::from_serde(&2.0_f64).unwrap()).unwrap();
-            apply(SettingKey::DisplayNightLight,
-                  &SettingValue::from_serde(&true).unwrap()).unwrap();
+            apply(
+                SettingKey::DisplayScale,
+                &SettingValue::from_serde(&2.0_f64).unwrap(),
+            )
+            .unwrap();
+            apply(
+                SettingKey::DisplayNightLight,
+                &SettingValue::from_serde(&true).unwrap(),
+            )
+            .unwrap();
             let scale: f64 = current(SettingKey::DisplayScale)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(scale, 2.0);
         });
     }

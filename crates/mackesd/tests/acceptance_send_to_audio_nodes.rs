@@ -74,10 +74,22 @@ fn user_sends_file_to_audio_nodes_end_to_end_happy_path() {
     // Walk the state machine through to Completed. Each step
     // would normally be driven by a worker after IO completes —
     // here we drive them inline.
-    assert_eq!(orchestrator.advance(op_id, false, "").unwrap(), Stage::Validating);
-    assert_eq!(orchestrator.advance(op_id, false, "").unwrap(), Stage::Executing);
-    assert_eq!(orchestrator.advance(op_id, false, "").unwrap(), Stage::Verifying);
-    assert_eq!(orchestrator.advance(op_id, false, "").unwrap(), Stage::Completed);
+    assert_eq!(
+        orchestrator.advance(op_id, false, "").unwrap(),
+        Stage::Validating
+    );
+    assert_eq!(
+        orchestrator.advance(op_id, false, "").unwrap(),
+        Stage::Executing
+    );
+    assert_eq!(
+        orchestrator.advance(op_id, false, "").unwrap(),
+        Stage::Verifying
+    );
+    assert_eq!(
+        orchestrator.advance(op_id, false, "").unwrap(),
+        Stage::Completed
+    );
 
     // The audit trail: 5 events (Pending + 4 transitions), all
     // tied to the same op id.
@@ -115,7 +127,10 @@ fn user_send_with_one_unreachable_peer_raises_warn_drift() {
     for _ in 0..4 {
         orchestrator.advance(op_id, false, "").unwrap();
     }
-    assert_eq!(orchestrator.operation(op_id).unwrap().stage, Stage::Completed);
+    assert_eq!(
+        orchestrator.operation(op_id).unwrap().stage,
+        Stage::Completed
+    );
 
     // Worker reports: file landed on pine but not oak.
     let op = orchestrator.operation(op_id).unwrap();
@@ -146,7 +161,10 @@ fn user_send_blocked_by_preflight_never_reaches_pending() {
     let mut orchestrator = Orchestrator::new();
     let err = orchestrator.accept(request, &policy).unwrap_err();
     let msg = format!("{err}");
-    assert!(msg.contains("disk-space"), "block reason must mention disk-space");
+    assert!(
+        msg.contains("disk-space"),
+        "block reason must mention disk-space"
+    );
     // No op id allocated → orchestrator is still empty.
     assert!(orchestrator.is_empty());
 }
@@ -164,10 +182,8 @@ fn user_send_with_execute_failure_lands_in_failed_state() {
     let op_id = orchestrator.accept(request, &policy).expect("accept");
     orchestrator.advance(op_id, false, "").unwrap(); // → Validating
     orchestrator.advance(op_id, false, "").unwrap(); // → Executing
-    // Worker reports the transfer crashed.
-    let stage = orchestrator
-        .advance(op_id, true, "network broke")
-        .unwrap();
+                                                     // Worker reports the transfer crashed.
+    let stage = orchestrator.advance(op_id, true, "network broke").unwrap();
     assert_eq!(stage, Stage::Failed);
     let op = orchestrator.operation(op_id).unwrap();
     assert_eq!(op.last_message, "network broke");
@@ -175,11 +191,7 @@ fn user_send_with_execute_failure_lands_in_failed_state() {
     // Reconciler raises a critical for Copy-mode complete loss
     // when both peers missing → 2 per-peer warns (Copy doesn't
     // promote to critical).
-    let drift = drift_events(
-        op,
-        &["pine".to_string(), "oak".to_string()],
-        &[],
-    );
+    let drift = drift_events(op, &["pine".to_string(), "oak".to_string()], &[]);
     assert_eq!(drift.len(), 2);
     for ev in &drift {
         assert_eq!(ev.severity, DriftSeverity::Warn);

@@ -38,7 +38,9 @@ pub fn parse_desktop_entry(body: &str) -> std::collections::HashMap<String, Stri
 /// MDE? Honors `Hidden=true` + `OnlyShowIn=` + `NotShowIn=`.
 #[must_use]
 pub fn should_launch(entry: &std::collections::HashMap<String, String>) -> bool {
-    if entry.get("Hidden").map(|s| s.eq_ignore_ascii_case("true"))
+    if entry
+        .get("Hidden")
+        .map(|s| s.eq_ignore_ascii_case("true"))
         .unwrap_or(false)
     {
         return false;
@@ -76,19 +78,26 @@ pub fn autostart_dirs() -> Vec<PathBuf> {
 
 /// Collect every parsed entry from every autostart dir, keyed by
 /// `.desktop` ID (so user entries shadow system-wide ones).
-fn collect_entries() -> std::collections::HashMap<String, std::collections::HashMap<String, String>> {
-    let mut by_id: std::collections::HashMap<String, std::collections::HashMap<String, String>>
-        = std::collections::HashMap::new();
+fn collect_entries() -> std::collections::HashMap<String, std::collections::HashMap<String, String>>
+{
+    let mut by_id: std::collections::HashMap<String, std::collections::HashMap<String, String>> =
+        std::collections::HashMap::new();
     // Iterate system-wide first so user entries overwrite.
     for dir in autostart_dirs().into_iter().rev() {
-        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.extension().and_then(|s| s.to_str()) != Some("desktop") {
                 continue;
             }
-            let Some(id) = path.file_stem().and_then(|s| s.to_str()) else { continue };
-            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let Some(id) = path.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            let Ok(text) = std::fs::read_to_string(&path) else {
+                continue;
+            };
             by_id.insert(id.to_owned(), parse_desktop_entry(&text));
         }
     }
@@ -104,7 +113,9 @@ pub async fn launch_user_autostart() {
             tracing::debug!("autostart: skipping {id}");
             continue;
         }
-        let Some(exec) = entry.get("Exec") else { continue };
+        let Some(exec) = entry.get("Exec") else {
+            continue;
+        };
         // Strip the `%U` / `%F` / `%i` field codes per the XDG spec.
         let cleaned = strip_exec_field_codes(exec);
         tracing::info!("autostart: launching {id} ({cleaned})");
@@ -143,7 +154,8 @@ mod tests {
 
     #[test]
     fn parse_desktop_entry_reads_default_group_only() {
-        let body = "[Desktop Entry]\nName=Foo\nExec=foo --bar\nHidden=false\n\n[Action one]\nName=Other";
+        let body =
+            "[Desktop Entry]\nName=Foo\nExec=foo --bar\nHidden=false\n\n[Action one]\nName=Other";
         let e = parse_desktop_entry(body);
         assert_eq!(e.get("Name").map(String::as_str), Some("Foo"));
         assert_eq!(e.get("Exec").map(String::as_str), Some("foo --bar"));
@@ -200,7 +212,10 @@ mod tests {
     #[test]
     fn strip_exec_field_codes_drops_known_codes() {
         assert_eq!(strip_exec_field_codes("firefox %U"), "firefox");
-        assert_eq!(strip_exec_field_codes("gedit %F file.txt"), "gedit  file.txt");
+        assert_eq!(
+            strip_exec_field_codes("gedit %F file.txt"),
+            "gedit  file.txt"
+        );
         assert_eq!(strip_exec_field_codes("plain"), "plain");
     }
 }

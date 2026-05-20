@@ -44,7 +44,9 @@ impl NotificationsService {
     /// connection opened at `default_db_path()`.
     #[must_use]
     pub fn with_store(conn: rusqlite::Connection) -> Self {
-        Self { conn: Some(Arc::new(Mutex::new(conn))) }
+        Self {
+            conn: Some(Arc::new(Mutex::new(conn))),
+        }
     }
 
     /// Convenience constructor: open the store at `path` and wrap
@@ -88,9 +90,7 @@ impl NotificationsService {
             .get("urgency")
             .and_then(|v| u8::try_from(v).ok())
             .unwrap_or(1);
-        let hints_json = format!(
-            r#"{{"urgency":{urgency}}}"#
-        );
+        let hints_json = format!(r#"{{"urgency":{urgency}}}"#);
         let Some(arc) = self.conn.as_ref() else {
             // No store: return the spec-mandated id without
             // persisting. Phase A behavior preserved for the
@@ -106,8 +106,13 @@ impl NotificationsService {
                  read_at=NULL, dismissed_at=NULL \
                  WHERE notification_id=?",
                 (
-                    app_name, summary, body, app_icon, &hints_json,
-                    i64::from(urgency), i64::from(expire_timeout),
+                    app_name,
+                    summary,
+                    body,
+                    app_icon,
+                    &hints_json,
+                    i64::from(urgency),
+                    i64::from(expire_timeout),
                     i64::from(replaces_id),
                 ),
             );
@@ -122,8 +127,14 @@ impl NotificationsService {
               expire_after_ms, created_at) \
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                app_name, summary, body, app_icon, &hints_json,
-                i64::from(urgency), i64::from(expire_timeout), &now,
+                app_name,
+                summary,
+                body,
+                app_icon,
+                &hints_json,
+                i64::from(urgency),
+                i64::from(expire_timeout),
+                &now,
             ),
         );
         let id: i64 = guard
@@ -135,7 +146,9 @@ impl NotificationsService {
     /// Close a previously-sent notification. Stamps `dismissed_at`
     /// on the matching row + emits NotificationClosed(id, reason=3).
     async fn close_notification(&self, id: u32) {
-        let Some(arc) = self.conn.as_ref() else { return };
+        let Some(arc) = self.conn.as_ref() else {
+            return;
+        };
         let now = chrono::Utc::now().to_rfc3339();
         let guard = arc.lock().await;
         let _ = guard.execute(
@@ -153,7 +166,9 @@ impl NotificationsService {
     }
 
     /// Server identity. Spec requires (name, vendor, version, spec_version).
-    async fn get_server_information(&self) -> (&'static str, &'static str, &'static str, &'static str) {
+    async fn get_server_information(
+        &self,
+    ) -> (&'static str, &'static str, &'static str, &'static str) {
         ("mackesd", "mackes-shell", env!("CARGO_PKG_VERSION"), "1.2")
     }
 
@@ -204,8 +219,14 @@ mod tests {
         let svc = NotificationsService::default();
         let id = svc
             .notify(
-                "test-app", 0, "", "summary", "body",
-                vec![], HashMap::new(), -1,
+                "test-app",
+                0,
+                "",
+                "summary",
+                "body",
+                vec![],
+                HashMap::new(),
+                -1,
             )
             .await;
         assert!(id >= 1);
@@ -216,10 +237,7 @@ mod tests {
         let conn = crate::store::open_in_memory().expect("open");
         let svc = NotificationsService::with_store(conn);
         let id = svc
-            .notify(
-                "app", 0, "", "hi", "body",
-                vec![], HashMap::new(), -1,
-            )
+            .notify("app", 0, "", "hi", "body", vec![], HashMap::new(), -1)
             .await;
         assert!(id >= 1);
         // Reach into the underlying connection (via the Arc) and
@@ -237,15 +255,18 @@ mod tests {
         let conn = crate::store::open_in_memory().expect("open");
         let svc = NotificationsService::with_store(conn);
         let first = svc
-            .notify(
-                "app", 0, "", "first", "body-1",
-                vec![], HashMap::new(), -1,
-            )
+            .notify("app", 0, "", "first", "body-1", vec![], HashMap::new(), -1)
             .await;
         let replaced = svc
             .notify(
-                "app", first, "", "second", "body-2",
-                vec![], HashMap::new(), -1,
+                "app",
+                first,
+                "",
+                "second",
+                "body-2",
+                vec![],
+                HashMap::new(),
+                -1,
             )
             .await;
         assert_eq!(replaced, first, "replaces_id must round-trip");
@@ -271,10 +292,7 @@ mod tests {
         let conn = crate::store::open_in_memory().expect("open");
         let svc = NotificationsService::with_store(conn);
         let id = svc
-            .notify(
-                "app", 0, "", "hi", "body",
-                vec![], HashMap::new(), -1,
-            )
+            .notify("app", 0, "", "hi", "body", vec![], HashMap::new(), -1)
             .await;
         svc.close_notification(id).await;
         let arc = svc.conn.as_ref().expect("bound");

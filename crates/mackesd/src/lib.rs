@@ -45,8 +45,8 @@ pub mod preflight;
 // v2.0.0 Phase 2.8 — mesh reconciler hook for Send-To outcomes.
 // Pure-fn drift detector that compares expected vs landed peer
 // sets after each terminal operation.
-pub mod reconciler_hook;
 pub mod reconcile;
+pub mod reconciler_hook;
 pub mod revisions;
 pub mod secrets;
 // v2.0.0 Phase 12.1.2 — service-layer facade traits. Cross-cutting

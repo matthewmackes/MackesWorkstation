@@ -53,18 +53,20 @@ pub fn hdivider() -> Element<'static, Message> {
 pub fn surface<'a, M: 'a>(bg: Color, border: Color) -> impl Fn(&Theme) -> container::Style {
     move |_| container::Style {
         background: Some(Background::Color(bg)),
-        border: Border { color: border, width: 1.0, radius: 0.0.into() },
+        border: Border {
+            color: border,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     }
 }
 
 /// Caps section header (`.fm-section-h h3`) — 11 px, letter-spaced.
 pub fn section_h(label: &str, right: Option<&str>) -> Element<'static, Message> {
-    let mut r = row![
-        text(label.to_uppercase()).size(11).color(t::FG_DIM),
-    ]
-    .spacing(8)
-    .align_y(iced::alignment::Vertical::Center);
+    let mut r = row![text(label.to_uppercase()).size(11).color(t::FG_DIM),]
+        .spacing(8)
+        .align_y(iced::alignment::Vertical::Center);
 
     if let Some(rt) = right {
         r = r.push(Space::with_width(Length::Fill));
@@ -74,7 +76,12 @@ pub fn section_h(label: &str, right: Option<&str>) -> Element<'static, Message> 
     }
 
     container(r)
-        .padding(Padding { top: 22.0, right: 0.0, bottom: 10.0, left: 0.0 })
+        .padding(Padding {
+            top: 22.0,
+            right: 0.0,
+            bottom: 10.0,
+            left: 0.0,
+        })
         .into()
 }
 
@@ -92,7 +99,11 @@ pub fn mesh_pill(peer_host: &str) -> Element<'static, Message> {
     .padding(Padding::from([1.0, 6.0]))
     .style(|_| container::Style {
         background: Some(Background::Color(t::MESH_PILL_BG)),
-        border: Border { color: t::MESH_PILL_BORDER, width: 1.0, radius: 0.0.into() },
+        border: Border {
+            color: t::MESH_PILL_BORDER,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     })
     .into()
@@ -104,7 +115,11 @@ pub fn local_pill() -> Element<'static, Message> {
         .padding(Padding::from([1.0, 6.0]))
         .style(|_| container::Style {
             background: Some(Background::Color(t::LOCAL_PILL_BG)),
-            border: Border { color: t::LOCAL_PILL_BORDER, width: 1.0, radius: 0.0.into() },
+            border: Border {
+                color: t::LOCAL_PILL_BORDER,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         })
         .into()
@@ -121,7 +136,11 @@ pub fn breadcrumb_tag(text_label: &str, is_mesh: bool) -> Element<'static, Messa
         .padding(Padding::from([1.0, 6.0]))
         .style(move |_| container::Style {
             background: Some(Background::Color(bg)),
-            border: Border { color: bd, width: 1.0, radius: 0.0.into() },
+            border: Border {
+                color: bd,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         })
         .into()
@@ -138,7 +157,10 @@ pub struct BannerStat {
 impl BannerStat {
     #[must_use]
     pub fn new(n: impl Into<String>, k: impl Into<String>) -> Self {
-        Self { n: n.into(), k: k.into() }
+        Self {
+            n: n.into(),
+            k: k.into(),
+        }
     }
 }
 
@@ -167,7 +189,11 @@ pub fn banner(
             .padding(Padding::new(9.0))
             .style(|_| container::Style {
                 background: Some(Background::Color(t::MESH_PILL_BG)),
-                border: Border { color: t::MESH_PILL_BORDER, width: 1.0, radius: 0.0.into() },
+                border: Border {
+                    color: t::MESH_PILL_BORDER,
+                    width: 1.0,
+                    radius: 0.0.into()
+                },
                 ..container::Style::default()
             }),
         column![
@@ -185,7 +211,11 @@ pub fn banner(
         .padding(Padding::from([14.0, 18.0]))
         .style(|_| container::Style {
             background: Some(Background::Color(t::PF_BG_200)),
-            border: Border { color: t::BANNER_BORDER, width: 1.0, radius: 0.0.into() },
+            border: Border {
+                color: t::BANNER_BORDER,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         })
         .into()
@@ -197,24 +227,34 @@ pub fn peer_card(peer: Peer) -> Element<'static, Message> {
     let kind_icon = icons::svg_for_peer_kind(peer.kind);
 
     let avatar_color = match peer.status {
-        PeerStatus::Online  => t::ACCENT_HI,
-        PeerStatus::Self_   => t::RUST,
-        _                   => t::FG_DIM,
+        PeerStatus::Online => t::ACCENT_HI,
+        PeerStatus::Self_ => t::RUST,
+        _ => t::FG_DIM,
     };
 
     let stripe_color = match peer.status {
-        PeerStatus::Online  => t::PF_SUCCESS,
-        PeerStatus::Idle    => t::ACCENT,
+        PeerStatus::Online => t::PF_SUCCESS,
+        PeerStatus::Idle => t::ACCENT,
         PeerStatus::Offline => t::PF_BORDER,
-        PeerStatus::Self_   => t::RUST,
+        PeerStatus::Self_ => t::RUST,
     };
 
     let head = row![
         container(icon(kind_icon, 20.0, avatar_color))
             .padding(Padding::new(8.0))
             .style(|_| container::Style {
-                background: Some(Background::Color(Color { a: 0.04, ..Color::WHITE })),
-                border: Border { color: Color { a: 0.06, ..Color::WHITE }, width: 1.0, radius: 0.0.into() },
+                background: Some(Background::Color(Color {
+                    a: 0.04,
+                    ..Color::WHITE
+                })),
+                border: Border {
+                    color: Color {
+                        a: 0.06,
+                        ..Color::WHITE
+                    },
+                    width: 1.0,
+                    radius: 0.0.into()
+                },
                 ..container::Style::default()
             }),
         column![
@@ -255,12 +295,16 @@ pub fn peer_card(peer: Peer) -> Element<'static, Message> {
             Some(ms) => {
                 let c = match latency_bucket(ms) {
                     LatencyBucket::Good => t::PF_SUCCESS,
-                    LatencyBucket::Ok   => t::ACCENT,
+                    LatencyBucket::Ok => t::ACCENT,
                     LatencyBucket::Slow => t::FG_FAINT,
                 };
                 Element::from(text(format!("{ms} ms · {}", peer.derp)).size(10).color(c))
             }
-            None => Element::from(text(format!("last seen {}", peer.last)).size(10).color(t::FG_FAINT)),
+            None => Element::from(
+                text(format!("last seen {}", peer.last))
+                    .size(10)
+                    .color(t::FG_FAINT)
+            ),
         },
     ];
 
@@ -271,7 +315,11 @@ pub fn peer_card(peer: Peer) -> Element<'static, Message> {
             .style(|_, _| button::Style {
                 background: Some(Background::Color(t::MESH_PILL_BG)),
                 text_color: t::ACCENT_HI,
-                border: Border { color: t::MESH_PILL_BORDER, width: 1.0, radius: 0.0.into() },
+                border: Border {
+                    color: t::MESH_PILL_BORDER,
+                    width: 1.0,
+                    radius: 0.0.into()
+                },
                 ..button::Style::default()
             })
             .on_press(Message::PeerCardBrowse(id)),
@@ -286,8 +334,8 @@ pub fn peer_card(peer: Peer) -> Element<'static, Message> {
     ]
     .spacing(4);
 
-    let stripe = container(Space::new(Length::Fill, Length::Fixed(2.0)))
-        .style(move |_| container::Style {
+    let stripe =
+        container(Space::new(Length::Fill, Length::Fixed(2.0))).style(move |_| container::Style {
             background: Some(Background::Color(stripe_color)),
             ..container::Style::default()
         });
@@ -298,15 +346,28 @@ pub fn peer_card(peer: Peer) -> Element<'static, Message> {
             head,
             num_row,
             meta_row,
-            container(hdivider()).padding(Padding { top: 8.0, right: 0.0, bottom: 0.0, left: 0.0 }),
+            container(hdivider()).padding(Padding {
+                top: 8.0,
+                right: 0.0,
+                bottom: 0.0,
+                left: 0.0
+            }),
             actions,
         ]
-        .padding(Padding { top: 14.0, right: 14.0, bottom: 10.0, left: 14.0 })
+        .padding(Padding {
+            top: 14.0,
+            right: 14.0,
+            bottom: 10.0,
+            left: 14.0
+        })
         .spacing(12),
     ];
 
     let card_bg = if matches!(peer.status, PeerStatus::Offline) {
-        Color { a: 0.55, ..t::PF_BG_200 }
+        Color {
+            a: 0.55,
+            ..t::PF_BG_200
+        }
     } else {
         t::PF_BG_200
     };
@@ -314,7 +375,11 @@ pub fn peer_card(peer: Peer) -> Element<'static, Message> {
     container(body)
         .style(move |_| container::Style {
             background: Some(Background::Color(card_bg)),
-            border: Border { color: t::DIVIDER, width: 1.0, radius: 0.0.into() },
+            border: Border {
+                color: t::DIVIDER,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         })
         .width(Length::Fixed(244.0))
@@ -326,7 +391,11 @@ pub fn ghost_button_style() -> button::Style {
     button::Style {
         background: Some(Background::Color(Color::TRANSPARENT)),
         text_color: t::FG_DIM,
-        border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 0.0.into(),
+        },
         ..button::Style::default()
     }
 }
@@ -335,7 +404,11 @@ pub fn ghost_button_style() -> button::Style {
 
 pub fn file_row(row_data: FileRow, show_src: bool) -> Element<'static, Message> {
     let is_mesh = row_data.is_mesh();
-    let bg = if is_mesh { t::MESH_ROW_BG } else { Color::TRANSPARENT };
+    let bg = if is_mesh {
+        t::MESH_ROW_BG
+    } else {
+        Color::TRANSPARENT
+    };
     let mime_color = if is_mesh { t::ACCENT } else { t::FG_FAINT };
 
     let src_cell: Element<'static, Message> = if show_src {
@@ -352,8 +425,7 @@ pub fn file_row(row_data: FileRow, show_src: bool) -> Element<'static, Message> 
         container(icon(icons::svg_for_mime(row_data.mime), 16.0, mime_color))
             .width(Length::Fixed(22.0))
             .align_x(iced::alignment::Horizontal::Left),
-        container(text(row_data.name.to_string()).size(13).color(t::FG))
-            .width(Length::Fill),
+        container(text(row_data.name.to_string()).size(13).color(t::FG)).width(Length::Fill),
         container(src_cell).width(Length::Shrink),
         container(text(row_data.size.to_string()).size(11).color(t::FG_DIM))
             .width(Length::Fixed(120.0))
@@ -369,7 +441,11 @@ pub fn file_row(row_data: FileRow, show_src: bool) -> Element<'static, Message> 
         .padding(Padding::from([7.0, 8.0]))
         .style(move |_| container::Style {
             background: Some(Background::Color(bg)),
-            border: Border { color: t::ROW_DIVIDER, width: 0.0, radius: 0.0.into() },
+            border: Border {
+                color: t::ROW_DIVIDER,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         })
         .into()
@@ -379,10 +455,8 @@ pub fn file_row(row_data: FileRow, show_src: bool) -> Element<'static, Message> 
 pub fn file_row_head(src_label: &str) -> Element<'static, Message> {
     let layout = row![
         Space::with_width(Length::Fixed(22.0)),
-        container(text("Name".to_string()).size(10).color(t::FG_FAINT))
-            .width(Length::Fill),
-        container(text(src_label.to_string()).size(10).color(t::FG_FAINT))
-            .width(Length::Shrink),
+        container(text("Name".to_string()).size(10).color(t::FG_FAINT)).width(Length::Fill),
+        container(text(src_label.to_string()).size(10).color(t::FG_FAINT)).width(Length::Shrink),
         container(text("Size".to_string()).size(10).color(t::FG_FAINT))
             .width(Length::Fixed(120.0))
             .align_x(iced::alignment::Horizontal::Right),
@@ -395,8 +469,15 @@ pub fn file_row_head(src_label: &str) -> Element<'static, Message> {
     container(layout)
         .padding(Padding::from([6.0, 8.0]))
         .style(|_| container::Style {
-            background: Some(Background::Color(Color { a: 0.02, ..Color::WHITE })),
-            border: Border { color: t::DIVIDER, width: 0.0, radius: 0.0.into() },
+            background: Some(Background::Color(Color {
+                a: 0.02,
+                ..Color::WHITE
+            })),
+            border: Border {
+                color: t::DIVIDER,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         })
         .into()
@@ -409,15 +490,16 @@ pub fn tx_row(tx: Transfer) -> Element<'static, Message> {
         TxDir::In => (
             "↘ IN",
             Color::from_rgb(0x6f as f32 / 255.0, 0xb1 as f32 / 255.0, 1.0),
-            Color { a: 0.08, ..t::PF_INFO },
-            Color { a: 0.40, ..t::PF_INFO },
+            Color {
+                a: 0.08,
+                ..t::PF_INFO
+            },
+            Color {
+                a: 0.40,
+                ..t::PF_INFO
+            },
         ),
-        TxDir::Out => (
-            "↗ OUT",
-            t::ACCENT_HI,
-            t::MESH_PILL_BG,
-            t::MESH_PILL_BORDER,
-        ),
+        TxDir::Out => ("↗ OUT", t::ACCENT_HI, t::MESH_PILL_BG, t::MESH_PILL_BORDER),
     };
 
     let layout = row![
@@ -425,19 +507,23 @@ pub fn tx_row(tx: Transfer) -> Element<'static, Message> {
             .padding(Padding::from([1.0, 6.0]))
             .style(move |_| container::Style {
                 background: Some(Background::Color(dir_bg)),
-                border: Border { color: dir_bd, width: 1.0, radius: 0.0.into() },
+                border: Border {
+                    color: dir_bd,
+                    width: 1.0,
+                    radius: 0.0.into()
+                },
                 ..container::Style::default()
             }),
         container(text(tx.name.to_string()).size(12).color(t::FG)).width(Length::Fill),
         text(tx.peer.to_string()).size(11).color(t::ACCENT),
-        text(format!("{} · {}", tx.size, tx.age)).size(11).color(t::FG_FAINT),
+        text(format!("{} · {}", tx.size, tx.age))
+            .size(11)
+            .color(t::FG_FAINT),
     ]
     .spacing(10)
     .align_y(iced::alignment::Vertical::Center);
 
-    container(layout)
-        .padding(Padding::from([8.0, 10.0]))
-        .into()
+    container(layout).padding(Padding::from([8.0, 10.0])).into()
 }
 
 // ─── Sidebar row ───────────────────────────────────────────────────────────
@@ -461,10 +547,10 @@ pub fn side_row(
     msg: Message,
 ) -> Element<'static, Message> {
     let (bg, fg, border_color) = match variant {
-        SideRowVariant::Default               => (Color::TRANSPARENT,     t::FG_DIM,      Color::TRANSPARENT),
-        SideRowVariant::Active                => (t::ACTIVE_RUST_BG,      Color::WHITE,   t::ACTIVE_RUST_BORDER),
-        SideRowVariant::Primary               => (t::PRIMARY_AMBER_BG,    t::FG,          t::PRIMARY_AMBER_BORDER),
-        SideRowVariant::PrimaryActive         => (t::PRIMARY_AMBER_BG_ACTIVE, t::FG,      t::ACCENT_HI),
+        SideRowVariant::Default => (Color::TRANSPARENT, t::FG_DIM, Color::TRANSPARENT),
+        SideRowVariant::Active => (t::ACTIVE_RUST_BG, Color::WHITE, t::ACTIVE_RUST_BORDER),
+        SideRowVariant::Primary => (t::PRIMARY_AMBER_BG, t::FG, t::PRIMARY_AMBER_BORDER),
+        SideRowVariant::PrimaryActive => (t::PRIMARY_AMBER_BG_ACTIVE, t::FG, t::ACCENT_HI),
         SideRowVariant::Peer { status, active } => {
             if active {
                 (t::ACTIVE_RUST_BG, Color::WHITE, t::ACTIVE_RUST_BORDER)
@@ -511,7 +597,11 @@ pub fn side_row(
         })
         .style(move |_| container::Style {
             background: Some(Background::Color(bg)),
-            border: Border { color: border_color, width: 2.0, radius: 0.0.into() },
+            border: Border {
+                color: border_color,
+                width: 2.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         });
 
@@ -520,7 +610,11 @@ pub fn side_row(
         .style(|_, _| button::Style {
             background: Some(Background::Color(Color::TRANSPARENT)),
             text_color: t::FG_DIM,
-            border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
             ..button::Style::default()
         })
         .on_press(msg)
@@ -528,8 +622,16 @@ pub fn side_row(
 }
 
 /// Sidebar caps section header (`◆ Mesh` or `Local`).
-pub fn side_section_header(label: &str, meta: &str, mesh_tinted: bool) -> Element<'static, Message> {
-    let fg = if mesh_tinted { t::ACCENT_HI } else { t::FG_FAINT };
+pub fn side_section_header(
+    label: &str,
+    meta: &str,
+    mesh_tinted: bool,
+) -> Element<'static, Message> {
+    let fg = if mesh_tinted {
+        t::ACCENT_HI
+    } else {
+        t::FG_FAINT
+    };
     container(
         row![
             text(label.to_uppercase()).size(10).color(fg),
@@ -538,13 +640,22 @@ pub fn side_section_header(label: &str, meta: &str, mesh_tinted: bool) -> Elemen
         ]
         .align_y(iced::alignment::Vertical::Center),
     )
-    .padding(Padding { top: 10.0, right: 14.0, bottom: 4.0, left: 14.0 })
+    .padding(Padding {
+        top: 10.0,
+        right: 14.0,
+        bottom: 4.0,
+        left: 14.0,
+    })
     .into()
 }
 
 /// "Browse filesystem…" dashed disclosure row at the bottom of the sidebar.
 pub fn disclosure_row(open: bool, msg: Message) -> Element<'static, Message> {
-    let chevron = if open { icons::CHEVRON_DOWN } else { icons::CHEVRON_RIGHT };
+    let chevron = if open {
+        icons::CHEVRON_DOWN
+    } else {
+        icons::CHEVRON_RIGHT
+    };
     let inner = container(
         row![
             icon(chevron, 14.0, t::FG_FAINT),
@@ -557,14 +668,41 @@ pub fn disclosure_row(open: bool, msg: Message) -> Element<'static, Message> {
     )
     .padding(Padding::from([8.0, 12.0]))
     .style(move |_| container::Style {
-        background: Some(Background::Color(if open { Color { a: 0.04, ..Color::WHITE } } else { Color { a: 0.02, ..Color::WHITE } })),
-        border: Border { color: Color { a: if open { 0.18 } else { 0.10 }, ..Color::WHITE }, width: 1.0, radius: 0.0.into() },
+        background: Some(Background::Color(if open {
+            Color {
+                a: 0.04,
+                ..Color::WHITE
+            }
+        } else {
+            Color {
+                a: 0.02,
+                ..Color::WHITE
+            }
+        })),
+        border: Border {
+            color: Color {
+                a: if open { 0.18 } else { 0.10 },
+                ..Color::WHITE
+            },
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     });
 
-    container(button(inner).padding(0).style(|_, _| ghost_button_style()).on_press(msg))
-        .padding(Padding { top: 8.0, right: 12.0, bottom: 4.0, left: 12.0 })
-        .into()
+    container(
+        button(inner)
+            .padding(0)
+            .style(|_, _| ghost_button_style())
+            .on_press(msg),
+    )
+    .padding(Padding {
+        top: 8.0,
+        right: 12.0,
+        bottom: 4.0,
+        left: 12.0,
+    })
+    .into()
 }
 
 // ─── Mime helper ───────────────────────────────────────────────────────────
@@ -572,12 +710,12 @@ pub fn disclosure_row(open: bool, msg: Message) -> Element<'static, Message> {
 #[must_use]
 pub const fn mime_label(mime: Mime) -> &'static str {
     match mime {
-        Mime::Folder  => "folder",
-        Mime::Doc     => "doc",
-        Mime::Image   => "image",
-        Mime::Pdf     => "pdf",
+        Mime::Folder => "folder",
+        Mime::Doc => "doc",
+        Mime::Image => "image",
+        Mime::Pdf => "pdf",
         Mime::Archive => "archive",
-        Mime::Disk    => "disk",
+        Mime::Disk => "disk",
     }
 }
 
@@ -585,8 +723,8 @@ pub const fn mime_label(mime: Mime) -> &'static str {
 pub const fn peer_kind_label(kind: PeerKind) -> &'static str {
     match kind {
         PeerKind::Desktop => "desktop",
-        PeerKind::Server  => "server",
-        PeerKind::Phone   => "phone",
-        PeerKind::Ci      => "ci",
+        PeerKind::Server => "server",
+        PeerKind::Phone => "phone",
+        PeerKind::Ci => "ci",
     }
 }

@@ -47,8 +47,7 @@ pub fn looks_valid(candidate: &str) -> bool {
 /// implementation — pulling `base64` into the dep graph just for this
 /// 12-byte → 16-char path isn't worth it.
 fn encode_url_safe_base64(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     let mut i = 0;
     while i + 3 <= bytes.len() {
@@ -164,7 +163,9 @@ mod tests {
         // Hit every position of the alphabet to flush out any
         // accidental swap to `+`/`/`. Feed a byte pattern that walks
         // the full 6-bit range across multiple groups.
-        let bytes: [u8; 12] = [0x00, 0x10, 0x83, 0x10, 0x51, 0x87, 0x20, 0x92, 0x8b, 0x30, 0xd3, 0x8f];
+        let bytes: [u8; 12] = [
+            0x00, 0x10, 0x83, 0x10, 0x51, 0x87, 0x20, 0x92, 0x8b, 0x30, 0xd3, 0x8f,
+        ];
         let out = encode_url_safe_base64(&bytes);
         for c in out.chars() {
             assert!(

@@ -6,10 +6,10 @@
 //! tests can stay Iced-free; the actual `view()` builder pulls
 //! in Iced widgets.
 
-use iced::widget::{Column, button, column, container, row, text};
+use iced::widget::{button, column, container, row, text, Column};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::model::{Group, NavEntry, View, nav_model};
+use crate::model::{nav_model, Group, NavEntry, View};
 
 /// Per-group expand/collapse + focus state. The active group
 /// (matching the current [`View`]) is always expanded

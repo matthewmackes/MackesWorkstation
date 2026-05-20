@@ -30,7 +30,11 @@ pub struct SessionPanel {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Loaded { save_on_exit: bool, lock_on_suspend: bool, auto_save: bool },
+    Loaded {
+        save_on_exit: bool,
+        lock_on_suspend: bool,
+        auto_save: bool,
+    },
     Error(String),
     Saved,
     SaveOnExitChanged(bool),
@@ -49,8 +53,7 @@ impl SessionPanel {
         Task::perform(
             async move {
                 let save_on_exit = parse_bool(&backend.get(KEY_SAVE_ON_EXIT).await?);
-                let lock_on_suspend =
-                    parse_bool(&backend.get(KEY_LOCK_ON_SUSPEND).await?);
+                let lock_on_suspend = parse_bool(&backend.get(KEY_LOCK_ON_SUSPEND).await?);
                 let auto_save = parse_bool(&backend.get(KEY_AUTO_SAVE).await?);
                 Ok::<_, crate::backend::BackendError>(Message::Loaded {
                     save_on_exit,
@@ -59,18 +62,12 @@ impl SessionPanel {
                 })
             },
             |result| {
-                crate::Message::Session(
-                    result.unwrap_or_else(|e| Message::Error(e.to_string())),
-                )
+                crate::Message::Session(result.unwrap_or_else(|e| Message::Error(e.to_string())))
             },
         )
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        backend: Arc<dyn Backend>,
-    ) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message, backend: Arc<dyn Backend>) -> Task<crate::Message> {
         match message {
             Message::Loaded {
                 save_on_exit,
@@ -123,9 +120,7 @@ impl SessionPanel {
                         backend
                             .set(KEY_LOCK_ON_SUSPEND, &encode_bool(lock_on_suspend))
                             .await?;
-                        backend
-                            .set(KEY_AUTO_SAVE, &encode_bool(auto_save))
-                            .await?;
+                        backend.set(KEY_AUTO_SAVE, &encode_bool(auto_save)).await?;
                         Ok::<_, crate::backend::BackendError>(Message::Saved)
                     },
                     |result| {
@@ -149,15 +144,12 @@ impl SessionPanel {
         };
 
         column![
-            checkbox("Save session on exit", self.save_on_exit).on_toggle(|v| {
-                crate::Message::Session(Message::SaveOnExitChanged(v))
-            }),
-            checkbox("Lock screen on suspend", self.lock_on_suspend).on_toggle(
-                |v| crate::Message::Session(Message::LockOnSuspendChanged(v)),
-            ),
-            checkbox("Auto-save layout periodically", self.auto_save).on_toggle(
-                |v| crate::Message::Session(Message::AutoSaveChanged(v)),
-            ),
+            checkbox("Save session on exit", self.save_on_exit)
+                .on_toggle(|v| { crate::Message::Session(Message::SaveOnExitChanged(v)) }),
+            checkbox("Lock screen on suspend", self.lock_on_suspend)
+                .on_toggle(|v| crate::Message::Session(Message::LockOnSuspendChanged(v)),),
+            checkbox("Auto-save layout periodically", self.auto_save)
+                .on_toggle(|v| crate::Message::Session(Message::AutoSaveChanged(v)),),
             row![save_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(12)
@@ -225,8 +217,14 @@ mod tests {
     #[tokio::test]
     async fn save_writes_all_three_keys_as_json_booleans() {
         let backend: Arc<dyn Backend> = Arc::new(DemoBackend::new());
-        backend.set(KEY_SAVE_ON_EXIT, encode_bool(true)).await.unwrap();
-        backend.set(KEY_LOCK_ON_SUSPEND, encode_bool(false)).await.unwrap();
+        backend
+            .set(KEY_SAVE_ON_EXIT, encode_bool(true))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_LOCK_ON_SUSPEND, encode_bool(false))
+            .await
+            .unwrap();
         backend.set(KEY_AUTO_SAVE, encode_bool(true)).await.unwrap();
         assert_eq!(backend.get(KEY_SAVE_ON_EXIT).await.unwrap(), "true");
         assert_eq!(backend.get(KEY_LOCK_ON_SUSPEND).await.unwrap(), "false");

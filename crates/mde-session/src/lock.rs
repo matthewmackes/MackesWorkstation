@@ -54,12 +54,12 @@ mod tests {
         let prev = std::env::var_os(key);
         match value {
             Some(v) => std::env::set_var(key, v),
-            None    => std::env::remove_var(key),
+            None => std::env::remove_var(key),
         }
         let r = body();
         match prev {
             Some(v) => std::env::set_var(key, v),
-            None    => std::env::remove_var(key),
+            None => std::env::remove_var(key),
         }
         r
     }

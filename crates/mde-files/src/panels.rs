@@ -128,11 +128,7 @@ impl ContextMenu {
     }
 
     /// Open the menu over `row` at the given window-coord anchor.
-    pub fn open(
-        &mut self,
-        row: impl Into<String>,
-        anchor: (f32, f32),
-    ) {
+    pub fn open(&mut self, row: impl Into<String>, anchor: (f32, f32)) {
         self.open = true;
         self.row = Some(row.into());
         self.anchor = Some(anchor);

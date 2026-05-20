@@ -12,9 +12,7 @@
 
 use std::path::PathBuf;
 
-use mde_files::backend::{
-    Backend, ConflictPolicy, DemoBackend, Destination, SendMode,
-};
+use mde_files::backend::{Backend, ConflictPolicy, DemoBackend, Destination, SendMode};
 
 fn destinations() -> Vec<Destination> {
     vec![
@@ -51,12 +49,7 @@ fn every_send_to_triple_records_one_audit_row() {
     for d in destinations() {
         for m in modes() {
             for c in policies() {
-                let r = backend.send_to(
-                    &[PathBuf::from("/tmp/src")],
-                    d.clone(),
-                    m,
-                    c,
-                );
+                let r = backend.send_to(&[PathBuf::from("/tmp/src")], d.clone(), m, c);
                 assert!(
                     r.is_ok(),
                     "send_to({d:?}, {m:?}, {c:?}) returned Err: {r:?}"
@@ -120,17 +113,9 @@ fn op_ids_are_unique_across_every_triple() {
         for m in modes() {
             for c in policies() {
                 let id = backend
-                    .send_to(
-                        &[PathBuf::from("/tmp/src")],
-                        d.clone(),
-                        m,
-                        c,
-                    )
+                    .send_to(&[PathBuf::from("/tmp/src")], d.clone(), m, c)
                     .expect("send_to");
-                assert!(
-                    seen.insert(id),
-                    "op_id {id} reused across triples"
-                );
+                assert!(seen.insert(id), "op_id {id} reused across triples");
             }
         }
     }

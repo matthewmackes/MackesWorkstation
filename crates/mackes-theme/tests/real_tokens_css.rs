@@ -8,13 +8,14 @@ use std::path::PathBuf;
 fn parses_real_tokens_css_without_loss() {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("../../data/css/tokens.css");
-    let css = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+    let css =
+        std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let table = mackes_theme::parse_tokens(&css);
 
     // The file ships ≥ 40 tokens (52 at time of writing — the
     // parser must keep up as the file grows).
-    let define_color_lines = css.lines()
+    let define_color_lines = css
+        .lines()
         .filter(|l| l.trim_start().starts_with("@define-color"))
         .count();
     assert!(

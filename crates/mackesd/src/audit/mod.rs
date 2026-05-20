@@ -130,9 +130,9 @@ mod tests {
 
     #[test]
     fn multi_row_chain_verifies() {
-        let r1 = make_row(1, b"first",  1_000, &[0u8; 32]);
+        let r1 = make_row(1, b"first", 1_000, &[0u8; 32]);
         let r2 = make_row(2, b"second", 2_000, &r1.hash);
-        let r3 = make_row(3, b"third",  3_000, &r2.hash);
+        let r3 = make_row(3, b"third", 3_000, &r2.hash);
         match verify(&[r1, r2, r3]) {
             VerifyOutcome::Intact { verified, .. } => assert_eq!(verified, 3),
             other => panic!("expected Intact, got {other:?}"),
@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn tampered_row_detected() {
-        let r1 = make_row(1, b"first",  1_000, &[0u8; 32]);
+        let r1 = make_row(1, b"first", 1_000, &[0u8; 32]);
         let mut r2 = make_row(2, b"second", 2_000, &r1.hash);
         // Tamper: rewrite the payload but keep the old hash.
         r2.payload = b"hacked".to_vec();

@@ -326,8 +326,8 @@ fn main() -> anyhow::Result<()> {
             // `seq` ASC) and walks the SHA-256 hash chain.
             let conn = mackesd_core::store::open(&db_path)
                 .with_context(|| format!("opening store at {}", db_path.display()))?;
-            let rows = mackesd_core::store::load_audit_rows(&conn)
-                .context("loading events from store")?;
+            let rows =
+                mackesd_core::store::load_audit_rows(&conn).context("loading events from store")?;
             match mackesd_core::audit::verify(&rows) {
                 mackesd_core::audit::VerifyOutcome::Empty => {
                     println!("audit chain empty (no events yet)");
@@ -359,8 +359,8 @@ fn main() -> anyhow::Result<()> {
             // emit a per-edge reason chain for the named peer.
             let conn = mackesd_core::store::open(&db_path)
                 .with_context(|| format!("opening store at {}", db_path.display()))?;
-            let nodes = mackesd_core::store::list_nodes(&conn)
-                .context("listing nodes from store")?;
+            let nodes =
+                mackesd_core::store::list_nodes(&conn).context("listing nodes from store")?;
             let report = explain_peer(&node_id, &nodes);
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
@@ -424,9 +424,7 @@ fn main() -> anyhow::Result<()> {
             // (CHECK constraint enforces the same allowed roles).
             let mut conn = mackesd_core::store::open(&db_path)
                 .with_context(|| format!("opening store at {}", db_path.display()))?;
-            let updated = mackesd_core::store::set_node_role(
-                &conn, &node_id, "decommissioned",
-            )?;
+            let updated = mackesd_core::store::set_node_role(&conn, &node_id, "decommissioned")?;
             if updated == 0 {
                 eprintln!("mackesd decommission: no node row matches {node_id}");
                 std::process::exit(2);
@@ -438,7 +436,10 @@ fn main() -> anyhow::Result<()> {
             })
             .to_string();
             mackesd_core::store::insert_event(
-                &mut conn, "lifecycle", &default_node_id(), &payload,
+                &mut conn,
+                "lifecycle",
+                &default_node_id(),
+                &payload,
             )?;
             let report = serde_json::json!({
                 "decommission":     node_id,
@@ -460,9 +461,7 @@ fn main() -> anyhow::Result<()> {
                 .find(|n| n.node_id == node_id);
             let new_identity = mackesd_core::enrollment::build_identity();
             let new_fp = new_identity.key.fingerprint();
-            let updated = mackesd_core::store::refresh_node_credentials(
-                &conn, &node_id, &new_fp,
-            )?;
+            let updated = mackesd_core::store::refresh_node_credentials(&conn, &node_id, &new_fp)?;
             if updated == 0 {
                 eprintln!("mackesd reenroll: no node row matches {node_id}");
                 std::process::exit(2);
@@ -475,7 +474,10 @@ fn main() -> anyhow::Result<()> {
             })
             .to_string();
             mackesd_core::store::insert_event(
-                &mut conn, "lifecycle", &default_node_id(), &payload,
+                &mut conn,
+                "lifecycle",
+                &default_node_id(),
+                &payload,
             )?;
             let report = serde_json::json!({
                 "reenroll":         node_id,
@@ -487,8 +489,7 @@ fn main() -> anyhow::Result<()> {
         }
         Cmd::TakeLeadership { as_node } => {
             // Phase 12.1.1b — operator-forced leadership bump.
-            let lock_path = mackesd_core::default_qnm_shared_root()
-                .join(".mackesd-leader.lock");
+            let lock_path = mackesd_core::default_qnm_shared_root().join(".mackesd-leader.lock");
             let lease = mackesd_core::leader::force_take(&lock_path, &as_node)
                 .with_context(|| format!("rewriting {}", lock_path.display()))?;
             println!(
@@ -506,10 +507,7 @@ fn main() -> anyhow::Result<()> {
             // overwrites an existing row.
             let roots = mackesd_core::legacy_inventory::default_roots();
             let artifacts = mackesd_core::legacy_inventory::inventory(&roots);
-            let mesh_artifacts: Vec<_> = artifacts
-                .iter()
-                .filter(|a| a.mesh_data)
-                .collect();
+            let mesh_artifacts: Vec<_> = artifacts.iter().filter(|a| a.mesh_data).collect();
             let candidate_node_names = derive_legacy_node_names(&mesh_artifacts);
             if dry_run {
                 let report = serde_json::json!({
@@ -541,7 +539,9 @@ fn main() -> anyhow::Result<()> {
                         continue;
                     }
                     mackesd_core::store::upsert_node(
-                        &conn, &node_id, name,
+                        &conn,
+                        &node_id,
+                        name,
                         // Placeholder key — a subsequent enrollment
                         // will replace this with the real Ed25519
                         // public-key fingerprint.
@@ -557,7 +557,10 @@ fn main() -> anyhow::Result<()> {
                 })
                 .to_string();
                 mackesd_core::store::insert_event(
-                    &mut conn, "lifecycle", &default_node_id(), &payload,
+                    &mut conn,
+                    "lifecycle",
+                    &default_node_id(),
+                    &payload,
                 )?;
                 let report = serde_json::json!({
                     "import_legacy_dry_run": false,
@@ -615,9 +618,7 @@ fn main() -> anyhow::Result<()> {
                 if !shutdown.load(Ordering::Relaxed) {
                     // Worker exited but no shutdown was requested.
                     // Treat as a soft failure.
-                    eprintln!(
-                        "mackesd reconcile: worker exited without shutdown request"
-                    );
+                    eprintln!("mackesd reconcile: worker exited without shutdown request");
                     std::process::exit(1);
                 }
             }
@@ -703,26 +704,26 @@ fn main() -> anyhow::Result<()> {
                     });
                     println!("{}", serde_json::to_string_pretty(&report)?);
                 }
-                RevisionsCmd::Rollback { target_id, author, peers } => {
+                RevisionsCmd::Rollback {
+                    target_id,
+                    author,
+                    peers,
+                } => {
                     let payload = load_revision_payload(&conn, &target_id)?;
                     let author = author.unwrap_or_else(default_node_id);
-                    let summary = format!(
-                        "Rollback to {target_id} (peers={peers})"
-                    );
+                    let summary = format!("Rollback to {target_id} (peers={peers})");
                     let mut conn = conn;
                     let now = chrono::Utc::now().to_rfc3339();
-                    let revision_id =
-                        mackesd_core::store::with_transaction(&mut conn, |tx| {
-                            tx.execute(
-                                "INSERT INTO desired_config \
+                    let revision_id = mackesd_core::store::with_transaction(&mut conn, |tx| {
+                        tx.execute(
+                            "INSERT INTO desired_config \
                                  (author, message, spec_json, state, created_at) \
                                  VALUES (?, ?, ?, 'approved', ?)",
-                                (&author, &summary, &payload, &now),
-                            ).map_err(|e| {
-                                anyhow::anyhow!("inserting rollback revision: {e}")
-                            })?;
-                            Ok(tx.last_insert_rowid())
-                        })?;
+                            (&author, &summary, &payload, &now),
+                        )
+                        .map_err(|e| anyhow::anyhow!("inserting rollback revision: {e}"))?;
+                        Ok(tx.last_insert_rowid())
+                    })?;
                     let report = serde_json::json!({
                         "rollback":      target_id,
                         "new_revision":  revision_id,
@@ -738,10 +739,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// Read a revision's `spec_json` payload by id.
-fn load_revision_payload(
-    conn: &rusqlite::Connection,
-    revision_id: &str,
-) -> anyhow::Result<String> {
+fn load_revision_payload(conn: &rusqlite::Connection, revision_id: &str) -> anyhow::Result<String> {
     let rev: i64 = revision_id
         .parse()
         .map_err(|_| anyhow::anyhow!("revision id must be an integer (got {revision_id})"))?;
@@ -756,9 +754,7 @@ fn load_revision_payload(
 }
 
 /// List every revision (descending by id).
-fn list_revisions(
-    conn: &rusqlite::Connection,
-) -> anyhow::Result<Vec<serde_json::Value>> {
+fn list_revisions(conn: &rusqlite::Connection) -> anyhow::Result<Vec<serde_json::Value>> {
     let mut stmt = conn
         .prepare(
             "SELECT revision_id, author, message, state, created_at \
@@ -787,11 +783,17 @@ fn print_revisions_table(rows: &[serde_json::Value]) {
         return;
     }
     for row in rows {
-        let rid = row.get("revision_id").and_then(|v| v.as_str()).unwrap_or("?");
-        let st  = row.get("state").and_then(|v| v.as_str()).unwrap_or("?");
+        let rid = row
+            .get("revision_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let st = row.get("state").and_then(|v| v.as_str()).unwrap_or("?");
         let aut = row.get("author").and_then(|v| v.as_str()).unwrap_or("?");
-        let cre = row.get("created_at").and_then(|v| v.as_str()).unwrap_or("?");
-        let sm  = row.get("summary").and_then(|v| v.as_str()).unwrap_or("");
+        let cre = row
+            .get("created_at")
+            .and_then(|v| v.as_str())
+            .unwrap_or("?");
+        let sm = row.get("summary").and_then(|v| v.as_str()).unwrap_or("");
         println!("{rid:>6}  [{st}]  {aut:<16}  {cre}  {sm}");
     }
 }
@@ -817,8 +819,7 @@ fn run_serve(
     runtime.block_on(async move {
         tracing::info!("mackesd serve: starting supervisor + workers");
         let shutdown = Arc::new(AtomicBool::new(false));
-        install_signal_handlers(Arc::clone(&shutdown))
-            .context("installing signal handlers")?;
+        install_signal_handlers(Arc::clone(&shutdown)).context("installing signal handlers")?;
 
         // The reconcile worker runs on its own OS thread (kept on
         // std::thread so its sync rusqlite calls don't block the
@@ -875,7 +876,11 @@ fn print_inventory_table(artifacts: &[mackesd_core::legacy_inventory::LegacyArti
     for a in artifacts {
         rows.push([
             format!("{:?}", a.artifact_kind),
-            if a.mesh_data { "yes".to_owned() } else { "no".to_owned() },
+            if a.mesh_data {
+                "yes".to_owned()
+            } else {
+                "no".to_owned()
+            },
             format_size(a.size_bytes),
             format_mtime(a.mtime_ms),
             a.path.display().to_string(),
@@ -922,8 +927,10 @@ fn format_size(bytes: u64) -> String {
 /// Render an mtime (ms since epoch) as an ISO-8601 UTC timestamp.
 /// Falls back to `-` when chrono refuses the value.
 fn format_mtime(ms: i64) -> String {
-    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms)
-        .map_or_else(|| "-".to_owned(), |dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+    chrono::DateTime::<chrono::Utc>::from_timestamp_millis(ms).map_or_else(
+        || "-".to_owned(),
+        |dt| dt.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+    )
 }
 
 /// Build the JSON `peers why` report from a node roster (Phase

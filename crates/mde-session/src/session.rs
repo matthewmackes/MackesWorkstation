@@ -53,14 +53,18 @@ impl SessionState {
     /// Reboot the machine via `systemctl reboot`.
     async fn restart(&self) -> zbus::fdo::Result<()> {
         tracing::info!("Session.Restart invoked");
-        let _ = std::process::Command::new("systemctl").arg("reboot").status();
+        let _ = std::process::Command::new("systemctl")
+            .arg("reboot")
+            .status();
         Ok(())
     }
 
     /// Power-off via `systemctl poweroff`.
     async fn shutdown(&self) -> zbus::fdo::Result<()> {
         tracing::info!("Session.Shutdown invoked");
-        let _ = std::process::Command::new("systemctl").arg("poweroff").status();
+        let _ = std::process::Command::new("systemctl")
+            .arg("poweroff")
+            .status();
         Ok(())
     }
 
@@ -68,9 +72,9 @@ impl SessionState {
     /// D.4: `swaylock` or whatever the user picks).
     async fn lock(&self) -> zbus::fdo::Result<()> {
         tracing::info!("Session.Lock invoked");
-        crate::lock::run_lock_command().await.map_err(|e| {
-            zbus::fdo::Error::Failed(format!("lock command failed: {e}"))
-        })?;
+        crate::lock::run_lock_command()
+            .await
+            .map_err(|e| zbus::fdo::Error::Failed(format!("lock command failed: {e}")))?;
         Ok(())
     }
 
@@ -79,7 +83,8 @@ impl SessionState {
     /// can restore window placement.
     async fn save_layout(&self) -> zbus::fdo::Result<()> {
         tracing::info!("Session.SaveLayout invoked");
-        let layout = run_swaymsg_get_tree().await
+        let layout = run_swaymsg_get_tree()
+            .await
             .map_err(|e| zbus::fdo::Error::Failed(format!("swaymsg failed: {e}")))?;
         let path = layout_save_path();
         if let Some(parent) = path.parent() {
@@ -149,12 +154,13 @@ mod tests {
         let prev = std::env::var_os("XDG_CACHE_HOME");
         std::env::set_var("XDG_CACHE_HOME", "/tmp/test-cache-mde-session");
         let p = layout_save_path();
-        assert_eq!(p, std::path::PathBuf::from(
-            "/tmp/test-cache-mde-session/mde/session-layout.json"
-        ));
+        assert_eq!(
+            p,
+            std::path::PathBuf::from("/tmp/test-cache-mde-session/mde/session-layout.json")
+        );
         match prev {
             Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
-            None    => std::env::remove_var("XDG_CACHE_HOME"),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
         }
     }
 }

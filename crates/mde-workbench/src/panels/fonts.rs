@@ -71,18 +71,12 @@ impl FontsPanel {
                 })
             },
             |result| {
-                crate::Message::Fonts(
-                    result.unwrap_or_else(|e| Message::Error(e.to_string())),
-                )
+                crate::Message::Fonts(result.unwrap_or_else(|e| Message::Error(e.to_string())))
             },
         )
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        backend: Arc<dyn Backend>,
-    ) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message, backend: Arc<dyn Backend>) -> Task<crate::Message> {
         match message {
             Message::Loaded {
                 name,
@@ -173,17 +167,10 @@ impl FontsPanel {
             pick_list(HINTING, current_value(HINTING, &self.hinting), |v| {
                 crate::Message::Fonts(Message::HintingChanged(v.to_string()))
             });
-        let antialias_pick: pick_list::PickList<
-            '_,
-            &'static str,
-            _,
-            _,
-            crate::Message,
-        > = pick_list(
-            ANTIALIAS,
-            current_value(ANTIALIAS, &self.antialias),
-            |v| crate::Message::Fonts(Message::AntialiasChanged(v.to_string())),
-        );
+        let antialias_pick: pick_list::PickList<'_, &'static str, _, _, crate::Message> =
+            pick_list(ANTIALIAS, current_value(ANTIALIAS, &self.antialias), |v| {
+                crate::Message::Fonts(Message::AntialiasChanged(v.to_string()))
+            });
 
         column![
             field_row("Interface font", &self.name, |v| crate::Message::Fonts(
@@ -192,8 +179,7 @@ impl FontsPanel {
             field_row("Monospace font", &self.monospace, |v| {
                 crate::Message::Fonts(Message::MonospaceChanged(v))
             }),
-            row![text("Hinting").width(Length::Fixed(140.0)), hinting_pick,]
-                .spacing(12),
+            row![text("Hinting").width(Length::Fixed(140.0)), hinting_pick,].spacing(12),
             row![
                 text("Antialias").width(Length::Fixed(140.0)),
                 antialias_pick,
@@ -211,17 +197,15 @@ fn current_value(table: &'static [&'static str], value: &str) -> Option<&'static
     table.iter().copied().find(|t| *t == value)
 }
 
-fn field_row<'a, F>(
-    label: &'a str,
-    value: &'a str,
-    on_change: F,
-) -> Element<'a, crate::Message>
+fn field_row<'a, F>(label: &'a str, value: &'a str, on_change: F) -> Element<'a, crate::Message>
 where
     F: 'a + Fn(String) -> crate::Message,
 {
     row![
         text(label).width(Length::Fixed(140.0)),
-        text_input("", value).on_input(on_change).width(Length::Fill),
+        text_input("", value)
+            .on_input(on_change)
+            .width(Length::Fill),
     ]
     .spacing(12)
     .into()
@@ -315,7 +299,10 @@ mod tests {
         // Drive the async path the same way the iced runtime
         // would — open-coded since the executor binding lives
         // upstream.
-        backend.set(KEY_NAME, &quote_json("Inter 11")).await.unwrap();
+        backend
+            .set(KEY_NAME, &quote_json("Inter 11"))
+            .await
+            .unwrap();
         backend
             .set(KEY_MONOSPACE, &quote_json("Cascadia Code 10"))
             .await
@@ -328,10 +315,7 @@ mod tests {
             .set(KEY_ANTIALIAS, &quote_json("rgba"))
             .await
             .unwrap();
-        assert_eq!(
-            backend.get(KEY_HINTING).await.unwrap(),
-            "\"slight\""
-        );
+        assert_eq!(backend.get(KEY_HINTING).await.unwrap(), "\"slight\"");
     }
 
     #[test]

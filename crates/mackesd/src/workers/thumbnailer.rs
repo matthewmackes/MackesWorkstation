@@ -84,18 +84,13 @@ pub fn render(src: &Path, dst: &Path, size: u32) -> RenderOutcome {
         return RenderOutcome::Unsupported;
     }
     let mut cmd = Command::new("python3");
-    cmd.args([
-        "-m",
-        "mackes.mesh_thumbnailer",
-        "--size",
-        &size.to_string(),
-    ]);
+    cmd.args(["-m", "mackes.mesh_thumbnailer", "--size", &size.to_string()]);
     cmd.arg(src);
     cmd.arg(dst);
     match cmd.output() {
         Ok(out) if out.status.success() => RenderOutcome::Ok,
         Ok(out) => RenderOutcome::Failed(out.status.code().unwrap_or(-1)),
-        Err(e)  => RenderOutcome::SpawnError(format!("{e}")),
+        Err(e) => RenderOutcome::SpawnError(format!("{e}")),
     }
 }
 

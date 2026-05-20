@@ -22,9 +22,8 @@ pub fn kernel_module_loaded() -> bool {
     let Ok(text) = std::fs::read_to_string("/proc/modules") else {
         return false;
     };
-    text.lines().any(|line| {
-        line.split(' ').next().map(str::trim) == Some("wireguard")
-    })
+    text.lines()
+        .any(|line| line.split(' ').next().map(str::trim) == Some("wireguard"))
 }
 
 /// True when `wireguard` can be loaded — either already loaded or
@@ -41,8 +40,7 @@ pub fn kernel_mode_available() -> bool {
     else {
         return false;
     };
-    out.status.success()
-        && !String::from_utf8_lossy(&out.stdout).trim().is_empty()
+    out.status.success() && !String::from_utf8_lossy(&out.stdout).trim().is_empty()
 }
 
 /// Read MTU from `/sys/class/net/<iface>/mtu`. None when the

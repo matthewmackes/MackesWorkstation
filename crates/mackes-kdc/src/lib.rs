@@ -123,7 +123,10 @@ fn looks_like_kdc_uuid(s: &str) -> bool {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, reason = "tests panic on serde failure, no recovery needed")]
+#[allow(
+    clippy::unwrap_used,
+    reason = "tests panic on serde failure, no recovery needed"
+)]
 mod tests {
     use super::*;
 
@@ -247,10 +250,10 @@ mod tests {
         // hex chars, sometimes with `_` separators. Sample a few from
         // the upstream daemon's output.
         for uuid in &[
-            "a1b2c3d4e5f6a1b2",                  // 16 hex chars
-            "a1b2c3d4_e5f6a1b2",                 // hex + separator
-            "0123456789abcdef0123456789abcdef",  // 32-char UUID
-            "deadbeefcafebabe1234",              // 20 hex chars
+            "a1b2c3d4e5f6a1b2",                 // 16 hex chars
+            "a1b2c3d4_e5f6a1b2",                // hex + separator
+            "0123456789abcdef0123456789abcdef", // 32-char UUID
+            "deadbeefcafebabe1234",             // 20 hex chars
         ] {
             assert!(
                 looks_like_kdc_uuid(uuid),

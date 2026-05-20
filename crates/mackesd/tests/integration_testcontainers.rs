@@ -150,9 +150,8 @@ fn run_mackesd(db: &Path, args: &[&str]) -> (String, String, i32) {
 /// entrypoint reads `/etc/headscale/config.yaml` — we mount a
 /// runtime-generated config from a tempfile so the container is
 /// self-contained.
-fn start_headscale() -> testcontainers::core::error::Result<
-    testcontainers::ContainerRequest<GenericImage>,
-> {
+fn start_headscale(
+) -> testcontainers::core::error::Result<testcontainers::ContainerRequest<GenericImage>> {
     // Headscale's /health endpoint serves on port 8080 by default.
     // Map it to an ephemeral host port; we'll discover the bound
     // port via `get_host_port_ipv4()`.
@@ -167,9 +166,7 @@ fn start_headscale() -> testcontainers::core::error::Result<
 /// Headscale URL. We use the `tailscale/tailscale` image with the
 /// `--login-server=` flag override so traffic goes to our test
 /// Headscale instead of login.tailscale.com.
-fn start_tailscale_peer(
-    headscale_url: &str,
-) -> testcontainers::ContainerRequest<GenericImage> {
+fn start_tailscale_peer(headscale_url: &str) -> testcontainers::ContainerRequest<GenericImage> {
     GenericImage::new("tailscale/tailscale", "stable")
         .with_wait_for(WaitFor::seconds(2))
         .with_env_var("TS_LOGIN_SERVER", headscale_url)
@@ -232,10 +229,7 @@ fn headscale_starts_and_serves_api() {
     let port = container
         .get_host_port_ipv4(ContainerPort::Tcp(8080))
         .expect("resolving headscale host port");
-    assert!(
-        port > 0,
-        "headscale didn't bind a host port (got {port})"
-    );
+    assert!(port > 0, "headscale didn't bind a host port (got {port})");
     // Drop the container — confirms the lifecycle is clean.
     drop(container);
 }
@@ -263,8 +257,7 @@ fn three_peers_enroll_via_passcode() {
     assert_eq!(code, 0, "mackesd migrate failed (stderr={stderr})");
 
     // 2. Generate a shared 16-char passcode.
-    let (passcode_out, _stderr, code) =
-        run_mackesd(&scratch.db, &["generate-passcode"]);
+    let (passcode_out, _stderr, code) = run_mackesd(&scratch.db, &["generate-passcode"]);
     assert_eq!(code, 0, "generate-passcode failed");
     let passcode = passcode_out.trim().to_owned();
     assert_eq!(
@@ -303,11 +296,7 @@ fn three_peers_enroll_via_passcode() {
     }
 
     // 4. Assert all 3 rows landed.
-    assert_eq!(
-        count_nodes(&scratch.db),
-        3,
-        "expected 3 enrolled peers"
-    );
+    assert_eq!(count_nodes(&scratch.db), 3, "expected 3 enrolled peers");
 }
 
 /// Run `mackesd apply --dry-run` then `mackesd reconcile --once`
@@ -334,8 +323,7 @@ fn reconcile_drives_desired_to_observed() {
     let (_o, e, code) = run_mackesd(&scratch.db, &["migrate"]);
     assert_eq!(code, 0, "migrate failed: {e}");
 
-    let (stdout, stderr, code) =
-        run_mackesd(&scratch.db, &["apply", "--dry-run"]);
+    let (stdout, stderr, code) = run_mackesd(&scratch.db, &["apply", "--dry-run"]);
     assert_eq!(code, 0, "apply --dry-run failed: {stderr}");
     let plan: serde_json::Value =
         serde_json::from_str(stdout.trim()).expect("apply --dry-run is JSON");
@@ -357,8 +345,7 @@ fn reconcile_drives_desired_to_observed() {
         ],
     );
     assert_eq!(code, 0, "reconcile --once failed: {stderr}");
-    let tick: serde_json::Value =
-        serde_json::from_str(stdout.trim()).expect("reconcile is JSON");
+    let tick: serde_json::Value = serde_json::from_str(stdout.trim()).expect("reconcile is JSON");
     assert_eq!(tick["observed_heartbeats"], 0);
     assert_eq!(tick["observed_edges"], 0);
     assert_eq!(tick["desired_edges"], 0);
@@ -386,29 +373,26 @@ fn leader_election_under_contention() {
     let lock_path = scratch.qnm.join(".mackesd-leader.lock");
 
     // First peer takes leadership unconditionally.
-    let lease_a = mackesd_core::leader::force_take(&lock_path, "peer:alpha")
-        .expect("alpha force-take");
+    let lease_a =
+        mackesd_core::leader::force_take(&lock_path, "peer:alpha").expect("alpha force-take");
     assert_eq!(lease_a.node_id, "peer:alpha");
     assert_eq!(lease_a.epoch, 1);
 
     // Second peer tries to acquire — sees alpha's fresh lease and
     // reports HeldBy. This is the path the reconcile worker's
     // followers take every tick.
-    let result = mackesd_core::leader::try_acquire(&lock_path, "peer:beta")
-        .expect("beta try_acquire");
+    let result =
+        mackesd_core::leader::try_acquire(&lock_path, "peer:beta").expect("beta try_acquire");
     match result {
         mackesd_core::leader::AcquireResult::HeldBy { leader_id, .. } => {
-            assert_eq!(
-                leader_id, "peer:alpha",
-                "follower must see alpha as leader"
-            );
+            assert_eq!(leader_id, "peer:alpha", "follower must see alpha as leader");
         }
         other => panic!("expected HeldBy(alpha), got {other:?}"),
     }
 
     // Third peer force-takes — epoch bumps, alpha is dethroned.
-    let lease_c = mackesd_core::leader::force_take(&lock_path, "peer:gamma")
-        .expect("gamma force-take");
+    let lease_c =
+        mackesd_core::leader::force_take(&lock_path, "peer:gamma").expect("gamma force-take");
     assert_eq!(lease_c.node_id, "peer:gamma");
     assert!(
         lease_c.epoch > lease_a.epoch,
@@ -455,8 +439,7 @@ fn passcode_rejection_on_invalid() {
              stdout={stdout}\nstderr={stderr}"
         );
         assert!(
-            stderr.contains("passcode failed validation")
-                || stderr.contains("16"),
+            stderr.contains("passcode failed validation") || stderr.contains("16"),
             "stderr should explain the 16-char URL-safe rule, got: {stderr}"
         );
     }
@@ -522,9 +505,7 @@ fn tailscale_peer_starts_against_test_headscale() {
             // egress. Treat that as a real failure with a clear
             // message so the next dev knows the test isn't flaky —
             // the test infrastructure has a real prerequisite.
-            panic!(
-                "starting tailscale peer failed (CI runner egress?): {e}"
-            );
+            panic!("starting tailscale peer failed (CI runner egress?): {e}");
         }
     }
     drop(headscale);

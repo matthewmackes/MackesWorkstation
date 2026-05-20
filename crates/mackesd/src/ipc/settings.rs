@@ -33,8 +33,7 @@ impl SettingsService {
             .map_err(|e| zbus::fdo::Error::InvalidArgs(format!("{e}")))?;
         let value = crate::settings::current(parsed)
             .map_err(|e| zbus::fdo::Error::Failed(format!("{e:#}")))?;
-        serde_json::to_string(&value)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("ser: {e}")))
+        serde_json::to_string(&value).map_err(|e| zbus::fdo::Error::Failed(format!("ser: {e}")))
     }
 
     /// Write a setting by dot-notated key. `value_json` is the
@@ -80,10 +79,8 @@ impl SettingsService {
     /// `crate::settings::apply()`; the first failure aborts the
     /// restore (so the operator sees an actionable error).
     async fn restore(&self, snapshot_json: &str) -> zbus::fdo::Result<()> {
-        let snap: crate::settings::Snapshot =
-            serde_json::from_str(snapshot_json).map_err(|e| {
-                zbus::fdo::Error::InvalidArgs(format!("snapshot_json: {e}"))
-            })?;
+        let snap: crate::settings::Snapshot = serde_json::from_str(snapshot_json)
+            .map_err(|e| zbus::fdo::Error::InvalidArgs(format!("snapshot_json: {e}")))?;
         for (key_str, value) in &snap.values {
             let key: crate::settings::SettingKey = key_str
                 .parse()

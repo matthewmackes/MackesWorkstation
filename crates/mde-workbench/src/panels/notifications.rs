@@ -73,8 +73,8 @@ impl NotificationsPanel {
             async move {
                 let dnd = parse_bool(&backend.get(KEY_DND).await?);
                 let location = strip_json_quotes(&backend.get(KEY_LOCATION).await?);
-                let expire_ms = parse_u32(&backend.get(KEY_EXPIRE_MS).await?)
-                    .unwrap_or(DEFAULT_EXPIRE_MS);
+                let expire_ms =
+                    parse_u32(&backend.get(KEY_EXPIRE_MS).await?).unwrap_or(DEFAULT_EXPIRE_MS);
                 Ok::<_, crate::backend::BackendError>(Message::Loaded {
                     dnd,
                     location,
@@ -89,11 +89,7 @@ impl NotificationsPanel {
         )
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        backend: Arc<dyn Backend>,
-    ) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message, backend: Arc<dyn Backend>) -> Task<crate::Message> {
         match message {
             Message::Loaded {
                 dnd,
@@ -150,9 +146,7 @@ impl NotificationsPanel {
                     match parse_u32(&self.expire_ms_input) {
                         Some(v) => v,
                         None => {
-                            self.status =
-                                "Expire-ms must be a non-negative integer."
-                                    .into();
+                            self.status = "Expire-ms must be a non-negative integer.".into();
                             return Task::none();
                         }
                     }
@@ -165,9 +159,7 @@ impl NotificationsPanel {
                     async move {
                         backend.set(KEY_DND, encode_bool(dnd)).await?;
                         backend.set(KEY_LOCATION, &quote_json(&location)).await?;
-                        backend
-                            .set(KEY_EXPIRE_MS, &expire_ms.to_string())
-                            .await?;
+                        backend.set(KEY_EXPIRE_MS, &expire_ms.to_string()).await?;
                         Ok::<_, crate::backend::BackendError>(Message::Saved)
                     },
                     |result| {
@@ -189,36 +181,19 @@ impl NotificationsPanel {
             }
             b
         };
-        let location_pick: pick_list::PickList<
-            '_,
-            &'static str,
-            _,
-            _,
-            crate::Message,
-        > = pick_list(
-            LOCATIONS,
-            current_location(&self.location),
-            |selected| {
-                crate::Message::Notifications(Message::LocationChanged(
-                    selected.to_string(),
-                ))
-            },
-        );
+        let location_pick: pick_list::PickList<'_, &'static str, _, _, crate::Message> =
+            pick_list(LOCATIONS, current_location(&self.location), |selected| {
+                crate::Message::Notifications(Message::LocationChanged(selected.to_string()))
+            });
 
         column![
-            checkbox("Do Not Disturb", self.dnd).on_toggle(|v| {
-                crate::Message::Notifications(Message::DndChanged(v))
-            }),
-            row![
-                text("Placement").width(Length::Fixed(160.0)),
-                location_pick,
-            ]
-            .spacing(12),
+            checkbox("Do Not Disturb", self.dnd)
+                .on_toggle(|v| { crate::Message::Notifications(Message::DndChanged(v)) }),
+            row![text("Placement").width(Length::Fixed(160.0)), location_pick,].spacing(12),
             row![
                 text("Default expire (ms)").width(Length::Fixed(160.0)),
-                text_input("5000", &self.expire_ms_input).on_input(|v| {
-                    crate::Message::Notifications(Message::ExpireMsChanged(v))
-                }),
+                text_input("5000", &self.expire_ms_input)
+                    .on_input(|v| { crate::Message::Notifications(Message::ExpireMsChanged(v)) }),
             ]
             .spacing(12),
             row![save_btn, text(&self.status).size(13)].spacing(12),
@@ -311,7 +286,10 @@ mod tests {
     async fn save_writes_all_three_keys_in_canonical_json_shapes() {
         let backend: Arc<dyn Backend> = Arc::new(DemoBackend::new());
         backend.set(KEY_DND, encode_bool(true)).await.unwrap();
-        backend.set(KEY_LOCATION, &quote_json("top-right")).await.unwrap();
+        backend
+            .set(KEY_LOCATION, &quote_json("top-right"))
+            .await
+            .unwrap();
         backend.set(KEY_EXPIRE_MS, "3000").await.unwrap();
         assert_eq!(backend.get(KEY_DND).await.unwrap(), "true");
         assert_eq!(backend.get(KEY_LOCATION).await.unwrap(), "\"top-right\"");

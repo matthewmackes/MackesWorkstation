@@ -44,10 +44,10 @@ use crate::path_safety::{PathError, PathPolicy};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
     /// Human-friendly check identifier (matches the UI label).
-    pub id:      &'static str,
+    pub id: &'static str,
     /// `Ok` / `Warn` / `Block`. The dialog renders the icon
     /// accordingly.
-    pub status:  CheckStatus,
+    pub status: CheckStatus,
     /// Optional explanation when the status is non-Ok. Empty for
     /// passing checks.
     pub message: String,
@@ -162,14 +162,14 @@ pub fn rows_allow_send(rows: &[CheckRow]) -> bool {
 fn check_sources_present(req: &Request) -> CheckRow {
     if req.sources.is_empty() {
         CheckRow {
-            id:      "sources",
-            status:  CheckStatus::Block,
+            id: "sources",
+            status: CheckStatus::Block,
             message: "no sources supplied".into(),
         }
     } else {
         CheckRow {
-            id:      "sources",
-            status:  CheckStatus::Ok,
+            id: "sources",
+            status: CheckStatus::Ok,
             message: String::new(),
         }
     }
@@ -183,12 +183,9 @@ fn check_path_safety(req: &Request, policy: &PathPolicy) -> CheckRow {
             .any(|c| matches!(c, std::path::Component::ParentDir))
         {
             return CheckRow {
-                id:      "allowed-paths",
-                status:  CheckStatus::Block,
-                message: format!(
-                    "{}: traversal segment rejected",
-                    src.display()
-                ),
+                id: "allowed-paths",
+                status: CheckStatus::Block,
+                message: format!("{}: traversal segment rejected", src.display()),
             };
         }
         // Then walk through the policy's roots without touching the
@@ -196,18 +193,15 @@ fn check_path_safety(req: &Request, policy: &PathPolicy) -> CheckRow {
         // We accept here when ANY root contains this prefix.
         if !policy_has_prefix(policy, src) {
             return CheckRow {
-                id:      "allowed-paths",
-                status:  CheckStatus::Block,
-                message: format!(
-                    "{}: outside the RBAC-allowed roots",
-                    src.display()
-                ),
+                id: "allowed-paths",
+                status: CheckStatus::Block,
+                message: format!("{}: outside the RBAC-allowed roots", src.display()),
             };
         }
     }
     CheckRow {
-        id:      "allowed-paths",
-        status:  CheckStatus::Ok,
+        id: "allowed-paths",
+        status: CheckStatus::Ok,
         message: String::new(),
     }
 }
@@ -226,15 +220,15 @@ fn check_disk_space(req: &Request) -> CheckRow {
     // u64::MAX is the sentinel for "unknown — skip the check".
     if req.destination_free_bytes == u64::MAX {
         return CheckRow {
-            id:      "disk-space",
-            status:  CheckStatus::Warn,
+            id: "disk-space",
+            status: CheckStatus::Warn,
             message: "destination free-space unknown".into(),
         };
     }
     if req.total_bytes > req.destination_free_bytes {
         return CheckRow {
-            id:      "disk-space",
-            status:  CheckStatus::Block,
+            id: "disk-space",
+            status: CheckStatus::Block,
             message: format!(
                 "destination has {} bytes free, send needs {}",
                 req.destination_free_bytes, req.total_bytes
@@ -242,8 +236,8 @@ fn check_disk_space(req: &Request) -> CheckRow {
         };
     }
     CheckRow {
-        id:      "disk-space",
-        status:  CheckStatus::Ok,
+        id: "disk-space",
+        status: CheckStatus::Ok,
         message: String::new(),
     }
 }
@@ -251,19 +245,16 @@ fn check_disk_space(req: &Request) -> CheckRow {
 fn check_reachability(req: &Request) -> CheckRow {
     if req.destination_last_seen_ms == u64::MAX {
         return CheckRow {
-            id:      "reachability",
-            status:  CheckStatus::Block,
-            message: format!(
-                "{} has never been seen online",
-                req.destination_label
-            ),
+            id: "reachability",
+            status: CheckStatus::Block,
+            message: format!("{} has never been seen online", req.destination_label),
         };
     }
     let max_ms = REACHABILITY_WINDOW.as_millis() as u64;
     if req.destination_last_seen_ms > max_ms {
         return CheckRow {
-            id:      "reachability",
-            status:  CheckStatus::Block,
+            id: "reachability",
+            status: CheckStatus::Block,
             message: format!(
                 "{} last seen {} ms ago (limit {} ms)",
                 req.destination_label, req.destination_last_seen_ms, max_ms
@@ -271,8 +262,8 @@ fn check_reachability(req: &Request) -> CheckRow {
         };
     }
     CheckRow {
-        id:      "reachability",
-        status:  CheckStatus::Ok,
+        id: "reachability",
+        status: CheckStatus::Ok,
         message: String::new(),
     }
 }
@@ -288,8 +279,8 @@ fn check_file_type(req: &Request) -> CheckRow {
         };
         if BLOCKED_EXTENSIONS.contains(&ext.as_str()) {
             return CheckRow {
-                id:      "file-type",
-                status:  CheckStatus::Block,
+                id: "file-type",
+                status: CheckStatus::Block,
                 message: format!(
                     "{}: extension .{ext} is on the policy block list",
                     src.display()
@@ -298,8 +289,8 @@ fn check_file_type(req: &Request) -> CheckRow {
         }
     }
     CheckRow {
-        id:      "file-type",
-        status:  CheckStatus::Ok,
+        id: "file-type",
+        status: CheckStatus::Ok,
         message: String::new(),
     }
 }
@@ -309,8 +300,8 @@ fn check_rollback_feasible(req: &Request) -> CheckRow {
         SendModeLite::Move | SendModeLite::Deploy => {
             if !req.rollback_available_for_target {
                 CheckRow {
-                    id:      "rollback",
-                    status:  CheckStatus::Block,
+                    id: "rollback",
+                    status: CheckStatus::Block,
                     message: format!(
                         "{} mode requires a writable rollback bucket on {}",
                         match req.mode {
@@ -323,15 +314,15 @@ fn check_rollback_feasible(req: &Request) -> CheckRow {
                 }
             } else {
                 CheckRow {
-                    id:      "rollback",
-                    status:  CheckStatus::Ok,
+                    id: "rollback",
+                    status: CheckStatus::Ok,
                     message: String::new(),
                 }
             }
         }
         _ => CheckRow {
-            id:      "rollback",
-            status:  CheckStatus::Ok,
+            id: "rollback",
+            status: CheckStatus::Ok,
             message: "n/a for this mode".into(),
         },
     }
@@ -340,21 +331,22 @@ fn check_rollback_feasible(req: &Request) -> CheckRow {
 fn check_target_free(req: &Request) -> CheckRow {
     if req.target_exists && req.conflict == ConflictPolicyLite::Skip {
         CheckRow {
-            id:      "target-free",
-            status:  CheckStatus::Warn,
+            id: "target-free",
+            status: CheckStatus::Warn,
             message: "target exists; Skip policy would no-op the send".into(),
         }
     } else {
         CheckRow {
-            id:      "target-free",
-            status:  CheckStatus::Ok,
+            id: "target-free",
+            status: CheckStatus::Ok,
             message: String::new(),
         }
     }
 }
 
 fn check_mode_destination_combo(req: &Request) -> CheckRow {
-    if matches!(req.mode, SendModeLite::Sync) && req.target_exists
+    if matches!(req.mode, SendModeLite::Sync)
+        && req.target_exists
         && req.conflict == ConflictPolicyLite::Overwrite
     {
         // Sync + Overwrite is destructive: it'll silently
@@ -362,14 +354,14 @@ fn check_mode_destination_combo(req: &Request) -> CheckRow {
         // Surface as Warn so the user has a chance to switch to
         // Rename.
         return CheckRow {
-            id:      "mode-combo",
-            status:  CheckStatus::Warn,
+            id: "mode-combo",
+            status: CheckStatus::Warn,
             message: "Sync + Overwrite will silently replace remote files".into(),
         };
     }
     CheckRow {
-        id:      "mode-combo",
-        status:  CheckStatus::Ok,
+        id: "mode-combo",
+        status: CheckStatus::Ok,
         message: String::new(),
     }
 }
@@ -434,7 +426,9 @@ mod tests {
         let policy = policy_for(tmp.path());
         let rows = preflight(&r, &policy);
         assert!(!rows_allow_send(&rows));
-        assert!(rows.iter().any(|r| r.id == "sources" && r.status == CheckStatus::Block));
+        assert!(rows
+            .iter()
+            .any(|r| r.id == "sources" && r.status == CheckStatus::Block));
     }
 
     #[test]
@@ -445,7 +439,9 @@ mod tests {
         let policy = policy_for(tmp.path());
         let rows = preflight(&r, &policy);
         assert!(!rows_allow_send(&rows));
-        assert!(rows.iter().any(|r| r.id == "allowed-paths" && r.status == CheckStatus::Block));
+        assert!(rows
+            .iter()
+            .any(|r| r.id == "allowed-paths" && r.status == CheckStatus::Block));
     }
 
     #[test]
@@ -458,7 +454,9 @@ mod tests {
         let policy = policy_for(root.path());
         let rows = preflight(&r, &policy);
         assert!(!rows_allow_send(&rows));
-        assert!(rows.iter().any(|r| r.id == "allowed-paths" && r.status == CheckStatus::Block));
+        assert!(rows
+            .iter()
+            .any(|r| r.id == "allowed-paths" && r.status == CheckStatus::Block));
         // Suppress unused warning.
         let _ = &mut r;
     }
@@ -548,7 +546,7 @@ mod tests {
         let tmp = tempdir().unwrap();
         let mut r = req_in(tmp.path(), "a.txt");
         r.rollback_available_for_target = false; // would block Move
-        // Stays Copy.
+                                                 // Stays Copy.
         let policy = policy_for(tmp.path());
         let rows = preflight(&r, &policy);
         let row = rows.iter().find(|r| r.id == "rollback").unwrap();
@@ -585,9 +583,21 @@ mod tests {
     #[test]
     fn rows_allow_send_returns_false_on_any_block() {
         let rows = vec![
-            CheckRow { id: "a", status: CheckStatus::Ok, message: String::new() },
-            CheckRow { id: "b", status: CheckStatus::Warn, message: String::new() },
-            CheckRow { id: "c", status: CheckStatus::Block, message: "x".into() },
+            CheckRow {
+                id: "a",
+                status: CheckStatus::Ok,
+                message: String::new(),
+            },
+            CheckRow {
+                id: "b",
+                status: CheckStatus::Warn,
+                message: String::new(),
+            },
+            CheckRow {
+                id: "c",
+                status: CheckStatus::Block,
+                message: "x".into(),
+            },
         ];
         assert!(!rows_allow_send(&rows));
     }
@@ -595,8 +605,16 @@ mod tests {
     #[test]
     fn rows_allow_send_returns_true_with_only_warn_and_ok() {
         let rows = vec![
-            CheckRow { id: "a", status: CheckStatus::Ok, message: String::new() },
-            CheckRow { id: "b", status: CheckStatus::Warn, message: "w".into() },
+            CheckRow {
+                id: "a",
+                status: CheckStatus::Ok,
+                message: String::new(),
+            },
+            CheckRow {
+                id: "b",
+                status: CheckStatus::Warn,
+                message: "w".into(),
+            },
         ];
         assert!(rows_allow_send(&rows));
     }
@@ -608,7 +626,10 @@ mod tests {
         }
         // Whitelist sanity: ordinary types stay allowed.
         for ext in ["txt", "md", "pdf", "png", "jpg"] {
-            assert!(!BLOCKED_EXTENSIONS.contains(&ext), "{ext} must not be blocked");
+            assert!(
+                !BLOCKED_EXTENSIONS.contains(&ext),
+                "{ext} must not be blocked"
+            );
         }
     }
 

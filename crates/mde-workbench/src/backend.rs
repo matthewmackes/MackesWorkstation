@@ -179,10 +179,7 @@ mod tests {
             .set("theme.name", "\"Adwaita-dark\"")
             .await
             .expect("set ok");
-        assert_eq!(
-            backend.get("theme.name").await.unwrap(),
-            "\"Adwaita-dark\""
-        );
+        assert_eq!(backend.get("theme.name").await.unwrap(), "\"Adwaita-dark\"");
     }
 
     #[tokio::test]
@@ -190,10 +187,7 @@ mod tests {
         let backend = DemoBackend::new();
         backend.set("font.name", "\"Inter 11\"").await.unwrap();
         backend.set("font.name", "\"Cantarell 10\"").await.unwrap();
-        assert_eq!(
-            backend.get("font.name").await.unwrap(),
-            "\"Cantarell 10\""
-        );
+        assert_eq!(backend.get("font.name").await.unwrap(), "\"Cantarell 10\"");
     }
 
     #[tokio::test]

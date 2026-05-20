@@ -59,8 +59,7 @@ impl FailureWindow {
     pub fn observe(&mut self, outcome: ProbePairOutcome) -> u32 {
         match outcome {
             ProbePairOutcome::BothUdpFailed => {
-                self.consecutive_failures =
-                    self.consecutive_failures.saturating_add(1);
+                self.consecutive_failures = self.consecutive_failures.saturating_add(1);
             }
             ProbePairOutcome::AnyUdpSucceeded => {
                 self.consecutive_failures = 0;
@@ -190,16 +189,11 @@ pub fn transition(
         // From Active — revert to Inactive on UDP recovery; flip
         // to Failing on tunnel loss; ignore the BothUdpFailed
         // outcome (we're already routing around it).
-        (
-            HttpsFallbackState::Active,
-            TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded),
-        ) => {
+        (HttpsFallbackState::Active, TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded)) => {
             *window = FailureWindow::new();
             HttpsFallbackState::Inactive
         }
-        (HttpsFallbackState::Active, TransitionInput::TunnelLost) => {
-            HttpsFallbackState::Failing
-        }
+        (HttpsFallbackState::Active, TransitionInput::TunnelLost) => HttpsFallbackState::Failing,
         (HttpsFallbackState::Active, _) => HttpsFallbackState::Active,
 
         // From Failing — recovery returns us to Inactive;
@@ -212,10 +206,7 @@ pub fn transition(
             *window = FailureWindow::new();
             HttpsFallbackState::Inactive
         }
-        (
-            HttpsFallbackState::Failing,
-            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
-        ) => {
+        (HttpsFallbackState::Failing, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed)) => {
             window.observe(ProbePairOutcome::BothUdpFailed);
             if window.threshold_met() {
                 *window = FailureWindow::new();
@@ -414,7 +405,10 @@ mod tests {
 
     #[test]
     fn locked_failure_threshold_is_three() {
-        assert_eq!(FAILURE_THRESHOLD, 3, "Q10 lock — changing this is a wire-protocol change");
+        assert_eq!(
+            FAILURE_THRESHOLD, 3,
+            "Q10 lock — changing this is a wire-protocol change"
+        );
     }
 
     #[test]

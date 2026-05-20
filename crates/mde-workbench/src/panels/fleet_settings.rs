@@ -69,16 +69,17 @@ impl FleetSettingsPanel {
                     self.status = "Value JSON cannot be empty.".into();
                     return Task::none();
                 }
-                let peers_arg = if peers.is_empty() { "all".to_string() } else { peers };
+                let peers_arg = if peers.is_empty() {
+                    "all".to_string()
+                } else {
+                    peers
+                };
                 self.busy = true;
                 self.status = "Pushing…".into();
                 let args = push_setting_args(&key, &value, &peers_arg);
-                Task::perform(
-                    async move { run_mded(&args).await },
-                    |result| {
-                        crate::Message::FleetSettings(Message::PushCompleted(result))
-                    },
-                )
+                Task::perform(async move { run_mded(&args).await }, |result| {
+                    crate::Message::FleetSettings(Message::PushCompleted(result))
+                })
             }
             Message::PushCompleted(Ok(out)) => {
                 self.status = if out.trim().is_empty() {
@@ -98,7 +99,11 @@ impl FleetSettingsPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let push_label = if self.busy { "Pushing…" } else { "Push to fleet" };
+        let push_label = if self.busy {
+            "Pushing…"
+        } else {
+            "Push to fleet"
+        };
         let push_btn = {
             let mut b = button(text(push_label));
             if !self.busy {
@@ -110,23 +115,20 @@ impl FleetSettingsPanel {
         column![
             row![
                 text("Key").width(Length::Fixed(120.0)),
-                text_input("theme.name", &self.key_input).on_input(|v| {
-                    crate::Message::FleetSettings(Message::KeyChanged(v))
-                }),
+                text_input("theme.name", &self.key_input)
+                    .on_input(|v| { crate::Message::FleetSettings(Message::KeyChanged(v)) }),
             ]
             .spacing(12),
             row![
                 text("Value (JSON)").width(Length::Fixed(120.0)),
-                text_input("\"Adwaita-dark\"", &self.value_input).on_input(|v| {
-                    crate::Message::FleetSettings(Message::ValueChanged(v))
-                }),
+                text_input("\"Adwaita-dark\"", &self.value_input)
+                    .on_input(|v| { crate::Message::FleetSettings(Message::ValueChanged(v)) }),
             ]
             .spacing(12),
             row![
                 text("Peers").width(Length::Fixed(120.0)),
-                text_input("all", &self.peers_input).on_input(|v| {
-                    crate::Message::FleetSettings(Message::PeersChanged(v))
-                }),
+                text_input("all", &self.peers_input)
+                    .on_input(|v| { crate::Message::FleetSettings(Message::PeersChanged(v)) }),
             ]
             .spacing(12),
             row![push_btn, text(&self.status).size(13)].spacing(12),

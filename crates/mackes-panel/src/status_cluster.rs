@@ -317,16 +317,12 @@ pub fn build() -> gtk::Box {
             // 1.0.8 behavior — `mackes --focus <slug>` opens the
             // Workbench focused on that panel.
             if slug == "clipboard" {
-                let popover = crate::clipboard_manager::build(
-                    button_for_handler.upcast_ref::<gtk::Widget>(),
-                );
+                let popover =
+                    crate::clipboard_manager::build(button_for_handler.upcast_ref::<gtk::Widget>());
                 popover.popup();
                 return;
             }
-            if let Err(e) = Command::new("mackes")
-                .args(["--focus", slug])
-                .spawn()
-            {
+            if let Err(e) = Command::new("mackes").args(["--focus", slug]).spawn() {
                 eprintln!("mackes-panel: workbench launch failed ({slug}): {e}");
             }
         });

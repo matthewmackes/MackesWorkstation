@@ -14,12 +14,11 @@ use iced::{Element, Length, Size, Subscription, Task, Theme};
 use crate::backend::{Backend, DemoBackend};
 use crate::dbus::PendingFocus;
 use crate::keyboard::{KeyAction, Pane};
-use crate::model::{Group, View, view_from_focus_slug};
+use crate::model::{view_from_focus_slug, Group, View};
 use crate::panels::{
     fleet_revisions as fleet_revisions_panel, fleet_settings as fleet_settings_panel,
-    fonts as fonts_panel, notifications as notifications_panel,
-    power as power_panel, removable as removable_panel,
-    session as session_panel, themes as themes_panel,
+    fonts as fonts_panel, notifications as notifications_panel, power as power_panel,
+    removable as removable_panel, session as session_panel, themes as themes_panel,
     wallpaper as wallpaper_panel,
 };
 use crate::patternfly::{breadcrumb, page_subtitle, page_title};
@@ -239,10 +238,8 @@ impl App {
     /// [`Message::FocusRequest`].
     #[allow(clippy::unused_self)]
     fn subscription(&self) -> Subscription<Message> {
-        iced::time::every(Duration::from_millis(200)).map(|_| {
-            PendingFocus::drain()
-                .map_or(Message::Noop, Message::FocusRequest)
-        })
+        iced::time::every(Duration::from_millis(200))
+            .map(|_| PendingFocus::drain().map_or(Message::Noop, Message::FocusRequest))
     }
 
     fn title(&self) -> String {
@@ -287,13 +284,9 @@ impl App {
             Message::Themes(msg) => self.themes.update(msg, self.backend()),
             Message::Fonts(msg) => self.fonts.update(msg, self.backend()),
             Message::Session(msg) => self.session.update(msg, self.backend()),
-            Message::Notifications(msg) => {
-                self.notifications.update(msg, self.backend())
-            }
+            Message::Notifications(msg) => self.notifications.update(msg, self.backend()),
             Message::Power(msg) => self.power.update(msg, self.backend()),
-            Message::Removable(msg) => {
-                self.removable.update(msg, self.backend())
-            }
+            Message::Removable(msg) => self.removable.update(msg, self.backend()),
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
@@ -306,30 +299,18 @@ impl App {
     /// shipped yet) just no-op.
     fn on_panel_navigated(&self, group: Group, panel: &'static str) -> Task<Message> {
         match (group, panel) {
-            (Group::LookAndFeel, "themes") => {
-                themes_panel::ThemesPanel::load(self.backend())
-            }
-            (Group::LookAndFeel, "fonts") => {
-                fonts_panel::FontsPanel::load(self.backend())
-            }
+            (Group::LookAndFeel, "themes") => themes_panel::ThemesPanel::load(self.backend()),
+            (Group::LookAndFeel, "fonts") => fonts_panel::FontsPanel::load(self.backend()),
             (Group::LookAndFeel, "wallpaper") => {
                 wallpaper_panel::WallpaperPanel::load(self.backend())
             }
-            (Group::System, "session") => {
-                session_panel::SessionPanel::load(self.backend())
-            }
+            (Group::System, "session") => session_panel::SessionPanel::load(self.backend()),
             (Group::System, "notifications") => {
                 notifications_panel::NotificationsPanel::load(self.backend())
             }
-            (Group::Devices, "power") => {
-                power_panel::PowerPanel::load(self.backend())
-            }
-            (Group::Devices, "removable") => {
-                removable_panel::RemovablePanel::load(self.backend())
-            }
-            (Group::Fleet, "revisions") => {
-                fleet_revisions_panel::FleetRevisionsPanel::load()
-            }
+            (Group::Devices, "power") => power_panel::PowerPanel::load(self.backend()),
+            (Group::Devices, "removable") => removable_panel::RemovablePanel::load(self.backend()),
+            (Group::Fleet, "revisions") => fleet_revisions_panel::FleetRevisionsPanel::load(),
             // Fleet settings has no Load — it's a push-only
             // surface, so navigation doesn't fan a refresh.
             (Group::Fleet, "settings") => Task::none(),
@@ -416,33 +397,42 @@ impl App {
     /// Per-View body — panel views land here as they ship.
     fn panel_body(&self) -> Element<'_, Message> {
         match self.view {
-            View::Panel { group: Group::LookAndFeel, panel: "themes" } => {
-                self.themes.view()
-            }
-            View::Panel { group: Group::LookAndFeel, panel: "fonts" } => {
-                self.fonts.view()
-            }
-            View::Panel { group: Group::LookAndFeel, panel: "wallpaper" } => {
-                self.wallpaper.view()
-            }
-            View::Panel { group: Group::System, panel: "session" } => {
-                self.session.view()
-            }
-            View::Panel { group: Group::System, panel: "notifications" } => {
-                self.notifications.view()
-            }
-            View::Panel { group: Group::Devices, panel: "power" } => {
-                self.power.view()
-            }
-            View::Panel { group: Group::Devices, panel: "removable" } => {
-                self.removable.view()
-            }
-            View::Panel { group: Group::Fleet, panel: "settings" } => {
-                self.fleet_settings.view()
-            }
-            View::Panel { group: Group::Fleet, panel: "revisions" } => {
-                self.fleet_revisions.view()
-            }
+            View::Panel {
+                group: Group::LookAndFeel,
+                panel: "themes",
+            } => self.themes.view(),
+            View::Panel {
+                group: Group::LookAndFeel,
+                panel: "fonts",
+            } => self.fonts.view(),
+            View::Panel {
+                group: Group::LookAndFeel,
+                panel: "wallpaper",
+            } => self.wallpaper.view(),
+            View::Panel {
+                group: Group::System,
+                panel: "session",
+            } => self.session.view(),
+            View::Panel {
+                group: Group::System,
+                panel: "notifications",
+            } => self.notifications.view(),
+            View::Panel {
+                group: Group::Devices,
+                panel: "power",
+            } => self.power.view(),
+            View::Panel {
+                group: Group::Devices,
+                panel: "removable",
+            } => self.removable.view(),
+            View::Panel {
+                group: Group::Fleet,
+                panel: "settings",
+            } => self.fleet_settings.view(),
+            View::Panel {
+                group: Group::Fleet,
+                panel: "revisions",
+            } => self.fleet_revisions.view(),
             _ => {
                 // Placeholder body for views without a wired
                 // panel — keeps the chrome readable while the
@@ -638,9 +628,9 @@ mod tests {
     #[test]
     fn session_panel_toggle_messages_persist_in_app_state() {
         let mut app = App::new();
-        let _ = app.update(Message::Session(
-            session_panel::Message::SaveOnExitChanged(true),
-        ));
+        let _ = app.update(Message::Session(session_panel::Message::SaveOnExitChanged(
+            true,
+        )));
         let _ = app.update(Message::Session(
             session_panel::Message::LockOnSuspendChanged(true),
         ));

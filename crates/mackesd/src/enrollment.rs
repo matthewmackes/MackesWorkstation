@@ -89,7 +89,11 @@ fn hex_sha256(input: &[u8]) -> String {
 /// shared passcode. Returns `None` if the passcode doesn't pass
 /// `looks_valid`.
 #[must_use]
-pub fn build_request(identity: &EnrolledIdentity, passcode: &str, display_name: &str) -> Option<EnrollmentRequest> {
+pub fn build_request(
+    identity: &EnrolledIdentity,
+    passcode: &str,
+    display_name: &str,
+) -> Option<EnrollmentRequest> {
     if !looks_valid(passcode) {
         return None;
     }
@@ -152,7 +156,9 @@ mod tests {
 
     #[test]
     fn hw_fingerprint_uses_env_override_when_set() {
-        let _g = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _g = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         std::env::set_var("MACKES_MACHINE_ID", "test-host-12345");
         let id = build_identity();
         std::env::remove_var("MACKES_MACHINE_ID");
@@ -211,7 +217,9 @@ mod tests {
 
     #[test]
     fn hw_fingerprint_is_64_hex_chars() {
-        let _g = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _g = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         std::env::set_var("MACKES_MACHINE_ID", "anything-here-works");
         let id = build_identity();
         std::env::remove_var("MACKES_MACHINE_ID");
@@ -221,7 +229,9 @@ mod tests {
 
     #[test]
     fn hw_fingerprint_changes_with_machine_id() {
-        let _g = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _g = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         std::env::set_var("MACKES_MACHINE_ID", "host-a");
         let id_a = build_identity();
         std::env::set_var("MACKES_MACHINE_ID", "host-b");
@@ -232,7 +242,9 @@ mod tests {
 
     #[test]
     fn empty_env_override_falls_back_to_real_machine_id() {
-        let _g = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _g = ENV_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         // Empty string env var is treated as unset for the override.
         // The fallback reads /etc/machine-id; in a CI container that
         // may be empty too. Either way the fingerprint must be 64 hex

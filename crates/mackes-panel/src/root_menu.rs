@@ -391,7 +391,10 @@ mod tests {
             // upstream — here we keep them so the test catches a
             // future refactor that drops the accessible on a real
             // item. Skip explicit separators.
-            if item.upcast_ref::<gtk::Widget>().is::<gtk::SeparatorMenuItem>() {
+            if item
+                .upcast_ref::<gtk::Widget>()
+                .is::<gtk::SeparatorMenuItem>()
+            {
                 continue;
             }
             let atk = item.accessible().expect("AtkObject must exist on MenuItem");

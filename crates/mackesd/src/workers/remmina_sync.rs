@@ -24,10 +24,7 @@ pub fn build() -> SubprocessTickWorker {
     SubprocessTickWorker::new(
         "remmina-sync",
         "python3",
-        vec![
-            OsString::from("-m"),
-            OsString::from("mackes.remmina_sync"),
-        ],
+        vec![OsString::from("-m"), OsString::from("mackes.remmina_sync")],
         Duration::from_secs(TICK_INTERVAL_S),
     )
 }

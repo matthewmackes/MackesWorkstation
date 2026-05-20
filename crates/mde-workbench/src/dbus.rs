@@ -138,11 +138,7 @@ mod tests {
         reset_pending();
         assert!(PendingFocus::submit("network.mesh_ssh".into()));
         assert_eq!(PendingFocus::drain(), Some("network.mesh_ssh".into()));
-        assert_eq!(
-            PendingFocus::drain(),
-            None,
-            "drain should clear the slot"
-        );
+        assert_eq!(PendingFocus::drain(), None, "drain should clear the slot");
     }
 
     #[test]
@@ -161,10 +157,7 @@ mod tests {
         reset_pending();
         let svc = WorkbenchService;
         svc.focus("look_and_feel").await.expect("focus ok");
-        assert_eq!(
-            PendingFocus::drain(),
-            Some("look_and_feel".to_string())
-        );
+        assert_eq!(PendingFocus::drain(), Some("look_and_feel".to_string()));
     }
 
     #[tokio::test]
@@ -182,10 +175,7 @@ mod tests {
         reset_pending();
         let svc = WorkbenchService;
         svc.focus("  network.mesh_ssh  ").await.expect("focus ok");
-        assert_eq!(
-            PendingFocus::drain(),
-            Some("network.mesh_ssh".to_string())
-        );
+        assert_eq!(PendingFocus::drain(), Some("network.mesh_ssh".to_string()));
     }
 
     #[tokio::test]

@@ -50,16 +50,18 @@ struct MirroredNotification {
     pub urgency: u8,
 }
 
-const fn default_urgency() -> u8 { 1 }
+const fn default_urgency() -> u8 {
+    1
+}
 
 /// Worker driving the relay loop.
 pub struct NotificationRelayWorker {
     qnm_root: PathBuf,
-    conn:     Arc<Mutex<rusqlite::Connection>>,
+    conn: Arc<Mutex<rusqlite::Connection>>,
     /// Source ids we've already imported, keyed by (peer, source_id),
     /// so a polling tick that sees an already-seen file doesn't
     /// double-insert.
-    seen:     HashSet<(String, i64)>,
+    seen: HashSet<(String, i64)>,
 }
 
 impl NotificationRelayWorker {
@@ -155,7 +157,9 @@ impl NotificationRelayWorker {
                   origin_peer_id) \
                  VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
-                    &n.app, &n.title, &n.body,
+                    &n.app,
+                    &n.title,
+                    &n.body,
                     "{}",
                     i64::from(n.urgency),
                     &now,
@@ -182,10 +186,10 @@ pub fn parse_mirrored(text: &str) -> Result<MirroredEntry, serde_json::Error> {
     let parsed: MirroredNotification = serde_json::from_str(text)?;
     Ok(MirroredEntry {
         source_id: parsed.source_id,
-        app:       parsed.app,
-        title:     parsed.title,
-        body:      parsed.body,
-        urgency:   parsed.urgency,
+        app: parsed.app,
+        title: parsed.title,
+        body: parsed.body,
+        urgency: parsed.urgency,
     })
 }
 
@@ -197,13 +201,13 @@ pub struct MirroredEntry {
     /// Stable id assigned by the originating peer's notifier.
     pub source_id: i64,
     /// App that emitted the notification.
-    pub app:       String,
+    pub app: String,
     /// Notification title.
-    pub title:     String,
+    pub title: String,
     /// Free-form body.
-    pub body:      String,
+    pub body: String,
     /// Urgency 0..=2.
-    pub urgency:   u8,
+    pub urgency: u8,
 }
 
 /// Inspect [`MirroredEntry`] for the seen-set key the relay uses
@@ -228,13 +232,16 @@ mod tests {
             "urgency":   2
         }"#;
         let entry = parse_mirrored(text).expect("parse");
-        assert_eq!(entry, MirroredEntry {
-            source_id: 42,
-            app:       "weather".into(),
-            title:     "Rain in 30 min".into(),
-            body:      "Pack an umbrella".into(),
-            urgency:   2,
-        });
+        assert_eq!(
+            entry,
+            MirroredEntry {
+                source_id: 42,
+                app: "weather".into(),
+                title: "Rain in 30 min".into(),
+                body: "Pack an umbrella".into(),
+                urgency: 2,
+            }
+        );
     }
 
     #[test]
@@ -256,13 +263,12 @@ mod tests {
     fn seen_key_pairs_peer_with_source_id() {
         let entry = MirroredEntry {
             source_id: 99,
-            app:       "x".into(),
-            title:     "t".into(),
-            body:      "".into(),
-            urgency:   1,
+            app: "x".into(),
+            title: "t".into(),
+            body: "".into(),
+            urgency: 1,
         };
-        assert_eq!(seen_key("peer:anvil", &entry),
-                   ("peer:anvil".into(), 99));
+        assert_eq!(seen_key("peer:anvil", &entry), ("peer:anvil".into(), 99));
     }
 
     #[tokio::test]
@@ -277,15 +283,14 @@ mod tests {
     async fn relay_tick_imports_new_notifications_then_dedupes() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let conn = crate::store::open_in_memory().expect("open");
-        let mut w = NotificationRelayWorker::new(
-            tmp.path().to_path_buf(), conn,
-        );
+        let mut w = NotificationRelayWorker::new(tmp.path().to_path_buf(), conn);
         let peer_dir = tmp.path().join("peer:anvil").join(".qnm-notifications");
         std::fs::create_dir_all(&peer_dir).expect("mkdir");
         std::fs::write(
             peer_dir.join("1.json"),
             r#"{"source_id": 1, "app": "a", "title": "first"}"#,
-        ).expect("write");
+        )
+        .expect("write");
 
         w.tick().await.expect("first tick");
 
@@ -311,7 +316,8 @@ mod tests {
         std::fs::write(
             peer_dir.join("2.json"),
             r#"{"source_id": 2, "app": "a", "title": "second"}"#,
-        ).expect("write");
+        )
+        .expect("write");
         w.tick().await.expect("third tick");
         let count: i64 = {
             let guard = w.conn.lock().await;
@@ -326,9 +332,7 @@ mod tests {
     async fn relay_tick_skips_non_json_files() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let conn = crate::store::open_in_memory().expect("open");
-        let mut w = NotificationRelayWorker::new(
-            tmp.path().to_path_buf(), conn,
-        );
+        let mut w = NotificationRelayWorker::new(tmp.path().to_path_buf(), conn);
         let peer_dir = tmp.path().join("peer:cedar").join(".qnm-notifications");
         std::fs::create_dir_all(&peer_dir).expect("mkdir");
         std::fs::write(peer_dir.join("readme.txt"), "not json").expect("w1");
@@ -348,9 +352,7 @@ mod tests {
     async fn relay_tick_skips_peers_without_notifications_dir() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let conn = crate::store::open_in_memory().expect("open");
-        let mut w = NotificationRelayWorker::new(
-            tmp.path().to_path_buf(), conn,
-        );
+        let mut w = NotificationRelayWorker::new(tmp.path().to_path_buf(), conn);
         // peer:lonely exists but has no .qnm-notifications dir.
         std::fs::create_dir_all(tmp.path().join("peer:lonely")).expect("mkdir");
         // Should not crash.
@@ -360,9 +362,7 @@ mod tests {
     #[tokio::test]
     async fn relay_tick_handles_missing_qnm_root() {
         let conn = crate::store::open_in_memory().expect("open");
-        let mut w = NotificationRelayWorker::new(
-            std::path::PathBuf::from("/does/not/exist"), conn,
-        );
+        let mut w = NotificationRelayWorker::new(std::path::PathBuf::from("/does/not/exist"), conn);
         // Should return Ok cleanly when the root is missing.
         w.tick().await.expect("tick");
     }

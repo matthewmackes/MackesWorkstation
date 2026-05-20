@@ -284,7 +284,9 @@ fn rerender_list(list: &gtk::Box, count_label: &gtk::Label, notifications: &[Not
             items.len()
         )));
         node_header.set_halign(gtk::Align::Start);
-        node_header.style_context().add_class("mackes-nc-node-header");
+        node_header
+            .style_context()
+            .add_class("mackes-nc-node-header");
         list.add(&node_header);
         for n in items {
             list.add(&build_card(n, /* in_tree = */ true));
@@ -389,7 +391,10 @@ fn build_card(n: &Notification, in_tree: bool) -> gtk::Box {
         atk.set_name(&format!("Dismiss notification '{}'", n.title));
     }
     dismiss_btn.connect_clicked(move |_| {
-        let items: Vec<Notification> = load().into_iter().filter(|n| n.id != id_for_actions).collect();
+        let items: Vec<Notification> = load()
+            .into_iter()
+            .filter(|n| n.id != id_for_actions)
+            .collect();
         let _ = save(&items);
     });
     action_row.pack_start(&dismiss_btn, false, false, 0);
@@ -406,16 +411,31 @@ mod tests {
     fn unread_count_counts_unread() {
         let n = vec![
             Notification {
-                id: 1, node: "yew".into(), app: "cargo".into(),
-                min: 1, title: "a".into(), body: String::new(), read: false,
+                id: 1,
+                node: "yew".into(),
+                app: "cargo".into(),
+                min: 1,
+                title: "a".into(),
+                body: String::new(),
+                read: false,
             },
             Notification {
-                id: 2, node: "yew".into(), app: "cargo".into(),
-                min: 2, title: "b".into(), body: String::new(), read: true,
+                id: 2,
+                node: "yew".into(),
+                app: "cargo".into(),
+                min: 2,
+                title: "b".into(),
+                body: String::new(),
+                read: true,
             },
             Notification {
-                id: 3, node: "pine".into(), app: "sshd".into(),
-                min: 3, title: "c".into(), body: String::new(), read: false,
+                id: 3,
+                node: "pine".into(),
+                app: "sshd".into(),
+                min: 3,
+                title: "c".into(),
+                body: String::new(),
+                read: false,
             },
         ];
         assert_eq!(unread_count(&n), 2);
@@ -427,8 +447,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("notifications.json");
         let n = vec![Notification {
-            id: 7, node: "birch".into(), app: "updates".into(),
-            min: 5, title: "12 updates".into(), body: "DNF".into(),
+            id: 7,
+            node: "birch".into(),
+            app: "updates".into(),
+            min: 5,
+            title: "12 updates".into(),
+            body: "DNF".into(),
             read: false,
         }];
         save_to(&path, &n).unwrap();
@@ -448,8 +472,13 @@ mod tests {
     #[test]
     fn unread_count_zero_when_all_read() {
         let n = vec![Notification {
-            id: 1, node: "yew".into(), app: "cargo".into(),
-            min: 1, title: "a".into(), body: String::new(), read: true,
+            id: 1,
+            node: "yew".into(),
+            app: "cargo".into(),
+            min: 1,
+            title: "a".into(),
+            body: String::new(),
+            read: true,
         }];
         assert_eq!(unread_count(&n), 0);
     }
@@ -502,8 +531,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let nested = dir.path().join("a/b/c/notifications.json");
         let n = vec![Notification {
-            id: 1, node: "yew".into(), app: "cargo".into(),
-            min: 1, title: "t".into(), body: String::new(), read: false,
+            id: 1,
+            node: "yew".into(),
+            app: "cargo".into(),
+            min: 1,
+            title: "t".into(),
+            body: String::new(),
+            read: false,
         }];
         save_to(&nested, &n).unwrap();
         assert!(nested.exists());
@@ -516,8 +550,13 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("notifications.json");
         let original = vec![Notification {
-            id: 1, node: "yew".into(), app: "cargo".into(),
-            min: 1, title: "first".into(), body: String::new(), read: false,
+            id: 1,
+            node: "yew".into(),
+            app: "cargo".into(),
+            min: 1,
+            title: "first".into(),
+            body: String::new(),
+            read: false,
         }];
         save_to(&path, &original).unwrap();
         // Replace with an empty list.

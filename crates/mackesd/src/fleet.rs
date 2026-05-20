@@ -25,17 +25,17 @@ use crate::Result;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PushPlan {
     /// Dot-notated setting key (e.g. `theme.accent`).
-    pub key:         String,
+    pub key: String,
     /// JSON-encoded value payload.
-    pub value:       String,
+    pub value: String,
     /// Peer ids the push targets, lexicographically ordered.
     /// `["all"]` is the canonical "every healthy peer" sentinel —
     /// the reconcile loop expands it at apply time so the plan stays
     /// stable even when the fleet membership churns between push and
     /// apply.
-    pub peers:       Vec<String>,
+    pub peers: Vec<String>,
     /// Author tag (typically `peer:<hostname>`).
-    pub author:      String,
+    pub author: String,
     /// Provisional revision id — the SQL writer allocates the real
     /// id when the row lands. The plan stamps a deterministic
     /// preview shape (`fleet-push-<key>`) so dry-run output is
@@ -50,10 +50,10 @@ pub struct PushPlan {
 pub fn plan_push(key: &str, value: &str, peers: &str, author: &str) -> PushPlan {
     let peers = parse_peers(peers);
     PushPlan {
-        key:         key.to_owned(),
-        value:       value.to_owned(),
+        key: key.to_owned(),
+        value: value.to_owned(),
         peers,
-        author:      author.to_owned(),
+        author: author.to_owned(),
         revision_id: format!("fleet-push-{}", sanitize_revision_segment(key)),
     }
 }
@@ -180,22 +180,14 @@ mod tests {
 
     #[test]
     fn sanitize_revision_segment_keeps_safe_chars() {
-        assert_eq!(
-            sanitize_revision_segment("theme.accent"),
-            "theme_accent",
-        );
+        assert_eq!(sanitize_revision_segment("theme.accent"), "theme_accent",);
         assert_eq!(sanitize_revision_segment("ok-key_1"), "ok-key_1");
         assert_eq!(sanitize_revision_segment("path/to/key"), "path_to_key");
     }
 
     #[test]
     fn plan_push_builds_expected_shape_for_all_target() {
-        let plan = plan_push(
-            "theme.accent",
-            "\"#ff00aa\"",
-            "all",
-            "peer:host",
-        );
+        let plan = plan_push("theme.accent", "\"#ff00aa\"", "all", "peer:host");
         assert_eq!(plan.key, "theme.accent");
         assert_eq!(plan.peers, vec!["all".to_owned()]);
         assert_eq!(plan.author, "peer:host");
@@ -204,28 +196,21 @@ mod tests {
 
     #[test]
     fn plan_push_builds_expected_shape_for_explicit_peers() {
-        let plan = plan_push(
-            "font.size",
-            "13",
-            "peer:c, peer:a, peer:b",
-            "alice",
+        let plan = plan_push("font.size", "13", "peer:c, peer:a, peer:b", "alice");
+        assert_eq!(
+            plan.peers,
+            vec![
+                "peer:a".to_owned(),
+                "peer:b".to_owned(),
+                "peer:c".to_owned(),
+            ]
         );
-        assert_eq!(plan.peers, vec![
-            "peer:a".to_owned(),
-            "peer:b".to_owned(),
-            "peer:c".to_owned(),
-        ]);
     }
 
     #[test]
     fn record_push_writes_one_revision_plus_per_peer_log_rows() {
         let mut conn = crate::store::open_in_memory().expect("open");
-        let plan = plan_push(
-            "theme.mode",
-            r#""dark""#,
-            "peer:a, peer:b",
-            "peer:host",
-        );
+        let plan = plan_push("theme.mode", r#""dark""#, "peer:a, peer:b", "peer:host");
         let revision_id = record_push(&mut conn, &plan).expect("record");
         let dc_count: i64 = conn
             .query_row(

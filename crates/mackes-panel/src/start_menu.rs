@@ -148,11 +148,21 @@ pub fn build(relative_to: &gtk::Widget) -> gtk::Popover {
     column.set_margin_end(14);
 
     column.pack_start(&build_quick_actions_row(&popover), false, false, 0);
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     column.pack_start(&build_toggles_row(), false, false, 0);
     column.pack_start(&build_volume_row(), false, false, 0);
     column.pack_start(&build_brightness_row(), false, false, 0);
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     column.pack_start(&build_footer(&popover), false, false, 0);
 
     popover.add(&column);
@@ -176,7 +186,9 @@ fn build_quick_action(action: &'static ActionSpec, popover: &gtk::Popover) -> gt
         "mackes-action-{}",
         action.label.to_ascii_lowercase().replace(' ', "-")
     ));
-    button.style_context().add_class(&format!("mackes-action-{}", action.color));
+    button
+        .style_context()
+        .add_class(&format!("mackes-action-{}", action.color));
     button.set_relief(gtk::ReliefStyle::None);
     button.set_focus_on_click(false);
     button.set_tooltip_text(Some(action.label));
@@ -377,10 +389,7 @@ fn mutate_bluetooth(new_on: bool) -> Vec<Cmd> {
 /// xfconf-query prints `true` / `false` on stdout. Matches the
 /// `_dnd_state` semantics in the Python drawer.
 fn probe_xfconf_bool(runner: &dyn CommandRunner, channel: &str, prop: &str) -> bool {
-    let result = runner.run(&Cmd::new(
-        "xfconf-query",
-        &["-c", channel, "-p", prop],
-    ));
+    let result = runner.run(&Cmd::new("xfconf-query", &["-c", channel, "-p", prop]));
     result.success && result.stdout.trim().eq_ignore_ascii_case("true")
 }
 
@@ -423,8 +432,7 @@ const TOGGLE_SPECS: &[ToggleSpec] = &[
     ToggleSpec {
         label: "Mesh",
         key: "mesh",
-        human_tooltip:
-            "Mesh: connect this peer to the Mackes mesh fabric",
+        human_tooltip: "Mesh: connect this peer to the Mackes mesh fabric",
         command_tooltip: "tailscale up / tailscale down",
         probe: probe_mesh,
         mutate: mutate_mesh,
@@ -432,8 +440,7 @@ const TOGGLE_SPECS: &[ToggleSpec] = &[
     ToggleSpec {
         label: "Bluetooth",
         key: "bluetooth",
-        human_tooltip:
-            "Bluetooth: power the local adapter on or off",
+        human_tooltip: "Bluetooth: power the local adapter on or off",
         command_tooltip: "bluetoothctl power on|off",
         probe: probe_bluetooth,
         mutate: mutate_bluetooth,
@@ -441,18 +448,15 @@ const TOGGLE_SPECS: &[ToggleSpec] = &[
     ToggleSpec {
         label: "Do Not Disturb",
         key: "dnd",
-        human_tooltip:
-            "Do Not Disturb: silence xfce4-notifyd notifications",
-        command_tooltip:
-            "xfconf-query -c xfce4-notifyd -p /do-not-disturb",
+        human_tooltip: "Do Not Disturb: silence xfce4-notifyd notifications",
+        command_tooltip: "xfconf-query -c xfce4-notifyd -p /do-not-disturb",
         probe: probe_dnd,
         mutate: mutate_dnd,
     },
     ToggleSpec {
         label: "Caffeine",
         key: "caffeine",
-        human_tooltip:
-            "Caffeine: keep the screen awake (presentation mode)",
+        human_tooltip: "Caffeine: keep the screen awake (presentation mode)",
         command_tooltip:
             "xfconf-query -c xfce4-power-manager -p /xfce4-power-manager/presentation-mode",
         probe: probe_caffeine,
@@ -559,8 +563,7 @@ fn toggle_chip(spec: &'static ToggleSpec, runner: Rc<dyn CommandRunner>) -> gtk:
                 } else {
                     style.remove_class("on");
                 }
-                chip_for_handler
-                    .set_tooltip_text(Some(&tooltip_for(spec, new_on)));
+                chip_for_handler.set_tooltip_text(Some(&tooltip_for(spec, new_on)));
                 if let Some(atk) = chip_for_handler.accessible() {
                     atk.set_name(&ax_name_for(spec, new_on));
                 }
@@ -650,7 +653,9 @@ fn build_brightness_row() -> gtk::Box {
     row.pack_start(&label, false, false, 0);
 
     let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 2);
-    buttons.style_context().add_class("mackes-brightness-buttons");
+    buttons
+        .style_context()
+        .add_class("mackes-brightness-buttons");
     for &pct in BRIGHTNESS_LEVELS {
         let b = gtk::Button::with_label(&format!("{pct}"));
         b.set_widget_name(&format!("mackes-brightness-{pct}"));
@@ -664,10 +669,18 @@ fn build_brightness_row() -> gtk::Box {
             let arg = format!("{pct}%");
             // brightnessctl is the most-common Fedora helper; fall back
             // to xrandr on systems without backlight ACPI.
-            if Command::new("brightnessctl").args(["set", &arg]).spawn().is_err() {
+            if Command::new("brightnessctl")
+                .args(["set", &arg])
+                .spawn()
+                .is_err()
+            {
                 let _ = Command::new("xrandr")
-                    .args(["--output", "eDP-1", "--brightness",
-                           &format!("{:.2}", f64::from(pct) / 100.0)])
+                    .args([
+                        "--output",
+                        "eDP-1",
+                        "--brightness",
+                        &format!("{:.2}", f64::from(pct) / 100.0),
+                    ])
                     .spawn();
             }
         });

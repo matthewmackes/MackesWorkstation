@@ -73,7 +73,8 @@ pub fn diff(from: &Revision, to: &Revision) -> Result<RevisionDiff, serde_json::
                 out.removed.insert(k.clone(), v.to_string());
             }
             Some(tv) if tv != v => {
-                out.changed.insert(k.clone(), (v.to_string(), tv.to_string()));
+                out.changed
+                    .insert(k.clone(), (v.to_string(), tv.to_string()));
             }
             _ => {}
         }

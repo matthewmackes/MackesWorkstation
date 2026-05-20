@@ -55,11 +55,7 @@ impl FleetService {
 
     /// Rollback to a given revision (fleet-wide or per-peer based on
     /// selector grammar).
-    async fn rollback(
-        &self,
-        _revision_id: &str,
-        _peers_selector: &str,
-    ) -> zbus::fdo::Result<()> {
+    async fn rollback(&self, _revision_id: &str, _peers_selector: &str) -> zbus::fdo::Result<()> {
         Err(zbus::fdo::Error::Failed(
             "Fleet.Rollback — not implemented until v2.0.0 Phase G".into(),
         ))

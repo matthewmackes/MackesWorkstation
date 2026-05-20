@@ -25,8 +25,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub mod autostart;
 pub mod automount;
+pub mod autostart;
 pub mod display;
 pub mod font;
 pub mod keybinds;
@@ -232,7 +232,9 @@ impl SettingValue {
     /// Returns an error if serialization to JSON fails. In practice
     /// this never happens for `Serialize` impls in this crate.
     pub fn from_serde<T: Serialize>(v: &T) -> anyhow::Result<Self> {
-        Ok(Self(serde_json::to_value(v).context("serializing SettingValue")?))
+        Ok(Self(
+            serde_json::to_value(v).context("serializing SettingValue")?,
+        ))
     }
 
     /// Narrow to a concrete Rust type.
@@ -427,19 +429,19 @@ mod g2_tests {
 
     #[test]
     fn apply_all_reports_unknown_key_per_entry() {
-        let outcomes = apply_all(&[
-            ("not.a.real.key".into(), r#""x""#.into()),
-        ]);
+        let outcomes = apply_all(&[("not.a.real.key".into(), r#""x""#.into())]);
         assert_eq!(outcomes.len(), 1);
         assert!(!outcomes[0].ok);
-        assert!(outcomes[0].error.as_ref().unwrap().contains("unknown setting key"));
+        assert!(outcomes[0]
+            .error
+            .as_ref()
+            .unwrap()
+            .contains("unknown setting key"));
     }
 
     #[test]
     fn apply_all_reports_malformed_json_per_entry() {
-        let outcomes = apply_all(&[
-            ("theme.name".into(), "{not json".into()),
-        ]);
+        let outcomes = apply_all(&[("theme.name".into(), "{not json".into())]);
         assert_eq!(outcomes.len(), 1);
         assert!(!outcomes[0].ok);
         assert!(outcomes[0].error.as_ref().unwrap().contains("value_json"));
@@ -481,8 +483,11 @@ mod tests {
         for &key in SettingKey::all() {
             let s = key.as_str();
             assert!(s.contains('.'), "key {s} is not dot-notated");
-            assert!(s.chars().all(|c| c.is_ascii_lowercase() || c == '.' || c == '_'),
-                    "key {s} has invalid chars");
+            assert!(
+                s.chars()
+                    .all(|c| c.is_ascii_lowercase() || c == '.' || c == '_'),
+                "key {s} has invalid chars"
+            );
             assert!(seen.insert(s), "duplicate key {s}");
         }
     }
@@ -520,7 +525,11 @@ mod tests {
     fn snapshot_is_deterministic() {
         let mut a = Snapshot::default();
         let mut b = Snapshot::default();
-        for &key in &[SettingKey::ThemeAccent, SettingKey::ThemeName, SettingKey::FontName] {
+        for &key in &[
+            SettingKey::ThemeAccent,
+            SettingKey::ThemeName,
+            SettingKey::FontName,
+        ] {
             a.values.insert(
                 key.as_str().to_string(),
                 SettingValue::from_serde(&"x").unwrap(),
@@ -532,6 +541,9 @@ mod tests {
         }
         let a_json = serde_json::to_string(&a).unwrap();
         let b_json = serde_json::to_string(&b).unwrap();
-        assert_eq!(a_json, b_json, "BTreeMap serialization must be order-stable");
+        assert_eq!(
+            a_json, b_json,
+            "BTreeMap serialization must be order-stable"
+        );
     }
 }

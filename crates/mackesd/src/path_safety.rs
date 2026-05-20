@@ -43,14 +43,11 @@ impl AllowedRoot {
     /// Returns [`PathError::NotFound`] if the path can't be
     /// canonicalised (most commonly: doesn't exist or insufficient
     /// permission to traverse).
-    pub fn new(
-        path: impl AsRef<Path>,
-        label: impl Into<String>,
-    ) -> Result<Self, PathError> {
+    pub fn new(path: impl AsRef<Path>, label: impl Into<String>) -> Result<Self, PathError> {
         let canon = std::fs::canonicalize(path.as_ref())
             .map_err(|_| PathError::NotFound(path.as_ref().to_path_buf()))?;
         Ok(Self {
-            path:  canon,
+            path: canon,
             label: label.into(),
         })
     }
@@ -96,10 +93,7 @@ impl PathPolicy {
     ///   readable.
     /// * [`PathError::OutsideRoots`] — canonical path doesn't sit
     ///   under any allowed root.
-    pub fn validate(
-        &self,
-        candidate: impl AsRef<Path>,
-    ) -> Result<PathBuf, PathError> {
+    pub fn validate(&self, candidate: impl AsRef<Path>) -> Result<PathBuf, PathError> {
         let candidate = candidate.as_ref();
         // Pre-canonicalise traversal reject: any literal `..` in
         // the request gets bounced before we hit the filesystem.
@@ -151,11 +145,9 @@ impl std::fmt::Display for PathError {
                 write!(f, "path: traversal segment rejected: {}", p.display())
             }
             Self::NotFound(p) => write!(f, "path: not found: {}", p.display()),
-            Self::OutsideRoots(p) => write!(
-                f,
-                "path: {} is outside the allowed-roots set",
-                p.display()
-            ),
+            Self::OutsideRoots(p) => {
+                write!(f, "path: {} is outside the allowed-roots set", p.display())
+            }
         }
     }
 }
@@ -250,8 +242,10 @@ mod tests {
         symlink(&real, &link).expect("symlink");
         let p = make_policy_for(&[(root.path(), "scratch")]);
         let err = p.validate(&link).unwrap_err();
-        assert!(matches!(err, PathError::OutsideRoots(_)),
-                "symlink target outside root must be rejected");
+        assert!(
+            matches!(err, PathError::OutsideRoots(_)),
+            "symlink target outside root must be rejected"
+        );
     }
 
     #[test]

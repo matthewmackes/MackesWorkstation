@@ -57,9 +57,9 @@ pub fn parse_prefs_json(text: &str) -> AutomountPrefs {
 pub fn apply(key: SettingKey, value: &SettingValue) -> anyhow::Result<()> {
     let on: bool = value.to_serde()?;
     match key {
-        SettingKey::AutomountOnInsert    => update_prefs(move |p| p.on_insert = on),
+        SettingKey::AutomountOnInsert => update_prefs(move |p| p.on_insert = on),
         SettingKey::AutomountOpenOnMount => update_prefs(move |p| p.open_on_mount = on),
-        SettingKey::AutomountAutorun     => update_prefs(move |p| p.autorun = on),
+        SettingKey::AutomountAutorun => update_prefs(move |p| p.autorun = on),
         _ => anyhow::bail!("automount: {key} is not an automount key"),
     }
 }
@@ -71,16 +71,13 @@ fn update_prefs(mut mutator: impl FnMut(&mut AutomountPrefs)) -> anyhow::Result<
         .unwrap_or_default();
     mutator(&mut prefs);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            anyhow::anyhow!("automount: mkdir {} failed: {e}", parent.display())
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("automount: mkdir {} failed: {e}", parent.display()))?;
     }
-    let text = serde_json::to_string_pretty(&prefs).map_err(|e| {
-        anyhow::anyhow!("automount: serialize failed: {e}")
-    })?;
-    std::fs::write(&path, text).map_err(|e| {
-        anyhow::anyhow!("automount: write {} failed: {e}", path.display())
-    })
+    let text = serde_json::to_string_pretty(&prefs)
+        .map_err(|e| anyhow::anyhow!("automount: serialize failed: {e}"))?;
+    std::fs::write(&path, text)
+        .map_err(|e| anyhow::anyhow!("automount: write {} failed: {e}", path.display()))
 }
 
 /// Read the current `automount.*` setting.
@@ -92,9 +89,9 @@ pub fn current(key: SettingKey) -> anyhow::Result<SettingValue> {
         .map(|s| parse_prefs_json(&s))
         .unwrap_or_default();
     match key {
-        SettingKey::AutomountOnInsert    => SettingValue::from_serde(&prefs.on_insert),
+        SettingKey::AutomountOnInsert => SettingValue::from_serde(&prefs.on_insert),
         SettingKey::AutomountOpenOnMount => SettingValue::from_serde(&prefs.open_on_mount),
-        SettingKey::AutomountAutorun     => SettingValue::from_serde(&prefs.autorun),
+        SettingKey::AutomountAutorun => SettingValue::from_serde(&prefs.autorun),
         _ => anyhow::bail!("automount: {key} is not an automount key"),
     }
 }
@@ -113,7 +110,7 @@ mod tests {
         let r = body();
         match prev {
             Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
-            None    => std::env::remove_var("XDG_CACHE_HOME"),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
         }
         r
     }
@@ -123,10 +120,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
             let v: bool = current(SettingKey::AutomountOnInsert)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(!v);
             let v: bool = current(SettingKey::AutomountAutorun)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(!v, "autorun defaults to false for safety");
         });
     }
@@ -135,18 +136,33 @@ mod tests {
     fn apply_round_trip_all_three_keys() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::AutomountOnInsert,
-                  &SettingValue::from_serde(&true).unwrap()).unwrap();
-            apply(SettingKey::AutomountOpenOnMount,
-                  &SettingValue::from_serde(&true).unwrap()).unwrap();
-            apply(SettingKey::AutomountAutorun,
-                  &SettingValue::from_serde(&false).unwrap()).unwrap();
+            apply(
+                SettingKey::AutomountOnInsert,
+                &SettingValue::from_serde(&true).unwrap(),
+            )
+            .unwrap();
+            apply(
+                SettingKey::AutomountOpenOnMount,
+                &SettingValue::from_serde(&true).unwrap(),
+            )
+            .unwrap();
+            apply(
+                SettingKey::AutomountAutorun,
+                &SettingValue::from_serde(&false).unwrap(),
+            )
+            .unwrap();
             let a: bool = current(SettingKey::AutomountOnInsert)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             let b: bool = current(SettingKey::AutomountOpenOnMount)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             let c: bool = current(SettingKey::AutomountAutorun)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(a && b && !c);
         });
     }
@@ -155,12 +171,20 @@ mod tests {
     fn apply_one_key_preserves_others() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::AutomountOnInsert,
-                  &SettingValue::from_serde(&true).unwrap()).unwrap();
-            apply(SettingKey::AutomountAutorun,
-                  &SettingValue::from_serde(&true).unwrap()).unwrap();
+            apply(
+                SettingKey::AutomountOnInsert,
+                &SettingValue::from_serde(&true).unwrap(),
+            )
+            .unwrap();
+            apply(
+                SettingKey::AutomountAutorun,
+                &SettingValue::from_serde(&true).unwrap(),
+            )
+            .unwrap();
             let a: bool = current(SettingKey::AutomountOnInsert)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(a, "earlier on_insert=true must survive autorun apply");
         });
     }

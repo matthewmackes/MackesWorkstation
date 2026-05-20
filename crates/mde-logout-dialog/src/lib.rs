@@ -99,12 +99,13 @@ pub const fn title(action: Action) -> &'static str {
 #[must_use]
 pub const fn body(action: Action) -> &'static str {
     match action {
-        Action::Logout =>
-            "Your current MDE session will end and unsaved work will be lost.",
-        Action::Restart =>
-            "Your MDE session will end and the computer will restart. Unsaved work will be lost.",
-        Action::Shutdown =>
-            "Your MDE session will end and the computer will turn off. Unsaved work will be lost.",
+        Action::Logout => "Your current MDE session will end and unsaved work will be lost.",
+        Action::Restart => {
+            "Your MDE session will end and the computer will restart. Unsaved work will be lost."
+        }
+        Action::Shutdown => {
+            "Your MDE session will end and the computer will turn off. Unsaved work will be lost."
+        }
     }
 }
 
@@ -187,7 +188,10 @@ mod tests {
         // GNOME HIG both require this). "OK" is forbidden.
         for a in [Action::Logout, Action::Restart, Action::Shutdown] {
             let l = primary_button_label(a);
-            assert!(!l.eq_ignore_ascii_case("ok"), "primary label {l:?} must be specific");
+            assert!(
+                !l.eq_ignore_ascii_case("ok"),
+                "primary label {l:?} must be specific"
+            );
             assert!(!l.is_empty());
         }
     }

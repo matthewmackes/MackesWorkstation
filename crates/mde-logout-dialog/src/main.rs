@@ -28,14 +28,13 @@ use iced::widget::{button, column, container, row, text, Space};
 use iced::{Alignment, Element, Length, Size, Task, Theme};
 
 use mde_logout_dialog::{
-    body, cancel_button_label, exit_code, primary_button_label,
-    title, Action, Choice,
+    body, cancel_button_label, exit_code, primary_button_label, title, Action, Choice,
 };
 
 #[derive(Debug, Parser)]
 #[command(
-    name    = "mde-logout-dialog",
-    about   = "MDE logout / restart / shutdown confirmation dialog",
+    name = "mde-logout-dialog",
+    about = "MDE logout / restart / shutdown confirmation dialog",
     version
 )]
 struct Cli {
@@ -105,10 +104,9 @@ impl State {
     fn view(&self) -> Element<'_, Message> {
         let title_widget = text(title(self.action)).size(18);
         let body_widget = text(body(self.action)).size(14);
-        let cancel_btn = button(text(cancel_button_label()))
-            .on_press(Message::Cancel);
-        let primary_btn = button(text(primary_button_label(self.action)))
-            .on_press(Message::Confirm);
+        let cancel_btn = button(text(cancel_button_label())).on_press(Message::Cancel);
+        let primary_btn =
+            button(text(primary_button_label(self.action))).on_press(Message::Confirm);
 
         let buttons = row![
             Space::with_width(Length::Fill),

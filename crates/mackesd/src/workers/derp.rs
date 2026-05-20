@@ -29,7 +29,9 @@ pub fn is_installed() -> bool {
 /// (used by tests + the install-from-source flow's verification).
 #[must_use]
 pub fn is_installed_at(path: &Path) -> bool {
-    let Ok(meta) = std::fs::metadata(path) else { return false };
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
     if !meta.is_file() {
         return false;
     }

@@ -73,11 +73,7 @@ impl Selection {
     /// a plain click. The selection becomes exactly the inclusive
     /// range; rows outside the range that were previously selected
     /// get dropped (matches Finder + Files behaviour).
-    pub fn shift_click(
-        &mut self,
-        key: impl Into<String>,
-        ordered_rows: &[String],
-    ) {
+    pub fn shift_click(&mut self, key: impl Into<String>, ordered_rows: &[String]) {
         let key = key.into();
         let Some(anchor) = self.anchor.clone() else {
             self.click(key);
@@ -93,7 +89,11 @@ impl Selection {
             // Clicked row isn't in the visible list — ignore.
             return;
         };
-        let (lo, hi) = if start <= end { (start, end) } else { (end, start) };
+        let (lo, hi) = if start <= end {
+            (start, end)
+        } else {
+            (end, start)
+        };
         self.selected.clear();
         for r in &ordered_rows[lo..=hi] {
             self.selected.insert(r.clone());
@@ -321,11 +321,11 @@ mod tests {
         // most-recent-clicked row.
         let rows = rows(&["a", "b", "c", "d", "e"]);
         let mut s = Selection::new();
-        s.click("a");        // anchor=a
-        s.ctrl_click("e");   // anchor=e, selected=[a,e]
+        s.click("a"); // anchor=a
+        s.ctrl_click("e"); // anchor=e, selected=[a,e]
         s.shift_click("c", &rows); // extends from e back to c
-        // Range is c..e; selection becomes exactly {c, d, e}. a is
-        // out of range and gets dropped.
+                                   // Range is c..e; selection becomes exactly {c, d, e}. a is
+                                   // out of range and gets dropped.
         assert!(!s.is_selected("a"), "out-of-range a must be dropped");
         assert!(!s.is_selected("b"));
         assert!(s.is_selected("c"));

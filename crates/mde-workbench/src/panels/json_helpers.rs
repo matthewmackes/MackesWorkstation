@@ -47,7 +47,11 @@ pub fn parse_bool(s: &str) -> bool {
 /// canonical form after a Set so this is one-way.
 #[must_use]
 pub const fn encode_bool(b: bool) -> &'static str {
-    if b { "true" } else { "false" }
+    if b {
+        "true"
+    } else {
+        "false"
+    }
 }
 
 /// Parse a `u32` from a panel's text input. Strips

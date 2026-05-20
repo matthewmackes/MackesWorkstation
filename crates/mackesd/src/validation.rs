@@ -83,17 +83,11 @@ pub fn validate(snapshot: &DesiredSnapshot) -> Vec<ValidationError> {
     let mut seen_ids: HashSet<&str> = HashSet::new();
     for n in &snapshot.nodes {
         if !seen_ids.insert(&n.id) {
-            errors.push(ValidationError::DuplicateNodeId {
-                id: n.id.clone(),
-            });
+            errors.push(ValidationError::DuplicateNodeId { id: n.id.clone() });
         }
     }
 
-    let known_regions: HashSet<&str> = snapshot
-        .nodes
-        .iter()
-        .map(|n| n.region.as_str())
-        .collect();
+    let known_regions: HashSet<&str> = snapshot.nodes.iter().map(|n| n.region.as_str()).collect();
     for (from, to) in &snapshot.allow_east_west {
         if !known_regions.contains(from.as_str()) {
             errors.push(ValidationError::UnknownRegion {
@@ -101,9 +95,7 @@ pub fn validate(snapshot: &DesiredSnapshot) -> Vec<ValidationError> {
             });
         }
         if !known_regions.contains(to.as_str()) {
-            errors.push(ValidationError::UnknownRegion {
-                region: to.clone(),
-            });
+            errors.push(ValidationError::UnknownRegion { region: to.clone() });
         }
     }
 
@@ -115,8 +107,7 @@ pub fn validate(snapshot: &DesiredSnapshot) -> Vec<ValidationError> {
             errors.push(ValidationError::UnknownSettingKey { key: key.clone() });
             continue;
         };
-        let value: Result<crate::settings::SettingValue, _> =
-            serde_json::from_str(value_json);
+        let value: Result<crate::settings::SettingValue, _> = serde_json::from_str(value_json);
         let _ = parsed_key; // shape-validation lands when SettingValue carries shape info
         if let Err(e) = value {
             errors.push(ValidationError::InvalidSettingValue {
@@ -135,9 +126,7 @@ pub fn validate(snapshot: &DesiredSnapshot) -> Vec<ValidationError> {
 pub fn validate_node(n: &Node) -> Vec<ValidationError> {
     let mut errors = Vec::new();
     if n.id.trim().is_empty() {
-        errors.push(ValidationError::EmptyRequiredField {
-            path: "id".into(),
-        });
+        errors.push(ValidationError::EmptyRequiredField { path: "id".into() });
     }
     if n.region.trim().is_empty() {
         errors.push(ValidationError::EmptyRequiredField {
@@ -165,7 +154,7 @@ mod tests {
         let snap = DesiredSnapshot {
             nodes: vec![n("peer:a", "us-east"), n("peer:b", "us-east")],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         assert!(validate(&snap).is_empty());
     }
@@ -175,10 +164,12 @@ mod tests {
         let snap = DesiredSnapshot {
             nodes: vec![n("", "us-east")],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let errors = validate(&snap);
-        assert!(errors.iter().any(|e| matches!(e, ValidationError::EmptyRequiredField { .. })));
+        assert!(errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::EmptyRequiredField { .. })));
     }
 
     #[test]
@@ -186,7 +177,7 @@ mod tests {
         let snap = DesiredSnapshot {
             nodes: vec![n("peer:a", "us-east"), n("peer:a", "us-west")],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let errors = validate(&snap);
         assert!(errors.iter().any(|e| matches!(
@@ -220,7 +211,7 @@ mod tests {
         let snap = DesiredSnapshot {
             nodes: vec![n("", ""), n("", "")],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let errors = validate(&snap);
         // 4 empty-field errors (2 nodes × 2 fields each) + 1 duplicate
@@ -233,7 +224,7 @@ mod tests {
         let snap = DesiredSnapshot {
             nodes: vec![n("peer:a", "")],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let errors = validate(&snap);
         assert!(
@@ -249,7 +240,7 @@ mod tests {
         let snap = DesiredSnapshot {
             nodes: vec![n("   ", "\t\t")],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let errors = validate(&snap);
         assert_eq!(errors.len(), 2);
@@ -323,7 +314,7 @@ mod tests {
                 n("peer:dup", "us-east"),
             ],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let dups = validate(&snap)
             .into_iter()

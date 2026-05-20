@@ -30,8 +30,8 @@ const SHUTDOWN_GRACE_S: u64 = 5;
 
 /// Worker that spawns + supervises the mesh FUSE daemon.
 pub struct FsSyncWorker {
-    binary:    OsString,
-    args:      Vec<OsString>,
+    binary: OsString,
+    args: Vec<OsString>,
 }
 
 impl Default for FsSyncWorker {
@@ -47,7 +47,7 @@ impl FsSyncWorker {
     pub fn new() -> Self {
         Self {
             binary: OsString::from("python3"),
-            args:   vec![
+            args: vec![
                 OsString::from("-m"),
                 OsString::from("mackes.mesh_gvfs.daemon"),
             ],
@@ -63,7 +63,7 @@ impl FsSyncWorker {
     ) -> Self {
         Self {
             binary: binary.into(),
-            args:   args.into_iter().map(Into::into).collect(),
+            args: args.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -122,17 +122,9 @@ async fn graceful_shutdown(child: &mut Child) {
     // up to SHUTDOWN_GRACE_S in case the child saw the supervisor's
     // SIGTERM via its own signal handler and is already exiting; if
     // not, force-kill.
-    let _ = tokio::time::timeout(
-        Duration::from_secs(SHUTDOWN_GRACE_S),
-        child.wait(),
-    )
-    .await;
+    let _ = tokio::time::timeout(Duration::from_secs(SHUTDOWN_GRACE_S), child.wait()).await;
     let _ = child.start_kill();
-    let _ = tokio::time::timeout(
-        Duration::from_secs(1),
-        child.wait(),
-    )
-    .await;
+    let _ = tokio::time::timeout(Duration::from_secs(1), child.wait()).await;
 }
 
 #[cfg(test)]
@@ -147,22 +139,16 @@ mod tests {
 
     #[tokio::test]
     async fn fs_sync_worker_exits_clean_on_shutdown_during_run() {
-        let mut w = FsSyncWorker::with_argv(
-            "sleep",
-            vec![OsString::from("60")],
-        );
+        let mut w = FsSyncWorker::with_argv("sleep", vec![OsString::from("60")]);
         let (tx, rx) = tokio::sync::watch::channel(false);
         let token = ShutdownToken::from_receiver(rx);
         let handle = tokio::spawn(async move { w.run(token).await });
         tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = tx.send(true);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            handle,
-        )
-        .await
-        .expect("worker must exit on shutdown")
-        .expect("join");
+        let result = tokio::time::timeout(Duration::from_secs(10), handle)
+            .await
+            .expect("worker must exit on shutdown")
+            .expect("join");
         assert!(result.is_ok(), "shutdown during run should produce Ok");
     }
 
@@ -170,27 +156,18 @@ mod tests {
     async fn fs_sync_worker_returns_err_on_clean_subprocess_exit() {
         // `true` exits clean immediately — the worker should treat
         // that as Err (daemons aren't supposed to exit clean).
-        let mut w = FsSyncWorker::with_argv(
-            "true",
-            Vec::<OsString>::new(),
-        );
+        let mut w = FsSyncWorker::with_argv("true", Vec::<OsString>::new());
         let (_tx, rx) = tokio::sync::watch::channel(false);
         let token = ShutdownToken::from_receiver(rx);
-        let result = tokio::time::timeout(
-            Duration::from_secs(3),
-            w.run(token),
-        )
-        .await
-        .expect("worker exits");
+        let result = tokio::time::timeout(Duration::from_secs(3), w.run(token))
+            .await
+            .expect("worker exits");
         assert!(result.is_err(), "clean exit should surface as Err");
     }
 
     #[tokio::test]
     async fn fs_sync_worker_returns_err_when_spawn_fails() {
-        let mut w = FsSyncWorker::with_argv(
-            "/never/exists/binary",
-            Vec::<OsString>::new(),
-        );
+        let mut w = FsSyncWorker::with_argv("/never/exists/binary", Vec::<OsString>::new());
         let (_tx, rx) = tokio::sync::watch::channel(false);
         let token = ShutdownToken::from_receiver(rx);
         let result = w.run(token).await;

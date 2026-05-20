@@ -64,20 +64,29 @@ pub fn open_for(relative_to: &gtk::Widget, desktop_id: &str, current_name: &str)
     let header_text_column = gtk::Box::new(gtk::Orientation::Vertical, 2);
     let name_label = gtk::Label::new(Some(current_name));
     name_label.set_halign(gtk::Align::Start);
-    name_label.style_context().add_class("mackes-icon-mapper-name");
+    name_label
+        .style_context()
+        .add_class("mackes-icon-mapper-name");
     let id_label = gtk::Label::new(Some(desktop_id));
     id_label.set_halign(gtk::Align::Start);
     id_label.style_context().add_class("mackes-icon-mapper-id");
     let curr_label = gtk::Label::new(Some(&format!("Icon: {current_icon_name}")));
     curr_label.set_halign(gtk::Align::Start);
-    curr_label.style_context().add_class("mackes-icon-mapper-id");
+    curr_label
+        .style_context()
+        .add_class("mackes-icon-mapper-id");
     header_text_column.pack_start(&name_label, false, false, 0);
     header_text_column.pack_start(&id_label, false, false, 0);
     header_text_column.pack_start(&curr_label, false, false, 0);
     header.pack_start(&current_image, false, false, 0);
     header.pack_start(&header_text_column, true, true, 0);
     column.pack_start(&header, false, false, 0);
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
 
     // Grid of available Carbon icons.
     let scroller = gtk::ScrolledWindow::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
@@ -95,7 +104,7 @@ pub fn open_for(relative_to: &gtk::Widget, desktop_id: &str, current_name: &str)
     let icons = enumerate_carbon_icons();
     if icons.is_empty() {
         let empty = gtk::Label::new(Some(
-            "Mackes-Carbon theme not found at /usr/share/icons/Mackes-Carbon/."
+            "Mackes-Carbon theme not found at /usr/share/icons/Mackes-Carbon/.",
         ));
         flow.add(&empty);
     } else {
@@ -112,11 +121,16 @@ pub fn open_for(relative_to: &gtk::Widget, desktop_id: &str, current_name: &str)
     column.pack_start(&scroller, true, true, 0);
 
     // Footer
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     let footer = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let reset = gtk::Button::with_label("Reset to default");
     reset.set_tooltip_text(Some(
-        "Delete the user override at ~/.local/share/applications/<id>.desktop"
+        "Delete the user override at ~/.local/share/applications/<id>.desktop",
     ));
     if let Some(atk) = reset.accessible() {
         atk.set_name(&format!("Reset icon mapping for {desktop_id} to default"));
@@ -197,8 +211,10 @@ fn system_search_dirs() -> Vec<PathBuf> {
 fn user_override_path(desktop_id: &str) -> PathBuf {
     let base = std::env::var("XDG_DATA_HOME").map_or_else(
         |_| {
-            std::env::var("HOME")
-                .map_or_else(|_| PathBuf::from("/tmp"), |h| PathBuf::from(h).join(".local/share"))
+            std::env::var("HOME").map_or_else(
+                |_| PathBuf::from("/tmp"),
+                |h| PathBuf::from(h).join(".local/share"),
+            )
         },
         PathBuf::from,
     );

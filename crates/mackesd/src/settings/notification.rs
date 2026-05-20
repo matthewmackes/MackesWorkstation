@@ -29,7 +29,9 @@ pub struct NotificationPrefs {
     pub default_expire_ms: i64,
 }
 
-const fn default_expire_ms() -> i64 { -1 }
+const fn default_expire_ms() -> i64 {
+    -1
+}
 
 fn cache_root() -> PathBuf {
     if let Ok(s) = std::env::var("XDG_CACHE_HOME") {
@@ -82,18 +84,15 @@ pub fn apply(key: SettingKey, value: &SettingValue) -> anyhow::Result<()> {
             if on {
                 if let Some(parent) = path.parent() {
                     std::fs::create_dir_all(parent).map_err(|e| {
-                        anyhow::anyhow!("notification: mkdir {} failed: {e}",
-                                        parent.display())
+                        anyhow::anyhow!("notification: mkdir {} failed: {e}", parent.display())
                     })?;
                 }
                 std::fs::write(&path, "").map_err(|e| {
-                    anyhow::anyhow!("notification: write {} failed: {e}",
-                                    path.display())
+                    anyhow::anyhow!("notification: write {} failed: {e}", path.display())
                 })?;
             } else if path.exists() {
                 std::fs::remove_file(&path).map_err(|e| {
-                    anyhow::anyhow!("notification: unlink {} failed: {e}",
-                                    path.display())
+                    anyhow::anyhow!("notification: unlink {} failed: {e}", path.display())
                 })?;
             }
             Ok(())
@@ -119,17 +118,13 @@ fn update_prefs(mut mutator: impl FnMut(&mut NotificationPrefs)) -> anyhow::Resu
     };
     mutator(&mut prefs);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            anyhow::anyhow!("notification: mkdir {} failed: {e}",
-                            parent.display())
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("notification: mkdir {} failed: {e}", parent.display()))?;
     }
-    let text = serde_json::to_string_pretty(&prefs).map_err(|e| {
-        anyhow::anyhow!("notification: serialize failed: {e}")
-    })?;
-    std::fs::write(&path, text).map_err(|e| {
-        anyhow::anyhow!("notification: write {} failed: {e}", path.display())
-    })?;
+    let text = serde_json::to_string_pretty(&prefs)
+        .map_err(|e| anyhow::anyhow!("notification: serialize failed: {e}"))?;
+    std::fs::write(&path, text)
+        .map_err(|e| anyhow::anyhow!("notification: write {} failed: {e}", path.display()))?;
     Ok(())
 }
 
@@ -175,7 +170,7 @@ mod tests {
         let r = body();
         match prev {
             Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
-            None    => std::env::remove_var("XDG_CACHE_HOME"),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
         }
         r
     }
@@ -197,16 +192,22 @@ mod tests {
             apply(
                 SettingKey::NotificationDoNotDisturb,
                 &SettingValue::from_serde(&true).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let on: bool = current(SettingKey::NotificationDoNotDisturb)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(on);
             apply(
                 SettingKey::NotificationDoNotDisturb,
                 &SettingValue::from_serde(&false).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let on: bool = current(SettingKey::NotificationDoNotDisturb)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(!on);
         });
     }
@@ -218,7 +219,8 @@ mod tests {
             apply(
                 SettingKey::NotificationDoNotDisturb,
                 &SettingValue::from_serde(&false).unwrap(),
-            ).expect("dnd off when absent must not error");
+            )
+            .expect("dnd off when absent must not error");
         });
     }
 
@@ -229,9 +231,12 @@ mod tests {
             apply(
                 SettingKey::NotificationLocation,
                 &SettingValue::from_serde(&"top-right".to_string()).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let loc: String = current(SettingKey::NotificationLocation)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(loc, "top-right");
         });
     }
@@ -243,9 +248,12 @@ mod tests {
             apply(
                 SettingKey::NotificationDefaultExpireMs,
                 &SettingValue::from_serde(&5000_i64).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let ms: i64 = current(SettingKey::NotificationDefaultExpireMs)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(ms, 5000);
         });
     }
@@ -257,13 +265,17 @@ mod tests {
             apply(
                 SettingKey::NotificationDefaultExpireMs,
                 &SettingValue::from_serde(&7000_i64).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             apply(
                 SettingKey::NotificationLocation,
                 &SettingValue::from_serde(&"bottom-left".to_string()).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let ms: i64 = current(SettingKey::NotificationDefaultExpireMs)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(ms, 7000);
         });
     }

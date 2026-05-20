@@ -50,7 +50,12 @@ pub struct ThemesPanel {
 pub enum Message {
     /// Initial load on first navigation — pulled four GETs
     /// from the backend.
-    Loaded { name: String, icon_set: String, accent: String, mode: String },
+    Loaded {
+        name: String,
+        icon_set: String,
+        accent: String,
+        mode: String,
+    },
     /// One of the GETs / SETs failed.
     Error(String),
     /// Save completed successfully — show a transient "Saved"
@@ -80,23 +85,29 @@ impl ThemesPanel {
                 let icon_set = strip_json_quotes(&backend.get(KEY_ICON_SET).await?);
                 let accent = strip_json_quotes(&backend.get(KEY_ACCENT).await?);
                 let mode = strip_json_quotes(&backend.get(KEY_MODE).await?);
-                Ok::<_, crate::backend::BackendError>(
-                    Message::Loaded { name, icon_set, accent, mode },
-                )
+                Ok::<_, crate::backend::BackendError>(Message::Loaded {
+                    name,
+                    icon_set,
+                    accent,
+                    mode,
+                })
             },
-            |result| crate::Message::Themes(result.unwrap_or_else(|e| Message::Error(e.to_string()))),
+            |result| {
+                crate::Message::Themes(result.unwrap_or_else(|e| Message::Error(e.to_string())))
+            },
         )
     }
 
     /// Apply a reducer message. Returns a `Task` for messages
     /// that fan out into async work (Save → 4 × Set + Saved).
-    pub fn update(
-        &mut self,
-        message: Message,
-        backend: Arc<dyn Backend>,
-    ) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message, backend: Arc<dyn Backend>) -> Task<crate::Message> {
         match message {
-            Message::Loaded { name, icon_set, accent, mode } => {
+            Message::Loaded {
+                name,
+                icon_set,
+                accent,
+                mode,
+            } => {
                 self.name = name;
                 self.icon_set = icon_set;
                 self.accent = accent;
@@ -190,11 +201,7 @@ impl ThemesPanel {
             field_row("Accent", &self.accent, |v| crate::Message::Themes(
                 Message::AccentChanged(v)
             )),
-            row![
-                text("Mode").width(Length::Fixed(120.0)),
-                mode_pick,
-            ]
-            .spacing(12),
+            row![text("Mode").width(Length::Fixed(120.0)), mode_pick,].spacing(12),
             row![save_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(10)
@@ -210,17 +217,15 @@ fn current_mode(value: &str) -> Option<&'static str> {
 }
 
 /// Render one `<label>: <text_input>` row.
-fn field_row<'a, F>(
-    label: &'a str,
-    value: &'a str,
-    on_change: F,
-) -> Element<'a, crate::Message>
+fn field_row<'a, F>(label: &'a str, value: &'a str, on_change: F) -> Element<'a, crate::Message>
 where
     F: 'a + Fn(String) -> crate::Message,
 {
     row![
         text(label).width(Length::Fixed(120.0)),
-        text_input("", value).on_input(on_change).width(Length::Fill),
+        text_input("", value)
+            .on_input(on_change)
+            .width(Length::Fill),
     ]
     .spacing(12)
     .into()
@@ -280,14 +285,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            backend.get(KEY_NAME).await.unwrap(),
-            "\"Adwaita-dark\""
-        );
-        assert_eq!(
-            backend.get(KEY_MODE).await.unwrap(),
-            "\"dark\""
-        );
+        assert_eq!(backend.get(KEY_NAME).await.unwrap(), "\"Adwaita-dark\"");
+        assert_eq!(backend.get(KEY_MODE).await.unwrap(), "\"dark\"");
     }
 
     #[test]

@@ -222,11 +222,7 @@ mod tests {
         }
         let anchor = gtk::Label::new(Some("anchor"));
         let popover = build_popover(anchor.upcast_ref(), 47.123, -122.456);
-        let column = popover
-            .child()
-            .unwrap()
-            .downcast::<gtk::Box>()
-            .unwrap();
+        let column = popover.child().unwrap().downcast::<gtk::Box>().unwrap();
         let footer = column
             .children()
             .into_iter()
@@ -236,7 +232,10 @@ mod tests {
             .unwrap();
         let text = footer.text().to_string();
         assert!(text.contains("47.123"), "footer must show latitude: {text}");
-        assert!(text.contains("-122.456"), "footer must show longitude: {text}");
+        assert!(
+            text.contains("-122.456"),
+            "footer must show longitude: {text}"
+        );
         assert!(
             text.contains("met.no"),
             "footer must attribute the data source: {text}"

@@ -101,13 +101,13 @@ pub enum LifecycleState {
 /// Legal transitions per the locked FSM. Each row is `(from, to,
 /// kind)` where `kind` is "happy" or "error".
 pub const TRANSITIONS: &[(LifecycleState, LifecycleState)] = &[
-    (LifecycleState::Draft,            LifecycleState::Validated),
-    (LifecycleState::Draft,            LifecycleState::FailedValidation),
-    (LifecycleState::Validated,        LifecycleState::Approved),
-    (LifecycleState::Approved,         LifecycleState::Deploying),
-    (LifecycleState::Deploying,        LifecycleState::Applied),
-    (LifecycleState::Deploying,        LifecycleState::RolledBack),
-    (LifecycleState::Applied,          LifecycleState::Verified),
+    (LifecycleState::Draft, LifecycleState::Validated),
+    (LifecycleState::Draft, LifecycleState::FailedValidation),
+    (LifecycleState::Validated, LifecycleState::Approved),
+    (LifecycleState::Approved, LifecycleState::Deploying),
+    (LifecycleState::Deploying, LifecycleState::Applied),
+    (LifecycleState::Deploying, LifecycleState::RolledBack),
+    (LifecycleState::Applied, LifecycleState::Verified),
 ];
 
 /// True when `from → to` is a legal transition per `TRANSITIONS`.
@@ -221,24 +221,54 @@ mod tests {
 
     #[test]
     fn happy_path_lifecycle_transitions() {
-        assert!(is_legal_transition(LifecycleState::Draft, LifecycleState::Validated));
-        assert!(is_legal_transition(LifecycleState::Validated, LifecycleState::Approved));
-        assert!(is_legal_transition(LifecycleState::Approved, LifecycleState::Deploying));
-        assert!(is_legal_transition(LifecycleState::Deploying, LifecycleState::Applied));
-        assert!(is_legal_transition(LifecycleState::Applied, LifecycleState::Verified));
+        assert!(is_legal_transition(
+            LifecycleState::Draft,
+            LifecycleState::Validated
+        ));
+        assert!(is_legal_transition(
+            LifecycleState::Validated,
+            LifecycleState::Approved
+        ));
+        assert!(is_legal_transition(
+            LifecycleState::Approved,
+            LifecycleState::Deploying
+        ));
+        assert!(is_legal_transition(
+            LifecycleState::Deploying,
+            LifecycleState::Applied
+        ));
+        assert!(is_legal_transition(
+            LifecycleState::Applied,
+            LifecycleState::Verified
+        ));
     }
 
     #[test]
     fn error_path_lifecycle_transitions() {
-        assert!(is_legal_transition(LifecycleState::Draft, LifecycleState::FailedValidation));
-        assert!(is_legal_transition(LifecycleState::Deploying, LifecycleState::RolledBack));
+        assert!(is_legal_transition(
+            LifecycleState::Draft,
+            LifecycleState::FailedValidation
+        ));
+        assert!(is_legal_transition(
+            LifecycleState::Deploying,
+            LifecycleState::RolledBack
+        ));
     }
 
     #[test]
     fn illegal_transitions_rejected() {
-        assert!(!is_legal_transition(LifecycleState::Draft, LifecycleState::Applied));
-        assert!(!is_legal_transition(LifecycleState::Verified, LifecycleState::Draft));
-        assert!(!is_legal_transition(LifecycleState::FailedValidation, LifecycleState::Applied));
+        assert!(!is_legal_transition(
+            LifecycleState::Draft,
+            LifecycleState::Applied
+        ));
+        assert!(!is_legal_transition(
+            LifecycleState::Verified,
+            LifecycleState::Draft
+        ));
+        assert!(!is_legal_transition(
+            LifecycleState::FailedValidation,
+            LifecycleState::Applied
+        ));
     }
 
     #[test]

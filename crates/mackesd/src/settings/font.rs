@@ -12,9 +12,9 @@ const SCHEMA: &str = "org.gnome.desktop.interface";
 
 fn gsettings_key(key: SettingKey) -> Option<&'static str> {
     match key {
-        SettingKey::FontName      => Some("font-name"),
+        SettingKey::FontName => Some("font-name"),
         SettingKey::FontMonospace => Some("monospace-font-name"),
-        SettingKey::FontHinting   => Some("font-hinting"),
+        SettingKey::FontHinting => Some("font-hinting"),
         SettingKey::FontAntialias => Some("font-antialiasing"),
         _ => None,
     }
@@ -74,10 +74,16 @@ mod tests {
 
     #[test]
     fn gsettings_key_covers_every_font_variant() {
-        assert_eq!(gsettings_key(SettingKey::FontName),      Some("font-name"));
-        assert_eq!(gsettings_key(SettingKey::FontMonospace), Some("monospace-font-name"));
-        assert_eq!(gsettings_key(SettingKey::FontHinting),   Some("font-hinting"));
-        assert_eq!(gsettings_key(SettingKey::FontAntialias), Some("font-antialiasing"));
+        assert_eq!(gsettings_key(SettingKey::FontName), Some("font-name"));
+        assert_eq!(
+            gsettings_key(SettingKey::FontMonospace),
+            Some("monospace-font-name")
+        );
+        assert_eq!(gsettings_key(SettingKey::FontHinting), Some("font-hinting"));
+        assert_eq!(
+            gsettings_key(SettingKey::FontAntialias),
+            Some("font-antialiasing")
+        );
     }
 
     #[test]

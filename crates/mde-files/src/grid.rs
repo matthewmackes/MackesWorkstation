@@ -69,14 +69,17 @@ pub struct TileLayout {
 pub fn tile_layout(container_width_px: u16, num_files: usize) -> TileLayout {
     let columns = columns_for_width(container_width_px);
     if num_files == 0 {
-        return TileLayout { columns, rows: 0, total_height_px: 0 };
+        return TileLayout {
+            columns,
+            rows: 0,
+            total_height_px: 0,
+        };
     }
     let rows_u32 = (num_files as u32).div_ceil(columns as u32);
     let rows: u16 = rows_u32.min(u16::MAX as u32) as u16;
-    let total_height_px: u32 =
-        2 * GRID_EDGE_PADDING_PX as u32 +
-        rows as u32 * TILE_SIZE_PX as u32 +
-        (rows as u32).saturating_sub(1) * TILE_GUTTER_PX as u32;
+    let total_height_px: u32 = 2 * GRID_EDGE_PADDING_PX as u32
+        + rows as u32 * TILE_SIZE_PX as u32
+        + (rows as u32).saturating_sub(1) * TILE_GUTTER_PX as u32;
     TileLayout {
         columns,
         rows,
@@ -104,9 +107,9 @@ impl TileMetadata {
     #[must_use]
     pub fn from_row(row: &FileRow) -> Self {
         Self {
-            name:     row.name.to_string(),
-            origin:   row.origin().map(str::to_string),
-            mime:     row.mime,
+            name: row.name.to_string(),
+            origin: row.origin().map(str::to_string),
+            mime: row.mime,
             subtitle: format!("{} · {}", row.size, row.age),
         }
     }
@@ -167,9 +170,9 @@ mod tests {
     fn tile_layout_total_height_includes_padding_and_gutters() {
         // 2 rows × 120 tile + 1 gutter × 16 + 2 × 24 padding = 304.
         let l = tile_layout(800, 10);
-        let expected = 2 * GRID_EDGE_PADDING_PX +
-                       l.rows * TILE_SIZE_PX +
-                       (l.rows.saturating_sub(1)) * TILE_GUTTER_PX;
+        let expected = 2 * GRID_EDGE_PADDING_PX
+            + l.rows * TILE_SIZE_PX
+            + (l.rows.saturating_sub(1)) * TILE_GUTTER_PX;
         assert_eq!(l.total_height_px, expected);
     }
 

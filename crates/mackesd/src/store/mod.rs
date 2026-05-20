@@ -210,12 +210,12 @@ pub fn list_nodes(conn: &Connection) -> Result<Vec<NodeRow>> {
     let rows = stmt
         .query_map([], |r| {
             Ok(NodeRow {
-                node_id:    r.get(0)?,
-                name:       r.get(1)?,
+                node_id: r.get(0)?,
+                name: r.get(1)?,
                 public_key: r.get(2)?,
-                role:       r.get(3)?,
-                health:     r.get(4)?,
-                region:     r.get(5)?,
+                role: r.get(3)?,
+                health: r.get(4)?,
+                region: r.get(5)?,
             })
         })
         .context("executing nodes query")?
@@ -468,8 +468,7 @@ mod tests {
         assert_eq!(nodes[0].public_key, "pk1");
         assert_eq!(nodes[0].region.as_deref(), Some("us-west"));
         // Re-upserting with a different key updates in place.
-        let n2 = upsert_node(&conn, "peer:alpha", "alpha", "pk2", Some("us-east"))
-            .expect("update");
+        let n2 = upsert_node(&conn, "peer:alpha", "alpha", "pk2", Some("us-east")).expect("update");
         assert_eq!(n2, 1);
         let nodes = list_nodes(&conn).expect("list");
         assert_eq!(nodes.len(), 1, "upsert must not duplicate");
@@ -515,10 +514,9 @@ mod tests {
     #[test]
     fn encode_then_decode_sha256_hex_round_trips() {
         let bytes: [u8; 32] = [
-            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
-            0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff,
-            0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
-            0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10,
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0xfe, 0xdc, 0xba, 0x98,
+            0x76, 0x54, 0x32, 0x10,
         ];
         let hex = encode_sha256_hex(&bytes);
         assert_eq!(hex.len(), 64);

@@ -13,7 +13,7 @@
 //! `patternfly.rs` from day one — `carbon` was the v1.x token
 //! family.
 
-use crate::model::{Group, View, nav_model};
+use crate::model::{nav_model, Group, View};
 
 /// Breadcrumb crumb. `slug` is the deep-link target (empty
 /// string for the root "Workbench" crumb); `label` is what the

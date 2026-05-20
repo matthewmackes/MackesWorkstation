@@ -31,7 +31,11 @@ pub struct RemovablePanel {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Loaded { on_insert: bool, open_on_mount: bool, autorun: bool },
+    Loaded {
+        on_insert: bool,
+        open_on_mount: bool,
+        autorun: bool,
+    },
     Error(String),
     Saved,
     OnInsertChanged(bool),
@@ -50,8 +54,7 @@ impl RemovablePanel {
         Task::perform(
             async move {
                 let on_insert = parse_bool(&backend.get(KEY_ON_INSERT).await?);
-                let open_on_mount =
-                    parse_bool(&backend.get(KEY_OPEN_ON_MOUNT).await?);
+                let open_on_mount = parse_bool(&backend.get(KEY_OPEN_ON_MOUNT).await?);
                 let autorun = parse_bool(&backend.get(KEY_AUTORUN).await?);
                 Ok::<_, crate::backend::BackendError>(Message::Loaded {
                     on_insert,
@@ -60,18 +63,12 @@ impl RemovablePanel {
                 })
             },
             |result| {
-                crate::Message::Removable(
-                    result.unwrap_or_else(|e| Message::Error(e.to_string())),
-                )
+                crate::Message::Removable(result.unwrap_or_else(|e| Message::Error(e.to_string())))
             },
         )
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        backend: Arc<dyn Backend>,
-    ) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message, backend: Arc<dyn Backend>) -> Task<crate::Message> {
         match message {
             Message::Loaded {
                 on_insert,
@@ -146,16 +143,12 @@ impl RemovablePanel {
         };
 
         column![
-            checkbox("Auto-mount on insert", self.on_insert).on_toggle(|v| {
-                crate::Message::Removable(Message::OnInsertChanged(v))
-            }),
-            checkbox("Open file manager on mount", self.open_on_mount).on_toggle(
-                |v| crate::Message::Removable(Message::OpenOnMountChanged(v)),
-            ),
+            checkbox("Auto-mount on insert", self.on_insert)
+                .on_toggle(|v| { crate::Message::Removable(Message::OnInsertChanged(v)) }),
+            checkbox("Open file manager on mount", self.open_on_mount)
+                .on_toggle(|v| crate::Message::Removable(Message::OpenOnMountChanged(v)),),
             checkbox("Honour autorun on inserted media", self.autorun)
-                .on_toggle(|v| {
-                    crate::Message::Removable(Message::AutorunChanged(v))
-                }),
+                .on_toggle(|v| { crate::Message::Removable(Message::AutorunChanged(v)) }),
             row![save_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(12)
@@ -224,7 +217,10 @@ mod tests {
     async fn save_writes_all_three_keys_as_json_booleans() {
         let backend: Arc<dyn Backend> = Arc::new(DemoBackend::new());
         backend.set(KEY_ON_INSERT, encode_bool(true)).await.unwrap();
-        backend.set(KEY_OPEN_ON_MOUNT, encode_bool(false)).await.unwrap();
+        backend
+            .set(KEY_OPEN_ON_MOUNT, encode_bool(false))
+            .await
+            .unwrap();
         backend.set(KEY_AUTORUN, encode_bool(false)).await.unwrap();
         assert_eq!(backend.get(KEY_ON_INSERT).await.unwrap(), "true");
         assert_eq!(backend.get(KEY_AUTORUN).await.unwrap(), "false");

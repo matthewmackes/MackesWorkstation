@@ -79,7 +79,12 @@ pub fn build(relative_to: &gtk::Widget) -> gtk::Popover {
     header.pack_end(&clear, false, false, 0);
     column.pack_start(&header, false, false, 0);
 
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
 
     // List
     let list = gtk::ListBox::new();
@@ -95,9 +100,14 @@ pub fn build(relative_to: &gtk::Widget) -> gtk::Popover {
     column.pack_start(&scroller, true, true, 0);
 
     // Footer
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     let footer = gtk::Label::new(Some(
-        "Mirror: ~/.cache/mackes/clipboard.json — mesh-replicated"
+        "Mirror: ~/.cache/mackes/clipboard.json — mesh-replicated",
     ));
     footer.set_halign(gtk::Align::Start);
     footer.style_context().add_class("mackes-clipboard-footer");

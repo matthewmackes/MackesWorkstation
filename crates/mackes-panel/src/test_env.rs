@@ -18,7 +18,7 @@
 //! Holding the guard for the full test body keeps every read after
 //! the set seeing the value we wrote.
 
-use std::sync::{Mutex, MutexGuard, PoisonError, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 
 static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
 

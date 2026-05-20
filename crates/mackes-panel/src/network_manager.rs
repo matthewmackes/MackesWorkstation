@@ -49,7 +49,13 @@ impl NmState {
     fn probe() -> Self {
         let mut out = Self::default();
         if let Ok(o) = Command::new("nmcli")
-            .args(["-t", "-f", "TYPE,DEVICE,STATE,CONNECTION", "device", "status"])
+            .args([
+                "-t",
+                "-f",
+                "TYPE,DEVICE,STATE,CONNECTION",
+                "device",
+                "status",
+            ])
             .output()
         {
             if o.status.success() {
@@ -189,10 +195,20 @@ fn build_popover(relative_to: &gtk::Widget) -> gtk::Popover {
 
     column.pack_start(&section_header("Connections"), false, false, 0);
     column.pack_start(&build_connections_list(), false, false, 0);
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     column.pack_start(&section_header("Wi-Fi networks"), false, false, 0);
     column.pack_start(&build_wifi_list(), false, false, 0);
-    column.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    column.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     column.pack_start(&build_controls_row(&popover), false, false, 0);
 
     popover.add(&column);
@@ -272,9 +288,21 @@ fn build_connection_row(name: &str, ty: &str, active: bool) -> gtk::Box {
 
 fn build_wifi_list() -> gtk::Box {
     let list = gtk::Box::new(gtk::Orientation::Vertical, 2);
-    let lines = nmcli_lines(&["-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "device", "wifi", "list"]);
+    let lines = nmcli_lines(&[
+        "-t",
+        "-f",
+        "IN-USE,SSID,SIGNAL,SECURITY",
+        "device",
+        "wifi",
+        "list",
+    ]);
     if lines.is_empty() {
-        list.pack_start(&placeholder("(no Wi-Fi adapters / not scanned yet)"), false, false, 0);
+        list.pack_start(
+            &placeholder("(no Wi-Fi adapters / not scanned yet)"),
+            false,
+            false,
+            0,
+        );
         return list;
     }
     for line in lines.into_iter().take(10) {
@@ -317,16 +345,18 @@ fn build_wifi_row(in_use: &str, ssid: &str, signal: &str, sec: &str) -> gtk::Box
     if let Some(atk) = button.accessible() {
         atk.set_name(&format!(
             "{} Wi-Fi network {ssid}",
-            if active { "Disconnect from" } else { "Connect to" }
+            if active {
+                "Disconnect from"
+            } else {
+                "Connect to"
+            }
         ));
     }
     let ssid_owned = ssid.to_owned();
     let was_active = active;
     button.connect_clicked(move |_| {
         if was_active {
-            let _ = Command::new("nmcli")
-                .args(["device", "disconnect"])
-                .spawn();
+            let _ = Command::new("nmcli").args(["device", "disconnect"]).spawn();
         } else {
             let _ = Command::new("nmcli")
                 .args(["device", "wifi", "connect", &ssid_owned, "--ask"])
@@ -366,7 +396,9 @@ fn build_controls_row(popover: &gtk::Popover) -> gtk::Box {
         atk.set_name("Rescan for Wi-Fi networks");
     }
     rescan.connect_clicked(|_| {
-        let _ = Command::new("nmcli").args(["device", "wifi", "rescan"]).spawn();
+        let _ = Command::new("nmcli")
+            .args(["device", "wifi", "rescan"])
+            .spawn();
     });
     row.pack_start(&rescan, true, true, 0);
 

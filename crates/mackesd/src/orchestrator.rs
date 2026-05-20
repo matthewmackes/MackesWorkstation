@@ -34,8 +34,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::path_safety::{PathError, PathPolicy};
 use crate::preflight::{
-    preflight, rows_allow_send, ConflictPolicyLite, Request as PreflightRequest,
-    SendModeLite,
+    preflight, rows_allow_send, ConflictPolicyLite, Request as PreflightRequest, SendModeLite,
 };
 
 /// Stable identifier for one Send-To operation. Monotonically
@@ -142,7 +141,10 @@ impl std::fmt::Display for OrchestratorError {
         match self {
             Self::PathRejected(e) => write!(f, "orchestrator: {e}"),
             Self::PreflightBlocked { check, message } => {
-                write!(f, "orchestrator: preflight check {check} blocked: {message}")
+                write!(
+                    f,
+                    "orchestrator: preflight check {check} blocked: {message}"
+                )
             }
             Self::AlreadyTerminal { op_id, stage } => write!(
                 f,
@@ -207,12 +209,7 @@ impl Orchestrator {
         if !rows_allow_send(&rows) {
             let blocker = rows
                 .iter()
-                .find(|r| {
-                    matches!(
-                        r.status,
-                        crate::preflight::CheckStatus::Block
-                    )
-                })
+                .find(|r| matches!(r.status, crate::preflight::CheckStatus::Block))
                 .expect("rows_allow_send=false implies a Block row");
             return Err(OrchestratorError::PreflightBlocked {
                 check: blocker.id.to_string(),
@@ -327,17 +324,17 @@ impl Orchestrator {
 #[must_use]
 pub fn next_stage(current: Stage, failed: bool) -> Stage {
     match (current, failed) {
-        (Stage::Pending, _)          => Stage::Validating,
-        (Stage::Validating, false)   => Stage::Executing,
-        (Stage::Validating, true)    => Stage::Rejected,
-        (Stage::Executing, false)    => Stage::Verifying,
-        (Stage::Executing, true)     => Stage::Failed,
-        (Stage::Verifying, false)    => Stage::Completed,
-        (Stage::Verifying, true)     => Stage::Failed,
+        (Stage::Pending, _) => Stage::Validating,
+        (Stage::Validating, false) => Stage::Executing,
+        (Stage::Validating, true) => Stage::Rejected,
+        (Stage::Executing, false) => Stage::Verifying,
+        (Stage::Executing, true) => Stage::Failed,
+        (Stage::Verifying, false) => Stage::Completed,
+        (Stage::Verifying, true) => Stage::Failed,
         // Terminal stages stay where they are.
-        (Stage::Completed, _)        => Stage::Completed,
-        (Stage::Rejected, _)         => Stage::Rejected,
-        (Stage::Failed, _)           => Stage::Failed,
+        (Stage::Completed, _) => Stage::Completed,
+        (Stage::Rejected, _) => Stage::Rejected,
+        (Stage::Failed, _) => Stage::Failed,
     }
 }
 

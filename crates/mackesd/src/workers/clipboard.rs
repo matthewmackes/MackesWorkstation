@@ -24,7 +24,7 @@ const SHUTDOWN_GRACE_S: u64 = 5;
 /// Worker that spawns + supervises the clipboard daemon.
 pub struct ClipboardWorker {
     binary: OsString,
-    args:   Vec<OsString>,
+    args: Vec<OsString>,
 }
 
 impl Default for ClipboardWorker {
@@ -39,10 +39,7 @@ impl ClipboardWorker {
     pub fn new() -> Self {
         Self {
             binary: OsString::from("python3"),
-            args:   vec![
-                OsString::from("-m"),
-                OsString::from("mackes.clipboard_app"),
-            ],
+            args: vec![OsString::from("-m"), OsString::from("mackes.clipboard_app")],
         }
     }
 
@@ -54,7 +51,7 @@ impl ClipboardWorker {
     ) -> Self {
         Self {
             binary: binary.into(),
-            args:   args.into_iter().map(Into::into).collect(),
+            args: args.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -117,37 +114,27 @@ mod tests {
 
     #[tokio::test]
     async fn clipboard_worker_exits_clean_on_shutdown_during_run() {
-        let mut w = ClipboardWorker::with_argv(
-            "sleep",
-            vec![OsString::from("60")],
-        );
+        let mut w = ClipboardWorker::with_argv("sleep", vec![OsString::from("60")]);
         let (tx, rx) = tokio::sync::watch::channel(false);
         let token = ShutdownToken::from_receiver(rx);
         let handle = tokio::spawn(async move { w.run(token).await });
         tokio::time::sleep(Duration::from_millis(50)).await;
         let _ = tx.send(true);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10), handle,
-        )
-        .await
-        .expect("exits on shutdown")
-        .expect("join");
+        let result = tokio::time::timeout(Duration::from_secs(10), handle)
+            .await
+            .expect("exits on shutdown")
+            .expect("join");
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn clipboard_worker_returns_err_on_subprocess_exit() {
-        let mut w = ClipboardWorker::with_argv(
-            "true",
-            Vec::<OsString>::new(),
-        );
+        let mut w = ClipboardWorker::with_argv("true", Vec::<OsString>::new());
         let (_tx, rx) = tokio::sync::watch::channel(false);
         let token = ShutdownToken::from_receiver(rx);
-        let result = tokio::time::timeout(
-            Duration::from_secs(3), w.run(token),
-        )
-        .await
-        .expect("exits");
+        let result = tokio::time::timeout(Duration::from_secs(3), w.run(token))
+            .await
+            .expect("exits");
         assert!(result.is_err());
     }
 }

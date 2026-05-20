@@ -80,7 +80,10 @@ pub const fn health_state_from_age(age_ms: u64) -> HealthState {
 /// Build the on-disk path a peer's heartbeat JSON lives at.
 #[must_use]
 pub fn heartbeat_path(qnm_root: &Path, node_id: &str) -> PathBuf {
-    qnm_root.join(node_id).join("mackesd").join("heartbeat.json")
+    qnm_root
+        .join(node_id)
+        .join("mackesd")
+        .join("heartbeat.json")
 }
 
 /// Build the on-disk path a peer's link-sample JSON lives at.
@@ -160,7 +163,11 @@ pub fn write_heartbeat(qnm_root: &Path, hb: &Heartbeat) -> std::io::Result<PathB
 /// # Errors
 /// Returns `std::io::Error` when the parent directory isn't
 /// writable or the rename fails.
-pub fn write_links(qnm_root: &Path, node_id: &str, samples: &[LinkSample]) -> std::io::Result<PathBuf> {
+pub fn write_links(
+    qnm_root: &Path,
+    node_id: &str,
+    samples: &[LinkSample],
+) -> std::io::Result<PathBuf> {
     let path = links_path(qnm_root, node_id);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;

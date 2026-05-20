@@ -289,7 +289,12 @@ mod tests {
     #[test]
     fn flags_mesh_related_filenames() {
         let tmp = tempdir().expect("tempdir");
-        for name in ["tailscale.state", "headscale-peers.json", "mesh.toml", "peer-graph.json"] {
+        for name in [
+            "tailscale.state",
+            "headscale-peers.json",
+            "mesh.toml",
+            "peer-graph.json",
+        ] {
             File::create(tmp.path().join(name))
                 .expect("create")
                 .write_all(b"x")
@@ -299,7 +304,11 @@ mod tests {
         let inv = inventory(&[tmp.path().to_path_buf()]);
         assert_eq!(inv.len(), 4);
         for a in &inv {
-            assert!(a.mesh_data, "expected mesh_data=true for {}", a.path.display());
+            assert!(
+                a.mesh_data,
+                "expected mesh_data=true for {}",
+                a.path.display()
+            );
         }
     }
 
@@ -317,7 +326,11 @@ mod tests {
         let inv = inventory(&[tmp.path().to_path_buf()]);
         assert_eq!(inv.len(), 3);
         for a in &inv {
-            assert!(!a.mesh_data, "expected mesh_data=false for {}", a.path.display());
+            assert!(
+                !a.mesh_data,
+                "expected mesh_data=false for {}",
+                a.path.display()
+            );
         }
     }
 

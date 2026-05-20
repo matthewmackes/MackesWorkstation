@@ -64,14 +64,14 @@ pub enum ConflictPolicy {
 /// One audit-log row from the operation history (Phase 2.7).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AuditEntry {
-    pub op_id:       OpId,
-    pub kind:        &'static str,
-    pub source:      PathBuf,
+    pub op_id: OpId,
+    pub kind: &'static str,
+    pub source: PathBuf,
     pub destination: Destination,
-    pub mode:        SendMode,
-    pub bytes:       u64,
-    pub at_ms:       i64,
-    pub ok:          bool,
+    pub mode: SendMode,
+    pub bytes: u64,
+    pub at_ms: i64,
+    pub ok: bool,
 }
 
 /// Surface every backend implements. Pure abstraction over data +
@@ -131,7 +131,7 @@ impl std::error::Error for BackendError {}
 /// constants. Used for headless tests + the panel-boot smoke gate.
 pub struct DemoBackend {
     next_op_id: OpId,
-    audit:      Vec<AuditEntry>,
+    audit: Vec<AuditEntry>,
 }
 
 impl Default for DemoBackend {
@@ -143,7 +143,10 @@ impl Default for DemoBackend {
 impl DemoBackend {
     #[must_use]
     pub fn new() -> Self {
-        Self { next_op_id: 1, audit: Vec::new() }
+        Self {
+            next_op_id: 1,
+            audit: Vec::new(),
+        }
     }
 
     fn alloc_id(&mut self) -> OpId {
@@ -164,12 +167,12 @@ impl Backend for DemoBackend {
 
     fn list(&self, path: &str) -> Vec<FileRow> {
         match path {
-            "" | "/"                    => crate::demo_data::INBOX.to_vec(),
-            "downloads"                 => crate::demo_data::DOWNLOADS.to_vec(),
-            "peer:pine"                 => crate::demo_data::PINE_FILES.to_vec(),
-            "peer:birch"                => crate::demo_data::BIRCH_FILES.to_vec(),
-            "peer:oak"                  => crate::demo_data::OAK_FILES.to_vec(),
-            _                           => Vec::new(),
+            "" | "/" => crate::demo_data::INBOX.to_vec(),
+            "downloads" => crate::demo_data::DOWNLOADS.to_vec(),
+            "peer:pine" => crate::demo_data::PINE_FILES.to_vec(),
+            "peer:birch" => crate::demo_data::BIRCH_FILES.to_vec(),
+            "peer:oak" => crate::demo_data::OAK_FILES.to_vec(),
+            _ => Vec::new(),
         }
     }
 
@@ -195,14 +198,14 @@ impl Backend for DemoBackend {
             .map(|m| m.len())
             .sum();
         self.audit.push(AuditEntry {
-            op_id:       id,
-            kind:        "send_to",
-            source:      sources[0].clone(),
+            op_id: id,
+            kind: "send_to",
+            source: sources[0].clone(),
             destination,
             mode,
-            bytes:       total_bytes,
-            at_ms:       now_ms,
-            ok:          true,
+            bytes: total_bytes,
+            at_ms: now_ms,
+            ok: true,
         });
         Ok(id)
     }
@@ -215,14 +218,14 @@ impl Backend for DemoBackend {
         let id = self.alloc_id();
         let now_ms = chrono::Utc::now().timestamp_millis();
         self.audit.push(AuditEntry {
-            op_id:       id,
-            kind:        "rollback",
-            source:      original.source.clone(),
+            op_id: id,
+            kind: "rollback",
+            source: original.source.clone(),
             destination: original.destination.clone(),
-            mode:        original.mode,
-            bytes:       original.bytes,
-            at_ms:       now_ms,
-            ok:          true,
+            mode: original.mode,
+            bytes: original.bytes,
+            at_ms: now_ms,
+            ok: true,
         });
         Ok(id)
     }
@@ -288,18 +291,22 @@ mod tests {
     #[test]
     fn send_to_records_audit_row_and_returns_increasing_op_ids() {
         let mut b = DemoBackend::new();
-        let id1 = b.send_to(
-            &[PathBuf::from("/tmp/a")],
-            Destination::Peer("pine".into()),
-            SendMode::Copy,
-            ConflictPolicy::Ask,
-        ).expect("send_to");
-        let id2 = b.send_to(
-            &[PathBuf::from("/tmp/b")],
-            Destination::Peer("birch".into()),
-            SendMode::Move,
-            ConflictPolicy::Overwrite,
-        ).expect("send_to");
+        let id1 = b
+            .send_to(
+                &[PathBuf::from("/tmp/a")],
+                Destination::Peer("pine".into()),
+                SendMode::Copy,
+                ConflictPolicy::Ask,
+            )
+            .expect("send_to");
+        let id2 = b
+            .send_to(
+                &[PathBuf::from("/tmp/b")],
+                Destination::Peer("birch".into()),
+                SendMode::Move,
+                ConflictPolicy::Overwrite,
+            )
+            .expect("send_to");
         assert_eq!(id1, 1);
         assert_eq!(id2, 2);
         let log = b.audit_log();
@@ -312,12 +319,14 @@ mod tests {
     #[test]
     fn rollback_records_rollback_audit_row() {
         let mut b = DemoBackend::new();
-        let original = b.send_to(
-            &[PathBuf::from("/tmp/x")],
-            Destination::Peer("oak".into()),
-            SendMode::Copy,
-            ConflictPolicy::Ask,
-        ).expect("send_to");
+        let original = b
+            .send_to(
+                &[PathBuf::from("/tmp/x")],
+                Destination::Peer("oak".into()),
+                SendMode::Copy,
+                ConflictPolicy::Ask,
+            )
+            .expect("send_to");
         let rb = b.rollback(original).expect("rollback");
         assert_ne!(original, rb);
         let log = b.audit_log();

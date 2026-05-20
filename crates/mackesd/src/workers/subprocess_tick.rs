@@ -28,9 +28,9 @@ use super::{ShutdownToken, Worker};
 /// Phase B workers wrap this with a thin newtype that pre-fills the
 /// name + argv.
 pub struct SubprocessTickWorker {
-    name:     &'static str,
-    binary:   OsString,
-    args:     Vec<OsString>,
+    name: &'static str,
+    binary: OsString,
+    args: Vec<OsString>,
     interval: Duration,
     /// How long a single subprocess invocation is allowed to run
     /// before the supervisor kills it. Defaults to 300 s (5 min).
@@ -70,7 +70,7 @@ impl Worker for SubprocessTickWorker {
             if shutdown.is_shutdown() {
                 return match last_err {
                     Some(e) => Err(e),
-                    None    => Ok(()),
+                    None => Ok(()),
                 };
             }
             // Race the tick against shutdown — exit immediately on
@@ -169,13 +169,10 @@ mod tests {
         let handle = tokio::spawn(async move { w.run(token).await });
         tokio::time::sleep(Duration::from_millis(60)).await;
         let _ = tx.send(true);
-        let result = tokio::time::timeout(
-            Duration::from_secs(3),
-            handle,
-        )
-        .await
-        .expect("worker exits on shutdown")
-        .expect("join");
+        let result = tokio::time::timeout(Duration::from_secs(3), handle)
+            .await
+            .expect("worker exits on shutdown")
+            .expect("join");
         assert!(result.is_ok(), "true should never error");
     }
 
@@ -195,13 +192,10 @@ mod tests {
         let handle = tokio::spawn(async move { w.run(token).await });
         tokio::time::sleep(Duration::from_millis(100)).await;
         let _ = tx.send(true);
-        let result = tokio::time::timeout(
-            Duration::from_secs(2),
-            handle,
-        )
-        .await
-        .expect("worker exits on shutdown")
-        .expect("join");
+        let result = tokio::time::timeout(Duration::from_secs(2), handle)
+            .await
+            .expect("worker exits on shutdown")
+            .expect("join");
         // The last_err from the first tick propagates as Err
         // on shutdown.
         assert!(result.is_err(), "false's nonzero exit should surface");

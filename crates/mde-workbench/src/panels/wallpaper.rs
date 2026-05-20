@@ -49,18 +49,12 @@ impl WallpaperPanel {
                 Ok::<_, crate::backend::BackendError>(Message::Loaded { path, mode })
             },
             |result| {
-                crate::Message::Wallpaper(
-                    result.unwrap_or_else(|e| Message::Error(e.to_string())),
-                )
+                crate::Message::Wallpaper(result.unwrap_or_else(|e| Message::Error(e.to_string())))
             },
         )
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        backend: Arc<dyn Backend>,
-    ) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message, backend: Arc<dyn Backend>) -> Task<crate::Message> {
         match message {
             Message::Loaded { path, mode } => {
                 self.path = path;
@@ -133,9 +127,7 @@ impl WallpaperPanel {
             row![
                 text("Image path").width(Length::Fixed(120.0)),
                 text_input("/usr/share/backgrounds/mde-default.png", &self.path)
-                    .on_input(|v| crate::Message::Wallpaper(
-                        Message::PathChanged(v)
-                    )),
+                    .on_input(|v| crate::Message::Wallpaper(Message::PathChanged(v))),
             ]
             .spacing(12),
             row![text("Mode").width(Length::Fixed(120.0)), mode_pick].spacing(12),

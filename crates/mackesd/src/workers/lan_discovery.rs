@@ -80,14 +80,14 @@ pub struct LanPeer {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RttSample {
     /// Peer instance name (matches [`LanPeer::instance`]).
-    pub peer:     String,
+    pub peer: String,
     /// Source socket address of the pong reply.
-    pub addr:     SocketAddr,
+    pub addr: SocketAddr,
     /// Measured round-trip time, milliseconds.
-    pub rtt_ms:   u32,
+    pub rtt_ms: u32,
     /// Sequence number of the probe (matches `ping`/`pong`
     /// correlator).
-    pub seq:      u32,
+    pub seq: u32,
 }
 
 /// Shared in-memory registry. The worker writes to it; the panel /
@@ -106,7 +106,7 @@ struct RegistryInner {
     /// Last RTT sample per peer (instance name). Older samples are
     /// dropped — the routing layer wants the freshest reading, not
     /// the full series.
-    rtts:  HashMap<String, RttSample>,
+    rtts: HashMap<String, RttSample>,
 }
 
 impl Registry {
@@ -147,13 +147,21 @@ impl Registry {
     /// Number of peers currently tracked.
     #[must_use]
     pub fn peer_count(&self) -> usize {
-        self.inner.lock().expect("registry mutex poisoned").peers.len()
+        self.inner
+            .lock()
+            .expect("registry mutex poisoned")
+            .peers
+            .len()
     }
 
     /// Number of RTT samples currently held.
     #[must_use]
     pub fn rtt_count(&self) -> usize {
-        self.inner.lock().expect("registry mutex poisoned").rtts.len()
+        self.inner
+            .lock()
+            .expect("registry mutex poisoned")
+            .rtts
+            .len()
     }
 }
 
@@ -214,9 +222,9 @@ pub fn decode_probe(buf: &[u8]) -> Option<ProbeMsg> {
 pub fn lan_direct_wins(lan_rtt_ms: Option<u32>, derp_rtt_ms: Option<u32>) -> bool {
     match (lan_rtt_ms, derp_rtt_ms) {
         (Some(lan), Some(derp)) => lan <= derp,
-        (Some(_), None)         => true,
-        (None, Some(_))         => false,
-        (None, None)            => false,
+        (Some(_), None) => true,
+        (None, Some(_)) => false,
+        (None, None) => false,
     }
 }
 
@@ -234,12 +242,7 @@ pub fn lan_direct_wins(lan_rtt_ms: Option<u32>, derp_rtt_ms: Option<u32>) -> boo
 /// both paths + dedupe on the receive side (the 64-bit packet-ID
 /// dedupe lives one layer up in [`PacketDedupe`]).
 #[must_use]
-pub fn should_use_multipath(
-    rtt_a_ms: u32,
-    rtt_b_ms: u32,
-    bw_a_bps: u64,
-    bw_b_bps: u64,
-) -> bool {
+pub fn should_use_multipath(rtt_a_ms: u32, rtt_b_ms: u32, bw_a_bps: u64, bw_b_bps: u64) -> bool {
     const RTT_CEILING_MS: u32 = 50;
     if rtt_a_ms >= RTT_CEILING_MS || rtt_b_ms >= RTT_CEILING_MS {
         return false;
@@ -269,7 +272,7 @@ pub fn should_use_multipath(
 pub struct PacketDedupe {
     capacity: usize,
     seen: std::collections::VecDeque<u64>,
-    set:  std::collections::HashSet<u64>,
+    set: std::collections::HashSet<u64>,
 }
 
 impl PacketDedupe {
@@ -285,7 +288,7 @@ impl PacketDedupe {
         Self {
             capacity,
             seen: std::collections::VecDeque::with_capacity(capacity),
-            set:  std::collections::HashSet::with_capacity(capacity),
+            set: std::collections::HashSet::with_capacity(capacity),
         }
     }
 
@@ -355,10 +358,10 @@ impl LinkState {
     #[must_use]
     pub fn parse(operstate: &str) -> Self {
         match operstate.trim() {
-            "up"        => Self::Up,
-            "down"      => Self::Down,
-            "dormant"   => Self::Dormant,
-            _           => Self::Unknown,
+            "up" => Self::Up,
+            "down" => Self::Down,
+            "dormant" => Self::Dormant,
+            _ => Self::Unknown,
         }
     }
 
@@ -418,7 +421,7 @@ pub fn read_link_state(iface: &str) -> LinkState {
 /// reconnect budget by a comfortable margin (9 s remaining for
 /// the WireGuard re-handshake itself).
 pub struct LinkWatchWorker {
-    iface:  String,
+    iface: String,
     period: Duration,
     on_transition: Arc<dyn Fn(LinkTransition) + Send + Sync>,
 }
@@ -433,7 +436,7 @@ impl LinkWatchWorker {
         F: Fn(LinkTransition) + Send + Sync + 'static,
     {
         Self {
-            iface:  iface.into(),
+            iface: iface.into(),
             period: Duration::from_secs(1),
             on_transition: Arc::new(on_transition),
         }
@@ -548,11 +551,8 @@ pub fn multicast_allowed_on_link(link_type: &str) -> bool {
 /// "Address already in use" (returned without reuse). Wi-Fi
 /// interfaces are not detected here — gate on
 /// [`multicast_allowed_on_link`] before calling.
-pub async fn open_multicast_listener(
-    interface_v4: Ipv4Addr,
-) -> anyhow::Result<UdpSocket> {
-    let bind: SocketAddr =
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), MULTICAST_PORT);
+pub async fn open_multicast_listener(interface_v4: Ipv4Addr) -> anyhow::Result<UdpSocket> {
+    let bind: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), MULTICAST_PORT);
     let socket = UdpSocket::bind(bind).await?;
     let group = Ipv4Addr::from(MULTICAST_GROUP_V4);
     socket.join_multicast_v4(group, interface_v4)?;
@@ -570,15 +570,12 @@ pub async fn open_multicast_listener(
 ///
 /// Returns `true` when path A should win over path B.
 #[must_use]
-pub fn higher_throughput_wins(
-    a_bytes_per_sec: Option<u64>,
-    b_bytes_per_sec: Option<u64>,
-) -> bool {
+pub fn higher_throughput_wins(a_bytes_per_sec: Option<u64>, b_bytes_per_sec: Option<u64>) -> bool {
     match (a_bytes_per_sec, b_bytes_per_sec) {
         (Some(a), Some(b)) => a >= b,
-        (Some(_), None)    => true,
-        (None, Some(_))    => false,
-        (None, None)       => false,
+        (Some(_), None) => true,
+        (None, Some(_)) => false,
+        (None, None) => false,
     }
 }
 
@@ -599,9 +596,9 @@ pub fn ipv6_direct_wins(ipv6_rtt_ms: Option<u32>, ipv4_derp_rtt_ms: Option<u32>)
         // The throughput-aware override lands in Phase 12.22 — that
         // can still demote IPv6 if it's saturated.
         (Some(_), Some(_)) => true,
-        (Some(_), None)    => true,
-        (None, Some(_))    => false,
-        (None, None)       => false,
+        (Some(_), None) => true,
+        (None, Some(_)) => false,
+        (None, None) => false,
     }
 }
 
@@ -639,10 +636,10 @@ impl LanDiscoveryConfig {
     #[must_use]
     pub fn new(host: impl Into<String>) -> Self {
         Self {
-            host:         host.into(),
-            port:         DEFAULT_PROBE_PORT,
+            host: host.into(),
+            port: DEFAULT_PROBE_PORT,
             probe_period: Duration::from_secs(5),
-            registry:     Registry::new(),
+            registry: Registry::new(),
         }
     }
 }
@@ -674,16 +671,19 @@ impl Worker for LanDiscoveryWorker {
     }
 
     async fn run(&mut self, mut shutdown: ShutdownToken) -> anyhow::Result<()> {
-        let LanDiscoveryConfig { host, port, probe_period, registry } =
-            self.config.clone_for_run();
+        let LanDiscoveryConfig {
+            host,
+            port,
+            probe_period,
+            registry,
+        } = self.config.clone_for_run();
 
         info!(host = %host, port, "lan-discovery: starting");
 
         // mdns-sd's ServiceDaemon is sync + spawns its own poll
         // thread internally, so we just drive its event channel from
         // a tokio task.
-        let daemon = ServiceDaemon::new()
-            .context("lan-discovery: ServiceDaemon::new")?;
+        let daemon = ServiceDaemon::new().context("lan-discovery: ServiceDaemon::new")?;
         let receiver = daemon
             .browse(SERVICE_TYPE)
             .context("lan-discovery: daemon.browse")?;
@@ -706,12 +706,9 @@ impl Worker for LanDiscoveryWorker {
 
         // UDP probe socket — bound on `0.0.0.0:port` so the OS picks
         // the right interface per peer.
-        let listener = UdpSocket::bind(SocketAddr::new(
-            IpAddr::V4(Ipv4Addr::UNSPECIFIED),
-            port,
-        ))
-        .await
-        .context("lan-discovery: UdpSocket::bind")?;
+        let listener = UdpSocket::bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), port))
+            .await
+            .context("lan-discovery: UdpSocket::bind")?;
         let listener = Arc::new(listener);
 
         // Listener task: echo pings + record pongs.
@@ -811,10 +808,10 @@ impl LanDiscoveryConfig {
     /// shared handle; the rest are owned strings + Copy.
     fn clone_for_run(&self) -> Self {
         Self {
-            host:         self.host.clone(),
-            port:         self.port,
+            host: self.host.clone(),
+            port: self.port,
             probe_period: self.probe_period,
-            registry:     self.registry.clone(),
+            registry: self.registry.clone(),
         }
     }
 }
@@ -928,8 +925,8 @@ mod tests {
         assert_eq!(r.peer_count(), 0);
         let peer = LanPeer {
             instance: "anvil".into(),
-            host:     "anvil".into(),
-            addr:     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 4)), 41841),
+            host: "anvil".into(),
+            addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 4)), 41841),
         };
         r.upsert_peer(peer.clone());
         assert_eq!(r.peer_count(), 1);
@@ -946,11 +943,8 @@ mod tests {
         for name in ["pine", "anvil", "oak"] {
             r.upsert_peer(LanPeer {
                 instance: name.into(),
-                host:     name.into(),
-                addr:     SocketAddr::new(
-                    IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)),
-                    41841,
-                ),
+                host: name.into(),
+                addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)), 41841),
             });
         }
         let (peers, _) = r.snapshot();
@@ -1118,13 +1112,33 @@ mod tests {
         let freshness = Duration::from_secs(5);
         let max_rtt = 100u32;
         // Fresh + low RTT — prewarm.
-        assert!(should_eager_bootstrap(Some(40), Some(1_000), freshness, max_rtt));
+        assert!(should_eager_bootstrap(
+            Some(40),
+            Some(1_000),
+            freshness,
+            max_rtt
+        ));
         // Fresh + tied to max — prewarm (≤ boundary).
-        assert!(should_eager_bootstrap(Some(100), Some(0), freshness, max_rtt));
+        assert!(should_eager_bootstrap(
+            Some(100),
+            Some(0),
+            freshness,
+            max_rtt
+        ));
         // Fresh but slow — skip.
-        assert!(!should_eager_bootstrap(Some(150), Some(1_000), freshness, max_rtt));
+        assert!(!should_eager_bootstrap(
+            Some(150),
+            Some(1_000),
+            freshness,
+            max_rtt
+        ));
         // Stale sample — skip.
-        assert!(!should_eager_bootstrap(Some(40), Some(10_000), freshness, max_rtt));
+        assert!(!should_eager_bootstrap(
+            Some(40),
+            Some(10_000),
+            freshness,
+            max_rtt
+        ));
         // No sample — skip.
         assert!(!should_eager_bootstrap(None, Some(100), freshness, max_rtt));
         // No timestamp — skip.
@@ -1152,9 +1166,7 @@ mod tests {
                 assert_eq!(local.port(), MULTICAST_PORT);
             }
             Err(e) => {
-                eprintln!(
-                    "skip: multicast bind blocked by environment: {e}"
-                );
+                eprintln!("skip: multicast bind blocked by environment: {e}");
             }
         }
     }
@@ -1244,11 +1256,8 @@ mod tests {
         // Independent clones must share state.
         r1.upsert_peer(LanPeer {
             instance: "pine".into(),
-            host:     "pine".into(),
-            addr:     SocketAddr::new(
-                IpAddr::V4(Ipv4Addr::new(192, 168, 1, 7)),
-                41841,
-            ),
+            host: "pine".into(),
+            addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 7)), 41841),
         });
         assert_eq!(r2.peer_count(), 1);
     }

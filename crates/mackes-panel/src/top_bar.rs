@@ -55,7 +55,7 @@ pub fn apple_menu_button() -> gtk::Button {
     }
 
     button.set_tooltip_text(Some(
-        "Mackes menu — left-click: app & power actions · right-click: Fedora admin"
+        "Mackes menu — left-click: app & power actions · right-click: Fedora admin",
     ));
     if let Some(atk) = button.accessible() {
         atk.set_name("Mackes menu");
@@ -72,26 +72,24 @@ pub fn apple_menu_button() -> gtk::Button {
     //   retained below as dead code for one release cycle.
     let button_for_left = button.clone();
     let button_for_right = button.clone();
-    button.connect_button_press_event(move |_, ev| {
-        match ev.button() {
-            3 => {
-                let menu = admin_menu::build();
-                menu.show_all();
-                menu.popup_at_widget(
-                    &button_for_right,
-                    gdk::Gravity::SouthWest,
-                    gdk::Gravity::NorthWest,
-                    Some(ev),
-                );
-                glib::Propagation::Stop
-            }
-            1 => {
-                let popover = start_menu::build(button_for_left.upcast_ref::<gtk::Widget>());
-                popover.popup();
-                glib::Propagation::Stop
-            }
-            _ => glib::Propagation::Proceed,
+    button.connect_button_press_event(move |_, ev| match ev.button() {
+        3 => {
+            let menu = admin_menu::build();
+            menu.show_all();
+            menu.popup_at_widget(
+                &button_for_right,
+                gdk::Gravity::SouthWest,
+                gdk::Gravity::NorthWest,
+                Some(ev),
+            );
+            glib::Propagation::Stop
         }
+        1 => {
+            let popover = start_menu::build(button_for_left.upcast_ref::<gtk::Widget>());
+            popover.popup();
+            glib::Propagation::Stop
+        }
+        _ => glib::Propagation::Proceed,
     });
     button
 }
@@ -390,9 +388,6 @@ mod tests {
         }
         let button = apple_menu_button();
         let name = button.widget_name();
-        assert!(
-            !name.is_empty(),
-            "apple_menu_button must set a widget name"
-        );
+        assert!(!name.is_empty(), "apple_menu_button must set a widget name");
     }
 }

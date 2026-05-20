@@ -27,7 +27,7 @@ use super::{ShutdownToken, Worker};
 /// pinned to a stale path.
 pub struct HeartbeatWorker {
     qnm_root: PathBuf,
-    node_id:  String,
+    node_id: String,
 }
 
 impl HeartbeatWorker {
@@ -88,31 +88,22 @@ mod tests {
 
     #[tokio::test]
     async fn heartbeat_worker_name_matches_phase_b_lock() {
-        let w = HeartbeatWorker::new(
-            PathBuf::from("/tmp/heartbeat-test"),
-            "peer:test".to_owned(),
-        );
+        let w = HeartbeatWorker::new(PathBuf::from("/tmp/heartbeat-test"), "peer:test".to_owned());
         assert_eq!(w.name(), "heartbeat");
     }
 
     #[tokio::test]
     async fn heartbeat_worker_exits_on_shutdown_token() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let mut w = HeartbeatWorker::new(
-            tmp.path().to_path_buf(),
-            "peer:test".to_owned(),
-        );
+        let mut w = HeartbeatWorker::new(tmp.path().to_path_buf(), "peer:test".to_owned());
         let (tx, rx) = tokio::sync::watch::channel(false);
         let token = ShutdownToken::from_receiver(rx);
         // Drive shutdown after a short delay so the worker actually
         // ticks once before exiting.
         let _ = tx.send(true);
-        let result = tokio::time::timeout(
-            Duration::from_secs(3),
-            w.run(token),
-        )
-        .await
-        .expect("worker must exit on shutdown");
+        let result = tokio::time::timeout(Duration::from_secs(3), w.run(token))
+            .await
+            .expect("worker must exit on shutdown");
         assert!(result.is_ok());
     }
 }

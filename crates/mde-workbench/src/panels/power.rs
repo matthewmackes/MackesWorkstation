@@ -23,13 +23,7 @@ pub const PROFILES: &[&str] = &["power-saver", "balanced", "performance"];
 
 /// logind lid-action values. The Phase C.4 sidecar feeds the
 /// matching logind drop-in at mde-session bring-up.
-pub const LID_ACTIONS: &[&str] = &[
-    "ignore",
-    "lock",
-    "suspend",
-    "hibernate",
-    "poweroff",
-];
+pub const LID_ACTIONS: &[&str] = &["ignore", "lock", "suspend", "hibernate", "poweroff"];
 
 pub const KEY_PROFILE: &str = "power.profile";
 pub const KEY_LID_ACTION: &str = "power.lid_action";
@@ -77,14 +71,10 @@ impl PowerPanel {
         Task::perform(
             async move {
                 let profile = strip_json_quotes(&backend.get(KEY_PROFILE).await?);
-                let lid_action =
-                    strip_json_quotes(&backend.get(KEY_LID_ACTION).await?);
-                let idle_battery_s = parse_u32(&backend.get(KEY_IDLE_BATTERY).await?)
-                    .unwrap_or(0);
-                let idle_ac_s =
-                    parse_u32(&backend.get(KEY_IDLE_AC).await?).unwrap_or(0);
-                let presentation_mode =
-                    parse_bool(&backend.get(KEY_PRESENTATION).await?);
+                let lid_action = strip_json_quotes(&backend.get(KEY_LID_ACTION).await?);
+                let idle_battery_s = parse_u32(&backend.get(KEY_IDLE_BATTERY).await?).unwrap_or(0);
+                let idle_ac_s = parse_u32(&backend.get(KEY_IDLE_AC).await?).unwrap_or(0);
+                let presentation_mode = parse_bool(&backend.get(KEY_PRESENTATION).await?);
                 Ok::<_, crate::backend::BackendError>(Message::Loaded {
                     profile,
                     lid_action,
@@ -94,18 +84,12 @@ impl PowerPanel {
                 })
             },
             |result| {
-                crate::Message::Power(
-                    result.unwrap_or_else(|e| Message::Error(e.to_string())),
-                )
+                crate::Message::Power(result.unwrap_or_else(|e| Message::Error(e.to_string())))
             },
         )
     }
 
-    pub fn update(
-        &mut self,
-        message: Message,
-        backend: Arc<dyn Backend>,
-    ) -> Task<crate::Message> {
+    pub fn update(&mut self, message: Message, backend: Arc<dyn Backend>) -> Task<crate::Message> {
         match message {
             Message::Loaded {
                 profile,
@@ -226,35 +210,27 @@ impl PowerPanel {
                 crate::Message::Power(Message::ProfileChanged(v.to_string()))
             });
         let lid_pick: pick_list::PickList<'_, &'static str, _, _, crate::Message> =
-            pick_list(
-                LID_ACTIONS,
-                current(&LID_ACTIONS, &self.lid_action),
-                |v| crate::Message::Power(Message::LidActionChanged(v.to_string())),
-            );
+            pick_list(LID_ACTIONS, current(&LID_ACTIONS, &self.lid_action), |v| {
+                crate::Message::Power(Message::LidActionChanged(v.to_string()))
+            });
 
         column![
-            row![text("Profile").width(Length::Fixed(180.0)), profile_pick]
-                .spacing(12),
-            row![text("Lid action").width(Length::Fixed(180.0)), lid_pick]
-                .spacing(12),
+            row![text("Profile").width(Length::Fixed(180.0)), profile_pick].spacing(12),
+            row![text("Lid action").width(Length::Fixed(180.0)), lid_pick].spacing(12),
             row![
                 text("Idle suspend (battery, s)").width(Length::Fixed(180.0)),
-                text_input("0", &self.idle_battery_input).on_input(|v| {
-                    crate::Message::Power(Message::IdleBatteryChanged(v))
-                }),
+                text_input("0", &self.idle_battery_input)
+                    .on_input(|v| { crate::Message::Power(Message::IdleBatteryChanged(v)) }),
             ]
             .spacing(12),
             row![
                 text("Idle suspend (AC, s)").width(Length::Fixed(180.0)),
-                text_input("0", &self.idle_ac_input).on_input(|v| {
-                    crate::Message::Power(Message::IdleAcChanged(v))
-                }),
+                text_input("0", &self.idle_ac_input)
+                    .on_input(|v| { crate::Message::Power(Message::IdleAcChanged(v)) }),
             ]
             .spacing(12),
             checkbox("Presentation mode (caffeine)", self.presentation_mode)
-                .on_toggle(|v| {
-                    crate::Message::Power(Message::PresentationChanged(v))
-                }),
+                .on_toggle(|v| { crate::Message::Power(Message::PresentationChanged(v)) }),
             row![save_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(12)
@@ -277,8 +253,7 @@ fn resolve_idle(input: &str) -> Result<u32, String> {
     if trimmed.is_empty() {
         return Ok(0);
     }
-    parse_u32(trimmed)
-        .ok_or_else(|| "Idle suspend must be a non-negative integer.".to_string())
+    parse_u32(trimmed).ok_or_else(|| "Idle suspend must be a non-negative integer.".to_string())
 }
 
 #[cfg(test)]
@@ -370,7 +345,10 @@ mod tests {
     fn field_change_messages_mutate_matching_fields() {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = PowerPanel::new();
-        let _ = panel.update(Message::ProfileChanged("performance".into()), backend.clone());
+        let _ = panel.update(
+            Message::ProfileChanged("performance".into()),
+            backend.clone(),
+        );
         assert_eq!(panel.profile, "performance");
         let _ = panel.update(Message::LidActionChanged("lock".into()), backend.clone());
         assert_eq!(panel.lid_action, "lock");
@@ -383,11 +361,20 @@ mod tests {
     #[tokio::test]
     async fn save_writes_all_five_keys_with_correct_json_shapes() {
         let backend: Arc<dyn Backend> = Arc::new(DemoBackend::new());
-        backend.set(KEY_PROFILE, &quote_json("balanced")).await.unwrap();
-        backend.set(KEY_LID_ACTION, &quote_json("suspend")).await.unwrap();
+        backend
+            .set(KEY_PROFILE, &quote_json("balanced"))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_LID_ACTION, &quote_json("suspend"))
+            .await
+            .unwrap();
         backend.set(KEY_IDLE_BATTERY, "600").await.unwrap();
         backend.set(KEY_IDLE_AC, "0").await.unwrap();
-        backend.set(KEY_PRESENTATION, encode_bool(true)).await.unwrap();
+        backend
+            .set(KEY_PRESENTATION, encode_bool(true))
+            .await
+            .unwrap();
         assert_eq!(backend.get(KEY_PROFILE).await.unwrap(), "\"balanced\"");
         assert_eq!(backend.get(KEY_IDLE_BATTERY).await.unwrap(), "600");
         assert_eq!(backend.get(KEY_PRESENTATION).await.unwrap(), "true");

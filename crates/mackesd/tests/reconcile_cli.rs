@@ -37,9 +37,14 @@ fn reconcile_once_against_empty_fixture_prints_plan() {
         .output()
         .expect("running mackesd reconcile --once");
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(out.status.success(), "non-zero exit: {:?}\nstderr: {}", out.status, String::from_utf8_lossy(&out.stderr));
-    let json: serde_json::Value =
-        serde_json::from_str(&stdout).unwrap_or_else(|e| panic!("invalid JSON: {e}\nstdout: {stdout}"));
+    assert!(
+        out.status.success(),
+        "non-zero exit: {:?}\nstderr: {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let json: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|e| panic!("invalid JSON: {e}\nstdout: {stdout}"));
     assert_eq!(json["observed_heartbeats"], 0);
     assert_eq!(json["observed_edges"], 0);
     assert_eq!(json["desired_edges"], 0);

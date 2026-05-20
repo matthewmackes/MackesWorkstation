@@ -28,7 +28,9 @@ pub fn is_server_installed() -> bool {
 /// Same as [`is_server_installed`] but lets callers pass a custom path.
 #[must_use]
 pub fn is_server_installed_at(path: &Path) -> bool {
-    let Ok(meta) = std::fs::metadata(path) else { return false };
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
     if !meta.is_file() {
         return false;
     }
@@ -118,8 +120,10 @@ mod tests {
 
     #[test]
     fn control_url_handles_hostname() {
-        assert_eq!(control_url("nats.example.com"),
-                   "nats://nats.example.com:4222");
+        assert_eq!(
+            control_url("nats.example.com"),
+            "nats://nats.example.com:4222"
+        );
     }
 
     #[test]

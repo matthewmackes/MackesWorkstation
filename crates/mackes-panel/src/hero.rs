@@ -274,9 +274,11 @@ fn set_hero(w: &HeroWidgets, wm_class: &str, title: &str) {
     if let Some(pb) = crate::icons::load(&icon_name, 18) {
         w.icon.set_from_pixbuf(Some(&pb));
     } else {
-        w.icon.set_from_icon_name(Some(&icon_name), gtk::IconSize::SmallToolbar);
+        w.icon
+            .set_from_icon_name(Some(&icon_name), gtk::IconSize::SmallToolbar);
     }
-    w.title.set_text(if title.is_empty() { wm_class } else { title });
+    w.title
+        .set_text(if title.is_empty() { wm_class } else { title });
 
     // Clear any prior greyed state from a close event.
     w.icon.style_context().remove_class("greyed");
@@ -327,13 +329,22 @@ mod tests {
         // None of the above hits the substring either. The real i3 IPC
         // workspace event shape:
         let real_event = r#"{"change":"workspace::focus","current":{}}"#;
-        assert!(matches!(parse_event(real_event), Some(HeroEvent::WorkspaceFocus)));
+        assert!(matches!(
+            parse_event(real_event),
+            Some(HeroEvent::WorkspaceFocus)
+        ));
         // Belt-and-braces: any line with `"change":"workspace` matches.
         let alt = r#"{"change":"workspace","current":{}}"#;
         assert!(matches!(parse_event(alt), Some(HeroEvent::WorkspaceFocus)));
         // Lines that look like window events should NOT match.
-        assert!(!matches!(parse_event(real), Some(HeroEvent::WorkspaceFocus)));
-        assert!(!matches!(parse_event(canon), Some(HeroEvent::WorkspaceFocus)));
+        assert!(!matches!(
+            parse_event(real),
+            Some(HeroEvent::WorkspaceFocus)
+        ));
+        assert!(!matches!(
+            parse_event(canon),
+            Some(HeroEvent::WorkspaceFocus)
+        ));
     }
 
     #[test]
@@ -374,6 +385,9 @@ mod tests {
     #[test]
     fn extract_handles_escaped_quotes() {
         let s = r#""title":"foo \"bar\" baz""#;
-        assert_eq!(extract_quoted_value(s, r#""title":"#).unwrap(), "foo \"bar\" baz");
+        assert_eq!(
+            extract_quoted_value(s, r#""title":"#).unwrap(),
+            "foo \"bar\" baz"
+        );
     }
 }

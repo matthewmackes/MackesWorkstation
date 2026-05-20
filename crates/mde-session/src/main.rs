@@ -59,7 +59,8 @@ async fn main() -> anyhow::Result<()> {
     // 2. Register the dev.mackes.MDE.Session zbus interface so the
     //    panel + Workbench can drive Logout / Restart / Lock.
     let session = session::SessionState::new();
-    let _conn = session::register_zbus(session.clone()).await
+    let _conn = session::register_zbus(session.clone())
+        .await
         .context("registering dev.mackes.MDE.Session")?;
 
     // 3. Exec the compositor.
@@ -70,10 +71,8 @@ async fn main() -> anyhow::Result<()> {
         .spawn()
         .with_context(|| format!("spawning {cmp}"))?;
 
-    let mut sigterm = signal(SignalKind::terminate())
-        .context("installing SIGTERM handler")?;
-    let mut sigint = signal(SignalKind::interrupt())
-        .context("installing SIGINT handler")?;
+    let mut sigterm = signal(SignalKind::terminate()).context("installing SIGTERM handler")?;
+    let mut sigint = signal(SignalKind::interrupt()).context("installing SIGINT handler")?;
 
     tokio::select! {
         _ = sigterm.recv() => {

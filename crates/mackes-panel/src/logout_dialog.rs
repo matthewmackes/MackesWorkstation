@@ -59,7 +59,7 @@ pub fn open() {
     title.set_halign(gtk::Align::Start);
     title.style_context().add_class("mackes-logout-title");
     let subtitle = gtk::Label::new(Some(
-        "Pick how you'd like to end this session. Unsaved work in open apps may be lost."
+        "Pick how you'd like to end this session. Unsaved work in open apps may be lost.",
     ));
     subtitle.set_halign(gtk::Align::Start);
     subtitle.set_xalign(0.0);

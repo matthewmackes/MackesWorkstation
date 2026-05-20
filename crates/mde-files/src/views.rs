@@ -7,14 +7,11 @@ use iced::{Background, Border, Color, Element, Length, Padding, Theme};
 use crate::app::{Crumb, Message};
 use crate::demo_data as data;
 use crate::icons;
-use crate::model::{
-    fmt_count, FileRow, Layout, LocalPin, Peer, PeerStatus, SelfNode, View,
-};
+use crate::model::{fmt_count, FileRow, Layout, LocalPin, Peer, PeerStatus, SelfNode, View};
 use crate::theme as t;
 use crate::widgets::{
-    banner, breadcrumb_tag, disclosure_row, file_row, file_row_head, ghost_button_style,
-    icon, peer_card, section_h, side_row, side_section_header, tx_row,
-    BannerStat, SideRowVariant,
+    banner, breadcrumb_tag, disclosure_row, file_row, file_row_head, ghost_button_style, icon,
+    peer_card, section_h, side_row, side_section_header, tx_row, BannerStat, SideRowVariant,
 };
 
 // ─── Titlebar ──────────────────────────────────────────────────────────────
@@ -44,8 +41,16 @@ pub fn titlebar(online: usize, total: usize) -> Element<'static, Message> {
     let make_btn = |svg_bytes: &'static [u8], msg: Message, is_close: bool| {
         let style_fn = move |_theme: &Theme, status: button::Status| {
             let bg = match status {
-                button::Status::Hovered if is_close => Color { r: 0.91, g: 0.07, b: 0.14, a: 1.0 },
-                button::Status::Hovered => Color { a: 0.08, ..Color::WHITE },
+                button::Status::Hovered if is_close => Color {
+                    r: 0.91,
+                    g: 0.07,
+                    b: 0.14,
+                    a: 1.0,
+                },
+                button::Status::Hovered => Color {
+                    a: 0.08,
+                    ..Color::WHITE
+                },
                 _ => Color::TRANSPARENT,
             };
             let fg = match status {
@@ -56,7 +61,11 @@ pub fn titlebar(online: usize, total: usize) -> Element<'static, Message> {
             button::Style {
                 background: Some(Background::Color(bg)),
                 text_color: fg,
-                border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+                border: Border {
+                    color: Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: 0.0.into(),
+                },
                 ..button::Style::default()
             }
         };
@@ -75,23 +84,24 @@ pub fn titlebar(online: usize, total: usize) -> Element<'static, Message> {
     };
 
     let controls = row![
-        make_btn(icons::MINUS,    Message::TitlebarMinimize, false),
+        make_btn(icons::MINUS, Message::TitlebarMinimize, false),
         make_btn(icons::MAXIMIZE, Message::TitlebarMaximize, false),
-        make_btn(icons::CLOSE,    Message::TitlebarClose,    true),
+        make_btn(icons::CLOSE, Message::TitlebarClose, true),
     ];
 
-    container(
-        row![app_icon, title_cell, controls]
-            .align_y(iced::alignment::Vertical::Center),
-    )
-    .width(Length::Fill)
-    .height(Length::Fixed(t::TITLEBAR_H))
-    .style(|_| container::Style {
-        background: Some(Background::Color(t::WINDOW_TITLEBAR)),
-        border: Border { color: t::DIVIDER, width: 0.0, radius: 0.0.into() },
-        ..container::Style::default()
-    })
-    .into()
+    container(row![app_icon, title_cell, controls].align_y(iced::alignment::Vertical::Center))
+        .width(Length::Fill)
+        .height(Length::Fixed(t::TITLEBAR_H))
+        .style(|_| container::Style {
+            background: Some(Background::Color(t::WINDOW_TITLEBAR)),
+            border: Border {
+                color: t::DIVIDER,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
+            ..container::Style::default()
+        })
+        .into()
 }
 
 // ─── Sidebar ───────────────────────────────────────────────────────────────
@@ -120,7 +130,11 @@ pub fn sidebar(view: View, local_open: bool, self_node: &SelfNode) -> Element<'s
     .padding(Padding::new(6.0))
     .style(|_| container::Style {
         background: Some(Background::Color(t::WINDOW_SIDE)),
-        border: Border { color: t::DIVIDER, width: 0.0, radius: 0.0.into() },
+        border: Border {
+            color: t::DIVIDER,
+            width: 0.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     });
 
@@ -151,22 +165,32 @@ pub fn sidebar(view: View, local_open: bool, self_node: &SelfNode) -> Element<'s
         &self_label,
         None,
         Some(self_node.shared.to_string()),
-        SideRowVariant::Peer { status: PeerStatus::Self_, active: false },
+        SideRowVariant::Peer {
+            status: PeerStatus::Self_,
+            active: false,
+        },
         Message::Noop,
     ));
 
     for p in data::PEERS {
         let label_with_lat = match p.latency {
             Some(ms) => format!("{}  · {}ms", p.host, ms),
-            None     => p.host.to_string(),
+            None => p.host.to_string(),
         };
         let active = matches!(view, View::Peer(id) if id == p.id);
         mesh_col = mesh_col.push(side_row(
             icons::MESH_HUB,
             &label_with_lat,
             None,
-            Some(if p.shared > 0 { fmt_count(p.shared) } else { "—".into() }),
-            SideRowVariant::Peer { status: p.status, active },
+            Some(if p.shared > 0 {
+                fmt_count(p.shared)
+            } else {
+                "—".into()
+            }),
+            SideRowVariant::Peer {
+                status: p.status,
+                active,
+            },
             Message::SelectView(View::Peer(p.id)),
         ));
     }
@@ -177,7 +201,11 @@ pub fn sidebar(view: View, local_open: bool, self_node: &SelfNode) -> Element<'s
         "Inbox",
         None,
         Some(data::INBOX.len().to_string()),
-        if matches!(view, View::Inbox) { SideRowVariant::Active } else { SideRowVariant::Default },
+        if matches!(view, View::Inbox) {
+            SideRowVariant::Active
+        } else {
+            SideRowVariant::Default
+        },
         Message::SelectView(View::Inbox),
     ));
     mesh_col = mesh_col.push(side_row(
@@ -224,10 +252,22 @@ pub fn sidebar(view: View, local_open: bool, self_node: &SelfNode) -> Element<'s
     }
 
     let local_pane = container(local_col.spacing(0))
-        .padding(Padding { top: 0.0, right: 0.0, bottom: 4.0, left: 0.0 })
+        .padding(Padding {
+            top: 0.0,
+            right: 0.0,
+            bottom: 4.0,
+            left: 0.0,
+        })
         .style(|_| container::Style {
-            background: Some(Background::Color(Color { a: 0.18, ..Color::BLACK })),
-            border: Border { color: t::DIVIDER, width: 0.0, radius: 0.0.into() },
+            background: Some(Background::Color(Color {
+                a: 0.18,
+                ..Color::BLACK
+            })),
+            border: Border {
+                color: t::DIVIDER,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         });
 
@@ -244,9 +284,19 @@ pub fn sidebar(view: View, local_open: bool, self_node: &SelfNode) -> Element<'s
             )
             .padding(Padding::from([4.0, 8.0]))
             .style(|_, _| button::Style {
-                background: Some(Background::Color(Color { a: 0.10, ..t::ACCENT })),
+                background: Some(Background::Color(Color {
+                    a: 0.10,
+                    ..t::ACCENT
+                })),
                 text_color: t::ACCENT_HI,
-                border: Border { color: Color { a: 0.30, ..t::ACCENT }, width: 1.0, radius: 0.0.into() },
+                border: Border {
+                    color: Color {
+                        a: 0.30,
+                        ..t::ACCENT
+                    },
+                    width: 1.0,
+                    radius: 0.0.into()
+                },
                 ..button::Style::default()
             })
             .on_press(Message::Noop),
@@ -256,18 +306,28 @@ pub fn sidebar(view: View, local_open: bool, self_node: &SelfNode) -> Element<'s
     .padding(Padding::from([10.0, 14.0]))
     .style(|_| container::Style {
         background: Some(Background::Color(t::WINDOW_SIDE)),
-        border: Border { color: t::DIVIDER, width: 0.0, radius: 0.0.into() },
+        border: Border {
+            color: t::DIVIDER,
+            width: 0.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     });
 
-    let col = column![top, mesh_scroll, local_pane, foot].spacing(0).height(Length::Fill);
+    let col = column![top, mesh_scroll, local_pane, foot]
+        .spacing(0)
+        .height(Length::Fill);
 
     container(col)
         .width(Length::Fixed(t::SIDEBAR_W))
         .height(Length::Fill)
         .style(|_| container::Style {
             background: Some(Background::Color(t::WINDOW_SIDE)),
-            border: Border { color: t::DIVIDER, width: 0.0, radius: 0.0.into() },
+            border: Border {
+                color: t::DIVIDER,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         })
         .into()
@@ -275,7 +335,12 @@ pub fn sidebar(view: View, local_open: bool, self_node: &SelfNode) -> Element<'s
 
 // ─── Toolbar (`.fm-toolbar`) ───────────────────────────────────────────────
 
-pub fn toolbar<'a>(view: View, layout: Layout, search: &'a str, crumbs: Vec<Crumb>) -> Element<'a, Message> {
+pub fn toolbar<'a>(
+    view: View,
+    layout: Layout,
+    search: &'a str,
+    crumbs: Vec<Crumb>,
+) -> Element<'a, Message> {
     let mut crumb_row = row![].spacing(6).align_y(iced::alignment::Vertical::Center);
     for (i, c) in crumbs.iter().enumerate() {
         if i > 0 {
@@ -297,7 +362,11 @@ pub fn toolbar<'a>(view: View, layout: Layout, search: &'a str, crumbs: Vec<Crum
         is_mesh,
     ));
 
-    let placeholder = if view.is_mesh() { "Search mesh…" } else { "Search…" };
+    let placeholder = if view.is_mesh() {
+        "Search mesh…"
+    } else {
+        "Search…"
+    };
     let search_widget = container(
         row![
             icon(icons::SEARCH, 14.0, t::FG_DIM),
@@ -313,8 +382,15 @@ pub fn toolbar<'a>(view: View, layout: Layout, search: &'a str, crumbs: Vec<Crum
     .padding(Padding::from([4.0, 8.0]))
     .width(Length::Fixed(220.0))
     .style(|_| container::Style {
-        background: Some(Background::Color(Color { a: 0.05, ..Color::WHITE })),
-        border: Border { color: Color::TRANSPARENT, width: 1.0, radius: 0.0.into() },
+        background: Some(Background::Color(Color {
+            a: 0.05,
+            ..Color::WHITE
+        })),
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     });
 
@@ -322,14 +398,26 @@ pub fn toolbar<'a>(view: View, layout: Layout, search: &'a str, crumbs: Vec<Crum
     let grid_active = matches!(layout, Layout::Grid);
     let view_toggle = container(
         row![
-            view_toggle_btn(icons::LIST_VIEW, list_active, Message::SetLayout(Layout::List)),
-            view_toggle_btn(icons::GRID_VIEW, grid_active, Message::SetLayout(Layout::Grid)),
+            view_toggle_btn(
+                icons::LIST_VIEW,
+                list_active,
+                Message::SetLayout(Layout::List)
+            ),
+            view_toggle_btn(
+                icons::GRID_VIEW,
+                grid_active,
+                Message::SetLayout(Layout::Grid)
+            ),
         ]
         .spacing(0),
     )
     .style(|_| container::Style {
         background: Some(Background::Color(Color::TRANSPARENT)),
-        border: Border { color: t::DIVIDER, width: 1.0, radius: 0.0.into() },
+        border: Border {
+            color: t::DIVIDER,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     });
 
@@ -350,14 +438,29 @@ pub fn toolbar<'a>(view: View, layout: Layout, search: &'a str, crumbs: Vec<Crum
     .width(Length::Fill)
     .style(|_| container::Style {
         background: Some(Background::Color(t::PF_BG_200)),
-        border: Border { color: t::DIVIDER, width: 0.0, radius: 0.0.into() },
+        border: Border {
+            color: t::DIVIDER,
+            width: 0.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     })
     .into()
 }
 
-fn view_toggle_btn(svg_bytes: &'static [u8], active: bool, msg: Message) -> Element<'static, Message> {
-    let bg = if active { Color { a: 0.14, ..t::ACCENT } } else { Color::TRANSPARENT };
+fn view_toggle_btn(
+    svg_bytes: &'static [u8],
+    active: bool,
+    msg: Message,
+) -> Element<'static, Message> {
+    let bg = if active {
+        Color {
+            a: 0.14,
+            ..t::ACCENT
+        }
+    } else {
+        Color::TRANSPARENT
+    };
     let fg = if active { t::ACCENT_HI } else { t::FG_DIM };
     button(
         container(icon(svg_bytes, 14.0, fg))
@@ -370,7 +473,11 @@ fn view_toggle_btn(svg_bytes: &'static [u8], active: bool, msg: Message) -> Elem
     .style(move |_, _| button::Style {
         background: Some(Background::Color(bg)),
         text_color: fg,
-        border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 0.0.into(),
+        },
         ..button::Style::default()
     })
     .on_press(msg)
@@ -387,31 +494,74 @@ fn primary_action(view: View) -> Element<'static, Message> {
     };
 
     let inner = row![
-        icon(icon_svg, 13.0, if ghost { t::FG_DIM } else { Color { r: 0.10, g: 0.07, b: 0.02, a: 1.0 } }),
-        text(label.to_string()).size(12).color(if ghost { t::FG_DIM } else { Color { r: 0.10, g: 0.07, b: 0.02, a: 1.0 } }),
+        icon(
+            icon_svg,
+            13.0,
+            if ghost {
+                t::FG_DIM
+            } else {
+                Color {
+                    r: 0.10,
+                    g: 0.07,
+                    b: 0.02,
+                    a: 1.0,
+                }
+            }
+        ),
+        text(label.to_string()).size(12).color(if ghost {
+            t::FG_DIM
+        } else {
+            Color {
+                r: 0.10,
+                g: 0.07,
+                b: 0.02,
+                a: 1.0,
+            }
+        }),
     ]
     .spacing(6)
     .align_y(iced::alignment::Vertical::Center);
 
-    let btn = button(inner).padding(Padding::from([5.0, 12.0])).on_press(Message::PrimaryAction);
+    let btn = button(inner)
+        .padding(Padding::from([5.0, 12.0]))
+        .on_press(Message::PrimaryAction);
 
     if ghost {
         btn.style(|_, _| button::Style {
             background: Some(Background::Color(Color::TRANSPARENT)),
             text_color: t::FG_DIM,
-            border: Border { color: t::DIVIDER, width: 1.0, radius: 0.0.into() },
+            border: Border {
+                color: t::DIVIDER,
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             ..button::Style::default()
-        }).into()
+        })
+        .into()
     } else {
         btn.style(|_, status| {
-            let bg = if matches!(status, button::Status::Hovered) { t::ACCENT_HI } else { t::ACCENT };
+            let bg = if matches!(status, button::Status::Hovered) {
+                t::ACCENT_HI
+            } else {
+                t::ACCENT
+            };
             button::Style {
                 background: Some(Background::Color(bg)),
-                text_color: Color { r: 0.10, g: 0.07, b: 0.02, a: 1.0 },
-                border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+                text_color: Color {
+                    r: 0.10,
+                    g: 0.07,
+                    b: 0.02,
+                    a: 1.0,
+                },
+                border: Border {
+                    color: Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: 0.0.into(),
+                },
                 ..button::Style::default()
             }
-        }).into()
+        })
+        .into()
     }
 }
 
@@ -433,14 +583,16 @@ pub fn mesh_overview(self_node: &SelfNode) -> Element<'static, Message> {
             files = self_node.files,
         ),
         vec![
-            BannerStat::new(online.to_string(),        "Online"),
-            BannerStat::new(total_shared.to_string(),  "Shared"),
+            BannerStat::new(online.to_string(), "Online"),
+            BannerStat::new(total_shared.to_string(), "Shared"),
         ],
     );
 
     let card_children: Vec<Element<'static, Message>> =
         data::PEERS.iter().copied().map(peer_card).collect();
-    let cards = iced::widget::Row::with_children(card_children).spacing(10).wrap();
+    let cards = iced::widget::Row::with_children(card_children)
+        .spacing(10)
+        .wrap();
 
     let mut tx = column![].spacing(0);
     for transfer in data::RECENT_TRANSFERS {
@@ -450,7 +602,10 @@ pub fn mesh_overview(self_node: &SelfNode) -> Element<'static, Message> {
     column![
         banner_widget,
         Space::with_height(Length::Fixed(22.0)),
-        section_h(&format!("Peers · {total}"), Some("tailnet · sorted by latency")),
+        section_h(
+            &format!("Peers · {total}"),
+            Some("tailnet · sorted by latency")
+        ),
         cards,
         section_h("Recent mesh transfers", Some("last 24 h")),
         tx,
@@ -465,19 +620,20 @@ pub fn peer_folder(peer: &Peer, self_node: &SelfNode) -> Element<'static, Messag
     let kind_icon = icons::svg_for_peer_kind(peer.kind);
     let lat_or_last = match peer.latency {
         Some(ms) => format!("{ms} ms via {}", peer.derp),
-        None     => format!("last seen {}", peer.last),
+        None => format!("last seen {}", peer.last),
     };
 
     let banner_widget = banner(
         kind_icon,
         format!("{}  · {}", peer.host, peer.label),
-        format!("{addr} · {lat} · {shared} files shared with this node",
+        format!(
+            "{addr} · {lat} · {shared} files shared with this node",
             addr = peer.addr,
             lat = lat_or_last,
             shared = peer.shared,
         ),
         vec![
-            BannerStat::new(fmt_count(peer.files),  "Total files"),
+            BannerStat::new(fmt_count(peer.files), "Total files"),
             BannerStat::new(fmt_count(peer.shared), "Shared"),
         ],
     );
@@ -496,7 +652,10 @@ pub fn peer_folder(peer: &Peer, self_node: &SelfNode) -> Element<'static, Messag
     column![
         banner_widget,
         Space::with_height(Length::Fixed(22.0)),
-        section_h("Shared with this node", Some(&format!("{} items", files.len()))),
+        section_h(
+            "Shared with this node",
+            Some(&format!("{} items", files.len()))
+        ),
         list,
     ]
     .spacing(0)
@@ -516,10 +675,13 @@ pub fn inbox(self_node: &SelfNode) -> Element<'static, Message> {
     let banner_widget = banner(
         icons::INBOX,
         "Mesh inbox".to_string(),
-        format!("files peers sent to {} · auto-routed to ~/mesh/inbox/", self_node.host),
+        format!(
+            "files peers sent to {} · auto-routed to ~/mesh/inbox/",
+            self_node.host
+        ),
         vec![
             BannerStat::new(data::INBOX.len().to_string(), "Items"),
-            BannerStat::new(unique_senders.to_string(),    "From peers"),
+            BannerStat::new(unique_senders.to_string(), "From peers"),
         ],
     );
 
@@ -528,13 +690,9 @@ pub fn inbox(self_node: &SelfNode) -> Element<'static, Message> {
         list = list.push(file_row(*f, true));
     }
 
-    column![
-        banner_widget,
-        Space::with_height(Length::Fixed(22.0)),
-        list,
-    ]
-    .spacing(0)
-    .into()
+    column![banner_widget, Space::with_height(Length::Fixed(22.0)), list,]
+        .spacing(0)
+        .into()
 }
 
 // ─── Downloads ─────────────────────────────────────────────────────────────
@@ -551,7 +709,7 @@ pub fn downloads() -> Element<'static, Message> {
         ),
         vec![
             BannerStat::new(data::DOWNLOADS.len().to_string(), "Items"),
-            BannerStat::new(mesh_count.to_string(),            "From mesh"),
+            BannerStat::new(mesh_count.to_string(), "From mesh"),
         ],
     );
 
@@ -560,13 +718,9 @@ pub fn downloads() -> Element<'static, Message> {
         list = list.push(file_row(*f, true));
     }
 
-    column![
-        banner_widget,
-        Space::with_height(Length::Fixed(22.0)),
-        list,
-    ]
-    .spacing(0)
-    .into()
+    column![banner_widget, Space::with_height(Length::Fixed(22.0)), list,]
+        .spacing(0)
+        .into()
 }
 
 // ─── Local veil ────────────────────────────────────────────────────────────
@@ -575,13 +729,27 @@ pub fn local_veil(self_node: &SelfNode) -> Element<'static, Message> {
     let title_row = row![
         icon(icons::HDD, 18.0, t::FG),
         text("Local filesystem").size(15).color(t::FG),
-        container(text(format!("private to {}", self_node.host)).size(10).color(t::FG_FAINT))
-            .padding(Padding::from([1.0, 6.0]))
-            .style(|_| container::Style {
-                background: Some(Background::Color(Color { a: 0.04, ..Color::WHITE })),
-                border: Border { color: Color { a: 0.08, ..Color::WHITE }, width: 1.0, radius: 0.0.into() },
-                ..container::Style::default()
-            }),
+        container(
+            text(format!("private to {}", self_node.host))
+                .size(10)
+                .color(t::FG_FAINT)
+        )
+        .padding(Padding::from([1.0, 6.0]))
+        .style(|_| container::Style {
+            background: Some(Background::Color(Color {
+                a: 0.04,
+                ..Color::WHITE
+            })),
+            border: Border {
+                color: Color {
+                    a: 0.08,
+                    ..Color::WHITE
+                },
+                width: 1.0,
+                radius: 0.0.into()
+            },
+            ..container::Style::default()
+        }),
     ]
     .spacing(8)
     .align_y(iced::alignment::Vertical::Center);
@@ -592,9 +760,14 @@ pub fn local_veil(self_node: &SelfNode) -> Element<'static, Message> {
         host = self_node.host,
     );
 
-    let pin_children: Vec<Element<'static, Message>> =
-        data::LOCAL_PINS.iter().copied().map(local_pin_tile).collect();
-    let pin_grid = iced::widget::Row::with_children(pin_children).spacing(6).wrap();
+    let pin_children: Vec<Element<'static, Message>> = data::LOCAL_PINS
+        .iter()
+        .copied()
+        .map(local_pin_tile)
+        .collect();
+    let pin_grid = iced::widget::Row::with_children(pin_children)
+        .spacing(6)
+        .wrap();
 
     let veil = container(
         column![
@@ -607,7 +780,11 @@ pub fn local_veil(self_node: &SelfNode) -> Element<'static, Message> {
     .padding(Padding::from([20.0, 22.0]))
     .style(|_| container::Style {
         background: Some(Background::Color(t::PF_BG_200)),
-        border: Border { color: t::DIVIDER, width: 1.0, radius: 0.0.into() },
+        border: Border {
+            color: t::DIVIDER,
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     });
 
@@ -640,8 +817,18 @@ fn local_pin_tile(pin: LocalPin) -> Element<'static, Message> {
     .padding(Padding::from([8.0, 10.0]))
     .width(Length::Fixed(180.0))
     .style(|_| container::Style {
-        background: Some(Background::Color(Color { a: 0.02, ..Color::WHITE })),
-        border: Border { color: Color { a: 0.05, ..Color::WHITE }, width: 1.0, radius: 0.0.into() },
+        background: Some(Background::Color(Color {
+            a: 0.02,
+            ..Color::WHITE
+        })),
+        border: Border {
+            color: Color {
+                a: 0.05,
+                ..Color::WHITE
+            },
+            width: 1.0,
+            radius: 0.0.into(),
+        },
         ..container::Style::default()
     })
     .into()

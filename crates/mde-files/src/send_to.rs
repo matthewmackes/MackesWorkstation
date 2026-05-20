@@ -97,11 +97,7 @@ impl SendToRequest {
     /// Convenience constructor with sensible defaults
     /// (`SendMode::Copy`, `ConflictPolicy::Ask`).
     #[must_use]
-    pub fn copy_ask(
-        sources: Vec<PathBuf>,
-        destination: Destination,
-        entry: SendToEntry,
-    ) -> Self {
+    pub fn copy_ask(sources: Vec<PathBuf>, destination: Destination, entry: SendToEntry) -> Self {
         Self {
             sources,
             destination,
@@ -178,8 +174,7 @@ mod tests {
 
     #[test]
     fn locked_six_entry_set_matches_design() {
-        let slugs: HashSet<&'static str> =
-            SendToEntry::all().iter().map(|e| e.slug()).collect();
+        let slugs: HashSet<&'static str> = SendToEntry::all().iter().map(|e| e.slug()).collect();
         for required in [
             "toolbar",
             "context-menu",

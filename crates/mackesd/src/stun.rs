@@ -136,12 +136,14 @@ impl std::fmt::Display for StunError {
             Self::Truncated => write!(f, "stun: truncated message"),
             Self::BadMagic => write!(f, "stun: bad magic cookie"),
             Self::NotBindingSuccess { kind } => {
-                write!(f, "stun: message type 0x{kind:04x} is not a binding success")
+                write!(
+                    f,
+                    "stun: message type 0x{kind:04x} is not a binding success"
+                )
             }
-            Self::LengthMismatch { declared, actual } => write!(
-                f,
-                "stun: declared length {declared} ≠ actual {actual}"
-            ),
+            Self::LengthMismatch { declared, actual } => {
+                write!(f, "stun: declared length {declared} ≠ actual {actual}")
+            }
             Self::BadFamily(b) => write!(f, "stun: bad address family 0x{b:02x}"),
             Self::BadAddressLength { family, length } => write!(
                 f,
@@ -212,10 +214,7 @@ pub fn parse_binding_response(buf: &[u8]) -> Result<BindingResponse, StunError> 
 }
 
 /// Decode the XOR-MAPPED-ADDRESS attribute body (RFC 5389 §15.2).
-fn decode_xor_mapped_address(
-    value: &[u8],
-    txid: &TransactionId,
-) -> Result<SocketAddr, StunError> {
+fn decode_xor_mapped_address(value: &[u8], txid: &TransactionId) -> Result<SocketAddr, StunError> {
     if value.len() < 4 {
         return Err(StunError::Truncated);
     }
@@ -236,10 +235,7 @@ fn decode_xor_mapped_address(
             let mut x_addr = [0u8; 4];
             x_addr.copy_from_slice(&value[4..8]);
             let addr_u32 = u32::from_be_bytes(x_addr) ^ MAGIC_COOKIE;
-            Ok(SocketAddr::new(
-                IpAddr::V4(Ipv4Addr::from(addr_u32)),
-                port,
-            ))
+            Ok(SocketAddr::new(IpAddr::V4(Ipv4Addr::from(addr_u32)), port))
         }
         0x02 => {
             if value.len() != 20 {
@@ -282,10 +278,7 @@ pub struct Candidate {
 ///   `anyhow::Error`.
 /// * Transaction-ID mismatch is treated as a hostile reply and
 ///   raises an error.
-pub async fn gather_endpoint(
-    server: SocketAddr,
-    timeout: Duration,
-) -> anyhow::Result<Candidate> {
+pub async fn gather_endpoint(server: SocketAddr, timeout: Duration) -> anyhow::Result<Candidate> {
     let bind_addr: SocketAddr = match server {
         SocketAddr::V4(_) => "0.0.0.0:0".parse().expect("v4 bind"),
         SocketAddr::V6(_) => "[::]:0".parse().expect("v6 bind"),
@@ -300,8 +293,8 @@ pub async fn gather_endpoint(
     let (n, _from) = recv
         .map_err(|_| anyhow::anyhow!("stun: timeout after {timeout:?}"))?
         .map_err(|e| anyhow::anyhow!("stun: recv_from failed: {e}"))?;
-    let resp = parse_binding_response(&buf[..n])
-        .map_err(|e| anyhow::anyhow!("stun: parse error: {e}"))?;
+    let resp =
+        parse_binding_response(&buf[..n]).map_err(|e| anyhow::anyhow!("stun: parse error: {e}"))?;
     if resp.txid != txid {
         return Err(anyhow::anyhow!(
             "stun: transaction-id mismatch (request {txid:?} != response {:?})",
@@ -341,10 +334,7 @@ mod tests {
     #[test]
     fn parse_rejects_short_buffer() {
         assert_eq!(parse_binding_response(&[]), Err(StunError::Truncated));
-        assert_eq!(
-            parse_binding_response(&[0; 19]),
-            Err(StunError::Truncated)
-        );
+        assert_eq!(parse_binding_response(&[0; 19]), Err(StunError::Truncated));
     }
 
     #[test]
@@ -474,7 +464,13 @@ mod tests {
         buf.extend_from_slice(&txid);
 
         let err = parse_binding_response(&buf).unwrap_err();
-        assert!(matches!(err, StunError::LengthMismatch { declared: 16, actual: 0 }));
+        assert!(matches!(
+            err,
+            StunError::LengthMismatch {
+                declared: 16,
+                actual: 0
+            }
+        ));
     }
 
     #[test]
@@ -488,7 +484,10 @@ mod tests {
     fn stun_error_display_includes_context() {
         let e = StunError::BadFamily(0xFE);
         assert!(format!("{e}").contains("0xfe"));
-        let e = StunError::LengthMismatch { declared: 4, actual: 2 };
+        let e = StunError::LengthMismatch {
+            declared: 4,
+            actual: 2,
+        };
         let msg = format!("{e}");
         assert!(msg.contains("4"));
         assert!(msg.contains("2"));
@@ -514,7 +513,7 @@ mod tests {
         buf.extend_from_slice(&0x802Bu16.to_be_bytes());
         buf.extend_from_slice(&3u16.to_be_bytes());
         buf.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0x00]); // 3 bytes + 1 pad
-        // XOR-MAPPED-ADDRESS.
+                                                          // XOR-MAPPED-ADDRESS.
         buf.extend_from_slice(&ATTR_XOR_MAPPED_ADDRESS.to_be_bytes());
         buf.extend_from_slice(&8u16.to_be_bytes());
         buf.push(0);

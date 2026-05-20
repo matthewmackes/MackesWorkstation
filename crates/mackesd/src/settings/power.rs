@@ -121,17 +121,14 @@ fn apply_caffeine(on: bool) -> anyhow::Result<()> {
     let path = caffeine_path();
     if on {
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                anyhow::anyhow!("power: mkdir {} failed: {e}", parent.display())
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| anyhow::anyhow!("power: mkdir {} failed: {e}", parent.display()))?;
         }
-        std::fs::write(&path, "").map_err(|e| {
-            anyhow::anyhow!("power: write {} failed: {e}", path.display())
-        })?;
+        std::fs::write(&path, "")
+            .map_err(|e| anyhow::anyhow!("power: write {} failed: {e}", path.display()))?;
     } else if path.exists() {
-        std::fs::remove_file(&path).map_err(|e| {
-            anyhow::anyhow!("power: unlink {} failed: {e}", path.display())
-        })?;
+        std::fs::remove_file(&path)
+            .map_err(|e| anyhow::anyhow!("power: unlink {} failed: {e}", path.display()))?;
     }
     Ok(())
 }
@@ -145,15 +142,13 @@ fn update_prefs(mut mutator: impl FnMut(&mut PowerPrefs)) -> anyhow::Result<()> 
     };
     mutator(&mut prefs);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            anyhow::anyhow!("power: mkdir {} failed: {e}", parent.display())
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("power: mkdir {} failed: {e}", parent.display()))?;
     }
     let text = serde_json::to_string_pretty(&prefs)
         .map_err(|e| anyhow::anyhow!("power: serialize failed: {e}"))?;
-    std::fs::write(&path, text).map_err(|e| {
-        anyhow::anyhow!("power: write {} failed: {e}", path.display())
-    })?;
+    std::fs::write(&path, text)
+        .map_err(|e| anyhow::anyhow!("power: write {} failed: {e}", path.display()))?;
     Ok(())
 }
 
@@ -189,9 +184,7 @@ pub fn current(key: SettingKey) -> anyhow::Result<SettingValue> {
             let prefs = read_prefs();
             SettingValue::from_serde(&prefs.suspend_idle_ac_s)
         }
-        SettingKey::PowerPresentationMode => {
-            SettingValue::from_serde(&caffeine_path().exists())
-        }
+        SettingKey::PowerPresentationMode => SettingValue::from_serde(&caffeine_path().exists()),
         _ => anyhow::bail!("power: {key} is not a power key"),
     }
 }
@@ -216,7 +209,7 @@ mod tests {
         let r = body();
         match prev {
             Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
-            None    => std::env::remove_var("XDG_CACHE_HOME"),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
         }
         r
     }
@@ -245,9 +238,12 @@ mod tests {
             apply(
                 SettingKey::PowerLidAction,
                 &SettingValue::from_serde(&"hibernate".to_string()).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let v: String = current(SettingKey::PowerLidAction)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(v, "hibernate");
         });
     }
@@ -259,15 +255,21 @@ mod tests {
             apply(
                 SettingKey::PowerSuspendIdleBatteryS,
                 &SettingValue::from_serde(&300_u64).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             apply(
                 SettingKey::PowerSuspendIdleAcS,
                 &SettingValue::from_serde(&1800_u64).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let bat: u64 = current(SettingKey::PowerSuspendIdleBatteryS)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             let ac: u64 = current(SettingKey::PowerSuspendIdleAcS)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(bat, 300);
             assert_eq!(ac, 1800);
         });
@@ -280,16 +282,22 @@ mod tests {
             apply(
                 SettingKey::PowerPresentationMode,
                 &SettingValue::from_serde(&true).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let on: bool = current(SettingKey::PowerPresentationMode)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(on);
             apply(
                 SettingKey::PowerPresentationMode,
                 &SettingValue::from_serde(&false).unwrap(),
-            ).unwrap();
+            )
+            .unwrap();
             let on: bool = current(SettingKey::PowerPresentationMode)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert!(!on);
         });
     }
@@ -305,10 +313,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
             let lid: String = current(SettingKey::PowerLidAction)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(lid, "");
             let bat: u64 = current(SettingKey::PowerSuspendIdleBatteryS)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(bat, 0);
         });
     }

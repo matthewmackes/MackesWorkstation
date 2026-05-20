@@ -46,7 +46,14 @@ pub struct FileRow {
 impl FileRow {
     #[must_use]
     pub fn local(name: &'static str, mime: Mime, size: &'static str, age: &'static str) -> Self {
-        Self { name, mime, size, age, mesh: None, from: None }
+        Self {
+            name,
+            mime,
+            size,
+            age,
+            mesh: None,
+            from: None,
+        }
     }
 
     #[must_use]

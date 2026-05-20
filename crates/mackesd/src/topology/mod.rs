@@ -160,11 +160,7 @@ pub struct TopologyDiff {
 pub fn diff(desired: &TopologySnapshot, actual: &TopologySnapshot) -> TopologyDiff {
     let missing: BTreeSet<Edge> = desired.edges.difference(&actual.edges).cloned().collect();
     let extra: BTreeSet<Edge> = actual.edges.difference(&desired.edges).cloned().collect();
-    let healthy: BTreeSet<Edge> = desired
-        .edges
-        .intersection(&actual.edges)
-        .cloned()
-        .collect();
+    let healthy: BTreeSet<Edge> = desired.edges.intersection(&actual.edges).cloned().collect();
     TopologyDiff {
         missing,
         extra,
@@ -185,7 +181,11 @@ pub fn rank_paths(
     use std::cmp::Ordering;
     // Healthy paths always beat unhealthy.
     if a_healthy != b_healthy {
-        return if a_healthy { Ordering::Less } else { Ordering::Greater };
+        return if a_healthy {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        };
     }
     // Both healthy (or both unhealthy) — prefer lower latency. A
     // measured latency beats an unmeasured one (better signal).
@@ -244,7 +244,7 @@ mod tests {
                 node("peer:c", "us-east", true, false),
             ],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let topo = calculate(&snap);
         assert_eq!(topo.edges.len(), 3);
@@ -263,7 +263,7 @@ mod tests {
                 node("peer:c", "r", true, false),
             ],
             allow_east_west: vec![],
-        settings_keys: vec![],
+            settings_keys: vec![],
         };
         let topo = calculate(&snap);
         assert_eq!(topo.edges.len(), 1);
@@ -317,10 +317,7 @@ mod tests {
     #[test]
     fn rank_paths_healthy_beats_unhealthy() {
         use std::cmp::Ordering;
-        assert_eq!(
-            rank_paths(true, Some(50), false, Some(10)),
-            Ordering::Less
-        );
+        assert_eq!(rank_paths(true, Some(50), false, Some(10)), Ordering::Less);
         assert_eq!(
             rank_paths(false, Some(10), true, Some(50)),
             Ordering::Greater
@@ -331,7 +328,10 @@ mod tests {
     fn rank_paths_lower_latency_wins_when_both_healthy() {
         use std::cmp::Ordering;
         assert_eq!(rank_paths(true, Some(10), true, Some(50)), Ordering::Less);
-        assert_eq!(rank_paths(true, Some(50), true, Some(10)), Ordering::Greater);
+        assert_eq!(
+            rank_paths(true, Some(50), true, Some(10)),
+            Ordering::Greater
+        );
         assert_eq!(rank_paths(true, Some(20), true, Some(20)), Ordering::Equal);
     }
 
@@ -352,10 +352,7 @@ mod tests {
     #[test]
     fn rank_paths_both_unhealthy_falls_to_latency() {
         use std::cmp::Ordering;
-        assert_eq!(
-            rank_paths(false, Some(10), false, Some(50)),
-            Ordering::Less
-        );
+        assert_eq!(rank_paths(false, Some(10), false, Some(50)), Ordering::Less);
     }
 
     #[test]

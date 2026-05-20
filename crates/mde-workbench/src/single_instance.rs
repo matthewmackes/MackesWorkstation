@@ -47,9 +47,7 @@ pub enum PrimaryStatus {
 #[must_use]
 pub const fn decide_primary_status(reply: RequestNameReply) -> PrimaryStatus {
     match reply {
-        RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => {
-            PrimaryStatus::Primary
-        }
+        RequestNameReply::PrimaryOwner | RequestNameReply::AlreadyOwner => PrimaryStatus::Primary,
         RequestNameReply::Exists | RequestNameReply::InQueue => PrimaryStatus::Existing,
     }
 }

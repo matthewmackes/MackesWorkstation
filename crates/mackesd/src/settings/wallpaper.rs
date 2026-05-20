@@ -24,9 +24,13 @@ pub struct WallpaperPrefs {
 
 fn cache_root() -> PathBuf {
     if let Ok(s) = std::env::var("XDG_CACHE_HOME") {
-        if !s.is_empty() { return PathBuf::from(s); }
+        if !s.is_empty() {
+            return PathBuf::from(s);
+        }
     }
-    if let Some(home) = dirs::home_dir() { return home.join(".cache"); }
+    if let Some(home) = dirs::home_dir() {
+        return home.join(".cache");
+    }
     PathBuf::from("/tmp")
 }
 
@@ -77,18 +81,17 @@ pub fn apply(key: SettingKey, value: &SettingValue) -> anyhow::Result<()> {
 fn update_prefs(mut mutator: impl FnMut(&mut WallpaperPrefs)) -> anyhow::Result<()> {
     let path = prefs_path();
     let mut prefs = std::fs::read_to_string(&path)
-        .map(|s| parse_prefs_json(&s)).unwrap_or_default();
+        .map(|s| parse_prefs_json(&s))
+        .unwrap_or_default();
     mutator(&mut prefs);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            anyhow::anyhow!("wallpaper: mkdir {} failed: {e}", parent.display())
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("wallpaper: mkdir {} failed: {e}", parent.display()))?;
     }
     let text = serde_json::to_string_pretty(&prefs)
         .map_err(|e| anyhow::anyhow!("wallpaper: serialize: {e}"))?;
-    std::fs::write(&path, text).map_err(|e| {
-        anyhow::anyhow!("wallpaper: write {} failed: {e}", path.display())
-    })
+    std::fs::write(&path, text)
+        .map_err(|e| anyhow::anyhow!("wallpaper: write {} failed: {e}", path.display()))
 }
 
 /// Read the current `wallpaper.*` setting.
@@ -97,7 +100,8 @@ fn update_prefs(mut mutator: impl FnMut(&mut WallpaperPrefs)) -> anyhow::Result<
 /// Returns an error when the key isn't a wallpaper key.
 pub fn current(key: SettingKey) -> anyhow::Result<SettingValue> {
     let prefs = std::fs::read_to_string(prefs_path())
-        .map(|s| parse_prefs_json(&s)).unwrap_or_default();
+        .map(|s| parse_prefs_json(&s))
+        .unwrap_or_default();
     match key {
         SettingKey::WallpaperPath => SettingValue::from_serde(&prefs.path),
         SettingKey::WallpaperMode => SettingValue::from_serde(&prefs.mode),
@@ -118,7 +122,7 @@ mod tests {
         let r = body();
         match prev {
             Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
-            None    => std::env::remove_var("XDG_CACHE_HOME"),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
         }
         r
     }
@@ -126,7 +130,9 @@ mod tests {
     #[test]
     fn is_valid_mode_accepts_known_values_and_empty() {
         assert!(is_valid_mode(""));
-        for m in VALID_MODES { assert!(is_valid_mode(m)); }
+        for m in VALID_MODES {
+            assert!(is_valid_mode(m));
+        }
     }
 
     #[test]
@@ -139,10 +145,15 @@ mod tests {
     fn apply_path_then_current_round_trips() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::WallpaperPath,
-                  &SettingValue::from_serde(&"/usr/share/wp/sun.jpg".to_string()).unwrap()).unwrap();
+            apply(
+                SettingKey::WallpaperPath,
+                &SettingValue::from_serde(&"/usr/share/wp/sun.jpg".to_string()).unwrap(),
+            )
+            .unwrap();
             let p: String = current(SettingKey::WallpaperPath)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(p, "/usr/share/wp/sun.jpg");
         });
     }
@@ -151,10 +162,15 @@ mod tests {
     fn apply_mode_then_current_round_trips() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            apply(SettingKey::WallpaperMode,
-                  &SettingValue::from_serde(&"fill".to_string()).unwrap()).unwrap();
+            apply(
+                SettingKey::WallpaperMode,
+                &SettingValue::from_serde(&"fill".to_string()).unwrap(),
+            )
+            .unwrap();
             let m: String = current(SettingKey::WallpaperMode)
-                .unwrap().to_serde().unwrap();
+                .unwrap()
+                .to_serde()
+                .unwrap();
             assert_eq!(m, "fill");
         });
     }
@@ -163,8 +179,10 @@ mod tests {
     fn apply_rejects_invalid_mode() {
         let tmp = tempfile::tempdir().unwrap();
         with_xdg(tmp.path(), || {
-            let r = apply(SettingKey::WallpaperMode,
-                          &SettingValue::from_serde(&"bogus".to_string()).unwrap());
+            let r = apply(
+                SettingKey::WallpaperMode,
+                &SettingValue::from_serde(&"bogus".to_string()).unwrap(),
+            );
             assert!(r.is_err());
         });
     }

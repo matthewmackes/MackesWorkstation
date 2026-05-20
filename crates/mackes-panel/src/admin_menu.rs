@@ -37,61 +37,74 @@ struct AdminAction {
 }
 
 const SECTIONS: &[(&str, &[AdminAction])] = &[
-    ("Shells", &[
-        AdminAction {
-            label: "Root Terminal",
-            cmd: "sudo -i",
-            needs_sudo: true,
-        },
-        AdminAction {
-            label: "Edit system file (sudoedit)",
-            cmd: "sudoedit /etc/hosts",
-            needs_sudo: true,
-        },
-    ]),
-    ("Packages", &[
-        AdminAction {
-            label: "DNF update",
-            cmd: "sudo dnf upgrade --refresh",
-            needs_sudo: true,
-        },
-        AdminAction {
-            label: "DNF history",
-            cmd: "sudo dnf history list",
-            needs_sudo: true,
-        },
-    ]),
-    ("Services", &[
-        AdminAction {
-            label: "systemctl status",
-            cmd: "sudo systemctl status",
-            needs_sudo: true,
-        },
-        AdminAction {
-            label: "journalctl tail",
-            cmd: "sudo journalctl -fxe",
-            needs_sudo: true,
-        },
-    ]),
-    ("Security", &[
-        AdminAction {
-            label: "SELinux status",
-            cmd: "sestatus",
-            needs_sudo: false,
-        },
-        AdminAction {
-            label: "Firewall (firewall-cmd)",
-            cmd: "sudo firewall-cmd --list-all",
-            needs_sudo: true,
-        },
-    ]),
-    ("Storage", &[
-        AdminAction {
+    (
+        "Shells",
+        &[
+            AdminAction {
+                label: "Root Terminal",
+                cmd: "sudo -i",
+                needs_sudo: true,
+            },
+            AdminAction {
+                label: "Edit system file (sudoedit)",
+                cmd: "sudoedit /etc/hosts",
+                needs_sudo: true,
+            },
+        ],
+    ),
+    (
+        "Packages",
+        &[
+            AdminAction {
+                label: "DNF update",
+                cmd: "sudo dnf upgrade --refresh",
+                needs_sudo: true,
+            },
+            AdminAction {
+                label: "DNF history",
+                cmd: "sudo dnf history list",
+                needs_sudo: true,
+            },
+        ],
+    ),
+    (
+        "Services",
+        &[
+            AdminAction {
+                label: "systemctl status",
+                cmd: "sudo systemctl status",
+                needs_sudo: true,
+            },
+            AdminAction {
+                label: "journalctl tail",
+                cmd: "sudo journalctl -fxe",
+                needs_sudo: true,
+            },
+        ],
+    ),
+    (
+        "Security",
+        &[
+            AdminAction {
+                label: "SELinux status",
+                cmd: "sestatus",
+                needs_sudo: false,
+            },
+            AdminAction {
+                label: "Firewall (firewall-cmd)",
+                cmd: "sudo firewall-cmd --list-all",
+                needs_sudo: true,
+            },
+        ],
+    ),
+    (
+        "Storage",
+        &[AdminAction {
             label: "Clean (dnf cache + journal vacuum 7d)",
             cmd: "sudo dnf clean all && sudo journalctl --vacuum-time=7d",
             needs_sudo: true,
-        },
-    ]),
+        }],
+    ),
 ];
 
 /// Cheap probe: is sudo currently cached without prompting?
@@ -196,11 +209,19 @@ mod tests {
 
     #[test]
     fn format_tooltip_marks_sudo_cache_state() {
-        let action = AdminAction { label: "x", cmd: "y", needs_sudo: true };
+        let action = AdminAction {
+            label: "x",
+            cmd: "y",
+            needs_sudo: true,
+        };
         assert!(format_tooltip(&action, true).contains("no password"));
         assert!(format_tooltip(&action, false).contains("will prompt"));
 
-        let no_sudo = AdminAction { label: "x", cmd: "y", needs_sudo: false };
+        let no_sudo = AdminAction {
+            label: "x",
+            cmd: "y",
+            needs_sudo: false,
+        };
         assert!(!format_tooltip(&no_sudo, true).contains("password"));
     }
 }

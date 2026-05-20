@@ -186,12 +186,7 @@ pub fn spawn_reconcile_worker(
 /// `--once`) can run the loop on the foreground thread for
 /// systemd's `Type=simple` unit. Same shutdown semantics as the
 /// spawned variant.
-pub fn run_loop(
-    qnm_root: &Path,
-    node_id: &str,
-    db_path: &Path,
-    shutdown: &Arc<AtomicBool>,
-) {
+pub fn run_loop(qnm_root: &Path, node_id: &str, db_path: &Path, shutdown: &Arc<AtomicBool>) {
     while !shutdown.load(Ordering::Relaxed) {
         match tick(qnm_root, node_id, db_path) {
             Ok(outcome) => {
@@ -432,11 +427,7 @@ pub fn load_desired_snapshot(conn: &Connection) -> Result<DesiredSnapshot> {
 /// Returns an error only when the SQL `INSERT INTO events` fails
 /// (e.g. WAL contention beyond the busy timeout). FS / serde errors
 /// are logged and the loop continues.
-pub fn apply_repair_rows(
-    conn: &mut Connection,
-    node_id: &str,
-    rows: &[DriftRow],
-) -> Result<()> {
+pub fn apply_repair_rows(conn: &mut Connection, node_id: &str, rows: &[DriftRow]) -> Result<()> {
     if rows.is_empty() {
         return Ok(());
     }
@@ -474,8 +465,9 @@ pub fn apply_repair_rows(
                 .context("serializing audit event payload")?;
             let hash = next_hash(&prev_hash, &payload, now_ms_val);
 
-            let payload_str = String::from_utf8(payload)
-                .context("audit payload is not valid UTF-8 (should be impossible from serde_json)")?;
+            let payload_str = String::from_utf8(payload).context(
+                "audit payload is not valid UTF-8 (should be impossible from serde_json)",
+            )?;
             tx.execute(
                 "INSERT INTO events (prev_hash, hash, kind, actor, payload_json, created_at) \
                  VALUES (?, ?, ?, ?, ?, ?)",
@@ -776,12 +768,8 @@ mod tests {
         let db_path = dir.path().join("mackesd.db");
         let _ = crate::store::open(&db_path).unwrap();
         let shutdown = Arc::new(AtomicBool::new(false));
-        let handle = spawn_reconcile_worker(
-            qnm_root,
-            "peer:test".into(),
-            db_path,
-            Arc::clone(&shutdown),
-        );
+        let handle =
+            spawn_reconcile_worker(qnm_root, "peer:test".into(), db_path, Arc::clone(&shutdown));
         // Let one tick complete before we flip.
         std::thread::sleep(Duration::from_millis(200));
         shutdown.store(true, Ordering::Relaxed);

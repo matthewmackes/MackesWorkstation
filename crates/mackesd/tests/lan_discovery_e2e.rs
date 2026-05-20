@@ -23,11 +23,7 @@ use mdns_sd::{ServiceDaemon, ServiceInfo};
 /// Drive the worker for `total` time and return the registry
 /// snapshot. Caller assertions decide what the steady state should
 /// look like.
-async fn drive_worker(
-    host: &str,
-    port: u16,
-    total: Duration,
-) -> Registry {
+async fn drive_worker(host: &str, port: u16, total: Duration) -> Registry {
     let mut cfg = LanDiscoveryConfig::new(host);
     cfg.port = port;
     cfg.probe_period = Duration::from_millis(200);
@@ -37,20 +33,13 @@ async fn drive_worker(
     let mut sup = Supervisor::new();
     sup.spawn(Spawn::new(worker, RestartPolicy::Never));
     tokio::time::sleep(total).await;
-    let _ = tokio::time::timeout(
-        Duration::from_secs(5),
-        sup.shutdown_and_join(),
-    )
-    .await;
+    let _ = tokio::time::timeout(Duration::from_secs(5), sup.shutdown_and_join()).await;
     registry
 }
 
 /// Announce a fake peer for the duration of the test. Caller drops
 /// the daemon to unregister.
-fn announce_fake_peer(
-    instance: &str,
-    port: u16,
-) -> Option<ServiceDaemon> {
+fn announce_fake_peer(instance: &str, port: u16) -> Option<ServiceDaemon> {
     let daemon = ServiceDaemon::new().ok()?;
     let info = ServiceInfo::new(
         SERVICE_TYPE,

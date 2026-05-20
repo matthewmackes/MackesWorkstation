@@ -139,7 +139,11 @@ impl Accessibility {
             Some("1") | Some("true") | Some("on") => FocusVisibility::AlwaysVisible,
             _ => FocusVisibility::Auto,
         };
-        Self { direction, motion, focus }
+        Self {
+            direction,
+            motion,
+            focus,
+        }
     }
 }
 

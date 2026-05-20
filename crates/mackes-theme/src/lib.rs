@@ -41,7 +41,7 @@ pub struct Token {
     /// Token name without the `cds_` / `mackes_` prefix split —
     /// matches the source file's identifier verbatim
     /// (`cds_bg_default`, `mackes_accent`, …).
-    pub name:  String,
+    pub name: String,
     /// Color value as written in the source — hex (`#RGB`,
     /// `#RRGGBB`, `#RRGGBBAA`) or a CSS named color. The parser
     /// doesn't normalize; if you need a `Srgb` build, use
@@ -227,7 +227,10 @@ mod tests {
 
     #[test]
     fn token_as_rgb_handles_6_char_hex() {
-        let t = Token { name: "x".into(), value: "#abcdef".into() };
+        let t = Token {
+            name: "x".into(),
+            value: "#abcdef".into(),
+        };
         assert_eq!(t.as_rgb(), Some((0xAB, 0xCD, 0xEF, 0xFF)));
     }
 

@@ -32,20 +32,20 @@ mod i3_cluster;
 mod icon_mapper;
 mod icons;
 mod logout_dialog;
+mod mesh_module;
+mod mesh_sync;
 mod network_manager;
 mod notification_bell;
 mod notification_center;
+mod recents;
 mod recover;
 mod root_menu;
 mod start_menu;
-mod watermark;
-mod mesh_module;
-mod mesh_sync;
-mod recents;
 mod status_cluster;
 mod strut;
 mod toasts;
 mod top_bar;
+mod watermark;
 mod weather;
 // window_buttons retired in 1.1.0 (Q11/Q12): i3 has no built-in
 // window buttons, modern GTK/Qt apps draw their own CSD chrome, and
@@ -1316,11 +1316,7 @@ fn tasklist_context_menu(window_id: &str, title: &str, pin_target: Option<&str>)
 /// Draws the wallpaper as a scaled-to-fit Image inside the desktop window.
 /// If no wallpaper is found, falls back to the `PatternFly` dark surface
 /// so the user never sees an unconfigured window background.
-fn apply_wallpaper(
-    window: &gtk::ApplicationWindow,
-    geom: &FallbackGeometry,
-    with_watermark: bool,
-) {
+fn apply_wallpaper(window: &gtk::ApplicationWindow, geom: &FallbackGeometry, with_watermark: bool) {
     let path = resolve_wallpaper_path();
     let pixbuf = path
         .as_deref()

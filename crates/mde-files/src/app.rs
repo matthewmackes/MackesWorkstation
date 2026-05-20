@@ -6,11 +6,11 @@ use iced::{Background, Border, Color, Element, Length, Padding, Size, Task, Them
 use crate::demo_data as data;
 use crate::model::{Layout, View};
 use crate::panels::{
-    ContextMenu, ContextMenuItem, DetailsPanel, DragSession, DragTarget, OperationDrawer, OpRow,
+    ContextMenu, ContextMenuItem, DetailsPanel, DragSession, DragTarget, OpRow, OperationDrawer,
 };
 use crate::prefs::Accessibility;
-use crate::send_to::SendToRequest;
 use crate::selection::Selection;
+use crate::send_to::SendToRequest;
 use crate::theme as t;
 use crate::views;
 
@@ -340,7 +340,7 @@ impl MdeFiles {
 
         let main_body: Element<'_, Message> = match self.view {
             View::MeshOverview => views::mesh_overview(&data::SELF_NODE),
-            View::Inbox        => views::inbox(&data::SELF_NODE),
+            View::Inbox => views::inbox(&data::SELF_NODE),
             View::Peer(id) => {
                 if let Some(peer) = data::PEERS.iter().find(|p| p.id == id) {
                     views::peer_folder(peer, &data::SELF_NODE)
@@ -349,17 +349,24 @@ impl MdeFiles {
                 }
             }
             View::Downloads => views::downloads(),
-            View::Local     => views::local_veil(&data::SELF_NODE),
+            View::Local => views::local_veil(&data::SELF_NODE),
         };
 
-        let content = container(scrollable(
-            container(main_body).padding(Padding { top: 18.0, right: 22.0, bottom: 28.0, left: 22.0 }),
-        ))
+        let content = container(scrollable(container(main_body).padding(Padding {
+            top: 18.0,
+            right: 22.0,
+            bottom: 28.0,
+            left: 22.0,
+        })))
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_| container::Style {
             background: Some(Background::Color(t::PF_BG_300)),
-            border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
         });
 
@@ -378,59 +385,111 @@ impl MdeFiles {
         let online = data::online_count();
         let total = data::PEERS.len();
 
-        container(
-            column![views::titlebar(online, total), body].spacing(0),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(Background::Color(t::WINDOW)),
-            border: Border { color: Color { a: 0.08, ..Color::WHITE }, width: 1.0, radius: 0.0.into() },
-            ..container::Style::default()
-        })
-        .into()
+        container(column![views::titlebar(online, total), body].spacing(0))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(|_| container::Style {
+                background: Some(Background::Color(t::WINDOW)),
+                border: Border {
+                    color: Color {
+                        a: 0.08,
+                        ..Color::WHITE
+                    },
+                    width: 1.0,
+                    radius: 0.0.into(),
+                },
+                ..container::Style::default()
+            })
+            .into()
     }
 }
 
 fn breadcrumbs_for(view: View) -> Vec<Crumb> {
     match view {
         View::MeshOverview => vec![
-            Crumb { label: "Mesh".into(),     mesh: true },
-            Crumb { label: "Overview".into(), mesh: false },
+            Crumb {
+                label: "Mesh".into(),
+                mesh: true,
+            },
+            Crumb {
+                label: "Overview".into(),
+                mesh: false,
+            },
         ],
         View::Inbox => vec![
-            Crumb { label: "Mesh".into(),  mesh: true },
-            Crumb { label: "Inbox".into(), mesh: false },
+            Crumb {
+                label: "Mesh".into(),
+                mesh: true,
+            },
+            Crumb {
+                label: "Inbox".into(),
+                mesh: false,
+            },
         ],
         View::Peer(id) => {
-            let host = data::PEERS.iter().find(|p| p.id == id).map_or("?", |p| p.host);
+            let host = data::PEERS
+                .iter()
+                .find(|p| p.id == id)
+                .map_or("?", |p| p.host);
             vec![
-                Crumb { label: "Mesh".into(),     mesh: true },
-                Crumb { label: host.to_string(), mesh: false },
+                Crumb {
+                    label: "Mesh".into(),
+                    mesh: true,
+                },
+                Crumb {
+                    label: host.to_string(),
+                    mesh: false,
+                },
             ]
         }
         View::Downloads => vec![
-            Crumb { label: "~".into(),         mesh: false },
-            Crumb { label: "Downloads".into(), mesh: false },
+            Crumb {
+                label: "~".into(),
+                mesh: false,
+            },
+            Crumb {
+                label: "Downloads".into(),
+                mesh: false,
+            },
         ],
         View::Local => vec![
-            Crumb { label: "Local".into(),                     mesh: false },
-            Crumb { label: data::SELF_NODE.host.to_string(),   mesh: false },
-            Crumb { label: "/".into(),                          mesh: false },
+            Crumb {
+                label: "Local".into(),
+                mesh: false,
+            },
+            Crumb {
+                label: data::SELF_NODE.host.to_string(),
+                mesh: false,
+            },
+            Crumb {
+                label: "/".into(),
+                mesh: false,
+            },
         ],
     }
 }
 
 fn empty_state(label: &str) -> Element<'static, Message> {
-    container(iced::widget::text(label.to_string()).size(12).color(t::FG_FAINT))
-        .padding(Padding::new(56.0))
-        .width(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(Background::Color(Color::TRANSPARENT)),
-            border: Border { color: Color { a: 0.10, ..Color::WHITE }, width: 1.0, radius: 0.0.into() },
-            ..container::Style::default()
-        })
-        .into()
+    container(
+        iced::widget::text(label.to_string())
+            .size(12)
+            .color(t::FG_FAINT),
+    )
+    .padding(Padding::new(56.0))
+    .width(Length::Fill)
+    .style(|_| container::Style {
+        background: Some(Background::Color(Color::TRANSPARENT)),
+        border: Border {
+            color: Color {
+                a: 0.10,
+                ..Color::WHITE
+            },
+            width: 1.0,
+            radius: 0.0.into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
 }
 
 #[cfg(test)]
@@ -464,7 +523,10 @@ mod tests {
         s.view = View::Local;
         let _ = s.update(Message::SelectView(View::Inbox));
         assert_eq!(s.view, View::Inbox);
-        assert!(!s.local_open, "local disclosure must close when leaving Local view");
+        assert!(
+            !s.local_open,
+            "local disclosure must close when leaving Local view"
+        );
     }
 
     #[test]
@@ -630,7 +692,10 @@ mod tests {
         assert!(s.drag.is_active());
         assert_eq!(s.drag.sources().len(), 2);
         let _ = s.update(Message::DragHover(Some(DragTarget::Peer("pine".into()))));
-        assert_eq!(s.drag.hover_target(), Some(&DragTarget::Peer("pine".into())));
+        assert_eq!(
+            s.drag.hover_target(),
+            Some(&DragTarget::Peer("pine".into()))
+        );
         let _ = s.update(Message::DragDrop);
         assert!(!s.drag.is_active(), "drag finishes after drop");
     }

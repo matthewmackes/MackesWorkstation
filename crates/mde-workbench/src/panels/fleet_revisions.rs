@@ -61,9 +61,7 @@ impl FleetRevisionsPanel {
                 let stdout = run_mded(&args).await?;
                 parse_revisions_json(&stdout).map_err(|e| e.to_string())
             },
-            |result| {
-                crate::Message::FleetRevisions(Message::RefreshCompleted(result))
-            },
+            |result| crate::Message::FleetRevisions(Message::RefreshCompleted(result)),
         )
     }
 
@@ -100,14 +98,9 @@ impl FleetRevisionsPanel {
                 self.busy = true;
                 self.status = format!("Rolling back to {id}…");
                 let args = rollback_args(&id, "all");
-                Task::perform(
-                    async move { run_mded(&args).await },
-                    |result| {
-                        crate::Message::FleetRevisions(Message::RollbackCompleted(
-                            result,
-                        ))
-                    },
-                )
+                Task::perform(async move { run_mded(&args).await }, |result| {
+                    crate::Message::FleetRevisions(Message::RollbackCompleted(result))
+                })
             }
             Message::RollbackCompleted(Ok(out)) => {
                 self.busy = false;
@@ -127,13 +120,15 @@ impl FleetRevisionsPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let refresh_label = if self.busy { "Refreshing…" } else { "Refresh" };
+        let refresh_label = if self.busy {
+            "Refreshing…"
+        } else {
+            "Refresh"
+        };
         let refresh_btn = {
             let mut b = button(text(refresh_label));
             if !self.busy {
-                b = b.on_press(crate::Message::FleetRevisions(
-                    Message::RefreshClicked,
-                ));
+                b = b.on_press(crate::Message::FleetRevisions(Message::RefreshClicked));
             }
             b
         };
@@ -204,7 +199,11 @@ fn revision_row<'a>(rev: &'a Revision, busy: bool) -> Element<'a, crate::Message
 /// Pure-fn arg builder for `mded revisions list --json`.
 #[must_use]
 pub fn list_args() -> Vec<String> {
-    vec!["revisions".to_string(), "list".to_string(), "--json".to_string()]
+    vec![
+        "revisions".to_string(),
+        "list".to_string(),
+        "--json".to_string(),
+    ]
 }
 
 /// Pure-fn arg builder for `mded revisions rollback <id> --peers <sel>`.

@@ -79,9 +79,9 @@ pub fn normalize_mac(s: &str) -> Option<Mac> {
 pub fn wake(mac: Mac, broadcast: &str, port: u16) -> std::io::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     socket.set_broadcast(true)?;
-    let addr: SocketAddr = format!("{broadcast}:{port}").parse().map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{e}"))
-    })?;
+    let addr: SocketAddr = format!("{broadcast}:{port}")
+        .parse()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidInput, format!("{e}")))?;
     let packet = magic_packet(mac);
     socket.send_to(&packet, addr)?;
     Ok(())

@@ -77,9 +77,7 @@ pub fn drift_events(
             severity: severity_for(op, true),
             message: format!(
                 "op {} did not land on peer {} (expected for {})",
-                op.op_id,
-                missing,
-                op.destination_label
+                op.op_id, missing, op.destination_label
             ),
         });
     }
@@ -91,10 +89,7 @@ pub fn drift_events(
             op_id: op.op_id,
             peer: (*extra).clone(),
             severity: DriftSeverity::Warn,
-            message: format!(
-                "op {} landed on peer {} unexpectedly",
-                op.op_id, extra
-            ),
+            message: format!("op {} landed on peer {} unexpectedly", op.op_id, extra),
         });
     }
 
@@ -162,7 +157,11 @@ mod tests {
     #[test]
     fn missing_peer_raises_drift_for_completed_copy_as_warn() {
         let o = op(1, Stage::Completed, SendModeLite::Copy);
-        let events = drift_events(&o, &names(&["pine", "oak", "birch"]), &names(&["pine", "oak"]));
+        let events = drift_events(
+            &o,
+            &names(&["pine", "oak", "birch"]),
+            &names(&["pine", "oak"]),
+        );
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].peer, "birch");
         assert_eq!(events[0].severity, DriftSeverity::Warn);
@@ -203,7 +202,10 @@ mod tests {
         // marker would be noisy — the op-level fires only when no
         // per-peer events fire. With two missing peers we get 2
         // per-peer events.
-        let critical = events.iter().filter(|e| e.severity == DriftSeverity::Critical).count();
+        let critical = events
+            .iter()
+            .filter(|e| e.severity == DriftSeverity::Critical)
+            .count();
         // SendMode::Copy missing → warn, not critical. The op-level
         // event isn't emitted because there ARE per-peer events.
         assert_eq!(critical, 0);

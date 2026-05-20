@@ -395,7 +395,10 @@ mod tests {
         // on first hit.
         let cats = vec!["Game".into(), "Network".into()];
         // Game → games-symbolic, encountered before Network.
-        assert_eq!(carbon_glyph_for_categories(&cats), "applications-games-symbolic");
+        assert_eq!(
+            carbon_glyph_for_categories(&cats),
+            "applications-games-symbolic"
+        );
     }
 
     #[test]

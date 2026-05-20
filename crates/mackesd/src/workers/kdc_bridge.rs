@@ -35,7 +35,9 @@ impl KdcBridgeWorker {
     /// from the current pairing directory.
     #[must_use]
     pub fn new() -> Self {
-        Self { last_seen: mackes_kdc::paired_device_ids() }
+        Self {
+            last_seen: mackes_kdc::paired_device_ids(),
+        }
     }
 }
 
@@ -124,8 +126,12 @@ mod tests {
         let diff = device_diff(&prior, &current);
         // Order: added before removed (BTreeSet difference ordering).
         assert_eq!(diff.len(), 2);
-        assert!(diff.iter().any(|(id, op)| id == "uuid-new" && *op == "added"));
-        assert!(diff.iter().any(|(id, op)| id == "uuid-old" && *op == "removed"));
+        assert!(diff
+            .iter()
+            .any(|(id, op)| id == "uuid-new" && *op == "added"));
+        assert!(diff
+            .iter()
+            .any(|(id, op)| id == "uuid-old" && *op == "removed"));
     }
 
     #[tokio::test]
@@ -140,12 +146,9 @@ mod tests {
         let (tx, rx) = tokio::sync::watch::channel(false);
         let token = ShutdownToken::from_receiver(rx);
         let _ = tx.send(true);
-        let result = tokio::time::timeout(
-            Duration::from_secs(3),
-            w.run(token),
-        )
-        .await
-        .expect("worker must exit on shutdown");
+        let result = tokio::time::timeout(Duration::from_secs(3), w.run(token))
+            .await
+            .expect("worker must exit on shutdown");
         assert!(result.is_ok());
     }
 }

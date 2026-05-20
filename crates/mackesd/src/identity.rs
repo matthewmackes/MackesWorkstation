@@ -158,10 +158,7 @@ mod tests {
     fn two_keys_have_different_verifying_keys() {
         let k1 = NodeKey::generate();
         let k2 = NodeKey::generate();
-        assert_ne!(
-            k1.verifying_key().as_bytes(),
-            k2.verifying_key().as_bytes()
-        );
+        assert_ne!(k1.verifying_key().as_bytes(), k2.verifying_key().as_bytes());
     }
 
     #[test]

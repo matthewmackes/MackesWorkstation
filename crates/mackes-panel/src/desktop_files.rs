@@ -309,11 +309,7 @@ mod tests {
     fn parse_file_reads_real_temp_file() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("real.desktop");
-        std::fs::write(
-            &path,
-            "[Desktop Entry]\nName=Real\nExec=real\n",
-        )
-        .unwrap();
+        std::fs::write(&path, "[Desktop Entry]\nName=Real\nExec=real\n").unwrap();
         let e = parse_file(&path).expect("parses");
         assert_eq!(e.id, "real.desktop");
         assert_eq!(e.name, "Real");

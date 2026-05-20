@@ -10,12 +10,12 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use mde_workbench::{
-    App, BUS_NAME, INTERFACE_NAME, OBJECT_PATH, PendingFocus, PrimaryStatus,
-    WorkbenchService, decide_primary_status,
+    decide_primary_status, App, PendingFocus, PrimaryStatus, WorkbenchService, BUS_NAME,
+    INTERFACE_NAME, OBJECT_PATH,
 };
 use tracing::{debug, error, info};
 use zbus::fdo::{DBusProxy, RequestNameFlags};
-use zbus::{Connection, names::WellKnownName, proxy};
+use zbus::{names::WellKnownName, proxy, Connection};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -44,8 +44,7 @@ trait Workbench {
 fn main() -> ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -130,10 +129,7 @@ async fn acquire_primary() -> zbus::Result<(PrimaryStatus, Connection)> {
 /// Sibling-process branch — call Focus on the running primary
 /// and exit. Returns `ExitCode::SUCCESS` when the hand-off
 /// succeeded, `2` when the bus call itself failed.
-fn hand_off_to_running(
-    runtime: &tokio::runtime::Runtime,
-    focus: &Option<String>,
-) -> ExitCode {
+fn hand_off_to_running(runtime: &tokio::runtime::Runtime, focus: &Option<String>) -> ExitCode {
     let slug = focus.clone().unwrap_or_default();
     info!(%slug, "primary workbench already running — handing off Focus");
     let result = runtime.block_on(async {

@@ -356,9 +356,7 @@ pub fn run_switcher_modal() {
                 || keyval == gtk::gdk::keys::constants::ISO_Left_Tab
             {
                 let len = candidates_for_press.len();
-                let next = if shift_held
-                    || keyval == gtk::gdk::keys::constants::ISO_Left_Tab
-                {
+                let next = if shift_held || keyval == gtk::gdk::keys::constants::ISO_Left_Tab {
                     cycle_back(state_for_press.get(), len)
                 } else {
                     cycle_forward(state_for_press.get(), len)

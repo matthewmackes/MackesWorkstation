@@ -258,11 +258,9 @@ mod tests {
         // Only the allow/deny pair counts as a conflict; the bandwidth
         // cap is orthogonal.
         assert_eq!(conflicts.len(), 1);
-        assert!(
-            conflicts
-                .iter()
-                .all(|c| c.rule_a != "r-bw" && c.rule_b != "r-bw")
-        );
+        assert!(conflicts
+            .iter()
+            .all(|c| c.rule_a != "r-bw" && c.rule_b != "r-bw"));
     }
 
     #[test]

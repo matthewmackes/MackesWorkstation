@@ -38,7 +38,9 @@ pub fn build() -> gtk::Button {
 
     let badge = gtk::Label::new(None);
     badge.set_widget_name("mackes-notification-bell-badge");
-    badge.style_context().add_class("mackes-notification-bell-badge");
+    badge
+        .style_context()
+        .add_class("mackes-notification-bell-badge");
     badge.set_halign(gtk::Align::End);
     badge.set_valign(gtk::Align::Start);
     badge.set_visible(false);
@@ -76,7 +78,12 @@ pub fn build() -> gtk::Button {
     let modal_for_timer = Rc::clone(&modal_open);
     glib::timeout_add_seconds_local(2, move || {
         let unread = notification_center::unread_count(&notification_center::load());
-        apply_state(&button_for_timer, &badge_for_timer, unread, modal_for_timer.get());
+        apply_state(
+            &button_for_timer,
+            &badge_for_timer,
+            unread,
+            modal_for_timer.get(),
+        );
         glib::ControlFlow::Continue
     });
 
