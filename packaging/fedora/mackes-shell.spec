@@ -449,6 +449,17 @@ install -D -m 0644 data/systemd/90-mde.preset \
 install -D -m 0644 data/wayland-sessions/mde.desktop \
     %{buildroot}%{_datadir}/wayland-sessions/mde.desktop
 
+# CB-2.4 — first-boot orchestration target + the two oneshot
+# migrator units it gates on. mde-session.service Wants= the
+# target so the migrators run before the first login session
+# starts; ConditionPathExists short-circuits subsequent logins.
+install -D -m 0644 data/systemd/mde-firstboot.target \
+    %{buildroot}%{_userunitdir}/mde-firstboot.target
+install -D -m 0644 data/systemd/mde-migrate-from-1x.service \
+    %{buildroot}%{_userunitdir}/mde-migrate-from-1x.service
+install -D -m 0644 data/systemd/mde-shell-migrate-v2.service \
+    %{buildroot}%{_userunitdir}/mde-shell-migrate-v2.service
+
 # 4c. Tumbler thumbnailer
 install -D -m 0644 data/thumbnailers/mackes-mesh.thumbnailer \
     %{buildroot}%{_datadir}/thumbnailers/mackes-mesh.thumbnailer
@@ -714,6 +725,12 @@ fi
 # CB-3.6 + CB-2.1 — v2.0.0 user preset + Wayland-session entry.
 %{_prefix}/lib/systemd/user-preset/90-mde.preset
 %{_datadir}/wayland-sessions/mde.desktop
+# CB-2.4 — first-boot orchestration target + the two oneshot
+# migrator units (mde-migrate-from-1x.service +
+# mde-shell-migrate-v2.service).
+%{_userunitdir}/mde-firstboot.target
+%{_userunitdir}/mde-migrate-from-1x.service
+%{_userunitdir}/mde-shell-migrate-v2.service
 %config(noreplace) /etc/sudoers.d/mackes-shell
 # C panel plugins + their descriptors
 %{_libdir}/xfce4/panel/plugins/mackes-clipboard

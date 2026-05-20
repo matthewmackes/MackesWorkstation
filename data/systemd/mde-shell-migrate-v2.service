@@ -1,0 +1,23 @@
+[Unit]
+# CB-2.4 — runs mde-shell-migrate-v2 at first login. This is the
+# heavy lift: xfconf-channel replay into the new settings table,
+# drop XDG-autostart overrides, back up ~/.config/xfce4/, seed
+# ~/.config/sway/. Ordered After= the config-tree move so the new
+# paths exist before the migrator writes to them.
+Description=MDE 2.0.0 — first-boot xfconf replay + sway config seed
+DefaultDependencies=no
+After=local-fs.target mde-migrate-from-1x.service
+Before=mde-firstboot.target
+PartOf=mde-firstboot.target
+ConditionPathExists=!%h/.cache/mde/.shell-migrate-v2.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mde-shell-migrate-v2
+ProtectSystem=full
+ProtectHome=read-write
+NoNewPrivileges=true
+RemainAfterExit=true
+
+[Install]
+WantedBy=mde-firstboot.target

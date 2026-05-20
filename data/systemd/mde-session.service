@@ -8,9 +8,13 @@ Documentation=https://github.com/matthewmackes/MAP2-RELEASES
 # (Phase C sidecars under $XDG_CACHE_HOME/mde/) on each login.
 PartOf=graphical-session.target
 After=graphical-session.target
-# Runs after the config-path migrator (Phase 0.5) so the v1.x ->
-# v2.0.0 atomic move lands before we read any settings.
-After=mde-migrate-from-1x.service
+# Runs after the first-boot migration target (CB-2.4) so the
+# config-path move + xfconf replay land before we read any
+# settings. The target's ConditionPathExists guards short-circuit
+# on the second + every subsequent login so this hook costs one
+# stat() once the markers exist.
+Wants=mde-firstboot.target
+After=mde-firstboot.target
 
 [Service]
 Type=notify

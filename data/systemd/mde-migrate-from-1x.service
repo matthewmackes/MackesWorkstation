@@ -1,0 +1,23 @@
+[Unit]
+# CB-2.4 — runs mde-migrate-from-1x at first login. Idempotent via
+# the .cache marker file written by the binary itself on success.
+Description=MDE 2.0.0 — migrate ~/.config/mackes-shell/ → ~/.config/mde/
+DefaultDependencies=no
+After=local-fs.target
+Before=mde-firstboot.target
+PartOf=mde-firstboot.target
+ConditionPathExists=!%h/.cache/mde/.migrate-from-1x.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/mde-migrate-from-1x
+# Migration touches ~/.config + ~/.cache + ~/.local/share; user-
+# scope only. ProtectSystem=full keeps the rootfs read-only so a
+# bug here can't write outside HOME.
+ProtectSystem=full
+ProtectHome=read-write
+NoNewPrivileges=true
+RemainAfterExit=true
+
+[Install]
+WantedBy=mde-firstboot.target

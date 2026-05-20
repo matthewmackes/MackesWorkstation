@@ -1426,12 +1426,19 @@ group structure with one Iced view per panel.
   created accounts default to the MDE Wayland session; existing
   users keep their per-user choice from `~/.dmrc` (no override
   — their next-time pick wins).
-- [ ] **CB-2.4 `mde-session` first-launch UX** — on a fresh
-  account, `mde-session` calls `mde-migrate-from-1x` (already
-  shipped, Phase 0.5) + `mde-shell-migrate-v2` (Phase H.5,
-  shipped) so a 1.x → 2.0.0 upgrade carries config across
-  without user intervention. Add a one-shot `mde-firstboot.target`
-  that runs both, then enables `mde-session.service`.
+- [✓] **CB-2.4 `mde-session` first-launch UX** — shipped
+  2026-05-20. Three new systemd user units:
+  `mde-firstboot.target` (one-shot sync point, gated by
+  `ConditionPathExists=|!%h/.cache/mde/.migrate-from-1x.done` +
+  matching `.shell-migrate-v2.done` so post-first-boot logins
+  short-circuit), `mde-migrate-from-1x.service` (Type=oneshot,
+  PartOf=firstboot.target, marker-gated), `mde-shell-migrate-v2
+  .service` (oneshot, ordered After= the 1x migrator so the
+  xfconf-replay writes to the new paths). `mde-session.service`
+  now `Wants=mde-firstboot.target` + `After=mde-firstboot.target`
+  instead of a direct After= on the migrator. Spec installs all
+  three new units under `%{_userunitdir}`. 10 unit tests cover
+  the target / migrators / session-service wiring.
 
 #### CB-3 Spec rebuild for monolithic cut
 
