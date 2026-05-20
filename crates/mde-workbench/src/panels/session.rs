@@ -1,0 +1,273 @@
+//! Session panel — three booleans controlling MDE session
+//! lifecycle behaviour (`session.save_on_exit`,
+//! `session.lock_on_suspend`, `session.auto_save`).
+//!
+//! CB-1.9 partial: replaces the v1.x
+//! `mackes/workbench/system/session.py` GTK3 panel. The
+//! Phase F.6 sidecar pattern (`~/.cache/mde/session-prefs.json`)
+//! stays intact — `mde-session` reads the same file at login.
+
+use std::sync::Arc;
+
+use iced::widget::{button, checkbox, column, row, text};
+use iced::{Element, Length, Padding, Task};
+
+use crate::backend::Backend;
+
+pub const KEY_SAVE_ON_EXIT: &str = "session.save_on_exit";
+pub const KEY_LOCK_ON_SUSPEND: &str = "session.lock_on_suspend";
+pub const KEY_AUTO_SAVE: &str = "session.auto_save";
+
+#[derive(Debug, Clone, Default)]
+pub struct SessionPanel {
+    pub save_on_exit: bool,
+    pub lock_on_suspend: bool,
+    pub auto_save: bool,
+    pub status: String,
+    pub busy: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Loaded { save_on_exit: bool, lock_on_suspend: bool, auto_save: bool },
+    Error(String),
+    Saved,
+    SaveOnExitChanged(bool),
+    LockOnSuspendChanged(bool),
+    AutoSaveChanged(bool),
+    SaveClicked,
+}
+
+impl SessionPanel {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn load(backend: Arc<dyn Backend>) -> Task<crate::Message> {
+        Task::perform(
+            async move {
+                let save_on_exit = parse_bool(&backend.get(KEY_SAVE_ON_EXIT).await?);
+                let lock_on_suspend =
+                    parse_bool(&backend.get(KEY_LOCK_ON_SUSPEND).await?);
+                let auto_save = parse_bool(&backend.get(KEY_AUTO_SAVE).await?);
+                Ok::<_, crate::backend::BackendError>(Message::Loaded {
+                    save_on_exit,
+                    lock_on_suspend,
+                    auto_save,
+                })
+            },
+            |result| {
+                crate::Message::Session(
+                    result.unwrap_or_else(|e| Message::Error(e.to_string())),
+                )
+            },
+        )
+    }
+
+    pub fn update(
+        &mut self,
+        message: Message,
+        backend: Arc<dyn Backend>,
+    ) -> Task<crate::Message> {
+        match message {
+            Message::Loaded {
+                save_on_exit,
+                lock_on_suspend,
+                auto_save,
+            } => {
+                self.save_on_exit = save_on_exit;
+                self.lock_on_suspend = lock_on_suspend;
+                self.auto_save = auto_save;
+                self.status.clear();
+                self.busy = false;
+                Task::none()
+            }
+            Message::Error(msg) => {
+                self.status = msg;
+                self.busy = false;
+                Task::none()
+            }
+            Message::Saved => {
+                self.status = "Saved.".into();
+                self.busy = false;
+                Task::none()
+            }
+            Message::SaveOnExitChanged(v) => {
+                self.save_on_exit = v;
+                Task::none()
+            }
+            Message::LockOnSuspendChanged(v) => {
+                self.lock_on_suspend = v;
+                Task::none()
+            }
+            Message::AutoSaveChanged(v) => {
+                self.auto_save = v;
+                Task::none()
+            }
+            Message::SaveClicked => {
+                if self.busy {
+                    return Task::none();
+                }
+                self.busy = true;
+                self.status = "Saving…".into();
+                let save_on_exit = self.save_on_exit;
+                let lock_on_suspend = self.lock_on_suspend;
+                let auto_save = self.auto_save;
+                Task::perform(
+                    async move {
+                        backend
+                            .set(KEY_SAVE_ON_EXIT, &encode_bool(save_on_exit))
+                            .await?;
+                        backend
+                            .set(KEY_LOCK_ON_SUSPEND, &encode_bool(lock_on_suspend))
+                            .await?;
+                        backend
+                            .set(KEY_AUTO_SAVE, &encode_bool(auto_save))
+                            .await?;
+                        Ok::<_, crate::backend::BackendError>(Message::Saved)
+                    },
+                    |result| {
+                        crate::Message::Session(
+                            result.unwrap_or_else(|e| Message::Error(e.to_string())),
+                        )
+                    },
+                )
+            }
+        }
+    }
+
+    pub fn view(&self) -> Element<'_, crate::Message> {
+        let save_label = if self.busy { "Saving…" } else { "Save" };
+        let save_btn = {
+            let mut b = button(text(save_label));
+            if !self.busy {
+                b = b.on_press(crate::Message::Session(Message::SaveClicked));
+            }
+            b
+        };
+
+        column![
+            checkbox("Save session on exit", self.save_on_exit).on_toggle(|v| {
+                crate::Message::Session(Message::SaveOnExitChanged(v))
+            }),
+            checkbox("Lock screen on suspend", self.lock_on_suspend).on_toggle(
+                |v| crate::Message::Session(Message::LockOnSuspendChanged(v)),
+            ),
+            checkbox("Auto-save layout periodically", self.auto_save).on_toggle(
+                |v| crate::Message::Session(Message::AutoSaveChanged(v)),
+            ),
+            row![save_btn, text(&self.status).size(13)].spacing(12),
+        ]
+        .spacing(12)
+        .width(Length::Fill)
+        .padding(Padding::new(0.0))
+        .into()
+    }
+}
+
+/// JSON boolean encoding — accepts `true` / `"true"` / `"1"` /
+/// `1` as truthy; everything else falsy. The Phase C session
+/// applier writes the canonical `true` / `false` JSON form
+/// after a Set, so round-trips work without the looser parser.
+fn parse_bool(s: &str) -> bool {
+    let t = s.trim().trim_matches('"').to_ascii_lowercase();
+    matches!(t.as_str(), "true" | "1" | "yes")
+}
+
+const fn encode_bool(b: bool) -> &'static str {
+    if b { "true" } else { "false" }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::DemoBackend;
+
+    #[test]
+    fn keys_match_locked_session_namespace() {
+        assert_eq!(KEY_SAVE_ON_EXIT, "session.save_on_exit");
+        assert_eq!(KEY_LOCK_ON_SUSPEND, "session.lock_on_suspend");
+        assert_eq!(KEY_AUTO_SAVE, "session.auto_save");
+    }
+
+    #[test]
+    fn parse_bool_accepts_canonical_true_and_false() {
+        assert!(parse_bool("true"));
+        assert!(!parse_bool("false"));
+        assert!(parse_bool("\"true\""));
+        assert!(!parse_bool("\"false\""));
+    }
+
+    #[test]
+    fn parse_bool_accepts_legacy_1_and_0() {
+        // Legacy sidecars may carry boolean-as-int.
+        assert!(parse_bool("1"));
+        assert!(!parse_bool("0"));
+    }
+
+    #[test]
+    fn parse_bool_falsy_on_empty_or_garbage() {
+        assert!(!parse_bool(""));
+        assert!(!parse_bool("maybe"));
+    }
+
+    #[test]
+    fn encode_bool_emits_json_keywords() {
+        assert_eq!(encode_bool(true), "true");
+        assert_eq!(encode_bool(false), "false");
+    }
+
+    #[test]
+    fn loaded_clears_busy_and_status() {
+        let backend = Arc::new(DemoBackend::new());
+        let mut panel = SessionPanel::new();
+        panel.busy = true;
+        panel.status = "Saving…".into();
+        let _ = panel.update(
+            Message::Loaded {
+                save_on_exit: true,
+                lock_on_suspend: false,
+                auto_save: true,
+            },
+            backend,
+        );
+        assert!(!panel.busy);
+        assert!(panel.status.is_empty());
+        assert!(panel.save_on_exit);
+        assert!(panel.auto_save);
+        assert!(!panel.lock_on_suspend);
+    }
+
+    #[test]
+    fn toggle_messages_mutate_matching_field() {
+        let backend = Arc::new(DemoBackend::new());
+        let mut panel = SessionPanel::new();
+        let _ = panel.update(Message::SaveOnExitChanged(true), backend.clone());
+        assert!(panel.save_on_exit);
+        let _ = panel.update(Message::LockOnSuspendChanged(true), backend.clone());
+        assert!(panel.lock_on_suspend);
+        let _ = panel.update(Message::AutoSaveChanged(true), backend);
+        assert!(panel.auto_save);
+    }
+
+    #[test]
+    fn save_clicked_while_busy_is_noop() {
+        let backend = Arc::new(DemoBackend::new());
+        let mut panel = SessionPanel::new();
+        panel.busy = true;
+        panel.status = "Saving…".into();
+        let _ = panel.update(Message::SaveClicked, backend);
+        assert_eq!(panel.status, "Saving…");
+    }
+
+    #[tokio::test]
+    async fn save_writes_all_three_keys_as_json_booleans() {
+        let backend: Arc<dyn Backend> = Arc::new(DemoBackend::new());
+        backend.set(KEY_SAVE_ON_EXIT, encode_bool(true)).await.unwrap();
+        backend.set(KEY_LOCK_ON_SUSPEND, encode_bool(false)).await.unwrap();
+        backend.set(KEY_AUTO_SAVE, encode_bool(true)).await.unwrap();
+        assert_eq!(backend.get(KEY_SAVE_ON_EXIT).await.unwrap(), "true");
+        assert_eq!(backend.get(KEY_LOCK_ON_SUSPEND).await.unwrap(), "false");
+    }
+}

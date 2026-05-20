@@ -1502,11 +1502,24 @@ group structure with one Iced view per panel.
   Connect Python panels (13.3.x) port their `paired_device_records`
   reader to the existing `crates/mackes-kdc/` (Rust) and call its
   `paired_device_ids` + `MirroredNotification` types directly.
-- [ ] **CB-1.9 System group port (~6 panels)** —
+- [>] **CB-1.9 System group port (~6 panels)** —
   `{datetime.py, default_apps.py, session.py, notifications.py,
   window_manager.py, snapshots.py}`. session + notifications +
   window_manager already wired to MDE bridge (F.5 / F.6 / F.8
-  done). Iced port talks zbus directly.
+  done). Iced port talks zbus directly. **Partial progress
+  2026-05-20:** session + notifications panels shipped as
+  Iced views in `crates/mde-workbench/src/panels/{session,
+  notifications}.rs` over the same Backend trait CB-1.6
+  introduced — session uses 3 boolean checkboxes
+  (`session.save_on_exit/lock_on_suspend/auto_save`),
+  notifications uses 1 checkbox (DND) + 5-corner location
+  pick_list + numeric expire-ms text_input with on-save
+  parse + sane fallbacks. App wired both via
+  `Message::{Session, Notifications}` + view dispatch keyed
+  on `(Group::System, "session"|"notifications")` + load
+  fire on navigation. Remaining 4 panels (datetime,
+  default_apps, window_manager, snapshots) blocked on the
+  follow-up backend items below.
 - [ ] **CB-1.10 Wizard port** — `mackes/wizard/` (~12 pages) ported
   to Iced under `crates/mde-wizard/`. The wizard runs first-boot
   per `state.json:provisioned == false`. Pages: welcome, scan,
@@ -3318,6 +3331,46 @@ under `LICENSES/`.
 ---
 
 ## Follow-ups from in-flight work
+
+- [ ] **CB-1.9.a System datetime panel (Iced)** — port
+  `mackes/workbench/system/datetime.py` to Iced. Needs a new
+  backend surface for the timedatectl/NTP plumbing (the v1.x
+  panel shells out to timedatectl + reads /etc/localtime
+  symlink). Either ship `dev.mackes.MDE.System.DateTime`
+  (zbus) with `set_timezone(tz)` / `set_ntp(bool)` /
+  `current_status()` returning `(tz, ntp_active, rtc_in_utc)`
+  OR have the Iced panel subprocess `timedatectl` directly.
+  Acceptance: time-zone combo + NTP toggle + RTC-in-UTC
+  checkbox in the workbench, save round-trips correctly.
+
+- [ ] **CB-1.9.b System default_apps panel (Iced)** — port
+  `mackes/workbench/system/default_apps.py`. Reads + writes
+  `~/.config/mimeapps.list`. No new backend needed — the
+  panel can read/write the XDG mimeapps file directly through
+  the existing `mde-config` crate (or a new helper). Lists
+  the canonical handler categories (browser, mail, terminal,
+  text editor, image viewer, video, music, file manager) +
+  per-category picker over installed `.desktop` files.
+  Acceptance: change a handler, restart sway, xdg-open picks
+  the new one.
+
+- [ ] **CB-1.9.c System window_manager panel (Iced)** — port
+  `mackes/workbench/system/window_manager.py`. F.8 already
+  shipped the `mackes.sway_ipc` helper + the panel's swaymsg
+  routing. Iced port talks to swaymsg via subprocess (matching
+  the v1.x pattern) or via the swayipc-async crate (matches
+  the v2.0.0 Phase E lock for mde-panel). Acceptance: gaps
+  sliders + workspace count + layout-default combo, save
+  reloads sway config.
+
+- [ ] **CB-1.9.d System snapshots panel (Iced)** — port
+  `mackes/workbench/maintain/snapshots.py` (the Workbench
+  surface; the `mackes.snapshots` library stays as the
+  back-end). Needs `dev.mackes.MDE.Shell.Snapshots` zbus
+  surface with `list() -> Vec<SnapshotRow>` / `create(name)`
+  / `restore(id)` / `delete(id)`. The Iced view ships a
+  list view + create dialog + restore confirmation modal.
+  Acceptance: snapshot/restore round-trip end-to-end.
 
 - [ ] **CB-1.13 follow-up: panel-side `mde --focus` call sites** —
   CB-1.13 ships the D-Bus interface + workbench-side handler +

@@ -5,4 +5,6 @@
 //! [`Element<'_, crate::Message>`].
 
 pub mod fonts;
+pub mod notifications;
+pub mod session;
 pub mod themes;

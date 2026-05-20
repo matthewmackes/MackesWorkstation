@@ -15,7 +15,10 @@ use crate::backend::{Backend, DemoBackend};
 use crate::dbus::PendingFocus;
 use crate::keyboard::{KeyAction, Pane};
 use crate::model::{Group, View, view_from_focus_slug};
-use crate::panels::{fonts as fonts_panel, themes as themes_panel};
+use crate::panels::{
+    fonts as fonts_panel, notifications as notifications_panel,
+    session as session_panel, themes as themes_panel,
+};
 use crate::patternfly::{breadcrumb, page_subtitle, page_title};
 use crate::sidebar::SidebarState;
 
@@ -47,6 +50,10 @@ pub enum Message {
     Themes(themes_panel::Message),
     /// CB-1.6 — Look & Feel fonts panel sub-message.
     Fonts(fonts_panel::Message),
+    /// CB-1.9 partial — System session panel sub-message.
+    Session(session_panel::Message),
+    /// CB-1.9 partial — System notifications panel sub-message.
+    Notifications(notifications_panel::Message),
     /// No-op — placeholder for buttons whose behaviour lands in
     /// later CB-1.x substeps.
     Noop,
@@ -61,6 +68,8 @@ pub struct App {
     backend: Arc<dyn Backend>,
     themes: themes_panel::ThemesPanel,
     fonts: fonts_panel::FontsPanel,
+    session: session_panel::SessionPanel,
+    notifications: notifications_panel::NotificationsPanel,
 }
 
 impl std::fmt::Debug for App {
@@ -70,6 +79,8 @@ impl std::fmt::Debug for App {
             .field("focused_pane", &self.focused_pane)
             .field("themes", &self.themes)
             .field("fonts", &self.fonts)
+            .field("session", &self.session)
+            .field("notifications", &self.notifications)
             .finish_non_exhaustive()
     }
 }
@@ -99,6 +110,8 @@ impl App {
             backend,
             themes: themes_panel::ThemesPanel::new(),
             fonts: fonts_panel::FontsPanel::new(),
+            session: session_panel::SessionPanel::new(),
+            notifications: notifications_panel::NotificationsPanel::new(),
         }
     }
 
@@ -133,6 +146,18 @@ impl App {
     #[must_use]
     pub fn fonts(&self) -> &fonts_panel::FontsPanel {
         &self.fonts
+    }
+
+    /// Read-only view of the session panel state.
+    #[must_use]
+    pub fn session(&self) -> &session_panel::SessionPanel {
+        &self.session
+    }
+
+    /// Read-only view of the notifications panel state.
+    #[must_use]
+    pub fn notifications(&self) -> &notifications_panel::NotificationsPanel {
+        &self.notifications
     }
 
     #[must_use]
@@ -208,6 +233,10 @@ impl App {
             }
             Message::Themes(msg) => self.themes.update(msg, self.backend()),
             Message::Fonts(msg) => self.fonts.update(msg, self.backend()),
+            Message::Session(msg) => self.session.update(msg, self.backend()),
+            Message::Notifications(msg) => {
+                self.notifications.update(msg, self.backend())
+            }
             Message::Noop => Task::none(),
         }
     }
@@ -222,6 +251,12 @@ impl App {
             }
             (Group::LookAndFeel, "fonts") => {
                 fonts_panel::FontsPanel::load(self.backend())
+            }
+            (Group::System, "session") => {
+                session_panel::SessionPanel::load(self.backend())
+            }
+            (Group::System, "notifications") => {
+                notifications_panel::NotificationsPanel::load(self.backend())
             }
             _ => Task::none(),
         }
@@ -311,6 +346,12 @@ impl App {
             }
             View::Panel { group: Group::LookAndFeel, panel: "fonts" } => {
                 self.fonts.view()
+            }
+            View::Panel { group: Group::System, panel: "session" } => {
+                self.session.view()
+            }
+            View::Panel { group: Group::System, panel: "notifications" } => {
+                self.notifications.view()
             }
             _ => {
                 // Placeholder body for views without a wired
@@ -486,6 +527,48 @@ mod tests {
         );
         assert_eq!(app.themes().name, "Arc-Dark");
         assert_eq!(app.themes().mode, "dark");
+    }
+
+    #[test]
+    fn select_system_session_swaps_view_to_panel() {
+        let mut app = App::new();
+        let _ = app.update(Message::SelectPanel {
+            group: Group::System,
+            panel: "session",
+        });
+        assert_eq!(
+            app.current_view(),
+            View::Panel {
+                group: Group::System,
+                panel: "session"
+            }
+        );
+    }
+
+    #[test]
+    fn session_panel_toggle_messages_persist_in_app_state() {
+        let mut app = App::new();
+        let _ = app.update(Message::Session(
+            session_panel::Message::SaveOnExitChanged(true),
+        ));
+        let _ = app.update(Message::Session(
+            session_panel::Message::LockOnSuspendChanged(true),
+        ));
+        assert!(app.session().save_on_exit);
+        assert!(app.session().lock_on_suspend);
+    }
+
+    #[test]
+    fn notifications_panel_field_changes_persist_in_app_state() {
+        let mut app = App::new();
+        let _ = app.update(Message::Notifications(
+            notifications_panel::Message::DndChanged(true),
+        ));
+        let _ = app.update(Message::Notifications(
+            notifications_panel::Message::LocationChanged("top-left".into()),
+        ));
+        assert!(app.notifications().dnd);
+        assert_eq!(app.notifications().location, "top-left");
     }
 
     #[test]
