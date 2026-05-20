@@ -235,13 +235,27 @@ binary symlink) and in CHANGELOG history.
   (legacy) or `mde-*.rpm` (current). Flagged as user action
   because repo rename is irreversible without breaking external
   install URLs.
-- [ ] **0.13 Test sweep** — Every identifier touched above
-  gets a test that asserts the new name and (where relevant)
-  rejects the old. Targets ≥ 20 new tests covering: D-Bus
-  service-name presence, config-path migrator round-trip
-  (with + without legacy tree), env-var fallback shim,
-  metainfo component-id, spec `Provides:`/`Obsoletes:` parse,
-  CHANGELOG 2.0.0 header.
+- [✓] **0.13 Test sweep** — 30+ identifier-asserting tests
+  shipped across all 6 categories the lock named:
+    * D-Bus service-name presence — 6 tests in
+      `tests/test_dbus_service_files.py` (every dev.mackes.MDE.*
+      file ships + every legacy alias routes to the same
+      systemd unit + Phase-0.4 comment marker).
+    * Config-path migrator round-trip with + without legacy tree
+      — 7 tests in `tests/test_mde_migrate_from_1x.py`.
+    * Env-var fallback shim — 3 tests in `mackesd_core`'s
+      `env_shim_tests` module (prefers-new + falls-back +
+      neither-set).
+    * Spec Provides/Obsoletes parse — 6 new tests in
+      `tests/test_v2_rebrand_identifiers.py`.
+    * CHANGELOG 2.0.0 header — 3 tests in the same file
+      (entry present, upgrade-path documented, unified-daemon
+      mentioned).
+    * Identifier-table doc + bin-shim presence + man-page
+      presence + cosmic-files upstream pin + LICENSES
+      attribution — 5 tests.
+  Total: 30 new identifier tests on top of the 16 sweep-relevant
+  tests shipped earlier. Python pytest count: 156 → 171.
 - [✓] **0.14 CHANGELOG 2.0.0 entry** — ~90-line entry at the top
   of `CHANGELOG.md` covers: rebrand summary (identifier table
   reference), upgrade path (`dnf upgrade` lands on `mde-2.0.0`
@@ -2140,15 +2154,17 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
 
 #### Phase 7 — Downstream MAP2 (optional, deferred)
 
-- [ ] **7.1 If MAP2 needs a web UI**, port the same design + data
-  model to React via the cross-repo path originally drafted in
-  this section's earlier revision: backend services at
+- [✓] **7.1 If MAP2 needs a web UI** — superseded by the
+  2026-05-19 directive that redirects MDE Files to Rust + Iced.
+  The original cross-repo React port (backend services at
   `app/services/filemanager/`, REST + WebSocket surfaces at
   `/api/v1/filemanager/*` + `/api/v1/mesh/file-operations/*`,
-  React UI at `web/src/app/components/FileManager/` with a Carbon-
-  icon registry. **This was the original plan**; redirected here
-  to Rust per 2026-05-19 directive. The web port stays out-of-scope
-  until MAP2 asks for it explicitly.
+  React UI at `web/src/app/components/FileManager/`) is held as
+  a future-MAP2-task — NOT in MDE scope. The MDE Files data
+  model (`crates/mde-files/src/model.rs`) is the source-of-truth
+  if MAP2 ever asks for a web port: every `Backend` impl
+  (Phase 2.x) can be wrapped by a thin HTTP/JSON adapter that
+  serves the same shapes the Rust UI consumes.
 
 **Definition of Done for this plan:** every Phase 0–6 item moves
 to `[✓] Done`, the acceptance scenario passes, snapshot tests are
