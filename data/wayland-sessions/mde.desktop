@@ -1,0 +1,17 @@
+[Desktop Entry]
+# CB-2.1 — Wayland-session entry that LightDM / GDM / SDDM all pick
+# up from /usr/share/wayland-sessions/. The session-name string is
+# what appears in the greeter's session dropdown; the Exec must
+# point at the unified `mde-session` orchestrator (the v2.0.0
+# replacement for the v1.x `mackes-enforce-session` autostart shim).
+#
+# DesktopNames=MDE so XDG-aware desktop entries
+# (`OnlyShowIn=MDE`) light up under this session.
+
+Name=Mackes Desktop Environment
+Comment=The mesh-first Wayland desktop
+Exec=/usr/bin/mde-session
+TryExec=/usr/bin/mde-session
+Type=Application
+DesktopNames=MDE
+Keywords=mde;mackes;wayland;sway;mesh;

@@ -437,6 +437,17 @@ install -d %{buildroot}%{_userunitdir}
 # wasn't running after install).
 install -D -m 0644 data/systemd/90-mackes.preset \
     %{buildroot}%{_prefix}/lib/systemd/user-preset/90-mackes.preset
+# CB-3.6 — v2.0.0 preset (enables mde-session.service for new users).
+# Lands alongside the v1.x preset during the back-compat window so
+# fresh installs pick up the MDE user-session orchestrator without
+# additional configuration.
+install -D -m 0644 data/systemd/90-mde.preset \
+    %{buildroot}%{_prefix}/lib/systemd/user-preset/90-mde.preset
+
+# CB-2.1 — Wayland-session entry. LightDM / GDM / SDDM all read
+# /usr/share/wayland-sessions/ for available sessions.
+install -D -m 0644 data/wayland-sessions/mde.desktop \
+    %{buildroot}%{_datadir}/wayland-sessions/mde.desktop
 
 # 4c. Tumbler thumbnailer
 install -D -m 0644 data/thumbnailers/mackes-mesh.thumbnailer \
@@ -700,6 +711,9 @@ fi
 # orchestrator (replaces mackes-enforce-session on the v2.0.0 line).
 %{_userunitdir}/mde-session.service
 %{_prefix}/lib/systemd/user-preset/90-mackes.preset
+# CB-3.6 + CB-2.1 — v2.0.0 user preset + Wayland-session entry.
+%{_prefix}/lib/systemd/user-preset/90-mde.preset
+%{_datadir}/wayland-sessions/mde.desktop
 %config(noreplace) /etc/sudoers.d/mackes-shell
 # C panel plugins + their descriptors
 %{_libdir}/xfce4/panel/plugins/mackes-clipboard
