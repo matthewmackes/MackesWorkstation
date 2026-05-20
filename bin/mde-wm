@@ -1,0 +1,12 @@
+#!/bin/sh
+# mde-wm — MDE window-manager helper.
+#
+# v2.0.0 Phase 0.3 + D.7 — shim for the legacy `mackes-wm` helper
+# during the v1.x → v2.0.0 transition. The v2.0.0 cut retires
+# `mackes-wm` outright (sway is the only compositor; helper logic
+# moves into mde-session) and this script will exec
+# `mde-session reset-config` instead. Today it delegates to
+# `mackes-wm` so the existing Workbench → Window Manager panel
+# reset button keeps working.
+
+exec /usr/bin/mackes-wm "$@"

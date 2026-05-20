@@ -1,0 +1,14 @@
+#!/bin/sh
+# mde — MDE (Mackes Desktop Environment) primary CLI entry point.
+#
+# v2.0.0 Phase 0.3 — replaces the v1.x `mackes` binary as the
+# user-facing CLI. Today this is a thin shim that execs the legacy
+# `mackes` script with the same argv; the v2.0.0 cut moves the
+# Python entry point under `mde/` (Phase 0.10) and this shim
+# becomes a no-op exec.
+#
+# Backward-compat: the legacy `mackes` binary stays installed for
+# one release alongside `mde` so existing scripts and .desktop
+# Exec= lines keep resolving.
+
+exec /usr/bin/mackes "$@"

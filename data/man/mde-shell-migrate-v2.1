@@ -1,0 +1,51 @@
+.TH MDE-SHELL-MIGRATE-V2 1 "2026-05-19" "MDE 2.0.0" "User Commands"
+.SH NAME
+mde-shell-migrate-v2 \- first-boot migration from v1.x Mackes Shell to v2.0.0 MDE
+.SH SYNOPSIS
+.B mde-shell-migrate-v2
+.SH DESCRIPTION
+Runs from
+.B mde-session.service
+on first launch after
+.B "dnf upgrade"
+from a v1.x box. Four named idempotent steps:
+.IP 1. 4
+.B step_1_import_xfconf_to_settings
+\(em walks the locked
+.B XFCONF_TO_MDE_KEY
+map and pushes each via
+.B "mded fleet push-setting <key> <value> --peers all".
+.IP 2. 4
+.B step_2_remove_xdg_autostart_overrides
+\(em removes the MDE-generated overrides under
+.I ~/.config/autostart/
+that suppressed
+.B xfce4-panel
+and
+.B xfdesktop
+(only when they carry
+.BR Hidden=true ;
+vendor files left alone).
+.IP 3. 4
+.B step_3_backup_xfce4_config
+\(em copies
+.I ~/.config/xfce4/
+to
+.I ~/.config/xfce4.v1x-backup.<timestamp>/
+so the operator can recover the pre-rebrand state.
+.IP 4. 4
+.B step_4_write_default_sway_config
+\(em seeds
+.I ~/.config/sway/
+from
+.I /usr/share/mde/sway/
+when the user doesn't already have one.
+.SH OUTPUT
+Logged via
+.B systemd-cat -t mde-migrate-v2.
+Re-running on an already-migrated box is a no-op exit 0.
+.SH SEE ALSO
+.B mde-migrate-from-1x(1),
+.B mde-session(1)
+.SH AUTHORS
+Matt Mackes <matthewmackes@gmail.com> and contributors.

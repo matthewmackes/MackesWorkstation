@@ -1,0 +1,47 @@
+.TH MDE 1 "2026-05-19" "MDE 2.0.0" "User Commands"
+.SH NAME
+mde \- Mackes Desktop Environment primary CLI entry point
+.SH SYNOPSIS
+.B mde
+[\fIOPTIONS\fR]
+[\fISUBCOMMAND\fR]
+.SH DESCRIPTION
+.B mde
+is the user-facing CLI for the Mackes Desktop Environment (MDE).
+It launches the Workbench, runs the first-run wizard, surfaces
+deep-link "focus" routes (\fB\-\-focus\fR), and exposes the
+\fBupdate\fR / \fBabout\fR / \fBdrawer\fR subcommands.
+.P
+On the v1.x → v2.0.0 transition release, this binary is a thin
+shim that execs the legacy \fB/usr/bin/mackes\fR script with the
+same argv. The v2.0.0 cut moves the Python entry point under
+\fImde/\fR and this shim becomes a no-op exec.
+.SH OPTIONS
+See
+.B mackes(1)
+for the full option list during the v1.x compatibility window.
+.SH ENVIRONMENT
+.TP
+.B MDE_HOME
+Override the default MDE state directory.
+.B MACKES_HOME
+is honored as a one-release fallback (deprecated; removed in v2.1).
+.SH FILES
+.TP
+.I ~/.config/mde/panel.toml
+Panel configuration (v2.0.0).
+.TP
+.I ~/.config/mackes-shell/
+Legacy v1.x configuration; auto-migrated to
+.I ~/.config/mde/
+by
+.B mde-migrate-from-1x(1)
+on first login.
+.SH SEE ALSO
+.B mde-session(1),
+.B mde-panel(1),
+.B mded(8),
+.B mde-migrate-from-1x(1),
+.B mde-shell-migrate-v2(1)
+.SH AUTHORS
+Matt Mackes <matthewmackes@gmail.com> and contributors.

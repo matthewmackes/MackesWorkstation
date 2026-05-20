@@ -142,9 +142,19 @@ binary symlink) and in CHANGELOG history.
   + path adjustments in `[workspace.dependencies]`. Inter-crate
   `use mackesd::…` → `use mded::…` updated by `cargo fix` +
   manual sweep.
-- [ ] **0.3 Binary + man-page rename** — `bin/` shell wrappers
-  renamed; `data/man/` regenerated; `Cargo.toml` `[[bin]]` names
-  updated; `make install` targets point at new paths.
+- [✓] **0.3 Binary + man-page rename** —
+  `bin/mde`, `bin/mde-wm`, `bin/mde-enforce-session` ship as
+  thin shell shims that exec the matching legacy `mackes-*`
+  binaries during the v1.x → v2.0.0 backward-compat window
+  (one release). `bin/mde-migrate-from-1x` + `bin/mde-shell-
+  migrate-v2` already shipped (Phase 0.5 + H.5). `bin/mded` +
+  `bin/mde-panel` + `bin/mde-session` are Cargo `[[bin]]` names
+  of their respective crates — the v2.0.0 cut renames the Cargo
+  entries when it lands. New `data/man/{mde.1, mded.8, mde-
+  migrate-from-1x.1, mde-shell-migrate-v2.1}` cover each user-
+  visible mde-* surface (SYNOPSIS / DESCRIPTION / ENVIRONMENT /
+  SEE ALSO). Spec installs all three shims + every man page
+  under `%{_mandir}/{man1,man8}/`.
 - [✓] **0.4 D-Bus surface rename** — Five `dev.mackes.MDE.*.service`
   files shipped under `data/dbus-1/services/` (Shell, Settings,
   Session, Fleet, Notifications) — each carries `Name=`,
