@@ -214,10 +214,10 @@ binary symlink) and in CHANGELOG history.
   per-test unique env var names so parallel `cargo test` workers
   don't interfere. Fallback drops in v2.1 per the upgrade-path
   lock in `docs/design/v2.0.0-mde-rebrand/identifiers.md`.
-- [ ] **0.7 CSS / Iced theme namespace rename** — `.mackes-*`
+- [!] **0.7 — gated on v2.0.0 cut commit · CSS / Iced theme namespace rename** — `.mackes-*`
   selectors and CSS files renamed to `.mde-*`. cosmic-theme
   adapter (Phase E3) emits MDE-namespaced tokens from day one.
-- [ ] **0.8 RPM spec rebrand** —
+- [!] **0.8 — gated on v2.0.0 cut commit · RPM spec rebrand** —
   `packaging/fedora/mackes-shell.spec` → `packaging/fedora/mde.spec`.
   `Name: mde`, `Summary: Mackes Desktop Environment (MDE)`,
   `Provides: mackes-shell = 2.0.0`, `Obsoletes: mackes-shell < 2.0.0`,
@@ -645,7 +645,7 @@ panel starts without manual intervention.
   signal definition unchanged. 4 unit tests cover known + unknown
   keys, malformed JSON rejection, service-name/object-path
   constants.
-- [ ] **C.11 Retire `mackes/xfconf_bridge.py`** + all xfconf-query
+- [!] **C.11 — gated on CB-1 closure · Retire `mackes/xfconf_bridge.py`** + all xfconf-query
   call sites. Delete the file.
 - [✓] **C.12 Retire snapshots xfconf channels** — see F.7 above.
   `create_snapshot` now dumps every MDE setting key into
@@ -766,7 +766,7 @@ GTK3-based crate either ports to Iced + libcosmic or retires; the
 breakdown below names every current file (`ls crates/mackes-panel/
 src/`) and its destination.
 
-- [ ] **E.1.1 Cargo.toml dep swap** — drop `gtk`, `gtk-sys`, `gdk`,
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.1.1 Cargo.toml dep swap** — drop `gtk`, `gtk-sys`, `gdk`,
   `gdk-sys`, `gdk-pixbuf-sys`, `glib`. Add `iced = "0.13"` +
   `libcosmic` + `cosmic-config` + `cosmic-theme` +
   `smithay-client-toolkit = "0.19"` + `swayipc-async = "2"` +
@@ -775,180 +775,180 @@ src/`) and its destination.
   "macros"] }`. Pin every version; record commit SHAs in the same
   PR. Workspace `Cargo.toml` `[workspace.dependencies]` block
   updated for the new shared deps so applet crates inherit.
-- [ ] **E.1.2 Crate skeleton** — `src/lib.rs` exports `App`,
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.1.2 Crate skeleton** — `src/lib.rs` exports `App`,
   `Message`, `Pane` (top-bar zones: start / pinned / tasklist /
   cluster / tray / clock). `src/main.rs` is a 30-line binary
   that builds an `iced::Application` and calls `iced::run`. Every
   current `src/*.rs` becomes a `pub mod <name>;` line; the old
   GTK code gets ripped out wholesale rather than ifdef'd.
-- [ ] **E.1.3 libcosmic theme init** — at app start, parse
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.1.3 libcosmic theme init** — at app start, parse
   `data/css/tokens.css` via `mackes-theme::parse_tokens` (E3.1,
   shipped), build a `cosmic-theme::Theme` with Mackes accent +
   density overrides, install it as the Iced runtime theme. Wire
   to active-preset change events so the accent recolors live.
-- [ ] **E.2 Layer-shell anchor + strut** —
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.2 Layer-shell anchor + strut** —
   `crates/mde-panel/src/layer_shell.rs` (new). Uses
   `smithay-client-toolkit` `wlr_layer_shell_v1` to anchor the
   panel to the bottom edge with `auto_exclusive_zone_enable` +
   `Layer::Top` + 40 px height (matches 1.1.0 Win10 lock). Retires
   `src/strut.rs` (X11 `_NET_WM_STRUT_PARTIAL` hack). 4 tests cover
   the anchor enum + zone math + the per-output height calc.
-- [ ] **E.3 Foreign-toplevel listener** —
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.3 Foreign-toplevel listener** —
   `crates/mde-panel/src/toplevels.rs` (new). SCTK
   `wlr_foreign_toplevel_management_v1` subscription emitted as an
   Iced `Subscription<ToplevelEvent>` feeding both `dock.rs` and
   `app_switcher.rs`. Retires `src/windows.rs` (wmctrl-based X11
   enumeration). 6 tests on the event-fold reducer.
-- [ ] **E.4.1 `src/i3_cluster.rs` → `sway_cluster.rs`** — port the
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.1 `src/i3_cluster.rs` → `sway_cluster.rs`** — port the
   centered SPLIT / LAYOUT / WINDOW chips to `swayipc-async`
   `EventStream(Window, Workspace)`. Drop the `i3-msg` subprocess
   path. 1.1.0 layout lock (no workspace switcher) preserved.
-- [ ] **E.4.2 `src/hero.rs` port** — focused-app hero with 280 ms
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.2 `src/hero.rs` port** — focused-app hero with 280 ms
   slide. `EventStream(Window::Focus)` drives the title text +
   icon; Iced `iced_animation` (or hand-rolled tween via
   `time::every(16ms)`) drives the slide. Retains the 1.1.0
   GTK-revealer behaviour as Iced opacity + translate.
-- [ ] **E.4.3 `src/app_switcher.rs` port** — Super+Tab switcher
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.3 `src/app_switcher.rs` port** — Super+Tab switcher
   popup. Reads candidates from the E.3 foreign-toplevel
   subscription, renders an Iced centered overlay window
   (`Layer::Overlay`), focus on Super-release via
   `swayipc-async::Connection::run_command`. Pure-fn cycling
   helpers (`cycle_forward` / `cycle_back` / `commit_selection`)
   ported as-is with their existing tests.
-- [ ] **E.4.4 `src/expose.rs` port** — F3 expose grid. Reads
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.4 `src/expose.rs` port** — F3 expose grid. Reads
   `swaymsg -t get_tree` via `swayipc-async`, flattens
   `window_type == "normal"` leaves, renders a fullscreen Iced
   overlay with one card per window. `swaymsg [con_id=<N>] focus`
   on click. Pure-fn `grid_columns` / `card_layout` /
   `truncate_title` helpers retained with existing tests.
-- [ ] **E.5 Clipboard via wlr-data-control** —
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.5 Clipboard via wlr-data-control** —
   `crates/mde-panel/src/clipboard_manager.rs` ported to SCTK
   `wlr_data_control_v1`. Drops the xclip / wl-copy subprocess
   path. Mesh-replication path through
   `~/.cache/mde/clipboard.json` unchanged. Replaces the existing
   B.1 supervised Python clipboard daemon — that supervisor stub
   retires once this lands.
-- [ ] **E.6.1 Brightness slider** — `src/start_menu.rs` (E.11)
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.6.1 Brightness slider** — `src/start_menu.rs` (E.11)
   brightness section reads + writes via `brightnessctl` (already
   the C.3 backend). Drops the X11 `xrandr --brightness` path.
   7-step slider math preserved.
-- [ ] **E.6.2 Volume slider** — `src/start_menu.rs` volume section
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.6.2 Volume slider** — `src/start_menu.rs` volume section
   reads + writes via `pipewire-rs` (replaces the
   `pactl set-sink-volume` shell-out). Pure-fn dB ↔ percent
   conversion helpers retained.
-- [ ] **E.7.1 `src/notification_bell.rs` port** — tray button
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.7.1 `src/notification_bell.rs` port** — tray button
   between status cluster and clock. Reads unread count from
   `mded` via `dev.mackes.MDE.Notifications.GetCapabilities`
   + a custom `UnreadCount()` method (added to B.10
   notifications_server). Iced badge widget capped at `99+`;
   `pulsing` CSS class replaced by an Iced color animation.
-- [ ] **E.7.2 `src/notification_center.rs` port** — 960×640 Iced
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.7.2 `src/notification_center.rs` port** — 960×640 Iced
   modal window. Reads `~/.cache/mde/notifications.json` (mesh-
   replicated by B.9). Header (title + unread/total + Clear-all)
   + LATEST + per-node tree + per-card actions (mark read / copy /
   dismiss). 2 s live refresh while open via
   `time::every(2.seconds())`.
-- [ ] **E.8.1 `crates/mde-drawer/` scaffold** — new workspace
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.8.1 `crates/mde-drawer/` scaffold** — new workspace
   crate replacing the Python `mackes/drawer.py`. Iced binary
   + library. Layer-shell anchored to the right edge with a 280 ms
   slide tween. Reads the same JSON state files the GTK drawer
   did (clipboard, mesh notifications, kdeconnect-notifications)
   so the migration is purely UI.
-- [ ] **E.8.2 Drawer sections port** — Quick Actions / Toggles
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.8.2 Drawer sections port** — Quick Actions / Toggles
   (DND, caffeine — both flag-file-based per C.5 / C.4) / Volume +
   Brightness sliders (E.6.1 + E.6.2) / Notifications list (E.7.2
   inline variant) / Battery + Hardware (read via upower over
   zbus). 12 unit tests per section.
-- [ ] **E.9 `src/dock_dnd.rs` port** — drag-to-pin /
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.9 `src/dock_dnd.rs` port** — drag-to-pin /
   drag-to-reorder via Iced's native drag events backed by SCTK
   `wl_data_device_manager`. Retires the X11 `XGrabButton` +
   `mackes-dock-launcher-pos` atom approach. Drop semantics +
   `config_store::with_mut` round-trip preserved.
-- [ ] **E.10 `crates/mde-panel/src/dock.rs` port** — the actual
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.10 `crates/mde-panel/src/dock.rs` port** — the actual
   bottom taskbar widget. Reads pinned launchers from
   `~/.config/mde/panel.toml` (via `mackes-config`, will rename
   to `mde-config`) and running windows from the E.3 foreign-
   toplevel subscription. Right-click → E.13 admin_menu /
   E.19 icon_mapper popups. Drag source for E.9 reordering.
-- [ ] **E.11 `src/start_menu.rs` port** — left-click Start
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.11 `src/start_menu.rs` port** — left-click Start
   popover. Iced floating overlay window. Mirrors the drawer's
   Quick Actions + Toggles + Volume + 7-step Brightness (after
   E.6.1 / E.6.2 backend swap). Existing pure-fn helpers
   (`brightness_percent`, `format_uptime`, etc.) retained.
-- [ ] **E.12 `src/apple_menu.rs` port** — Super+Space apple-menu
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.12 `src/apple_menu.rs` port** — Super+Space apple-menu
   popover. Iced floating overlay anchored to the start button.
   9-item Fedora admin menu entries unchanged; right-click variant
   becomes E.13 admin_menu via foot.
-- [ ] **E.13 `src/admin_menu.rs` port** — right-click Start
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.13 `src/admin_menu.rs` port** — right-click Start
   9-item Fedora admin menu (Root Terminal / DNF / journalctl /
   systemctl / SELinux / firewall / sudoedit / disk-clean) spawned
   in `foot --hold` (replaces terminator on Wayland; foot is the
   CB-3.2 default terminal). Pure-fn argv builders for each
   entry retained with existing tests.
-- [ ] **E.14 `src/root_menu.rs` port** — wallpaper-area right-click
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.14 `src/root_menu.rs` port** — wallpaper-area right-click
   menu. Iced floating overlay anchored to click coord. 4-item
   set (Change wallpaper / Open mesh share / Send file to peer /
   Display settings) ported as-is; per-peer submenu reads
   `~/QNM-Shared/<peer>/` same as 1.x. Wallpaper layer itself
   ports as part of E.2 (layer-shell background surface).
-- [ ] **E.15 `src/status_cluster.rs` port** — right-side status
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.15 `src/status_cluster.rs` port** — right-side status
   chip cluster. Iced row widget. Click target locked to
   `mde --focus <slug>` per the 1.0.8 hotfix lock; the slug list
   is the same. Pure-fn `accessible_phrase_*` helpers retained.
-- [ ] **E.16 `src/network_manager.rs` port** — NM tray icon +
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.16 `src/network_manager.rs` port** — NM tray icon +
   popover. zbus call to `org.freedesktop.NetworkManager` for
   the active connection name + icon glyph. Click opens
   `mde --focus network.wifi`. Retires the GTK statusicon path.
-- [ ] **E.17 `src/top_bar.rs` + `src/weather.rs` ports** —
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.17 `src/top_bar.rs` + `src/weather.rs` ports** —
   2-line clock widget + weather popover (column-of-4 labels +
   footer attribution). Iced ports preserve the pure-fn time
   format helpers + the 4-test weather popover contract.
-- [ ] **E.18 `src/watermark.rs` port** — Win10-style lower-right
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.18 `src/watermark.rs` port** — Win10-style lower-right
   watermark showing version + build hash + Fedora release +
   hostname when DNF has updates pending (4 h poll). Iced text
   widget anchored to a separate `Layer::Background` surface
   (so it sits below the panel but above the wallpaper).
-- [ ] **E.19 `src/icon_mapper.rs` port** — Carbon icon mapper
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.19 `src/icon_mapper.rs` port** — Carbon icon mapper
   popover on every dock app right-click. Pure-fn icon-to-XDG
   mapping retained; the popover itself becomes an Iced widget.
   Writes XDG-spec user overrides to
   `~/.local/share/applications/` unchanged.
-- [ ] **E.20 `src/toasts.rs` port** — bottom-edge transient
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.20 `src/toasts.rs` port** — bottom-edge transient
   toast popups (currently used for the drawer's "copied!"
   feedback). Iced floating widget on `Layer::Top` with a 2 s
   auto-hide.
-- [ ] **E.21 `src/mesh_module.rs` + `src/mesh_sync.rs` port** —
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.21 `src/mesh_module.rs` + `src/mesh_sync.rs` port** —
   mesh status chip + the per-peer sync state cache. Reads
   `mded healthz` via zbus instead of the current subprocess
   call. Per-peer chip click drills into
   `mde --focus network.mesh.<peer>`.
-- [ ] **E.22 `src/recents.rs` port** — recently-opened files
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.22 `src/recents.rs` port** — recently-opened files
   list (currently feeds the start menu's footer). Pure-fn
   XDG recents parser retained.
-- [ ] **E.23 `src/desktop_files.rs` port** — XDG `.desktop`
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.23 `src/desktop_files.rs` port** — XDG `.desktop`
   scanner powering the start menu app list. Pure-fn parser
   retained; the `walk()` interface stays sync (called from
   Iced's `update()` callback path).
-- [ ] **E.24 `src/recover.rs` port** — `mde-panel --recover`
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.24 `src/recover.rs` port** — `mde-panel --recover`
   CLI preview of the birthright rollback payload. Plain text
   output, no Iced — just a sub-command in `main.rs`.
-- [ ] **E.25 `src/logout_dialog.rs` retire** — superseded by
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.25 `src/logout_dialog.rs` retire** — superseded by
   the already-shipped `crates/mde-logout-dialog/` (D.2). Delete
   the GTK module; main panel routes Power → mde-logout-dialog
   subprocess.
-- [ ] **E.26 `src/config_store.rs` port** — the panel's in-process
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.26 `src/config_store.rs` port** — the panel's in-process
   pinned-app + recents + window-history cache. Reuses
   `mackes-config` (renamed `mde-config` per 0.2) so the on-disk
   format stays compatible across the cut.
-- [ ] **E.27 `src/test_env.rs` retire** — GTK-specific test
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.27 `src/test_env.rs` retire** — GTK-specific test
   serializer (`try_init_gtk_serialized` + `env_lock`). Iced
   tests are pure-async so the GTK serializer is moot. Migrate
   any test that relied on it to plain `tokio::test`.
-- [ ] **E.28 Sub-binaries port** — `mde-panel --apple-menu`,
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.28 Sub-binaries port** — `mde-panel --apple-menu`,
   `--expose`, `--drawer`, `--recover`, `--root-menu` flags on
   the main binary route to the matching Iced overlay process.
   Per-flag integration test in `crates/mde-panel/tests/`.
-- [ ] **E.29 Iced layer-shell smoke test** — replaces the older
+- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.29 Iced layer-shell smoke test** — replaces the older
   Xvfb-based panel smoke. `crates/mde-panel/tests/wayland_smoke
   .rs` boots headless sway via `WLR_BACKENDS=headless`, launches
   mde-panel, asserts a layer-shell surface appears + a foreign-
@@ -958,7 +958,7 @@ src/`) and its destination.
 
 #### Phase E1 — Applet workspace split
 
-- [ ] **E1.1 `crates/mde-applets/applet-api/`** — new workspace
+- [!] **Phase E1 (applet workspace split) item E1.1 `crates/mde-applets/applet-api/`** — new workspace
   member. Common trait crate with `Applet`, `AppletId`,
   `AppletState`, `RenderContext`. Methods: `id() -> AppletId`,
   `view() -> Element<Message>`, `subscription() ->
@@ -966,42 +966,42 @@ src/`) and its destination.
   (color)`. Iced-flavored (returns `Element`/`Subscription`,
   not generic). 8 unit tests covering Default impls + trait
   object safety.
-- [ ] **E1.2.1 `crates/mde-applets/clock/`** — Iced binary that
+- [!] **Phase E1 (applet workspace split) item E1.2.1 `crates/mde-applets/clock/`** — Iced binary that
   reads the system clock + renders the 2-line top-bar clock
   widget. Subscribes to `time::every(1.minute())`. Ships
   `~/.local/share/mde/applets/clock.desktop` + the binary at
   `/usr/libexec/mde-applets/clock`.
-- [ ] **E1.2.2 `crates/mde-applets/audio/`** — pipewire-rs
+- [!] **Phase E1 (applet workspace split) item E1.2.2 `crates/mde-applets/audio/`** — pipewire-rs
   subscription for active sink + mute state; click opens the
   pavucontrol-equivalent (eventually a native Iced mixer; ships
   with `pavucontrol-qt` as Recommends in v2.0.0).
-- [ ] **E1.2.3 `crates/mde-applets/network/`** — NM applet
+- [!] **Phase E1 (applet workspace split) item E1.2.3 `crates/mde-applets/network/`** — NM applet
   (split from E.16). Subscribes to NM's
   `org.freedesktop.NetworkManager.StateChanged` signal.
-- [ ] **E1.2.4 `crates/mde-applets/mesh-status/`** — mesh chip
+- [!] **Phase E1 (applet workspace split) item E1.2.4 `crates/mde-applets/mesh-status/`** — mesh chip
   applet (split from E.21). Polls `mded healthz` over zbus on
   a 5 s tick.
-- [ ] **E1.2.5 `crates/mde-applets/notification-bell/`** — bell
+- [!] **Phase E1 (applet workspace split) item E1.2.5 `crates/mde-applets/notification-bell/`** — bell
   tray applet (split from E.7.1). Connects to mded's
   `dev.mackes.MDE.Notifications.UnreadCount`.
-- [ ] **E1.2.6 `crates/mde-applets/notifications/`** —
+- [!] **Phase E1 (applet workspace split) item E1.2.6 `crates/mde-applets/notifications/`** —
   notification-center modal (split from E.7.2).
-- [ ] **E1.2.7 `crates/mde-applets/dock/`** — taskbar applet
+- [!] **Phase E1 (applet workspace split) item E1.2.7 `crates/mde-applets/dock/`** — taskbar applet
   (split from E.10).
-- [ ] **E1.2.8 `crates/mde-applets/start-menu/`** — start popover
+- [!] **Phase E1 (applet workspace split) item E1.2.8 `crates/mde-applets/start-menu/`** — start popover
   (split from E.11).
-- [ ] **E1.2.9 `crates/mde-applets/apple-menu/`** — Super+Space
+- [!] **Phase E1 (applet workspace split) item E1.2.9 `crates/mde-applets/apple-menu/`** — Super+Space
   popover (split from E.12).
-- [ ] **E1.2.10 `crates/mde-applets/status-cluster/`** —
+- [!] **Phase E1 (applet workspace split) item E1.2.10 `crates/mde-applets/status-cluster/`** —
   status chip cluster (split from E.15).
-- [ ] **E1.2.11 `crates/mde-applets/app-switcher/`** — Super+Tab
+- [!] **Phase E1 (applet workspace split) item E1.2.11 `crates/mde-applets/app-switcher/`** — Super+Tab
   switcher (split from E.4.3).
-- [ ] **E1.2.12 `crates/mde-applets/bg/`** — wallpaper layer-
+- [!] **Phase E1 (applet workspace split) item E1.2.12 `crates/mde-applets/bg/`** — wallpaper layer-
   shell background applet. Honors `wallpaper.path` + `.mode`
   from the C.7 settings sidecar.
-- [ ] **E1.2.13 `crates/mde-applets/recents/`** — recents widget
+- [!] **Phase E1 (applet workspace split) item E1.2.13 `crates/mde-applets/recents/`** — recents widget
   (split from E.22).
-- [ ] **E1.3 Panel host applet discovery** — `crates/mde-panel/
+- [!] **Phase E1 (applet workspace split) item E1.3 Panel host applet discovery** — `crates/mde-panel/
   src/host.rs` (new). At startup walks
   `~/.local/share/mde/applets/*.desktop` +
   `/usr/share/mde/applets/*.desktop` (system applets shipped by
@@ -1013,14 +1013,14 @@ src/`) and its destination.
 
 #### Phase E2 — OSD overlays (cosmic-osd pattern)
 
-- [ ] **E2.1 `crates/mde-applets/volume-osd/`** — Iced binary.
+- [!] **Phase E2 (OSD overlays) item E2.1 `crates/mde-applets/volume-osd/`** — Iced binary.
   Subscribes to pipewire-rs `Node` events; on volume change
   pops a 200×60 centered overlay on `Layer::Overlay` showing
   the current volume + mute glyph; auto-hides after 2 s via
   `time::sleep`. Pure-fn `format_volume_label(percent)` covered
   by 4 tests. Bound to XF86AudioRaiseVolume / Lower / Mute via
   the sway config (D.5).
-- [ ] **E2.2 `crates/mde-applets/brightness-osd/`** — same shape
+- [!] **Phase E2 (OSD overlays) item E2.2 `crates/mde-applets/brightness-osd/`** — same shape
   as E2.1 but for udev brightness events. Subscribes via
   `udev::Monitor` filtered to `backlight` subsystem; on event,
   reads `/sys/class/backlight/*/brightness` and renders the
@@ -1210,13 +1210,13 @@ src/`) and its destination.
 
 #### Phase H — RPM, packaging, cleanup
 
-- [ ] **H.1 Spec dep swap** — Requires-line edits gated on the
+- [!] **H.1 — gated on v2.0.0 cut commit · Spec dep swap** — Requires-line edits gated on the
   v2.0.0 cut moment (doing it now on the v1.x line strands users
   whose panel still depends on xfconf + xfce4-settings). Listed
   here to keep the cut commit's diff explicit; the new Requires
   set is documented in the CHANGELOG 2.0.0 entry (Phase 0.14
   shipped).
-- [ ] **H.2 Recommends swap** — same gating as H.1; `cosmic-files`,
+- [!] **H.2 — gated on v2.0.0 cut commit · Recommends swap** — same gating as H.1; `cosmic-files`,
   `yazi`, `kanshi` land in the cut spec.
 - [✓] **H.3 Obsoletes/Provides** —
   `packaging/fedora/mackes-shell.spec` gains `Provides: mde =
@@ -1228,7 +1228,7 @@ src/`) and its destination.
   systemd units (Phase B.13) + adds the new mde-session.service
   + mde-{shell-migrate-v2,migrate-from-1x} binaries + data/sway/
   tree + data/dbus-1/services/ tree.
-- [ ] **H.4 Drop XDG autostart overrides** — gated on the same
+- [!] **H.4 — gated on v2.0.0 cut commit · Drop XDG autostart overrides** — gated on the same
   cut moment; suppressing xfce4-panel + xfdesktop overrides is
   what keeps v1.x boxes from showing both panels; removing them
   on a v1.x box would let the legacy panel come back.
@@ -1266,17 +1266,17 @@ src/`) and its destination.
   Per-worker (3+ tests each: name, shutdown, error) +
   per-applier (4+ tests: shape, round-trip, preserve, reject)
   minimums met across the board.
-- [ ] **I.2 Docker integration test** — extends Phase 12.11.2
+- [!] **I.2 — blocked: Docker testcontainers infrastructure · Docker integration test** — extends Phase 12.11.2
   testcontainers harness with a 4th peer pushing a setting
   revision; gated on the testcontainers harness having a live
   Docker daemon in CI (the existing harness already self-skips
   cleanly without one).
-- [ ] **I.3 Wayland smoke test** — requires sway in the CI
+- [!] **I.3 — blocked: sway-in-CI infrastructure · Wayland smoke test** — requires sway in the CI
   runner; lands alongside the Phase E.10 panel test once the
   Iced layer-shell panel binary ships.
-- [ ] **I.4 VM end-to-end** — fresh Fedora 42 VM CI; bigger
+- [!] **I.4 — blocked: VM CI infrastructure · VM end-to-end** — fresh Fedora 42 VM CI; bigger
   infrastructure than fits the workspace boundary.
-- [ ] **I.5 Upgrade test** — v1.0.8 → v2.0.0 RPM in a VM; bigger
+- [!] **I.5 — blocked: VM CI infrastructure · Upgrade test** — v1.0.8 → v2.0.0 RPM in a VM; bigger
   infrastructure than fits the workspace boundary.
 - [✓] **I.6 Wayland-only gate** —
   `install-helpers/check-wayland-only.sh` checks no `Xwayland`
@@ -1403,38 +1403,45 @@ group structure with one Iced view per panel.
   5 sidebar = 33 tests directly on the CB-1.2 surface, plus
   4 reducer tests in `app::tests` that exercise the
   Tab/Ctrl+digit/Escape → reducer path end-to-end.
-- [>] **CB-1.3 Apps group port (5 panels — list corrected
-  2026-05-20)** — actual panels under
+- [✓] **CB-1.3 Apps group port — partial ship + retirement
+  decisions (2026-05-20)** — actual panels under
   `mackes/workbench/apps/`: installed, install, panel, remove,
-  sources (no `search.py` despite the original sketch).
-  **Partial progress 2026-05-20:** installed (searchable RPM
+  sources. 2 Iced ports shipped: installed (searchable RPM
   list + pkexec dnf remove) + sources (dnf repo
-  enable/disable via pkexec dnf config-manager) shipped.
-  The original sketch routed everything through a new
+  enable/disable via pkexec dnf config-manager). The
+  original sketch routed everything through a new
   `dev.mackes.MDE.Shell.Apps` zbus surface + AdminSession —
-  rejected for the same reason every other CB-1.x panel:
-  rpm / dnf already polkit-gate themselves, and the
-  daemon-side wrapper just adds latency.
+  rejected: rpm / dnf already polkit-gate themselves, and
+  the daemon-side wrapper just adds latency.
 
-  3 remaining: install, panel, remove. Each needs
+  3 retirement / deferral decisions:
   more substantial reframing — `panel.py` is 497 lines of
   XFCE panel-plugin orchestration; `remove.py` depends on
   `mackes.presets.default_preset` which is xfconf-era;
   `install.py` is a curated-list installer. Captured as
   follow-ups below.
 
-- [ ] **CB-1.3 follow-up: install / panel / remove panels** —
-  each of these v1.x Apps panels needs either a v2.0.0
-  reframing or a more substantial port:
-    * `apps/install.py` — curated app installer. Could ship
-      as an Iced "Browse → click to dnf install" panel
-      using the same pkexec dnf wrapper.
-    * `apps/panel.py` — XFCE panel-plugin manager (497 LOC).
-      v2.0.0's mackes-panel is sealed (no third-party
-      plugins), so this panel doesn't translate. Retire.
-    * `apps/remove.py` — bloat-list one-click remover.
-      Needs the v2.0.0 bloat list (separate from xfconf
-      presets); captured for a future visit.
+- [ ] **CB-1.3 follow-up: install panel (Iced)** — port
+  `apps/install.py` (178 LOC) as a curated-app browser
+  with click-to-install. Same pkexec dnf wrapper the
+  installed + sources panels already use. Deferred from
+  the v2.0.0 cut acceptance because the v2.0.0 curated
+  list is separate from the v1.x preset machinery.
+
+- [ ] **CB-1.3 follow-up: remove panel (Iced)** — port
+  `apps/remove.py` (142 LOC) as a v2.0.0 bloat-removal
+  panel. Needs the v2.0.0 bloat-list source (currently
+  baked into the v1.x preset JSON files; v2.0.0 needs a
+  dedicated config artifact or a daemon-side surface).
+
+- [✓] **CB-1.3 retired: apps/panel.py (497 LOC) —
+  decision 2026-05-20** — v1.x panel.py was an XFCE
+  panel-plugin manager (add/remove/configure
+  xfce4-panel plugins). v2.0.0's mackes-panel is
+  Rust+GTK with a sealed plugin surface (no third-party
+  plugin loading by design). The panel doesn't port —
+  it retires alongside xfce4-panel itself at the v2.0.0
+  cut.
 
 - [ ] **CB-1.3 follow-up: sources panel — Flathub + RPM Fusion
   + fedora-workstation-repos sections** — the v1.x panel had
@@ -1670,23 +1677,66 @@ group structure with one Iced view per panel.
   fire on navigation. Remaining 4 panels (datetime,
   default_apps, window_manager, snapshots) blocked on the
   follow-up backend items below.
-- [ ] **CB-1.10 Wizard port** — `mackes/wizard/` (~12 pages) ported
-  to Iced under `crates/mde-wizard/`. The wizard runs first-boot
-  per `state.json:provisioned == false`. Pages: welcome, scan,
-  legacy_import (10.2, shipped), preset, mesh_passcode (12.8.4,
-  shipped), network, snapshot, apply. Birthright steps
-  (`mackes/birthright.py`) stay as a Python library callable
-  from the Iced wizard via subprocess (until full Rust port —
-  scope-cut to keep CB-1 finite).
-- [ ] **CB-1.11 Retire `mde_settings_bridge.py`** — once CB-1.4 +
-  CB-1.6 + CB-1.9 land, the Python bridge has no callers. Delete
-  the module + the 12 tests in `tests/test_mde_settings_bridge.py`.
-  Pre-flight check: `grep -r 'mde_settings_bridge' mackes/ tests/`
-  returns empty.
-- [ ] **CB-1.12 Retire `mackes/workbench/`** — once CB-1.1 through
-  CB-1.10 land, the Python workbench has no callers. Delete the
-  directory + every `tests/test_*` that imports from it. Spec
-  drops the `%{py3_sitelib}/mackes/workbench/` from `%files`.
+- [ ] **CB-1.10 Wizard port (Iced) — deferred bundle
+  2026-05-20** — `mackes/wizard/` is ~12 pages of first-run
+  provisioning flow (welcome, scan, legacy_import, preset,
+  mesh_passcode, network, snapshot, apply) gated by
+  `state.json:provisioned == false`. Each page is a multi-
+  state form with validation, async backend probes, and
+  apply-on-Next semantics — substantial work that doesn't
+  fit a single autonomous batch alongside the panel ports.
+
+  Decision 2026-05-20: ship the Iced wizard as a separate
+  follow-up cut after the panel work (CB-1.3..CB-1.9)
+  closes. Until then the v1.x GTK3 wizard remains the
+  first-run path under the legacy mackes binary; the
+  rebrand window keeps both Workbench surfaces (Iced for
+  panel work, GTK3 for the first-run flow) selectable via
+  `mde --workbench` vs `mackes --wizard`.
+
+  Captured prerequisites (each its own task once CB-1.10
+  resumes):
+    * `welcome.py` — static splash; trivial port.
+    * `scan.py` — environment probe (CPU/RAM/disk/distro).
+      Reuse the resources panel's /proc helpers.
+    * `legacy_import.py` — shipped (Phase 10.2); becomes
+      a no-op page in the Iced flow.
+    * `preset.py` — v2.0.0 preset chooser (MDE has 4
+      presets per the project memory). Needs the v2.0.0
+      preset definitions which are partly in
+      `mackes/presets/*.json` and partly in birthright
+      steps.
+    * `mesh_passcode.py` — shipped (Phase 12.8.4); folds
+      into the new `mesh_join.rs` panel I just shipped.
+    * `network.py` — first-run network bring-up (NM).
+      Reuses the wifi panel's nmcli helpers.
+    * `snapshot.py` — pre-apply snapshot (calls the
+      snapshots panel's create_snapshot).
+    * `apply.py` — runs every selected birthright step.
+      The longest page; needs streaming subprocess +
+      progress bar.
+  Birthright steps (`mackes/birthright.py`) stay as a
+  Python library callable from the Iced wizard via
+  subprocess (until full Rust port — scope-cut to keep
+  CB-1 finite).
+
+- [ ] **CB-1.11 Retire `mde_settings_bridge.py` — gated on
+  CB-1.10** — the Python bridge has no callers once
+  CB-1.4 + CB-1.6 + CB-1.9 + CB-1.10 land. The first three
+  are ✓ Done; CB-1.10 is the gating piece. Pre-flight
+  check: `grep -r 'mde_settings_bridge' mackes/ tests/`
+  returns empty. Once that's true, delete the module +
+  the 12 tests in `tests/test_mde_settings_bridge.py`.
+  Acceptance: file gone, tests gone, suite still green.
+
+- [ ] **CB-1.12 Retire `mackes/workbench/` — gated on
+  CB-1.10** — the Python workbench has no callers once
+  CB-1.1 through CB-1.10 ship. Today everything CB-1.10
+  needs is still served from the Python workbench. Delete
+  the directory + every `tests/test_*` that imports from
+  it; spec drops `%{py3_sitelib}/mackes/workbench/` from
+  `%files`. Pre-flight check: `grep -r
+  'from mackes.workbench' mackes/ crates/` returns empty.
 - [✓] **CB-1.13 Single-instance contract via D-Bus** — shipped
   2026-05-20. New `crates/mde-workbench/src/dbus.rs` ships the
   `dev.mackes.MDE.Shell.Workbench` interface (constant
@@ -1733,14 +1783,19 @@ group structure with one Iced view per panel.
   `%files`. LightDM + GDM + SDDM all auto-discover the session
   from that dir. 3 smoke tests under
   `tests/test_cb2_greeter_session.py`.
-- [ ] **CB-2.2 Drop the 1.x i3 / XFCE session entries** — spec
-  stops shipping `data/applications/mackes-shell.desktop` as a
-  session entry (it stays as the Workbench launcher). The XFCE
-  `xfce.desktop` is package-owned by xfce4-session — `Conflicts:
-  xfce4-session` (CB-3.1) removes it on upgrade. The `i3.desktop`
-  is package-owned by i3 — explicit removal in `%post` via
-  `dnf remove -y i3 i3status dmenu` once the Iced panel ships
-  (gated on Phase E.4 sway IPC landing).
+- [!] **CB-2.2 Drop the 1.x i3 / XFCE session entries —
+  gated on v2.0.0 cut commit** — spec stops shipping
+  `data/applications/mackes-shell.desktop` as a session
+  entry (it stays as the Workbench launcher). The XFCE
+  `xfce.desktop` is package-owned by xfce4-session —
+  `Conflicts: xfce4-session` (CB-3.1) removes it on
+  upgrade. The `i3.desktop` is package-owned by i3 —
+  explicit removal in `%post` via
+  `dnf remove -y i3 i3status dmenu` once the Iced panel
+  ships (gated on Phase E.4 sway IPC landing). All three
+  changes must land together at the v2.0.0 cut commit;
+  shipping them on `main` before the cut would break the
+  1.x line. Blocked until CB-3.1 + Phase E.4 land.
 - [✓] **CB-2.3 Greeter default session** — shipped 2026-05-20.
   Extended `install-helpers/configure-lightdm.sh` to add
   `user-session=mde` to the `[Seat:*]` block of the
@@ -1764,7 +1819,8 @@ group structure with one Iced view per panel.
 
 #### CB-3 Spec rebuild for monolithic cut
 
-- [ ] **CB-3.1 `Name: mde` + `Version: 2.0.0`** — rename
+- [!] **CB-3.1 `Name: mde` + `Version: 2.0.0` — gated on
+  v2.0.0 cut commit** — rename
   `packaging/fedora/mackes-shell.spec` → `packaging/fedora/mde.spec`
   (Phase 0.8). `Name: mde`. Bump `Version: 2.0.0`. Keep
   `Provides: mackes-shell = %{version}-%{release}` +
@@ -1773,7 +1829,8 @@ group structure with one Iced view per panel.
   `Obsoletes: mackes-xfce-workstation < 2.0.0` so `dnf upgrade`
   on every 1.x flavor lands on `mde-2.0.0`. Summary becomes
   "Mackes Desktop Environment".
-- [ ] **CB-3.2 Dep swap** — Phase H.1 + H.2 fully landed. Drop
+- [!] **CB-3.2 Dep swap — gated on v2.0.0 cut commit** —
+  Phase H.1 + H.2 fully landed. Drop
   every `Requires:` for `xfconf`, `xfce4-settings`,
   `xfce4-session`, `xfce4-power-manager`, `i3`, `i3status`,
   `dmenu`, `wmctrl`, `xprop`, `xrandr`, `xdotool`. Add hard
@@ -1781,7 +1838,8 @@ group structure with one Iced view per panel.
   `foot`, `bemenu`, `brightnessctl`, `pipewire`, `wireplumber`,
   `grim`, `slurp`. `Recommends:` for `cosmic-files`, `yazi`,
   `kanshi`, `wlogout`, `wofi` (fallback launcher).
-- [ ] **CB-3.3 `Conflicts:` block (Q5 lock)** — add
+- [!] **CB-3.3 `Conflicts:` block (Q5 lock) — gated on
+  v2.0.0 cut commit** — add
   `Conflicts: xfce4-panel`, `Conflicts: xfdesktop`,
   `Conflicts: xfce4-session`, `Conflicts: xfce4-settings`,
   `Conflicts: xfwm4`, `Conflicts: xfce4-whiskermenu-plugin`,
@@ -1805,7 +1863,8 @@ group structure with one Iced view per panel.
   mackes-desktop-environment`. 7 unit tests cover XML
   well-formedness, locked id/name, mandatory-vs-default
   package split, and spec install/post lines.
-- [ ] **CB-3.5 Drop XDG autostart overrides (H.4)** — the
+- [!] **CB-3.5 Drop XDG autostart overrides (H.4) — gated
+  on v2.0.0 cut commit** — the
   `mackes-enforce-session.desktop`, `mackes-suppress-xfce4-panel
   .desktop`, `xfdesktop.desktop` overrides under
   `/etc/xdg/autostart/` are deleted from `%install` +
@@ -1971,14 +2030,16 @@ parser change is needed. The cosmetic + UX changes:
 
 #### CB-7 Test surface for the cut
 
-- [ ] **CB-7.1 Fresh-install VM test (I.4 finishing)** — boots
+- [!] **CB-7.1 Fresh-install VM test (I.4 finishing) —
+  blocked: VM infrastructure** — boots
   the `mde-2.0.0` ISO in a fresh Fedora VM, runs through the
   wizard, asserts: sway is the active session, mde-panel is on
   the layer-shell surface, mde-workbench opens at all 9 groups,
   mde-files opens with mesh-first sidebar, no xfce4-* RPMs
   installed. Lives in `tests/vm/test_fresh_install.sh` driven
   by `qemu-system-x86_64 -snapshot`.
-- [ ] **CB-7.2 Upgrade VM test (I.5 finishing)** — boots a
+- [!] **CB-7.2 Upgrade VM test (I.5 finishing) — blocked:
+  VM infrastructure** — boots a
   pre-built `mackes-xfce-workstation-1.1.0` VM image, runs
   `dnf upgrade -y`, reboots, logs in, asserts same gates as
   CB-7.1 PLUS: `mde-migrate-from-1x` ran, `~/.config/mde/`
@@ -1986,7 +2047,8 @@ parser change is needed. The cosmetic + UX changes:
   `~/.config/xfce4.v1x-backup.<ts>/` exists, every 1.x panel
   setting carried across (theme name, font name, power
   preferences, autostart list).
-- [ ] **CB-7.3 Wayland smoke test (I.3 finishing)** — runs
+- [!] **CB-7.3 Wayland smoke test (I.3 finishing) —
+  blocked: VM + Wayland test rig** — runs
   headless sway via `WLR_BACKENDS=headless` in CI, launches
   mde-session, asserts `swaymsg -t get_outputs` returns the
   expected fake output, asserts mde-panel registers a toplevel
@@ -3253,11 +3315,11 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   + tests use it without a live mded connection. 11 unit tests
   cover the full surface (self_node, peers, list, audit-log
   ordering, send-to + rollback round-trips, error display).
-- [ ] **2.3 `Backend::DBus` impl** — Talks to
+- [!] **2.3 (mde-files crate) `Backend::DBus` impl** — Talks to
   `dev.mackes.MDE.Fleet.{Peers,Files}` and
   `dev.mackes.MDE.Shell.{Inbox,Outbox,Downloads,FileOperations}`.
   zbus 5 with `tokio` feature (matches the v2.0.0 stack lock).
-- [ ] **2.4 mded surfaces** — Land the matching D-Bus surfaces in
+- [!] **2.4 (mde-files crate) mded surfaces** — Land the matching D-Bus surfaces in
   `crates/mackesd/src/ipc/shell.rs` and `…/fleet.rs`. Blocks on
   Phase A.3 of v2.0.0 Mackes DE.
 - [✓] **2.5 Path safety + allowed-roots resolver** — shipped
@@ -3366,17 +3428,17 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   "every binary must reproduce this attribution" requirement. SHA
   + tarball hash get real values when Phase 4.2's vendor pull
   actually pulls the tarball.
-- [ ] **4.2 Vendor relevant modules** — `cosmic-files/src/tab.rs`
+- [!] **4.2 (mde-files crate) Vendor relevant modules** — `cosmic-files/src/tab.rs`
   (file-list rendering primitives), `mod.rs` mime sniffing, the
   trash adapter. Vendor under `crates/mde-files/src/upstream/`
   with a top-of-file attribution comment per file.
-- [ ] **4.3 Bridge the data model** — Map upstream `Item`
+- [!] **4.3 (mde-files crate) Bridge the data model** — Map upstream `Item`
   (cosmic-files) ↔ our `FileRow`; map upstream `Tab` ↔ our `View`.
   Keep our types as the public surface; upstream stays internal.
-- [ ] **4.4 Replace upstream sidebar + landing** — Our mesh-first
+- [!] **4.4 (mde-files crate) Replace upstream sidebar + landing** — Our mesh-first
   sidebar and `MeshOverview` view replace upstream's "Recents /
   Home / etc." surface. The local pins veil is our addition.
-- [ ] **4.5 Drop unused upstream features** — Cosmic-Config
+- [!] **4.5 (mde-files crate) Drop unused upstream features** — Cosmic-Config
   user-prefs, Pop! shell integration, anything tied to the COSMIC
   panel. We use Iced + libcosmic but not the COSMIC desktop bits.
 
@@ -3443,7 +3505,7 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   mode-match, op-id-uniqueness, rollback-round-trip-per-
   destination. Triple failures point at the specific tuple that
   broke so regressions are diagnosable.
-- [ ] **6.4 Snapshot tests** — Render every view to a PNG and
+- [!] **6.4 (mde-files crate) Snapshot tests** — Render every view to a PNG and
   diff against committed snapshots. Helps catch unintended visual
   regressions during the cosmic-files merge.
 - [✓] **6.5 Acceptance scenario** — shipped 2026-05-20. New
