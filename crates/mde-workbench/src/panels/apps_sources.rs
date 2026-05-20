@@ -37,9 +37,34 @@ pub enum Message {
     Loaded(Vec<RepoRow>),
     Error(String),
     FilterChanged(String),
-    ToggleClicked { id: String, enable: bool },
-    ToggleFinished { id: String, success: bool },
+    ToggleClicked {
+        id: String,
+        enable: bool,
+    },
+    ToggleFinished {
+        id: String,
+        success: bool,
+    },
     RefreshClicked,
+    /// CB-1.3 follow-up — add the Flathub remote
+    /// per-user via `flatpak remote-add --user`.
+    AddFlathubClicked,
+    /// CB-1.3 follow-up — install the RPM Fusion free
+    /// release RPM (provides the `rpmfusion-free` repo).
+    AddRpmFusionFreeClicked,
+    /// CB-1.3 follow-up — install the RPM Fusion nonfree
+    /// release RPM (Chrome's friend; nvidia, codecs).
+    AddRpmFusionNonfreeClicked,
+    /// CB-1.3 follow-up — install
+    /// `fedora-workstation-repositories` (ships Chrome,
+    /// Steam, NVIDIA repos as disabled).
+    AddFedoraWorkstationReposClicked,
+    /// Generic finish for the four "add a known source"
+    /// actions above.
+    SourceAddFinished {
+        label: String,
+        success: bool,
+    },
 }
 
 impl AppsSourcesPanel {
@@ -110,7 +135,84 @@ impl AppsSourcesPanel {
                 self.status = "Refreshing…".into();
                 Self::load()
             }
+            Message::AddFlathubClicked => self.dispatch_source_add(
+                "Flathub",
+                vec![
+                    "flatpak".into(),
+                    "remote-add".into(),
+                    "--user".into(),
+                    "--if-not-exists".into(),
+                    "flathub".into(),
+                    "https://flathub.org/repo/flathub.flatpakrepo".into(),
+                ],
+                false,
+            ),
+            Message::AddRpmFusionFreeClicked => self.dispatch_source_add(
+                "RPM Fusion free",
+                vec![
+                    "dnf".into(),
+                    "install".into(),
+                    "-y".into(),
+                    "--allowerasing".into(),
+                    rpmfusion_release_url("free").into(),
+                ],
+                true,
+            ),
+            Message::AddRpmFusionNonfreeClicked => self.dispatch_source_add(
+                "RPM Fusion nonfree",
+                vec![
+                    "dnf".into(),
+                    "install".into(),
+                    "-y".into(),
+                    "--allowerasing".into(),
+                    rpmfusion_release_url("nonfree").into(),
+                ],
+                true,
+            ),
+            Message::AddFedoraWorkstationReposClicked => self.dispatch_source_add(
+                "fedora-workstation-repositories",
+                vec![
+                    "dnf".into(),
+                    "install".into(),
+                    "-y".into(),
+                    "fedora-workstation-repositories".into(),
+                ],
+                true,
+            ),
+            Message::SourceAddFinished { label, success } => {
+                self.busy = false;
+                self.status = if success {
+                    format!("Added {label}.")
+                } else {
+                    format!("Adding {label} failed (see journalctl).")
+                };
+                Self::load()
+            }
         }
+    }
+
+    fn dispatch_source_add(
+        &mut self,
+        label: &str,
+        argv: Vec<String>,
+        pkexec: bool,
+    ) -> Task<crate::Message> {
+        if self.busy {
+            return Task::none();
+        }
+        self.busy = true;
+        self.status = format!("Adding {label}…");
+        let label_owned = label.to_string();
+        Task::perform(
+            async move {
+                let success = run_source_add(&argv, pkexec).await;
+                Message::SourceAddFinished {
+                    label: label_owned,
+                    success,
+                }
+            },
+            crate::Message::AppsSources,
+        )
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
@@ -156,6 +258,15 @@ impl AppsSourcesPanel {
             )
         });
 
+        let busy = self.busy;
+        let add_button = |label: &str, msg: Message| {
+            let mut b = button(text(label.to_string()));
+            if !busy {
+                b = b.on_press(crate::Message::AppsSources(msg));
+            }
+            b
+        };
+
         column![
             row![filter_input, refresh_btn].spacing(12),
             scrollable(container(rows_view.spacing(4)).padding(Padding::new(0.0)))
@@ -167,6 +278,23 @@ impl AppsSourcesPanel {
                 self.repos.iter().filter(|r| r.enabled).count(),
             ))
             .size(13),
+            text("Known third-party sources").size(16),
+            text(
+                "One-click installs for the canonical sources MDE doesn't \
+                 ship enabled by default. Each runs under pkexec or \
+                 flatpak; refresh the list after to see new repos appear.",
+            )
+            .size(13),
+            row![
+                add_button("Add Flathub", Message::AddFlathubClicked),
+                add_button("RPM Fusion free", Message::AddRpmFusionFreeClicked),
+                add_button("RPM Fusion nonfree", Message::AddRpmFusionNonfreeClicked),
+                add_button(
+                    "fedora-workstation-repos",
+                    Message::AddFedoraWorkstationReposClicked,
+                ),
+            ]
+            .spacing(8),
             text(&self.status).size(13),
         ]
         .spacing(12)
@@ -250,6 +378,57 @@ pub async fn run_dnf_repolist() -> String {
 
 /// Shell out to `pkexec dnf config-manager setopt
 /// <id>.enabled=0|1`. Returns `true` on a zero exit.
+/// Build the canonical RPM Fusion release-RPM URL for the
+/// current Fedora release. Format matches the official
+/// install docs: `https://download1.rpmfusion.org/{free,
+/// nonfree}/fedora/rpmfusion-{free, nonfree}-release-$(rpm
+/// -E %fedora).noarch.rpm`. The fedora release id comes from
+/// `/etc/os-release`'s VERSION_ID; defaults to "44" when the
+/// file can't be read (matching Fedora 44 — our build target).
+#[must_use]
+pub fn rpmfusion_release_url(flavour: &str) -> String {
+    let release = read_fedora_version_id().unwrap_or_else(|| "44".to_string());
+    format!(
+        "https://download1.rpmfusion.org/{flavour}/fedora/rpmfusion-{flavour}-release-{release}.noarch.rpm",
+    )
+}
+
+fn read_fedora_version_id() -> Option<String> {
+    let raw = std::fs::read_to_string("/etc/os-release").ok()?;
+    for line in raw.lines() {
+        if let Some(rest) = line.strip_prefix("VERSION_ID=") {
+            let trimmed = rest.trim_matches('"');
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Run a "source add" command. When `pkexec` is true we
+/// prepend `pkexec` to the argv (for dnf install commands
+/// that need root); otherwise the command runs as the
+/// current user (flatpak remote-add --user). Returns
+/// success.
+pub async fn run_source_add(argv: &[String], pkexec: bool) -> bool {
+    let mut effective: Vec<String> = if pkexec {
+        std::iter::once("pkexec".to_string())
+            .chain(argv.iter().cloned())
+            .collect()
+    } else {
+        argv.to_vec()
+    };
+    let Some(bin) = effective.first().cloned() else {
+        return false;
+    };
+    let args = effective.split_off(1);
+    let Ok(output) = Command::new(&bin).args(&args).output().await else {
+        return false;
+    };
+    output.status.success()
+}
+
 pub async fn run_dnf_config_manager(id: &str, enable: bool) -> bool {
     let setopt = format!("{id}.enabled={}", if enable { 1 } else { 0 });
     let Ok(output) = Command::new("pkexec")
@@ -408,5 +587,64 @@ fedora    Fedora 44   enabled
         let _ = panel.update(Message::Error("dnf not on PATH".into()));
         assert_eq!(panel.status, "dnf not on PATH");
         assert!(!panel.busy);
+    }
+
+    #[test]
+    fn rpmfusion_release_url_matches_canonical_format() {
+        let free = rpmfusion_release_url("free");
+        assert!(free.starts_with("https://download1.rpmfusion.org/free/fedora/"));
+        assert!(free.contains("rpmfusion-free-release-"));
+        assert!(free.ends_with(".noarch.rpm"));
+        let nonfree = rpmfusion_release_url("nonfree");
+        assert!(nonfree.contains("rpmfusion-nonfree-release-"));
+    }
+
+    #[test]
+    fn add_flathub_clicked_sets_busy_and_status() {
+        let mut panel = AppsSourcesPanel::new();
+        let _ = panel.update(Message::AddFlathubClicked);
+        assert!(panel.busy);
+        assert!(panel.status.contains("Flathub"));
+    }
+
+    #[test]
+    fn add_rpmfusion_free_clicked_sets_busy_and_status() {
+        let mut panel = AppsSourcesPanel::new();
+        let _ = panel.update(Message::AddRpmFusionFreeClicked);
+        assert!(panel.busy);
+        assert!(panel.status.contains("RPM Fusion free"));
+    }
+
+    #[test]
+    fn source_add_clicked_while_busy_is_noop() {
+        let mut panel = AppsSourcesPanel::new();
+        panel.busy = true;
+        panel.status = "stale".into();
+        let _ = panel.update(Message::AddFlathubClicked);
+        assert_eq!(panel.status, "stale");
+    }
+
+    #[test]
+    fn source_add_finished_success_clears_busy_and_records_label() {
+        let mut panel = AppsSourcesPanel::new();
+        panel.busy = true;
+        let _ = panel.update(Message::SourceAddFinished {
+            label: "Flathub".into(),
+            success: true,
+        });
+        assert!(!panel.busy);
+        assert!(panel.status.contains("Added Flathub"));
+    }
+
+    #[test]
+    fn source_add_finished_failure_records_label_and_failed() {
+        let mut panel = AppsSourcesPanel::new();
+        panel.busy = true;
+        let _ = panel.update(Message::SourceAddFinished {
+            label: "RPM Fusion free".into(),
+            success: false,
+        });
+        assert!(panel.status.contains("RPM Fusion free"));
+        assert!(panel.status.contains("failed"));
     }
 }

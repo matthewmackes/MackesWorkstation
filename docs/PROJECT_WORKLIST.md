@@ -1458,7 +1458,37 @@ group structure with one Iced view per panel.
   it retires alongside xfce4-panel itself at the v2.0.0
   cut.
 
-- [ ] **CB-1.3 follow-up: sources panel — Flathub + RPM Fusion
+- [✓] **CB-1.3 follow-up: sources panel — Flathub + RPM Fusion
+  + fedora-workstation-repos sections (shipped 2026-05-20)** —
+  extended the apps_sources panel with a "Known third-party
+  sources" footer row of 4 buttons:
+    * Add Flathub: `flatpak remote-add --user --if-not-exists
+      flathub https://flathub.org/repo/flathub.flatpakrepo`
+      (no pkexec — flatpak --user installs to ~/.local).
+    * RPM Fusion free: `pkexec dnf install -y --allowerasing
+      <canonical release-RPM URL>`. The URL builder
+      (`rpmfusion_release_url`) reads VERSION_ID from
+      /etc/os-release (defaults to 44 on read failure) so the
+      URL tracks the current Fedora release.
+    * RPM Fusion nonfree: same shape with the nonfree URL.
+    * fedora-workstation-repositories: `pkexec dnf install -y
+      fedora-workstation-repositories` (ships Chrome / Steam /
+      NVIDIA repos disabled — toggle them on via the repo
+      list above after install).
+
+  Shared `dispatch_source_add` helper + `SourceAddFinished`
+  message coalesce the 4 actions. Busy guard prevents
+  concurrent adds. After Finished the panel reloads the repo
+  list so newly-installed sources appear immediately.
+
+  6 new unit tests (rpmfusion-release-url format,
+  AddFlathubClicked + AddRpmFusionFreeClicked set
+  busy+status, busy-guard noop, SourceAddFinished
+  success+failure paths). Workbench unit-test count:
+  420 → 426.
+
+  **Original entry was:** Flathub + RPM Fusion +
+  fedora-workstation-repos
   + fedora-workstation-repos sections** — the v1.x panel had
   three "enable a known third-party source" sections beyond
   the raw dnf-repo list. Each needs its own install
