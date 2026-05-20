@@ -715,9 +715,21 @@ panel starts without manual intervention.
 
 #### Phase F — Workbench GUI updates (Python panels switch to DBus)
 
-- [ ] **F.1 `mackes/workbench/devices/power.py`** — switch from
-  XfconfBridge to `org.mackes.Settings.Get/Set("power.*")` via
-  Python zbus equivalent (`dasbus` or `pydbus`).
+- [✓] **F.1 `mackes/workbench/devices/power.py`** — rewritten to
+  read + write via the new `mackes.mde_settings_bridge` module
+  (routes power.lid_action / power.suspend_idle_battery_s /
+  power.suspend_idle_ac_s through the
+  `$XDG_CACHE_HOME/mde/power-prefs.json` sidecar — the same file
+  the Phase C.4 Rust applier maintains — and power profile through
+  `powerprofilesctl get/set`). No XfconfBridge import. v1.x →
+  v2.0.0 transition path keeps Python-side dbus client off the
+  dep tree (no pydbus / dasbus); the eventual Phase E.x Iced
+  panel rewrite moves the calls onto a real zbus client via the
+  libcosmic + pyo3 bridge. New bridge module
+  `mackes/mde_settings_bridge.py` covered by 12 tests in
+  `tests/test_mde_settings_bridge.py` exercising every Phase C
+  key, sidecar round-trip, malformed JSON handling, unknown-key
+  rejection.
 - [ ] **F.2 `mackes/workbench/system/removable.py`** — DBus
   `automount.*`.
 - [ ] **F.3 `mackes/workbench/look_and_feel/{themes,fonts}.py`** —
