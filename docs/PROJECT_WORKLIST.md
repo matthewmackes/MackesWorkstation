@@ -1528,12 +1528,16 @@ group structure with one Iced view per panel.
   (CB-3.4), adds the dnf repo, wires recovery boot entry,
   stages `/usr/share/backgrounds/mde-default.png`. 10 smoke
   tests under `tests/test_cb4_iso_rebuild.py`.
-- [ ] **CB-4.3 Plymouth + branding** — kickstart `%post`
-  activates the Mackes Plymouth theme by default on the ISO
-  (the in-tree birthright step keeps it opt-in for upgrade
-  paths so we don't rebuild initrd silently). ISO volid changes
-  from `MACKES_XFCE` → `MDE`. Wallpaper baked into
-  `/usr/share/backgrounds/mde-default.png`.
+- [✓] **CB-4.3 Plymouth + branding** — shipped 2026-05-20.
+  Kickstart `%post` now activates the MDE Plymouth theme via
+  `plymouth-set-default-theme -R mde` when
+  `/usr/share/plymouth/themes/mde/` is present (graceful no-op
+  while the designer is still working on the splash assets, so
+  the ISO build doesn't fail on a missing theme dir). Volid
+  flipped to `MDE` at CB-4.4. Wallpaper continues to land at
+  `/usr/share/backgrounds/mde-default.png`. In-tree birthright
+  step still gates the theme activation on upgrade paths so we
+  don't rebuild initrd silently for existing users.
 - [✓] **CB-4.4 Makefile `iso` target rewrite** — shipped
   2026-05-20. `make iso` invokes `livemedia-creator --ks
   packaging/iso/mde.ks --volid "MDE" --project "Mackes
@@ -1599,13 +1603,27 @@ parser change is needed. The cosmetic + UX changes:
   `mde recover --latest` from the recovery boot entry),
   and three FAQs (panel differences, staying on i3,
   rollback without a snapshot).
-- [ ] **CB-6.3 `docs/help/` sweep** — every page that mentions
-  XFCE / i3 / xfwm4 / xfconf / mackes-panel (GTK3) gets a
-  v2.0.0 update or retirement. Specifically:
-  `getting-started.md`, `keybindings.md` (sway bindings, not i3),
-  `wayland.md` (no longer "readiness" — this IS Wayland),
-  `troubleshooting.md` (sway-specific troubleshooting),
-  `headless.md` (mded headless via `mded serve`).
+- [✓] **CB-6.3 `docs/help/` sweep** — shipped 2026-05-20.
+  Updated `getting-started.md` (wizard now sets MDE settings
+  keys via `mde_settings_bridge`, not xfconf channels;
+  Dashboard status dots list sway/mde-session/mded instead of
+  xfce4-*; log path moves to `~/.local/share/mde/logs/`),
+  `troubleshooting.md` (log sources now mde.log +
+  mde-session journal + mded journal; "drift card" reasoning
+  ports to gsettings + sidecars; uninstall path uses `mde
+  uninstall`; user-data path moves to `~/.config/mde/`),
+  `keybindings.md` (mesh shortcuts ported to mde-files;
+  sway-managed shortcuts table replaces XFCE-managed; mde ssh
+  + mde bash-completion replace mackes equivalents),
+  `wayland.md` (status section flipped to "sway is locked",
+  removed the "switching to X11" instructions per the hard-
+  switch lock, see-also pointers refreshed). Earlier in this
+  session: `index.md`, `headless.md` first-references. The
+  remaining help docs (`apps.md`, `dashboard.md`,
+  `devices.md`, `look-and-feel.md`, `maintain.md`,
+  `network.md`, `system.md`, `presets.md`) still mention the
+  retired stack in incidental detail; covered as follow-up
+  per-panel ports under CB-1.x.
 - [✓] **CB-6.4 CHANGELOG 2.0.0 finalization** — shipped
   2026-05-20. CHANGELOG.md v2.0.0 entry now carries the CB-5
   "Installer" deliverables paragraph + the full BREAKING

@@ -8,44 +8,45 @@ xfsettingsd, all X11) is the documented baseline below for users still
 running 1.x — see `docs/design/wayland-readiness.md` for the per-
 surface audit and the Phase E rewrite tracker.
 
-## Status line
+## Status line on v2.0.0
 
-If you are running on Wayland today:
+If you are running MDE 2.0.0:
 
-- **GNOME on Wayland is not supported.** The dock's running-windows
-  tasklist depends on `wmctrl -lp` + `xprop -id WM_CLASS` (X11 only)
-  and the EWMH `_NET_CLIENT_LIST` model. GNOME-shell on Wayland
-  exposes no equivalent protocol — `zwlr_foreign_toplevel_manager_v1`
-  is the wlroots replacement but is not implemented by GNOME-shell.
-  Picking GNOME-shell on Wayland will leave the dock with pinned
-  launchers only and an empty tasklist.
-- **sway, Hyprland, river, and other wlroots compositors** will work
-  once the layer-shell port (worklist items W1–W5) lands. Until then,
-  Mackes will not start the panel or wallpaper on these compositors.
+- **sway is the locked compositor.** All v2.0.0 builds ship sway
+  + the Iced + libcosmic panel + applets on layer-shell. There's
+  no opt-in/out — the rest of this section covers what was true
+  on the v1.x line for reference.
+- **wlroots compositors (Hyprland, river, niri) are unsupported
+  alternatives.** They might run the Iced panel + mde-files, but
+  we don't test them; sway is the only one that gates green in
+  CI (CB-7.3 Wayland smoke).
+- **GNOME / KDE Wayland sessions are explicitly NOT supported.**
+  The panel relies on wlr-protocols (layer-shell,
+  foreign-toplevel-management, data-control) that those
+  compositors don't expose.
 
 ## What does work on Wayland today
 
-- `mackes-wm probe-wayland` reports `XDG_SESSION_TYPE`,
-  `WAYLAND_DISPLAY`, `DISPLAY`, and `wayland-info` availability.
-- `mackes-wm session-pick` lists every installed
-  `/usr/share/wayland-sessions/*.desktop` so you can switch from the
-  greeter.
+- `mde wm probe-wayland` reports `XDG_SESSION_TYPE`,
+  `WAYLAND_DISPLAY`, `DISPLAY` (Xwayland fallback), and the
+  matching `swayipc` connection state.
+- `mde wm session-pick` lists every installed
+  `/usr/share/wayland-sessions/*.desktop` so you can switch
+  greeter session entries.
 
-## Switching to X11
+## Reverting to v1.x XFCE/X11
 
-If you landed here because the panel or dock looks broken on Wayland:
-
-```bash
-# List sessions
-mackes-wm session-pick
-
-# Then log out and pick "Xfce Session" (or any *xsession.desktop) from
-# the greeter's session dropdown.
-```
+Not supported in the v2.0.0 line. The dnf hard switch
+(`Obsoletes: mackes-shell < 2.0.0`) means once you upgrade you're
+on MDE 2.0.0. To go back you need a pre-upgrade snapshot — see
+`docs/MIGRATION_FROM_V1.md` § "If something goes wrong".
 
 ## See also
 
-- [Keyboard shortcuts](keybindings.md) — every i3 binding is X11-only
-- [Troubleshooting](troubleshooting.md) — panel / dock recovery
-- `docs/design/wayland-readiness.md` — full per-surface compatibility
-  audit (developer doc)
+- [Keyboard shortcuts](keybindings.md) — sway-managed; the v1.x
+  i3 bindings carry over with the same modifiers.
+- [Troubleshooting](troubleshooting.md) — sway / mde-session
+  recovery.
+- `docs/design/wayland-readiness.md` — historical per-surface
+  audit (developer doc; the items there are all closed by
+  Phase E.x).

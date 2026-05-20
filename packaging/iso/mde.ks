@@ -138,4 +138,14 @@ if [ -f /usr/share/mackes-shell/branding/standard-wallpaper.png ]; then
         /usr/share/backgrounds/mde-default.png
 fi
 
+# CB-4.3 — Plymouth theme. Activate the MDE theme by default on
+# the ISO (in-tree birthright step keeps it opt-in on upgrades so
+# we don't rebuild initrd silently). The theme assets ship under
+# /usr/share/plymouth/themes/mde/ once the designer signs them
+# off; until then this hook is a no-op when the dir is missing.
+if [ -d /usr/share/plymouth/themes/mde ]; then
+    plymouth-set-default-theme -R mde || \
+        echo "warning: plymouth-set-default-theme failed; theme remains default"
+fi
+
 %end

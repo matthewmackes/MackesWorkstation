@@ -4,29 +4,40 @@ Common issues and where to look.
 
 ## Logs
 
-Two log sources:
+Three log sources:
 
-- **Mackes actions**: `~/.local/share/mackes-shell/logs/mackes.log` —
-  every xfconf write, snapshot, preset apply, mesh event Mackes
+- **MDE actions**: `~/.local/share/mde/logs/mde.log` — every
+  settings write, snapshot, preset apply, and mesh event MDE
   performed. Plain text, tail-friendly.
-- **xfsettingsd journal**: `journalctl --user -u xfsettingsd` (or
-  `xfce4-session` for session-level issues).
+- **mde-session journal**: `journalctl --user -u mde-session
+  .service` for session-level issues (sway didn't start, the
+  first-boot migrator hit an error, the Iced panel autostart
+  failed).
+- **mded journal**: `journalctl -u mded.service` for the
+  unified meta-daemon (worker restarts, supervisor decisions,
+  D-Bus surface errors).
 
-Headless: `journalctl -u mackes-node` for the systemd-managed daemon.
+Headless: `journalctl -u mded.service` covers everything; there's
+no separate "node" daemon on the v2.0.0 line.
 
 ## "Nothing happens when I click Apply"
 
-Mackes does immediate-apply on every widget change — there's no batch
-"Apply" button. If a switch toggle doesn't seem to take effect, check
-`mackes.log` for an `xfconf set failed:` entry.
+MDE does immediate-apply on every widget change — there's no batch
+"Apply" button. If a switch toggle doesn't seem to take effect,
+check `mde.log` for a `bridge.set_setting failed:` entry — the
+likely cause is the matching Rust applier in `mded` rejected the
+value (look in `journalctl -u mded.service`).
 
 ## "Drift card appears even though I didn't change anything"
 
-Probably xfsettingsd or another XFCE tool re-wrote the value. Examples:
-- Theme picker in xfce4-appearance-settings (Mackes hides the menu entry
-  but the binary still runs if invoked manually)
-- xfce4-panel plugin preferences
-- Direct xfconf-query writes by other tools
+Probably an external tool wrote to the same sidecar / gsettings
+key MDE owns. On the v2.0.0 line:
+
+- Direct `gsettings set` calls outside MDE.
+- A second app holding a write-handle on the same JSON sidecar
+  under `$XDG_CACHE_HOME/mde/`.
+- `mded` rejected the write after staging (check
+  `journalctl -u mded.service`).
 
 Reset via Maintain → Reset to Preset.
 
@@ -98,18 +109,19 @@ Drops you to a console with snapshot restore tools.
 ## "I want to start over"
 
 ```bash
-$ mackes uninstall            # GUI or CLI
+$ mde uninstall            # GUI or CLI
 ```
 
-Removes everything Mackes installed, restores xfconf defaults, restores
-hidden xfce4-settings menu entries, deletes user files, optionally
-removes the package. A final tarball snapshot lands on `~/Desktop/` as
-the only artifact that survives.
+Removes everything MDE installed, restores default gsettings,
+deletes user state under `~/.config/mde/` + `~/.cache/mde/` +
+`~/.local/share/mde/`, optionally removes the `mde` package. A
+final tarball snapshot lands on `~/Desktop/` as the only artifact
+that survives.
 
-## Where Mackes writes on your machine
+## Where MDE writes on your machine
 
 ```
-~/.config/mackes-shell/              user state
+~/.config/mde/                       user state (post-v2.0.0)
   state.json                         provisioned + active_preset
   presets/                           user-custom presets (overrides shipped)
   overrides/                         backup of xfce4-settings menu entries Mackes hid

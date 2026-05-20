@@ -8,8 +8,9 @@ sway as the compositor by 2.0.0).
 ## Wizard screens
 
 1. **Welcome** — spare splash with the MDE logo.
-2. **Environment Scan** — detected hardware, OS, XFCE version, missing
-   required packages.
+2. **Environment Scan** — detected hardware, OS, Wayland
+   compositor (sway), missing required packages from the MDE
+   comps group (CB-3.4).
 3. **Choose Preset** — pick from `#!` (default), `Mackes`, `Daylight`, or
    `Vanilla`. The headless `Node` preset is hidden here — it's auto-selected
    by `mackes init` on machines without a display.
@@ -30,8 +31,8 @@ Each step has a live preview where possible — Back un-applies cleanly.
 
 The wizard hands you off to the **Dashboard**:
 
-- Status strip at top: dots for xfce4-panel, xfdesktop, xfsettingsd,
-  xfconf, NetworkManager, sshd
+- Status strip at top: dots for sway, mde-session, mded,
+  NetworkManager, sshd
 - Drift card (only if your live state has diverged from the active preset)
 - Hardware summary
 - Quick actions: Appearance · Display · Network · Snapshot · Health · Logs
@@ -40,14 +41,22 @@ The wizard hands you off to the **Dashboard**:
 ## What got applied
 
 A successful first-run wizard does the following, all logged to
-`~/.local/share/mackes-shell/logs/mackes.log`:
+`~/.local/share/mde/logs/mde.log`:
 
-- xfconf channels (xsettings, xfwm4, xfce4-panel, xfce4-desktop,
-  xfce4-notifyd, xfce4-power-manager, …) set to preset values
-- Wallpaper applied per-monitor
-- LightDM greeter configured to match (PadOS theme, Carbon icons, IBM Plex
-  Sans, standard wallpaper)
-- Mackes menu entry installed; legacy xfce4-settings entries hidden
+- MDE settings keys (`theme.*`, `font.*`, `display.*`,
+  `power.*`, `notification.*`, `wallpaper.*`, `automount.*`,
+  `keybinds.*`, `session.*`, `snapshots.*`) set to preset
+  values via `mde_settings_bridge.set_setting`. Each routes
+  through `gsettings` or a JSON sidecar under
+  `$XDG_CACHE_HOME/mde/`, picked up by the matching Rust
+  applier in `mded`.
+- Wallpaper applied
+- LightDM greeter configured to match (PatternFly theme,
+  Carbon icons, Red Hat Text, standard wallpaper) +
+  `user-session=mde` so the greeter defaults to the MDE
+  Wayland session on next login.
+- MDE Workbench entry installed; legacy XFCE settings menu
+  entries are no longer relevant (XFCE is removed at upgrade).
 - Initial snapshot created (if you opted in)
 - Mesh VPN enabled (on the seed peer's machine)
 - ssh enabled by default (`systemctl enable --now sshd`)
