@@ -3705,7 +3705,24 @@ under `LICENSES/`.
   for missing-dir empty-vec path). Workbench unit-test
   count: 217 → 226.
 
-- [ ] **CB-1.5.b follow-up: `mded playbooks {list, run}`
+- [✓] **CB-1.5.b follow-up: `mded playbooks {list, run}`
+  (shipped 2026-05-20)** — new mded subcommand pair:
+  `Cmd::Playbooks { cmd: PlaybooksCmd }` with `List { json }`
+  + `Run { name }` actions. `list` walks
+  `$QNM_SHARED_ROOT/.qnm-sync/playbooks/roles/`, maps each
+  role basename to its Phase 1.3.0 curated description (same
+  table the Iced playbooks panel uses), emits a JSON array
+  or human-readable two-column listing. `run <name>`
+  spawns `ansible-pull --tags <name> site.yml` directly so
+  output streams to the user's terminal; exits with the
+  child's exit code. The Iced panel keeps using its own
+  filesystem walk + ansible-pull spawn — no behaviour
+  change. This CLI surface unblocks headless / scripted
+  callers + future cross-peer dispatch via the reconcile
+  loop. cargo check workspace clean.
+
+  **Original entry was:** subcommand pair for cross-peer
+  dispatch
   subcommands for cross-peer dispatch** — captured if a
   future design needs the playbooks panel itself (not the
   reconcile loop) to push a play onto a peer selection. The
