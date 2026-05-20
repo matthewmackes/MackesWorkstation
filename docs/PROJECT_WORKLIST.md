@@ -800,8 +800,21 @@ panel starts without manual intervention.
   `/usr/share/themes` + `~/.themes` etc roots and dedupes. 8
   unit tests cover the discovery helpers, the bridge-only
   import contract, and the locked-MDE-key references.
-- [ ] **F.4 `mackes/workbench/devices/displays.py`** — DBus
-  `display.*` (compositor-aware via mackesd worker).
+- [✓] **F.4 `mackes/workbench/devices/displays.py`** — shipped
+  2026-05-19. Full rewrite to MDE bridge. Reads connected outputs
+  through `mackes.sway_ipc.get_outputs()` (new helper added in
+  the same commit — parses `swaymsg -t get_outputs` and returns
+  `[]` on any failure so a TTY login or non-sway compositor
+  renders an empty state instead of crashing). Four controls
+  (primary / scale / night-light on/off / night-light temp K)
+  write through `mde_settings_bridge.set_setting` to the locked
+  `display.primary` / `.scale` / `.night_light` / `.night_light_temp`
+  keys. XfconfBridge import gone; xrandr subprocess gone.
+  Brightness stays in its own worker (display.brightness via
+  brightnessctl). 11 unit tests cover the discovery helper, the
+  bridge-only contract, the locked-key list, and the
+  `sway_ipc.get_outputs()` JSON parser (good / malformed /
+  non-list / empty cases).
 - [✓] **F.5 `mackes/workbench/system/notifications.py`** — full
   rewrite to `mackes.mde_settings_bridge`: Placement combo writes
   `notification.location` (5 corners); DND switch toggles the

@@ -130,9 +130,27 @@ def reload_config() -> bool:
     return rc == 0
 
 
+def get_outputs() -> list[dict]:
+    """`swaymsg -t get_outputs` — parsed list of every connected
+    output. Each entry has at least `name`, `make`, `model`,
+    `primary`, `active`, plus the current `current_mode`. Returns
+    `[]` if sway isn't running or the call fails so callers can
+    render an empty state without an exception."""
+    rc, out, _ = _run(["-t", "get_outputs"])
+    if rc != 0:
+        return []
+    try:
+        parsed = json.loads(out)
+        if isinstance(parsed, list):
+            return parsed
+        return []
+    except json.JSONDecodeError:
+        return []
+
+
 __all__ = [
     "is_sway_running",
     "current_workspace", "focus_workspace",
     "set_layout", "kill_focused",
-    "get_tree", "reload_config",
+    "get_tree", "get_outputs", "reload_config",
 ]
