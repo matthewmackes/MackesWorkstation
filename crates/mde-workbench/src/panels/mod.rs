@@ -13,5 +13,6 @@ pub mod notifications;
 pub mod power;
 pub mod removable;
 pub mod session;
+pub mod sound;
 pub mod themes;
 pub mod wallpaper;

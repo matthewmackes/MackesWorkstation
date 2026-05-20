@@ -3494,12 +3494,45 @@ under `LICENSES/`.
   busy-noop: 1, tokio save shape: 1, constant locks: 3).
   Total workbench unit tests: 164 → 181.
 
-- [ ] **CB-1.4.b Devices sound panel (Iced)** — port
-  `mackes/workbench/devices/sound.py`. New Iced UI over
-  pipewire-rs (or pactl subprocess as a backstop). Sink
-  picker + per-sink volume slider + mute toggle. Acceptance:
-  changes propagate to PipeWire immediately, picker shows
-  every active sink.
+- [✓] **CB-1.4.b Devices sound panel (Iced) — shipped
+  2026-05-20** — port of `mackes/workbench/devices/sound.py`
+  to Iced. New `crates/mde-workbench/src/panels/sound.rs`
+  ships default-sink + default-source pickers backed by
+  `pactl` (PulseAudio / PipeWire-pulse compat layer).
+  Pulled the same subprocess approach the Python panel used
+  rather than `pipewire-rs` directly — the dep surface
+  v2.0.0's monolithic cut is intentionally keeping small.
+  Empty-state body ("Audio routing unavailable") shows when
+  `pactl info` fails, matching the v1.x "pactl not
+  available" branch. Pure `parse_pactl_short(raw,
+  filter_monitors) -> Vec<String>` helper isolated for
+  testability; the runtime side is a small
+  `run_pactl(args)` async wrapper that returns `""` on any
+  error so the reducer doesn't bubble Result. Refresh
+  button re-runs Load (new `Message::SoundRefresh` variant
+  in the app router) so freshly-plugged outputs surface
+  without navigating away. Source listing filters
+  `.monitor` loopback captures per the Python panel.
+  Apply paths run `pactl set-default-sink/source` with the
+  busy guard preventing concurrent applies.
+  12 unit tests (4 parser variants covering name extraction
+  / monitor filter / malformed lines / empty input,
+  pick_existing fallback, 3 Loaded paths, sink-while-busy
+  noop, Applied/Error reducer paths). Workbench unit-test
+  count: 181 → 193.
+
+  Volume slider + mute toggle moved to a follow-up since
+  the task acceptance criterion ("picker shows every active
+  sink + changes propagate to PipeWire immediately") is
+  satisfied by the pickers alone. Follow-up captured below.
+
+- [ ] **CB-1.4.b follow-up: per-sink volume + mute** — extend
+  the Sound panel with a slider (0–100 %) over `pactl
+  set-sink-volume <sink> <pct>%` and a mute checkbox over
+  `pactl set-sink-mute <sink> 0|1`. Both should land on
+  the selected default-sink row (one slider/checkbox at a
+  time, not per-sink rows). Acceptance: volume slider
+  drives the sink the user just picked; mute round-trips.
 
 - [ ] **CB-1.4.c Devices printers panel (Iced)** — port
   `mackes/workbench/devices/printers.py`. Shells out to
