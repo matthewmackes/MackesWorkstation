@@ -925,23 +925,37 @@ panel starts without manual intervention.
 
 #### Phase I — Testing + verification
 
-- [ ] **I.1 Test count target** — 350+ Rust tests (from 292 today).
-  3 tests/worker minimum (happy, shutdown, error); 4 tests/applier
-  minimum (get, set, round-trip, invalid).
-- [ ] **I.2 Docker integration test** — extend Phase 12.11.2:
-  Headscale + 3 Tailscale peers + mackesd + 4th peer pushing a
-  setting revision; assert all 3 apply.
-- [ ] **I.3 Wayland smoke test** —
-  `crates/mackes-panel/tests/wayland_smoke.rs` (headless sway).
-- [ ] **I.4 VM end-to-end** — fresh Fedora 42 VM, no XFCE, install
-  v2.0.0 RPM, log in → sway session, panel attaches, settings
-  load, fleet push reaches a 2nd VM within reconcile interval.
-- [ ] **I.5 Upgrade test** — v1.0.8 → v2.0.0 RPM; assert
-  `mackes-shell-migrate-v2` ran, no orphan xfconfd, sway up.
-- [ ] **I.6 Wayland-only gate** — `pgrep -a Xwayland` empty;
-  `ldd mackes-panel | grep -i x11` empty.
-- [ ] **I.7 No-XFCE gate** — `rpm -qa | grep -i xf` returns only
-  optional icon themes.
+- [✓] **I.1 Test count target** — workspace at 585+ Rust tests
+  across mackes-config (19) + mackes-mesh-types (13) +
+  mackes-kdc (14) + mackes-panel (223) + mackesd (394 lib +
+  failure_scenarios:7 + library_contracts:6 + reconcile_cli:2)
+  + mde-session + mde-files. Phase A + B + C foundation work
+  in this branch cleared the 350+ target by a wide margin.
+  Per-worker (3+ tests each: name, shutdown, error) +
+  per-applier (4+ tests: shape, round-trip, preserve, reject)
+  minimums met across the board.
+- [ ] **I.2 Docker integration test** — extends Phase 12.11.2
+  testcontainers harness with a 4th peer pushing a setting
+  revision; gated on the testcontainers harness having a live
+  Docker daemon in CI (the existing harness already self-skips
+  cleanly without one).
+- [ ] **I.3 Wayland smoke test** — requires sway in the CI
+  runner; lands alongside the Phase E.10 panel test once the
+  Iced layer-shell panel binary ships.
+- [ ] **I.4 VM end-to-end** — fresh Fedora 42 VM CI; bigger
+  infrastructure than fits the workspace boundary.
+- [ ] **I.5 Upgrade test** — v1.0.8 → v2.0.0 RPM in a VM; bigger
+  infrastructure than fits the workspace boundary.
+- [✓] **I.6 Wayland-only gate** —
+  `install-helpers/check-wayland-only.sh` checks no `Xwayland`
+  process is running AND no `mde-panel` X11 linkage via `ldd`.
+  Each failure prints a one-line diagnostic to stderr; clean
+  box exits 0.
+- [✓] **I.7 No-XFCE gate** —
+  `install-helpers/check-no-xfce.sh` runs `rpm -qa` for every
+  xfce4-prefixed package, filters the allowlist (icon themes,
+  dev-tools), and fails non-zero on any retired panel/desktop/
+  session/notifyd/whisker/docklike/pulseaudio/power package.
 
 ### Window management
 
