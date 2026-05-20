@@ -3,6 +3,80 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 2.0.0 — Rebrand to Mackes Desktop Environment (MDE) + Wayland-only Rust DE
+
+**Rebrand:** "Mackes Shell" becomes "Mackes Desktop Environment (MDE)" on
+first reference, "MDE" thereafter. RPM package `mackes-shell` →  `mde`;
+binaries `mackesd` → `mded`, `mackes-panel` → `mde-panel`, `mackes` →
+`mde`. D-Bus surfaces `org.mackes.*` → `dev.mackes.MDE.*`. Config paths
+`~/.config/mackes-shell/` → `~/.config/mde/`. Full identifier mapping
+ships in `docs/design/v2.0.0-mde-rebrand/identifiers.md`.
+
+**Upgrade path (Phase H):** `dnf upgrade` from any v1.x lands on `mde-2.0.0`
+automatically via `Obsoletes: mackes-shell < 2.0.0` + `Provides:
+mackes-shell = 2.0.0` in the new spec. `mde-migrate-from-1x` (runs from
+mde-session.service the first time it starts) atomically moves
+`~/.config/mackes-shell/` → `~/.config/mde/` (and cache + state trees);
+`mde-shell-migrate-v2` does the first-boot heavy lift (xfconf channels →
+settings table, drop XDG autostart overrides, back up `~/.config/xfce4/`,
+seed `~/.config/sway/`). Env-var shim reads `MDE_*` first, falls back to
+`MACKES_*` with a one-shot deprecation warning (drops in v2.1). D-Bus
+service-file aliases for the v1.x `org.mackes.*` names ship one release
+for backward compatibility.
+
+**Architectural shifts:**
+
+- **Unified Rust meta-daemon.** Every long-running v1.x Python daemon
+  folds into `mded` as a `Worker` registered with the Phase A.2
+  supervisor: `clipboard`, `mdns`, `fs_sync`, `media_sync`,
+  `remmina_sync`, `ansible_pull`, `kdc_bridge`, `heartbeat`,
+  `notification_relay`, `notifications_server`. `mded serve` is the new
+  systemd ExecStart (replaces the v1.x `migrate && status`); the 10
+  retired standalone `.service`/`.timer` units leave the spec.
+- **Wayland-only (sway).** XFCE + X11 + i3 retired. Layer-shell + Iced +
+  libcosmic + smithay-client-toolkit + swayipc-async for the panel +
+  applets; new `mde-session` crate orchestrates login + the
+  `dev.mackes.MDE.Session` DBus surface. `data/sway/config` ships as a
+  drop-in replacement for `data/i3/config` with matching binding names.
+- **Native settings layer (`mded_core::settings`).** 29 dot-notated keys
+  cover theme / font / display / power / notification / automount /
+  wallpaper / keybinds / autostart. Each value routes through GSettings
+  or a JSON sidecar under `$XDG_CACHE_HOME/mde/`; the matching applier
+  in `crates/mackesd/src/settings/` handles the side effect. The
+  `dev.mackes.MDE.Settings` interface exposes `Get / Set / Snapshot /
+  Restore / ListKeys + Changed` signal.
+- **Fleet config layer.** `DesiredSnapshot.settings_keys` carries
+  per-revision (key, value_json) pairs that every peer's reconcile loop
+  applies via `settings::apply_all`. Workbench panels Fleet → Push and
+  Fleet → Revisions surface the push + rollback paths.
+- **Notifications.** `mded` implements `org.freedesktop.Notifications`
+  per spec — every libnotify / notify-send / GTK app reaches `mded`
+  transparently, retiring `mako` / `fnott` / `xfce4-notifyd`. Cross-peer
+  notification relay reads `~/QNM-Shared/<peer>/.qnm-notifications/`
+  and persists to the `notifications` table.
+
+**Workbench panels migrated to MDE settings bridge:** Devices→Power,
+System→Removable Media, System→Notifications, System→Session,
+System→Window Manager. New: Fleet→Push, Fleet→Revisions. Drawer DND +
+Caffeine toggles flip the same flag files the notifications_server +
+mde-session honor. `mackes/menu_integration.py` retired (XFCE settings
+panels no longer installed).
+
+**Spec changes (Phase H):** drops `i3`, `i3-gaps`, `xfwm4`,
+`xfce4-session`, `xfce4-power-manager`, `xfce4-notifyd`,
+`xfce4-clipman`, `xfsettingsd`, `xfconfd`, `xfconf`, `xfce4-settings`,
+`thunar-volman`, `xdotool`, `xprop`, `wmctrl`, `xrandr`, `xclip`. Adds
+`sway`, `swayidle`, `swaylock`, `swaynag`, `swaybg`, `foot`,
+`wl-clipboard`, `brightnessctl`, `wlr-randr`, `udisks2`,
+`power-profiles-daemon`, `upower`, `pipewire`, `wireplumber`.
+Recommends: `cosmic-files`, `yazi`, `kanshi`. Drops thunar.
+
+**Testing:** workspace test count crosses 400 (was 230). Phase 12.11.3
+failure-scenario suite (7 named cases) green; Phase 12.11.2
+testcontainers integration tests gated under `--features docker-tests`;
+Cairo rendering smoke under headless `ImageSurface`. New Phase 9.3
+xdotool E2E gates run in CI under Xvfb.
+
 ## 1.1.0 — Win10 layout (2026-05-19)
 
 Visual reskin of the panel chrome from a 20 px top bar + 80 px

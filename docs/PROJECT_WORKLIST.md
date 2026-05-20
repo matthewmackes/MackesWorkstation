@@ -232,12 +232,16 @@ binary symlink) and in CHANGELOG history.
   (with + without legacy tree), env-var fallback shim,
   metainfo component-id, spec `Provides:`/`Obsoletes:` parse,
   CHANGELOG 2.0.0 header.
-- [ ] **0.14 CHANGELOG 2.0.0 entry** — At cut time, top of
-  `CHANGELOG.md`:
-  `## 2.0.0 — Rebrand to Mackes Desktop Environment (MDE) + Wayland-only Rust DE (YYYY-MM-DD)`.
-  Body lists rebrand summary, upgrade behavior (in-place via
-  `Obsoletes:`, automatic config migration), and a "what
-  changed for you" section in plain language.
+- [✓] **0.14 CHANGELOG 2.0.0 entry** — ~90-line entry at the top
+  of `CHANGELOG.md` covers: rebrand summary (identifier table
+  reference), upgrade path (`dnf upgrade` lands on `mde-2.0.0`
+  automatically via Obsoletes/Provides + `mde-migrate-from-1x` +
+  env-var shim + D-Bus aliases), architectural shifts (unified
+  Rust meta-daemon, Wayland-only sway, native settings layer,
+  fleet config, notifications), Workbench panel migrations, spec
+  dep changes, testing growth. Date stays placeholder until the
+  actual 2.0.0 tag cut (the body is accurate; the cut commit
+  adds the (YYYY-MM-DD) timestamp).
 
 **Phase 0 Definition of Done:** identifier table committed; all 12
 mechanical renames (0.2–0.11) landed; migrator + env shim tested
@@ -864,20 +868,28 @@ panel starts without manual intervention.
 
 #### Phase H — RPM, packaging, cleanup
 
-- [ ] **H.1 Spec dep swap** —
-  `packaging/fedora/mackes-shell.spec`:
-  drop `xfconf`, `xfce4-settings`, `xfce4-session`,
-  `xfce4-power-manager`, `i3`, `i3-gaps`, `xfwm4`, `xfce4-notifyd`,
-  `xfce4-clipman`, `thunar-volman`, `xdotool`, `xprop`, `wmctrl`,
-  `xrandr`, `xclip`. Add `sway`, `swayidle`, `swaylock`, `swaynag`,
-  `foot`, `wl-clipboard`, `brightnessctl`, `wlr-randr`, `udisks2`,
-  `power-profiles-daemon`, `upower`, `pipewire`, `wireplumber`.
-- [ ] **H.2 Recommends swap** — drop `thunar`; add `cosmic-files`,
-  `yazi`, `kanshi`.
-- [ ] **H.3 Obsoletes/Provides** — clean upgrade for users on
-  retired packages.
-- [ ] **H.4 Drop XDG autostart overrides** —
-  `mackes-suppress-xfce4-panel.desktop`, `xfdesktop` Hidden=true.
+- [ ] **H.1 Spec dep swap** — Requires-line edits gated on the
+  v2.0.0 cut moment (doing it now on the v1.x line strands users
+  whose panel still depends on xfconf + xfce4-settings). Listed
+  here to keep the cut commit's diff explicit; the new Requires
+  set is documented in the CHANGELOG 2.0.0 entry (Phase 0.14
+  shipped).
+- [ ] **H.2 Recommends swap** — same gating as H.1; `cosmic-files`,
+  `yazi`, `kanshi` land in the cut spec.
+- [✓] **H.3 Obsoletes/Provides** —
+  `packaging/fedora/mackes-shell.spec` gains `Provides: mde =
+  %{version}-%{release}` alongside the existing `Provides:
+  mackes-shell`. `dnf install mde` now resolves to this RPM, and
+  the v2.0.0 cut adding `Name: mde` + `Obsoletes:
+  mackes-xfce-workstation < 2.0.0` will cleanly replace the row.
+  Spec also drops install + %files entries for the 10 retired
+  systemd units (Phase B.13) + adds the new mde-session.service
+  + mde-{shell-migrate-v2,migrate-from-1x} binaries + data/sway/
+  tree + data/dbus-1/services/ tree.
+- [ ] **H.4 Drop XDG autostart overrides** — gated on the same
+  cut moment; suppressing xfce4-panel + xfdesktop overrides is
+  what keeps v1.x boxes from showing both panels; removing them
+  on a v1.x box would let the legacy panel come back.
 - [✓] **H.5 `bin/mde-shell-migrate-v2`** — first-boot migration
   script (executable Python). Four named steps, all idempotent:
     1. `step_1_import_xfconf_to_settings` — walks the locked

@@ -20,6 +20,13 @@ Source0:        mackes-shell-%{version}.tar.gz
 Provides:       mackes-shell = %{version}-%{release}
 Obsoletes:      mackes-shell < 3.0
 
+# v2.0.0 Phase 0.8 + H.3 — MDE rebrand. The package now also
+# advertises itself as `mde` so a new `dnf install mde` resolves
+# to this RPM, and `dnf upgrade` on a future explicit `mde` cut
+# (when the spec rename to `Name: mde` lands) replaces the
+# mackes-xfce-workstation row cleanly.
+Provides:       mde = %{version}-%{release}
+
 # Phase 10.6.6 — mackes-panel (Rust) fully replaces the legacy XFCE
 # panel + desktop + plugin stack. Listing them as Obsoletes means
 # `dnf install mackes-xfce-workstation` removes them cleanly on
@@ -364,24 +371,15 @@ install -D -m 0644 data/mesh-ssh-policy.example.yaml \
 install -d %{buildroot}%{_unitdir}
 install -m 0644 data/systemd/mackes-node.service             %{buildroot}%{_unitdir}/
 install -m 0644 data/systemd/mackes-tailscale-bootstrap.service %{buildroot}%{_unitdir}/
-install -m 0644 data/systemd/mackes-mdns-relay.service       %{buildroot}%{_unitdir}/
-# Fleet management (v1.3.0) — ansible-pull timer + service
-install -m 0644 data/systemd/mackes-ansible-pull.service     %{buildroot}%{_unitdir}/
-install -m 0644 data/systemd/mackes-ansible-pull.timer       %{buildroot}%{_unitdir}/
-# Phase 8.8 (1.0.7) — mackes-maximizer.service retired. The
-# unit + binary + autostart .desktop are no longer installed.
-# i3 tiles natively so the xfwm4-era auto-maximize crutch is
-# gone. Existing 1.0.6 installs get their unit disabled by the
-# apply_enforce_i3 birthright step on first launch after upgrade.
+# v2.0.0 Phase B.13 — 10 standalone .service/.timer units retired
+# (mackes-clipboard-daemon, mackes-gvfsd-mesh, mackes-mdns-relay,
+# mackes-remmina-sync.{service,timer}, mackes-media-sync.{service,
+# timer}, mackes-ansible-pull.{service,timer}, mackesd-kdc-bridge).
+# Each role now runs as an in-process worker inside `mackesd serve`
+# (mackesd.service ExecStart points there).
 install -d %{buildroot}%{_userunitdir}
-# Mesh clipboard daemon (v1.5.0) — XA_CLIPBOARD watcher
-install -m 0644 data/systemd/mackes-clipboard-daemon.service %{buildroot}%{_userunitdir}/
-# Remmina auto-populate (v1.6.2) — user-level timer + oneshot service
-install -m 0644 data/systemd/mackes-remmina-sync.service     %{buildroot}%{_userunitdir}/
-install -m 0644 data/systemd/mackes-remmina-sync.timer       %{buildroot}%{_userunitdir}/
-# Media sync (v2.1.0) — Sublime Music + Delfin + Thunar view refresh
-install -m 0644 data/systemd/mackes-media-sync.service       %{buildroot}%{_userunitdir}/
-install -m 0644 data/systemd/mackes-media-sync.timer         %{buildroot}%{_userunitdir}/
+# v2.0.0 Phase D.6 — mde-session user unit (Wayland orchestrator).
+install -m 0644 data/systemd/mde-session.service             %{buildroot}%{_userunitdir}/
 # Sudoers drop-in (v1.4.1) — grants NOPASSWD on Mackes-managed commands
 install -D -m 0440 data/sudoers.d/mackes-shell               %{buildroot}/etc/sudoers.d/mackes-shell
 install -D -m 0755 bin/mackes-wm                              %{buildroot}%{_bindir}/mackes-wm
@@ -396,13 +394,29 @@ install -D -m 0644 data/i3/config %{buildroot}%{_datadir}/%{name}/i3/config
 # directory (added 1.1.0 for the gaps profile picker).
 install -D -m 0644 data/i3/config.d/mackes-defaults.conf \
     %{buildroot}%{_datadir}/%{name}/i3/config.d/mackes-defaults.conf
+# v2.0.0 Phase D.5 — sway config shipped under /usr/share/mde/sway/.
+# mde-session seeds ~/.config/sway/ from this directory on first
+# launch via the mde-shell-migrate-v2 step.
+install -D -m 0644 data/sway/config %{buildroot}%{_datadir}/mde/sway/config
+install -D -m 0644 data/sway/config.d/mackes-defaults.conf \
+    %{buildroot}%{_datadir}/mde/sway/config.d/mackes-defaults.conf
+# v2.0.0 Phase 0.5 + H.5 — first-boot config migrators.
+install -D -m 0755 bin/mde-migrate-from-1x \
+    %{buildroot}%{_bindir}/mde-migrate-from-1x
+install -D -m 0755 bin/mde-shell-migrate-v2 \
+    %{buildroot}%{_bindir}/mde-shell-migrate-v2
+# v2.0.0 Phase 0.4 — D-Bus service files (new dev.mackes.MDE.*
+# names + legacy org.mackes.* aliases for one-release backward
+# compat).
+install -d %{buildroot}%{_datadir}/dbus-1/services
+install -m 0644 data/dbus-1/services/*.service \
+    %{buildroot}%{_datadir}/dbus-1/services/
 # headscale.service is owned by the upstream `headscale` RPM at the same
 # path; shipping our copy would cause a file-conflict on dnf install.
 # Our data/systemd/headscale.service is kept in the source tree as a
 # reference but not installed. To customize (MemoryHigh, etc.), drop a
 # systemd drop-in at /etc/systemd/system/headscale.service.d/mackes.conf.
 install -d %{buildroot}%{_userunitdir}
-install -m 0644 data/systemd/mackes-gvfsd-mesh.service       %{buildroot}%{_userunitdir}/
 
 # 1.1.0 — systemd user-preset for the Mackes user units. Fedora reads
 # files under /usr/lib/systemd/user-preset/ in lexical order to decide
@@ -626,17 +640,14 @@ fi
 %{_datadir}/thumbnailers/mackes-mesh.thumbnailer
 %{_unitdir}/mackes-node.service
 %{_unitdir}/mackes-tailscale-bootstrap.service
-%{_unitdir}/mackes-mdns-relay.service
-%{_unitdir}/mackes-ansible-pull.service
 %{_unitdir}/mackesd.service
-%{_unitdir}/mackes-ansible-pull.timer
-%{_userunitdir}/mackes-gvfsd-mesh.service
-%{_userunitdir}/mackes-clipboard-daemon.service
+# v2.0.0 Phase B.13 retired 10 standalone systemd units (the 8
+# named services + 3 paired .timer files); their roles now run
+# inside `mackesd serve` as workers (Phase A.2 supervisor).
+# v2.0.0 Phase D.6 mde-session.service ships as the user-session
+# orchestrator (replaces mackes-enforce-session on the v2.0.0 line).
+%{_userunitdir}/mde-session.service
 %{_prefix}/lib/systemd/user-preset/90-mackes.preset
-%{_userunitdir}/mackes-remmina-sync.service
-%{_userunitdir}/mackes-remmina-sync.timer
-%{_userunitdir}/mackes-media-sync.service
-%{_userunitdir}/mackes-media-sync.timer
 %config(noreplace) /etc/sudoers.d/mackes-shell
 # C panel plugins + their descriptors
 %{_libdir}/xfce4/panel/plugins/mackes-clipboard
