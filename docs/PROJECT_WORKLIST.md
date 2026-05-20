@@ -613,8 +613,17 @@ panel starts without manual intervention.
   - `data/sway/config.d/mackes-bindings.conf` — written by
     settings::keybinds (C.8 already ships the writer; renderer
     emits both sway + i3 forms).
-- [ ] **D.6 `data/systemd/mackes-session.service`** — user unit;
-  graphical-session.target chain.
+- [✓] **D.6 `data/systemd/mde-session.service`** — user unit
+  ships at `data/systemd/mde-session.service` (renamed from the
+  worklist's older `mackes-session.service` per the Phase 0.4
+  rebrand lock). Type=notify so graphical-session.target waits
+  for sway + the DBus surface to come up. After=mde-migrate-from-
+  1x.service so the v1.x → v2.0.0 config migration (Phase 0.5)
+  runs first. Restart=on-failure with 5 s back-off. Hardening
+  applied: NoNewPrivileges, ProtectKernel*, RestrictNamespaces,
+  LockPersonality, RestrictRealtime. `Install: WantedBy=graphical-
+  session.target` so `systemctl --user enable mde-session` from
+  the install hook turns it on automatically.
 - [ ] **D.7 Retire `bin/mackes-enforce-session`** + `bin/mackes-wm`.
 
 #### Phase E — Panel rewrite to Iced + libcosmic
