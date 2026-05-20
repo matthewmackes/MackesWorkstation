@@ -1974,9 +1974,12 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   upstream `pop-os/cosmic-files`. Manifest inherits via
   `license.workspace = true`. Upstream attribution + commit SHA
   recorded as part of Phase 4.1 below.
-- [ ] **0.2 Upstream pin** — Record the exact upstream
-  cosmic-files commit SHA + tarball checksum in
-  `docs/upstream/cosmic-files.md` when the merge starts (Phase 4).
+- [✓] **0.2 Upstream pin** — `docs/upstream/cosmic-files.md`
+  ships the lock table (upstream URL, pinned commit SHA
+  placeholder, tarball SHA-256 placeholder, license, vendor
+  target, bump cadence) + a "How to bump" runbook + the
+  Why-we-pin rationale + attribution pointer. Placeholder SHA
+  + hash get real values when Phase 4.2 vendors the tarball.
 - [✓] **0.3 Design source committed** —
   `docs/design/v2.0.0-mde-files/README.md`,
   `docs/design/v2.0.0-mde-files/design-spec.md` (Rust contract),
@@ -2079,9 +2082,13 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
 
 #### Phase 4 — cosmic-files upstream merge
 
-- [ ] **4.1 Pin upstream** — Snapshot the cosmic-files commit SHA
-  + tarball SHA into `docs/upstream/cosmic-files.md`; add
-  `LICENSES/COSMIC-FILES.md` with upstream copyright + license text.
+- [✓] **4.1 Pin upstream** — `docs/upstream/cosmic-files.md` (Phase
+  0.2) is the lock table; `LICENSES/COSMIC-FILES.md` ships with the
+  upstream copyright + GPL-3.0-or-later attribution + a list of the
+  modules to vendor (tab.rs, mod.rs trash adapter) + the
+  "every binary must reproduce this attribution" requirement. SHA
+  + tarball hash get real values when Phase 4.2's vendor pull
+  actually pulls the tarball.
 - [ ] **4.2 Vendor relevant modules** — `cosmic-files/src/tab.rs`
   (file-list rendering primitives), `mod.rs` mime sniffing, the
   trash adapter. Vendor under `crates/mde-files/src/upstream/`
