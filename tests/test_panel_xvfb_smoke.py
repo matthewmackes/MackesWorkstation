@@ -97,7 +97,7 @@ def test_taskbar_geometry_is_40px_bottom_anchored(panel_running):
     """Q3 lock — the taskbar must be 40 px tall and bottom-anchored."""
     out = _wmctrl_list()
     line = next(
-        (l for l in out.splitlines() if "mackes-panel-taskbar" in l),
+        (ln for ln in out.splitlines() if "mackes-panel-taskbar" in ln),
         None,
     )
     assert line is not None, f"taskbar window absent from:\n{out}"

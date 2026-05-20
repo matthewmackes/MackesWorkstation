@@ -15,7 +15,8 @@ def test_render_ssh_uses_mesh_keypair():
     )
     text = _render_remmina(
         PeerProbe(name="alpha", host="100.64.0.5", ssh=True), "ssh")
-    cp = configparser.ConfigParser(interpolation=None); cp.optionxform = str
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.optionxform = str
     cp.read_string(text)
     sect = cp["remmina"]
     assert sect["group"] == MACKES_GROUP
@@ -32,7 +33,8 @@ def test_render_rdp_has_blank_password():
     from mackes.remmina_sync import PeerProbe, _render_remmina
     text = _render_remmina(
         PeerProbe(name="beta", host="100.64.0.6", rdp=True), "rdp")
-    cp = configparser.ConfigParser(interpolation=None); cp.optionxform = str
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.optionxform = str
     cp.read_string(text)
     sect = cp["remmina"]
     assert sect["protocol"] == "RDP"
@@ -45,7 +47,8 @@ def test_render_vnc_uses_5900():
     from mackes.remmina_sync import PeerProbe, _render_remmina
     text = _render_remmina(
         PeerProbe(name="gamma", host="100.64.0.7", vnc=True), "vnc")
-    cp = configparser.ConfigParser(interpolation=None); cp.optionxform = str
+    cp = configparser.ConfigParser(interpolation=None)
+    cp.optionxform = str
     cp.read_string(text)
     assert cp["remmina"]["protocol"] == "VNC"
     assert cp["remmina"]["server"] == "100.64.0.7:5900"

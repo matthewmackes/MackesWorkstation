@@ -189,7 +189,7 @@ def test_spec_conflicts_block_lands_at_cb_3_3():
             "xfce4-settings",
             "xfwm4",
         ):
-            assert f"Conflicts:" in spec and pkg in spec, (
+            assert "Conflicts:" in spec and pkg in spec, (
                 f"CB-3.3 locked Conflicts: entry {pkg} missing"
             )
 

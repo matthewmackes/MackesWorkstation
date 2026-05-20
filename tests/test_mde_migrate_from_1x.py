@@ -6,8 +6,6 @@ helpers without spawning a subprocess).
 """
 from __future__ import annotations
 
-import importlib.util
-import os
 import tempfile
 from pathlib import Path
 

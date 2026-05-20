@@ -1,7 +1,6 @@
 """Tests for `mackes.mde_settings_bridge` (Phase F.1 + helpers)."""
 from __future__ import annotations
 
-import json
 import os
 import tempfile
 from pathlib import Path

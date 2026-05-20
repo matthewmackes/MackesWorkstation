@@ -14,8 +14,6 @@ This test file pins the facade's contract:
 """
 from __future__ import annotations
 
-import importlib
-import os
 import sys
 from pathlib import Path
 

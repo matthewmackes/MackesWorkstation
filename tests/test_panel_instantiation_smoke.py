@@ -30,7 +30,6 @@ import importlib
 import os
 import pkgutil
 import signal
-import sys
 import time
 from contextlib import contextmanager
 

@@ -168,7 +168,7 @@ def test_filter_for_node_view_keeps_focus_plus_direct_neighbors():
 
 def test_filter_for_node_view_returns_empty_for_unknown_focus():
     from mackes.workbench.network.mesh_topology_render import (
-        Layout, Node, Edge, filter_for_node_view,
+        Layout, Node, filter_for_node_view,
     )
     layout = Layout(
         nodes={"a": Node(node_id="a")},

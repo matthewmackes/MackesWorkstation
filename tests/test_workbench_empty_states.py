@@ -11,7 +11,6 @@ Skipped when GTK or `$DISPLAY` (or Xvfb) is unavailable — same gate as
 from __future__ import annotations
 
 import os
-import subprocess
 
 import pytest
 

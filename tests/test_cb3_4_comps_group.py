@@ -1,7 +1,6 @@
 """CB-3.4 — comps group definition smoke tests."""
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET

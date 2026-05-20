@@ -101,14 +101,16 @@ def panel_running():
     )
     # Wait for the panel's taskbar window to register.
     if not _wait_for_class("mackes-panel", timeout_s=8.0):
-        proc.terminate(); proc.wait(timeout=3)
+        proc.terminate()
+        proc.wait(timeout=3)
         pytest.fail("mackes-panel never registered a window with the WM")
     yield proc
     proc.terminate()
     try:
         proc.wait(timeout=3)
     except subprocess.TimeoutExpired:
-        proc.kill(); proc.wait(timeout=2)
+        proc.kill()
+        proc.wait(timeout=2)
 
 
 def test_e2e_apple_menu_opens_start_menu(panel_running):

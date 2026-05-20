@@ -78,7 +78,9 @@ def _sample_pixel(surface, x, y):
     stride = surface.get_stride()
     offset = y * stride + x * 4
     # Cairo ARGB32 is BGRA in memory on little-endian.
-    b = data[offset]; g = data[offset + 1]; r = data[offset + 2]
+    b = data[offset]
+    g = data[offset + 1]
+    r = data[offset + 2]
     return (r, g, b)
 
 
