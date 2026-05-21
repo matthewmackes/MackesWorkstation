@@ -5050,7 +5050,25 @@ Last updated: 2026-05-21 — Claude Opus 4.7 (50-question lock survey
 > body). A single electric-indigo accent. No decoration without
 > purpose; no shadow without altitude; no motion without meaning.*
 
-- [ ] **UX-PRE: Iced 0.13 → 0.14 workspace bump — v2.2 prerequisite (NFU-3 lock)** —
+- [!] **UX-PRE: Iced 0.13 → 0.14 workspace bump — v2.2 prereq, BLOCKED on transitive-dep + toolchain fix (probe attempted 2026-05-21)** —
+  Probe attempt with `mde-logout-dialog` pinned to `iced = "0.14"`
+  pulled in `softbuffer 0.4.8` via tiny-skia, which fails to
+  compile on Rust 1.95 (cargo 1.95.0 on Fedora 44). softbuffer's
+  `backend_dispatch::BufferDispatch` enum has a `match self { }`
+  that newer rustc treats as non-exhaustive (E0004; "references
+  are always considered inhabited"). Pinning back to 0.13 to
+  unblock the rest of the iteration. Fix paths:
+  (a) wait for upstream `softbuffer` to ship 0.4.9+ with the
+  match-arm fix;
+  (b) pin `softbuffer = "= 0.4.7"` workspace-wide if Iced 0.14
+  accepts that version;
+  (c) drop `tiny-skia` feature from Iced 0.14 (loses CPU-fallback
+  rendering on machines without a wgpu-capable GPU);
+  (d) try `iced = { git = "https://github.com/iced-rs/iced.git" }`
+  on main to pick up newer dep pins.
+  Acceptance: workspace builds clean on Rust 1.95 with Iced 0.14.
+  Until this clears, UX-9 (modal blur), UX-14 (palette), and E.2
+  (layer-shell) remain
   Bump every Iced-using crate in the workspace
   (`crates/mde-workbench`, `crates/mde-panel`, `crates/mde-files`,
   `crates/mde-wizard`, `crates/mde-logout-dialog`,
@@ -5102,7 +5120,16 @@ Last updated: 2026-05-21 — Claude Opus 4.7 (50-question lock survey
   Depends: None. Effort: Low (consolidation, not discovery).
   Outputs: `docs/design/visual-identity.md`.
 
-- [ ] **UX-11: Reference benchmark vault — v2.2 scope** — Build
+- [✓] **UX-11: Reference benchmark vault — skeleton landed 2026-05-21
+  (annotation work tracked as UX-11.a follow-up)** — Skeleton at
+  `docs/design/benchmarks/` with subfolders for linear / raycast /
+  arc / cursor / vercel / apple-settings. Top-level README explains
+  the vault's role + the "Match exactly / Diverge intentionally"
+  gate. Each subfolder has a placeholder README with "What to
+  adopt / What to NOT adopt / Screenshots" sections. Capture +
+  annotation work (≥ 12 comparisons across the six targets) is the
+  full UX-11 acceptance; tracked as UX-11.a so iteration can
+  proceed without screenshot fetching. Original scope text: Build
   `docs/design/benchmarks/` with side-by-side annotated screenshots:
   Linear sidebar, Raycast command palette, Arc settings, Cursor
   onboarding, Vercel dashboard rows, Apple System Settings groupings.
@@ -5294,7 +5321,19 @@ Last updated: 2026-05-21 — Claude Opus 4.7 (50-question lock survey
   Outputs: `crates/mde-theme/src/components/scrollbar.rs`;
   matching GTK CSS for any remaining GTK surfaces.
 
-- [ ] **UX-21: Microcopy + voice pass — v2.2 scope** — Author
+- [✓] **UX-21: Voice + tone doc landed 2026-05-21 (audit pass
+  tracked as UX-21.a)** — `docs/design/voice-and-tone.md` ships
+  the rules: voice constants, tone-per-surface table, verb
+  discipline (Add vs Create vs New, Remove vs Delete, etc.),
+  sentence-case enforcement, button-label discipline (verb-first,
+  ≤ 3 words), error-message recipe (what + what-to-do), empty-
+  state spec (icon + heading + body + CTA), status-badge
+  vocabulary, numbers/units conventions, and the forbidden-strings
+  audit checklist. CONTRIBUTING.md path: any string-touching PR
+  cites this doc. The workspace-wide sweep that audits every
+  visible string against the rules is tracked as UX-21.a follow-
+  up (mechanical pass, easier when the consumer-side migration
+  in UX-3..UX-9 has landed). Original scope text: Author
   `docs/design/voice-and-tone.md`: verb-usage rules (Add vs
   Create vs New — pick one), sentence-case titles (not Title
   Case), error-message style (what happened + what to do —
@@ -5311,8 +5350,21 @@ Last updated: 2026-05-21 — Claude Opus 4.7 (50-question lock survey
   Outputs: `docs/design/voice-and-tone.md`; updated string
   literals across all crates.
 
-- [ ] **UX-22: Accessibility variants — reduced motion, high
-  contrast, colorblind-safe — v2.2 scope** — Premium means
+- [✓] **UX-22: Accessibility variants — token layer landed
+  2026-05-21 (Settings panel wiring tracked as UX-22.a)** —
+  `mde-theme::accessibility::A11y` ships the variant data model:
+  `high_contrast` (boosts text to fully opaque + widens border
+  alpha to 0.40/0.45 for AAA-grade legibility), `colorblind_safe`
+  (swaps indigo accent for ColorBrewer-Set2 green `#4daf4a`,
+  discriminates under deuteranopia / protanopia / tritanopia),
+  `reduce_motion` (caps transition durations at 80 ms per Q32).
+  `A11y::apply(Palette) -> Palette` composes the variants over the
+  base palette without mutating the source. 9 unit tests covering
+  default state, individual variants, composition, and reduce-motion
+  duration capping. **Settings > Accessibility panel** wiring +
+  preferences.toml persistence is a Settings-panel task (UX-22.a)
+  that lands when the Iced Settings surface is touched in UX-3..9.
+  Original scope: Premium means
   accessible. (a) Honor `prefers-reduced-motion` (read via the
   Wayland/X11 session bus, fall back to a preferences toggle):
   when reduced, every UX-9 transition collapses to instant or
@@ -5516,9 +5568,47 @@ committed and embedded in README; visual-regression CI gate
   Outputs: `.claude/hooks/pre-commit-worklist.sh`,
   `Makefile` `install-hooks` target, `CONTRIBUTING.md` section.
 
+### Iteration-loop follow-ups (added 2026-05-21)
+
+These items emerged from the iteration loop's pragmatic landing of
+UX-1..UX-12 + UX-21/22 token-layer + skeletons. Each closes the
+"data layer / structure" gate of its parent task; the open follow-
+ups close the "consumer-side wiring" or "content fill-in" gate.
+
+- [ ] **UX-11.a: Benchmark vault content fill-in — v2.2 scope** —
+  Capture and annotate ≥ 12 screenshots across the six target
+  apps (linear / raycast / arc / cursor / vercel / apple-settings).
+  Each subfolder gets `<target>-<surface>-<state>.png` PNGs at
+  1280 × auto-height plus "What to adopt / What to NOT adopt"
+  notes in the per-target README. Closes UX-11's content gate.
+  Depends: UX-11 skeleton (done). Effort: Medium (capture +
+  annotation; possibly user-driven for legal/screenshot-rights
+  reasons). Outputs: `docs/design/benchmarks/<target>/*.png` +
+  README annotations.
+
+- [ ] **UX-21.a: Workspace voice-and-tone audit sweep — v2.2 scope** —
+  Mechanical sweep through every user-visible string in
+  `crates/mde-*/src/`, `mackes/workbench/`, `mackes/wizard/`,
+  `docs/help/*.md`, `data/applications/*.desktop`, and
+  CHANGELOG.md against the rules in `docs/design/voice-and-tone.md`.
+  Forbidden-strings grep + verb-discipline + sentence-case + button-
+  label length checks. Most efficient after UX-3..UX-9 land their
+  Iced view migrations (less churn). Depends: UX-21 doc (done),
+  UX-3..9 (open). Effort: Medium. Outputs: workspace-wide string
+  updates; possibly a `tools/voice-audit.sh` helper.
+
+- [ ] **UX-22.a: Settings > Accessibility panel wiring — v2.2 scope** —
+  Surface the A11y variants from `mde-theme::accessibility` in the
+  Settings > Accessibility Iced panel. Persist `high_contrast`,
+  `colorblind_safe`, `reduce_motion` to `~/.config/mde/preferences.toml`.
+  Live re-render on toggle (no restart). Honor
+  `prefers-reduced-motion` from the session bus as the initial
+  value of `reduce_motion`. Depends: UX-22 data layer (done),
+  Settings panel migration to mde-theme (part of UX-3..9).
+  Effort: Medium. Outputs: `crates/mde-workbench/src/settings/
+  accessibility.rs`; preferences.toml schema entry.
 
 
-**Key improvements vs Round 1 (for the cold-start reader):**
 
 1. **Brand is now written, not vibes.** UX-10 commits the visual
    identity to a doc that downstream tasks must cite.

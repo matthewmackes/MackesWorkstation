@@ -31,6 +31,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod accessibility;
 pub mod color;
 pub mod density;
 pub mod palette;
@@ -40,6 +41,7 @@ pub mod spacing;
 pub mod theme;
 pub mod typography;
 
+pub use accessibility::A11y;
 pub use color::Rgba;
 pub use density::Density;
 pub use theme::{Theme, Tokens};
