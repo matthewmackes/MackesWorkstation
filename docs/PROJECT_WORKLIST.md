@@ -4094,6 +4094,41 @@ under `LICENSES/`.
   positional callers remain after the keyword-only boundaries.
   Commit `f0f06b8` pushed to `origin/main`.
 
+- [>] **v2.0.1 Wayland session hotfix (2026-05-21)** — the v2.0.0
+  RPM (`mde-2.0.0-1.fc44.x86_64`, built before e011771) declared
+  every `mde-*` Rust binary in `%files` but `%install` never copied
+  them out of `target/release/`. Effect on a freshly installed box:
+  `/usr/bin/mde-session`, `/usr/bin/mde-panel`, `/usr/bin/mded`,
+  `/usr/bin/mde-drawer`, `/usr/bin/mde-wizard`, and the 16
+  `mde-applet-*` binaries were all missing. LightDM silently
+  filtered the MDE session out of its dropdown (TryExec pointed at
+  the missing `mde-session`); the user landed in upstream vanilla
+  sway instead — i3-compatible visually, so easy to mistake for
+  i3, but with no MDE panel / workbench / mesh.
+
+  **Fixes (this cut):**
+
+  * Spec install lines for every workspace binary (already landed
+    in `e011771`).
+  * `mackes/birthright.py` gains step 20 —
+    `apply_uninstall_legacy_xsessions()` — sweeping three known
+    orphan `/usr/share/xsessions/*.desktop` entries that pre-v2
+    shell scripts had installed but RPM never tracked
+    (`xfce11-i3-plank`, `xfce11`, `mackes`).
+  * `mackes/wizard/pages/apply.py` wires the new step between
+    `Uninstall legacy XFCE` and `Mesh`.
+  * `packaging/fedora/mackes-shell.spec` `%post` mirrors the
+    sweep so a plain `dnf install/upgrade mde` fixes the orphan
+    immediately — no wizard rerun required.
+  * CHANGELOG.md, 4 version files bumped to 2.0.1 per §0.6.
+  * 4 new unit tests in `tests/test_uninstall_legacy.py`
+    (idempotent no-op, partial-set removal, rm-failure
+    reporting, allow-list audit). Total: 266 pass / 93 skip / 0
+    fail.
+
+  Awaiting `make rpm` + `dnf upgrade <rpm>` for local
+  validation, then commit + push + `vX.Y.Z` tag flow per §0.6.
+
 
 
 - [✓] **CB-1.5.a Fleet inventory panel (Iced) — shipped
@@ -4610,6 +4645,678 @@ under `LICENSES/`.
 - [ ] **2.1 post-v2.0.0: D-Bus alias `.service` files** — Phase 0.4 ships
   one release of `org.mackes.*.service` aliases pointing at
   `dev.mackes.MDE.*`. v2.1 cut removes the aliases.
+
+### UX-1 through UX-9: MDE Application Chrome — Premium UI Polish (v2.1 scope)
+
+> **Brief:** Act as a world-class product designer and senior Rust UI
+> engineer. Transform the application chrome of the MDE Rust app into a
+> polished, branded, production-grade interface. The current UI is
+> functional but not final. Upgrade it so it feels premium, intentional,
+> and memorable. Focus on the shell of the product: window frame,
+> navigation, menus, sidebars, headers, panels, toolbars, controls,
+> dialogs, spacing, typography, icons, color palette, motion, and
+> interaction feedback. The goal is product credibility — the app should
+> immediately feel like a serious, high-quality commercial product built
+> by an elite team. Deliver: (1) design direction summary, (2) major
+> chrome improvements list, (3) files/components changed, (4) follow-up
+> recommendations.
+
+**Goal:** Make MDE instantly credible in demos and screenshots.
+Avoid default-looking widgets, inconsistent spacing, weak hierarchy,
+bland colors, cramped layouts, and prototype-level polish. Use
+restrained but sophisticated details: strong typography, thoughtful
+contrast, subtle depth, clean alignment, elegant component states, and
+a clear design system. Preserve performance, accessibility, and
+maintainability. Introduce reusable tokens, styles, or components so
+the visual system can scale across the app.
+
+**Primary surfaces:** `crates/mde-workbench/`, `crates/mde-panel/`,
+`crates/mde-files/`, `crates/mde-logout-dialog/`.
+**Design system entry point:** `data/css/tokens.css` (GTK layer) +
+Iced-side style constants (introduce `crates/mde-theme/` if needed).
+
+- [ ] **UX-1: Design token layer — v2.1 scope** — Audit every
+  hardcoded color, font size, spacing value, and border radius across
+  the Iced crates. Extract to a single `crates/mde-theme/src/tokens.rs`
+  (Rust constants) and a companion `data/css/mde-tokens.css` (GTK
+  surface). Categories: `COLOR_*` (background, surface, on-surface,
+  accent, destructive, muted), `FONT_*` (size scale: xs/sm/md/lg/xl/
+  2xl/display), `SPACE_*` (4px base grid: 4/8/12/16/24/32/48/64),
+  `RADIUS_*` (none/sm/md/lg/full), `SHADOW_*` (elevation-0..3).
+  Acceptance: zero hardcoded hex/rgba literals remain in Iced source;
+  every visual property references a named token.
+  Depends: None. Effort: Medium.
+  Outputs: `crates/mde-theme/` crate; `data/css/mde-tokens.css`.
+
+- [ ] **UX-2: Typography system — v2.1 scope** — Define a type scale
+  using tokens from UX-1. Apply consistently across all Iced panels:
+  display (28 sp, medium weight) for panel titles; heading (20 sp,
+  medium) for section headers; body (14 sp, regular) for content;
+  label (12 sp, medium) for form labels and captions; mono (13 sp) for
+  paths, IDs, and status values. Enforce minimum contrast ratios (WCAG
+  AA: 4.5:1 for body, 3:1 for large text). Add `text_style()` helper
+  to `mde-theme` that returns an `iced::widget::text::Style` for each
+  role. Acceptance: visual review confirms consistent hierarchy across
+  Fleet, Devices, System, Files panels.
+  Depends: UX-1. Effort: Medium.
+  Outputs: `crates/mde-theme/src/typography.rs`; updated panel views.
+
+- [ ] **UX-3: Color palette + theme coherence — v2.1 scope** — Choose
+  a restrained, branded dark-mode palette for the MDE default theme:
+  deep navy/charcoal surface (`#0f1117` / `#1a1d27`), accent blue-violet
+  (`#5b6af5`), muted text (`#8b90a7`), destructive red (`#e5534b`),
+  success green (`#3fb950`). Expose as tokens from UX-1. Wire into the
+  existing preset system so the hashbang preset adopts the new palette as
+  its base; other presets inherit the type scale and override only
+  accent + background. Acceptance: screenshot of the Workbench window
+  shows no default GTK grey; all four presets render without visual
+  regression.
+  Depends: UX-1. Effort: Medium.
+  Outputs: updated `data/css/` preset CSS files; `crates/mde-theme/` palette
+  constants.
+
+- [ ] **UX-4: Window chrome + header bar — v2.1 scope** — Polish the
+  top-level Workbench window: (a) custom `mde-header` CSS class with
+  controlled height (48 px), background matching the surface token, and a
+  1 px bottom border using the divider token; (b) product wordmark
+  ("Mackes Desktop Environment" or "MDE" logotype, left-aligned, 14 sp
+  medium) instead of the default GTK title string; (c) window controls
+  (min/max/close) styled with Carbon glyphs and hover state using the
+  accent token; (d) remove default GTK shadow and replace with
+  `SHADOW_2` elevation token on the window frame. Acceptance: the window
+  header is visually distinct from a stock GTK app in a side-by-side
+  screenshot.
+  Depends: UX-1, UX-3. Effort: Medium.
+  Outputs: `data/css/mde-chrome.css`; `mackes/workbench/shell/sidebar_window.py`
+  (GTK path, already partially Carbon); Iced workbench title widget.
+
+- [ ] **UX-5: Sidebar navigation — v2.1 scope** — Upgrade the
+  Workbench sidebar: (a) 240 px fixed width with `SPACE_16` padding;
+  (b) nav item height 40 px, icon 20 px, label 14 sp; (c) selected
+  state: full-width highlight bar in accent at 10% opacity + accent
+  left border 2 px + text and icon in accent color; (d) hover state:
+  surface-2 background, no border; (e) section dividers: 1 px rule +
+  all-caps 11 sp muted label (8 px top gap, 4 px bottom gap); (f)
+  keyboard focus ring using the accent token. Acceptance: navigation
+  passes a visual audit — active item is unambiguous at a glance;
+  keyboard-only navigation is visible.
+  Depends: UX-1, UX-3. Effort: Medium.
+  Outputs: `mackes/workbench/shell/sidebar_window.py` (GTK);
+  Iced workbench nav component.
+
+- [ ] **UX-6: Panel surface + spacing — v2.1 scope** — Audit every
+  Iced panel (Fleet, Devices, System, Files, Mesh) for consistent
+  padding, alignment, and visual rhythm. Rules: outer panel padding
+  `SPACE_24`; section header bottom gap `SPACE_16`; row height 44 px
+  minimum; data label / value pairs use a 2-column grid (label 40%,
+  value 60%); status badges use `RADIUS_FULL` pill shape. Eliminate
+  all cramped layouts (< 8 px between elements). Apply `SHADOW_1`
+  elevation to card surfaces (fleet peer cards, snapshot cards). Add a
+  standard empty-state component (icon + heading + body + optional CTA
+  button) so every panel has a polished zero-data view.
+  Acceptance: visual review of all 10+ panels shows uniform rhythm;
+  no panel looks like a prototype.
+  Depends: UX-1, UX-2. Effort: High.
+  Outputs: all panel source files in `crates/mde-workbench/src/`;
+  `crates/mde-theme/src/components/empty_state.rs`.
+
+- [ ] **UX-7: Control states + interaction feedback — v2.1 scope** —
+  Define and apply consistent states for every interactive element:
+  (a) buttons: 3 variants (primary = accent fill, secondary = outline,
+  ghost = text-only); height 36 px; `RADIUS_MD`; `SPACE_12` horizontal
+  padding; hover = accent lighten 10%; active = accent darken 10%;
+  disabled = 40% opacity; focus = 2 px accent ring offset 2 px.
+  (b) text inputs: 36 px height, `RADIUS_MD`, 1 px border muted,
+  focus = accent border + subtle glow. (c) toggles: 40×22 px pill,
+  smooth 150 ms transition. (d) loading states: skeleton shimmer (CSS
+  animation on `mde-skeleton` class) and a spinner component using
+  the accent token. Acceptance: interactive demo shows no "dead"
+  states — every control reacts visibly to hover, focus, and active.
+  Depends: UX-1, UX-3. Effort: High.
+  Outputs: `crates/mde-theme/src/components/{button,input,toggle,
+  spinner,skeleton}.rs`; updated Iced view calls.
+
+- [ ] **UX-8: Icons + visual language — v2.1 scope** — Audit all icon
+  usage. **Locked icon system: Carbon** (per Q24, Q37–Q39). (a)
+  enforce the Carbon icon set across the entire workspace — pivot
+  away from the Round 2 Lucide/Phosphor proposal; the project already
+  uses Carbon glyphs in the panel and the platform requirement is
+  Carbon; (b) standardize sizes per Q37: **16 px inline, 20 px nav,
+  24 px panel header**; empty-state 32 px and wizard-hero 48 px
+  retained as additional tiers; (c) line weight **1 px** (Carbon
+  standard, Q39); (d) style **mostly line, filled only for status
+  dots + notification bell** (Q38); (e) add `mde_icon()` helper in
+  `mde-theme` mapping semantic names (`Icon::Fleet`, `Icon::Device`,
+  `Icon::Snapshot`, …) to Carbon glyphs so call sites never hardcode
+  paths or Unicode; (f) ensure mesh peer cards show a consistent
+  device-class Carbon glyph derived from the peer's `device_type`
+  field. Acceptance: icon audit finds zero size inconsistencies
+  across panels; semantic icon helper compiles and passes unit
+  tests; grep confirms zero Lucide/Phosphor references in source.
+  Depends: UX-1. Effort: Medium.
+  Outputs: `crates/mde-theme/src/icons.rs`; updated panel icon call
+  sites.
+
+- [ ] **UX-9: Motion + dialog polish — v2.1 scope** — (a) Sidebar
+  panel transitions: 180 ms ease-out opacity + translate-Y(4px→0)
+  on panel mount (Iced subscription-driven redraw, not CSS). (b)
+  Notification bell pulse: CSS `@keyframes mde-pulse` already
+  scaffolded; audit and tune to 2 s ease-in-out, max scale 1.15.
+  (c) Dialogs / modals: standard chrome — `SPACE_24` padding, 480 px
+  max-width, `RADIUS_LG` corners, `SHADOW_3` drop shadow, Esc-key
+  dismiss, focus-trap inside, backdrop at 50% black. Apply to
+  logout dialog, any confirm dialogs in Fleet (playbook run confirm),
+  and the notification center modal. (d) Tooltip: 12 sp, `SPACE_8`
+  padding, `RADIUS_SM`, surface-3 background, 120 ms fade-in delay.
+  Acceptance: Logout dialog and notification center match the dialog
+  spec in a screenshot; no jarring instant-swap panel transitions.
+  Depends: UX-1, UX-3, UX-7. Effort: Medium.
+  Outputs: `crates/mde-logout-dialog/`; `crates/mde-workbench/src/
+  notification_center.rs`; Iced animation subscriptions.
+
+**Definition of Done for UX-1–UX-9 (group):** All subtasks `[✓] Done`
+per §0.8; `cargo build --workspace` clean; `make test-nodeps` passes;
+design review screenshot set committed to `docs/screenshots/ux-polish/`
+showing before/after for at minimum: Workbench header, Fleet panel,
+sidebar nav, and a dialog. CHANGELOG entry under v2.1.
+Last updated: 2026-05-21 00:00 — Claude Sonnet 4.6
+
+### UX Design Locks — 50-Question Survey (2026-05-21)
+
+> **Authority:** the table below is the **authoritative design lock**
+> for UX-1..UX-23. Where a Round 1 or Round 2 default conflicts with a
+> lock here, the **lock wins silently** (per the 2026-05-19 newer-
+> directive rule). Every implementer of UX-1..UX-23 must check this
+> table first.
+>
+> Survey conducted 2026-05-21 via 50 sequential multiple-choice
+> questions. Each row below cites the question number, the locked
+> answer, and the UX task(s) it governs.
+
+| #  | UX task | Lock | Value |
+|----|---------|------|-------|
+| Q1 | UX-10 | Brand vision | **Apple System Settings minimalism** — calm, neutral, generous spacing, single restrained accent |
+| Q2 | UX-3 | Primary accent | **Indigo `#5b6af5`** |
+| Q3 | UX-3 | Base surface (dark) | **Apple charcoal `#1d1d1f`** |
+| Q4 | UX-1 | Elevation tiers | **4 levels** — background, surface, raised, overlay |
+| Q5 | UX-3 | Light theme | **Ship dark + light together in v2.2** |
+| Q6 | UX-3 / UX-16 | First-launch theme | **Wizard asks** (dark/light step, side-by-side preview) |
+| Q7 | UX-1 | Border philosophy | **Adaptive** — hairline in dark, 1 px solid in light |
+| Q8 | UX-7 | Hover fill | **Indigo @ 8% opacity** translucent wash |
+| Q9 | UX-7 | Focus-visible ring | **1 px accent ring + 2 px outer halo at low opacity** (Stripe/Vercel-style) |
+| Q10 | UX-7 | Disabled state | **Desaturated + 60% opacity, cursor-default** (Apple-style) |
+| Q11 | UX-2 | Display font | **Geologica** (Google Fonts, variable) |
+| Q12 | UX-2 | Body font | **Geologica** (same family — single-family system) |
+| Q13 | UX-2 | Monospace font | **IBM Plex Mono** |
+| Q14 | UX-2 | Type scale | **1.2 minor third** — 12 / 14 / 17 / 20 / 24 / 28 sp |
+| Q15 | UX-2 | Letter-spacing | **Optical sizing** — tight on display, default body |
+| Q16 | UX-4 | Window decorations | **Hybrid CSD/SSD** — CSD on floating, SSD on tiled (i3/sway) |
+| Q17 | UX-4 | CSD header height | **44 px** (Apple compact) |
+| Q18 | UX-4 | Window controls | **Hidden by default, hover-revealed** (Arc-style) |
+| Q19 | UX-4 | Header wordmark | **20 px MDE icon only** (no text wordmark in chrome) |
+| Q20 | UX-4 | Window shadow | **Layered** — 1 px hairline ring + 16 px ambient shadow |
+| Q21 | UX-5 | Sidebar width | **240 px** |
+| Q22 | UX-5 | Active nav item | **Inset/sunken fill** — active item bg drops to background tier (no new elevation level) |
+| Q23 | UX-5 | Section dividers | **All-caps muted labels** (11 sp), no rule lines |
+| Q24 | UX-8 | Icon system | **Carbon icons** (platform requirement — overrides Round 2's Lucide/Phosphor proposal) |
+| Q25 | UX-5 | Nav item height | **32 px** (compact, VS Code-style) |
+| Q26 | UX-15 | Default density | **Comfortable** (1.0×) |
+| Q27 | UX-15 | Density toggle | **Yes** — full 3-mode toggle in Settings > Appearance |
+| Q28 | UX-1 / UX-12 | Spacing grid | **Modular, type-scale-derived** — tokens flow from the 1.2 minor third (overrides Round 1's 4 px base) |
+| Q29 | UX-9 | Motion personality | **Calm + decisive** (Apple-style) |
+| Q30 | UX-9 | Standard duration | **180 ms** |
+| Q31 | UX-9 | Easing curve | **Per-direction** — ease-out enter, ease-in exit (iOS HIG) |
+| Q32 | UX-22 | Reduced motion | **80 ms cross-fade** fallback |
+| Q33 | UX-14 | Palette trigger | **Ctrl+K** |
+| Q34 | UX-14 | Palette position | **Spotlight-style** — centered, semi-transparent, **no backdrop** |
+| Q35 | UX-14 | Palette width | **Responsive 640 → 800 px** (expands with result content) |
+| Q36 | UX-14 | First-result behavior | **Category tabs** — Commands / Peers / Files / Settings (overrides Round 2's auto-select-first) |
+| Q37 | UX-8 | Carbon icon sizes | **16 / 20 / 24 px** tiers (inline / nav / panel header) |
+| Q38 | UX-8 | Icon style | **Mostly line**; filled only for status dots and notifications |
+| Q39 | UX-8 | Line weight | **1 px stroke** (Carbon standard — overrides Round 2's 1.5 px proposal) |
+| Q40 | UX-7 | Primary button | **Outline + accent text**, fills on hover (overrides Round 2's solid-accent default) |
+| Q41 | UX-7 | Button radius | **8 px** |
+| Q42 | UX-7 | Text input | **1 px hairline border + inset focus shadow** (Apple-style) |
+| Q43 | UX-7 | Loading | **Skeleton for content + 1 px progress bar for navigation transitions** |
+| Q44 | UX-9 | Modal backdrop | **4 px gaussian blur, no tint** (iOS-style — overrides Round 2's 50% black) |
+| Q45 | UX-9 | Modal radius | **16 px** (premium / iOS — overrides Round 2's 12 px default) |
+| Q46 | UX-9 | Modal max-width | **640 px** |
+| Q47 | UX-19 | Demo mode | **REMOVED** — UX-19 cut from worklist; UX-18 screenshots will drive from real/sanitized data |
+| Q48 | UX-18 | Screenshot backdrop | **Subtle indigo-blur gradient frame** |
+| Q49 | UX-18 | README hero asset | **Single static PNG** (1280 × 720) |
+| Q50 | UX-17 | App icon source | **MAP2-audio icon as base**, cleaned up for MDE — source: `https://github.com/matthewmackes/map2-audio/blob/master/branding/assets/map-icon.svg` |
+
+**Derived overrides (lock-driven changes to Round 1 / Round 2):**
+
+1. **UX-1 grid retoken** — token scale must derive from the 1.2 type
+   scale per Q28, not the 4 px base from Round 1. New base set
+   (proposed): 4 / 6 / 8 / 10 / 14 / 17 / 20 / 24 / 28 / 34 / 40 / 48 px.
+   UX-12 lint enforces against this list.
+2. **UX-8 retooled to Carbon** per Q24/Q37/Q38/Q39 — pivot away from
+   Lucide/Phosphor. `mde-theme` icon helper maps semantic names to
+   Carbon glyphs at 16 / 20 / 24 px, 1 px line, with `filled` variants
+   reserved for status dots + notification bell.
+3. **UX-17 sourced from MAP2-audio** per Q50 — start from
+   `map-icon.svg` in the `matthewmackes/map2-audio` repo, refine for
+   MDE (palette, sizing, freedesktop spec compliance). Coordinate
+   with user before rendering final asset set.
+4. **UX-19 deleted** per Q47 — demo mode is not in scope. UX-18
+   marketing screenshots will be sourced from the user's actual MDE
+   installation with sanitized peer names / data, captured by hand.
+   The dependency in UX-18 on UX-19 is dropped.
+5. **UX-7 primary button** is outline-first per Q40 — overrides Round 1's
+   "solid accent fill" default.
+6. **UX-9 modal chrome** uses 16 px radius and blurred backdrop per
+   Q44/Q45 — overrides Round 2's 12 px / 50% black defaults.
+7. **UX-14 command palette** uses Spotlight-style chrome (no backdrop)
+   per Q34 — overrides Round 2's modal-with-backdrop chrome.
+8. **UX-14 palette default view** uses category tabs per Q36 — overrides
+   Round 2's auto-selected first-result default.
+9. **UX-3 light theme** is co-shipped in v2.2 per Q5 — Round 1/2 had
+   originally implied dark-first with light deferred.
+
+**Next-batch locks (NFU-1..NFU-4, same 2026-05-21 session):**
+
+- **NFU-1 — Spacing token scale (Q28 derivative):** locked at
+  **`4 / 6 / 8 / 10 / 14 / 17 / 20 / 24 / 28 / 34 / 40 / 48 px`** —
+  12-step type-scale-derived set. UX-12 lint enforces this list
+  exactly. No off-list literal values allowed in `Length::Fixed(n)`,
+  `padding(n)`, or `spacing(n)` calls anywhere in `crates/mde-*`.
+- **NFU-2 — MAP2 icon stash (Q50 follow-through):** source SVG
+  fetched and committed to `docs/design/v2.2-icon-source/map-icon.svg`
+  (712 bytes). UX-17 refinement work starts from this in-tree
+  artifact; no external network fetch required at implementation
+  time.
+- **NFU-3 — Iced 0.14 bump (Q44 unblocker):** workspace bumps from
+  Iced 0.13 → 0.14 as a **v2.2 prerequisite**. Lands as new task
+  **UX-PRE** below. Solves three problems at once: UX-9 modal
+  backdrop-blur support, E.2 layer-shell integration (was deferred),
+  and lets UX-14 command palette use the newer `iced_layout` widget
+  set. Scheduled to land before UX-9 / UX-14 start substantive
+  implementation.
+- **NFU-4 — Commit policy (this session):** worklist + memory locks
+  commit + push to `origin/main` immediately per §0.6 rulebook.
+  In-flight v2.0.1 hotfix files (`CHANGELOG.md`,
+  `mackes/__init__.py`, `mackes/birthright.py`, `mackes/wizard/`,
+  `packaging/fedora/`, `pyproject.toml`, `setup.py`,
+  `tests/test_uninstall_legacy.py`) are **excluded** — they belong
+  to a separate workstream and stay as working-tree changes for the
+  v2.0.1 cut.
+
+**Follow-up locks (2026-05-21, post-survey clarifications):**
+
+- **FU-1 — Sequencing:** UX-1..UX-9 (Round 1 foundation) starts
+  **immediately, in parallel with the v2.0.1 Wayland-session hotfix.**
+  No wait-state on v2.0.1 or HW-* bench tests.
+- **FU-2 — Light theme scope:** **Full parity.** Every UX-1..UX-23
+  task lands both dark and light variants. Snapshot CI (UX-23), state
+  gallery (UX-13), and marketing screenshots (UX-18) all carry dark
+  + light goldens. Reinforces Q5.
+- **FU-3 — UX-10 sign-off gate:** **No gate.** Claude drafts the
+  brand-identity spec and iterates; downstream Round 2 tasks proceed
+  in parallel; user reviews at PR time rather than as a synchronous
+  approval step.
+- **FU-4 — UX-18 screenshot data sanitization:** **Claude captures +
+  proposes, user reviews and scrubs before commit.** No demo mode
+  (Q47), no automated sanitizer script — Claude takes the screenshots
+  from real installation state, user inspects every frame and
+  approves before any commit lands in `docs/screenshots/v2.2-hero/`.
+
+Last updated: 2026-05-21 — Claude Opus 4.7 (50-question lock survey
++ 4-question follow-up)
+
+### UX-10 through UX-23: Round 2 — Brand identity, command palette, marketing-ready finish (v2.2 scope)
+
+> **Brief (Round 2 — iterated on Round 1's brief above).**
+>
+> Round 1 (UX-1..UX-9) laid the foundation: design tokens, type system,
+> palette, window chrome, sidebar, panel rhythm, control states, icons,
+> motion. That work makes MDE *consistent*. It does not yet make MDE
+> *credible at a glance to a prospect skimming a release page.*
+>
+> Round 2 takes the system from "consistent" to **marketing-grade
+> demo finish**. It does five things Round 1 did not:
+> 1. **Names the brand.** "Premium" is not a direction. Round 2 begins
+>    with a written visual-identity spec (UX-10) that any designer
+>    could pick up and execute against.
+> 2. **Names the benchmarks.** Round 2 explicitly targets the quality
+>    of Linear, Raycast, Arc, Cursor, Vercel dashboard, and Apple's
+>    macOS Sonoma System Settings. Side-by-side annotated screenshots
+>    live in `docs/design/benchmarks/` (UX-11).
+> 3. **Operationalizes "premium".** Round 2 replaces vibes with
+>    measurable gates (see quality bar below). If you cannot measure
+>    it, it is not in scope.
+> 4. **Ships the single highest-impact "feels premium" feature:**
+>    a command palette (UX-14). Every serious productivity tool from
+>    Linear to VS Code to Raycast has one. Round 2 ships MDE's.
+> 5. **Erects quality gates so polish doesn't rot.** Round 1 polish
+>    will drift without enforcement; Round 2 adds a grid lint (UX-12),
+>    a state-matrix gallery (UX-13), and a visual-regression CI gate
+>    (UX-23) so any future PR that degrades the system fails loudly.
+>
+> **Operational quality bar (Round 2 acceptance — measurable):**
+>
+> | Dimension | Target | How measured |
+> |---|---|---|
+> | Frame rate | 60 fps sustained on every animation | Iced frame stats in `mde-snapshot` capture |
+> | Body-text contrast | ≥ 7:1 (WCAG AAA) | Automated check in `mde-grid-lint` |
+> | Large-text contrast | ≥ 4.5:1 (WCAG AA Large) | Same |
+> | Off-grid spacing literals | 0 | `mde-grid-lint` AST scan (UX-12) |
+> | Workbench cold first-paint | ≤ 120 ms on Ryzen 5 / 16 GB / Fedora 44 | `mde --bench-startup` |
+> | Command-palette open latency | ≤ 50 ms | `mde-snapshot` instrumentation |
+> | Default-GTK widgets visible | 0 | Manual audit + screenshot review |
+> | Snapshot regression on `main` | 0 | CI screenshot-diff (UX-23) |
+>
+> **Reference benchmarks (named for the cold-start reader):** Linear
+> (sidebar density + active-item treatment), Raycast (command palette
+> + keyboard primacy), Arc (motion calmness + spatial coherence),
+> Cursor (onboarding hero polish), Vercel dashboard (row hierarchy +
+> empty states), Apple macOS Sonoma System Settings (groupings + form
+> layout discipline).
+>
+> **Proposed brand vision (locks in UX-10):** *Mackes Desktop
+> Environment renders enterprise mesh tooling with the surgical
+> clarity of a high-end terminal and the spatial calm of a modern
+> command room. Deep night surfaces. Restrained type pairing
+> (Red Hat Display headings, Red Hat Mono for paths/IDs, Inter for
+> body). A single electric-indigo accent. No decoration without
+> purpose; no shadow without altitude; no motion without meaning.*
+
+- [ ] **UX-PRE: Iced 0.13 → 0.14 workspace bump — v2.2 prerequisite (NFU-3 lock)** —
+  Bump every Iced-using crate in the workspace
+  (`crates/mde-workbench`, `crates/mde-panel`, `crates/mde-files`,
+  `crates/mde-wizard`, `crates/mde-logout-dialog`,
+  `crates/mde-applets/*`, and any new `crates/mde-theme`) from
+  Iced 0.13 → 0.14. Unblocks three otherwise-stuck items:
+  (a) **UX-9 modal backdrop blur** — 0.14 ships native
+  backdrop-filter support so Q44's 4 px gaussian blur becomes
+  a one-line style instead of a custom wgpu shader;
+  (b) **E.2 layer-shell** — `iced_layershell 0.18` requires Iced
+  0.14, and the Active section explicitly defers E.2 to "the v2.1
+  Iced upgrade window"; this is that window;
+  (c) **UX-14 command palette** — 0.14's improved focus-trap +
+  keyboard-event handling makes the Ctrl-K palette implementation
+  ~30% smaller. Required reading: Iced 0.14 release notes for
+  breaking changes (subscription API, widget builder pattern
+  tweaks). Acceptance: `cargo build --workspace` clean on 0.14;
+  `make test-nodeps` passes; existing Iced surfaces visually
+  unchanged (or regressed only in ways covered by an updated UX-23
+  snapshot baseline). Lands **before** UX-9 or UX-14 starts
+  substantive work; UX-1..UX-8 can proceed in parallel since their
+  scope is tokens / type / palette / icons that don't depend on
+  Iced widget APIs.
+  Depends: None (it IS the unblocker). Effort: Medium-High
+  (breaking-API migration, ~12 crates).
+  Outputs: workspace-wide `Cargo.toml` updates; migration notes
+  in `docs/design/v2.2-iced-014-migration.md`.
+
+- [ ] **UX-10: Brand identity spec doc — v2.2 scope** — Author
+  `docs/design/visual-identity.md`. Declarative brand spec: palette
+  philosophy (why deep navy, why one accent), type-pairing rationale,
+  surface metaphor (deep night room, lit only by the data), motion
+  principles (calm and decisive, never bouncy), iconographic stance
+  (1.5 px stroke, 24 × 24 keyline, no filled icons except status
+  dots), and what MDE explicitly **is not** (not playful, not
+  glassmorphic, not skeuomorphic, not maximalist). Lock the vision
+  with the user before downstream Round 2 tasks start.
+  Acceptance: doc reviewed and approved by user; every later Round 2
+  task cites it as authority.
+  Depends: None. Effort: Low (writing) / high-leverage.
+  Outputs: `docs/design/visual-identity.md`.
+
+- [ ] **UX-11: Reference benchmark vault — v2.2 scope** — Build
+  `docs/design/benchmarks/` with side-by-side annotated screenshots:
+  Linear sidebar, Raycast command palette, Arc settings, Cursor
+  onboarding, Vercel dashboard rows, Apple System Settings groupings.
+  For each, a one-paragraph "what to adopt" and "what to **not**
+  adopt" note. Becomes the active design jury — when a question
+  arises during a polish PR ("how should focus rings look?"), the
+  vault answers without re-litigating.
+  Acceptance: ≥ 12 annotated comparisons; every later Round 2 task
+  references the relevant benchmark folder.
+  Depends: UX-10. Effort: Medium.
+  Outputs: `docs/design/benchmarks/{linear,raycast,arc,cursor,vercel,apple-settings}/`.
+
+- [ ] **UX-12: 8 px baseline grid enforcement — v2.2 scope** —
+  Round 1's UX-1 defined a 4 px-base token scale; Round 2 enforces
+  that every layout uses only tokens, never raw pixel literals. Two
+  halves: (a) **lint** — `cargo run --example mde-grid-lint`
+  walks the Iced source AST and flags any `Length::Fixed(n)`,
+  `padding(n)`, or `spacing(n)` where `n` is not in the token set;
+  CI step in `.github/workflows/ci.yml` fails the build on
+  violations. (b) **debug overlay** — `MDE_DEBUG_GRID=1` env
+  toggles a translucent 8 px grid + 4 px sub-grid overlay on every
+  Workbench surface for visual verification.
+  Acceptance: lint clean on `main`; overlay screenshots committed
+  under `docs/design/benchmarks/grid/`.
+  Depends: UX-1 (Round 1). Effort: Medium.
+  Outputs: `crates/mde-theme/examples/mde-grid-lint.rs`;
+  `crates/mde-theme/src/debug_grid.rs`; CI workflow step.
+
+- [ ] **UX-13: Exhaustive state-matrix gallery — v2.2 scope** — For
+  every interactive component shipped by `mde-theme` (button, input,
+  toggle, dropdown, tab, nav-item, list-row, card, badge, tooltip,
+  scrollbar) document and implement the full state matrix: **rest,
+  hover, active, focus, focus-visible (keyboard-only), disabled,
+  loading, error, success, empty**. Each state has a live render in
+  a new gallery example built with `cargo run --example gallery -p
+  mde-theme`. Gallery doubles as a visual regression source for
+  UX-23.
+  Acceptance: gallery shows every component × every applicable
+  state; manual review confirms no "dead" state (no missing hover,
+  no missing focus-visible, no missing disabled).
+  Depends: UX-7 (Round 1). Effort: High.
+  Outputs: `crates/mde-theme/examples/gallery.rs`;
+  `docs/design/state-matrix.md`.
+
+- [ ] **UX-14: Command palette (Ctrl-K) — v2.2 scope** — Add a
+  Raycast/Linear-style command palette to Workbench. Trigger Ctrl-K
+  (no Cmd on Linux). Surface: centered modal, 640 px wide,
+  480 px max-height, surface-2 background, `SHADOW_3` elevation,
+  backdrop at 50% black, focus-trapped, Esc to dismiss. Index at
+  Workbench startup: (a) every Workbench panel route ("go to
+  Fleet > Inventory"); (b) every mded setting ("set display
+  gamma"); (c) every mesh peer ("ssh into laptop-2"); (d) every
+  recent / pinned playbook; (e) every quick-action (toggle theme,
+  lock screen, sign out). Fuzzy matcher: `nucleo-matcher` crate
+  (the Helix editor's matcher). First result auto-selected;
+  Enter activates; ↑/↓ navigates; Tab cycles result categories.
+  Acceptance: opens in ≤ 50 ms; keystroke-to-paint latency ≤
+  16 ms; 100% keyboard-navigable (no mouse required).
+  Depends: UX-13. Effort: High.
+  Outputs: `crates/mde-workbench/src/command_palette/`;
+  keybinding registration in `mde-session`.
+
+- [ ] **UX-15: Density modes — v2.2 scope** — Add a `Density` enum
+  to `mde-theme` (Compact / Comfortable [default] / Spacious).
+  Every spacing token resolves through active density: Compact =
+  0.75×, Comfortable = 1.0×, Spacious = 1.25× of the base 4 px
+  grid. User-toggleable at Settings > Appearance. Persists to
+  `~/.config/mde/preferences.toml`. Switching is live (no restart).
+  Power users get information density to match Linear / Things;
+  new users keep the airy Comfortable default.
+  Acceptance: switching density live re-flows every panel without
+  overlap or clipping; all three modes pass UX-12 grid lint.
+  Depends: UX-1, UX-12. Effort: Medium.
+  Outputs: `crates/mde-theme/src/density.rs`; Settings >
+  Appearance toggle.
+
+- [ ] **UX-16: Onboarding / wizard hero polish — v2.2 scope** —
+  The Iced wizard (`crates/mde-wizard/`) owns the first impression.
+  Dedicated polish pass: (a) full-bleed background gradient per
+  step using the accent token; (b) per-step line-art illustration
+  (320 px square, brand 1.5 px stroke) on the left half;
+  (c) refined progress indicator (connected segments, active
+  segment animated, not just dots); (d) micro-animation on
+  next/back transitions (220 ms ease-out slide + fade);
+  (e) microcopy refinement against UX-21's voice guide — every
+  step's title / body / button label reviewed.
+  Acceptance: wizard demo records cleanly to a 30 s GIF for the
+  README; zero placeholder copy; no jarring transitions.
+  Depends: UX-10. Effort: High.
+  Outputs: `crates/mde-wizard/src/`;
+  `data/illustrations/wizard/*.svg`.
+
+- [ ] **UX-17: App icon + brand mark refinement — v2.2 scope** —
+  **Locked source (Q50):** start from the existing MAP2-audio mark
+  at `https://github.com/matthewmackes/map2-audio/blob/master/branding/assets/map-icon.svg`
+  and clean it up for MDE. The current xfce11-unified icon is retired.
+  Round 2 ships: (a) primary app icon — refined vector master at
+  1024 px derived from the MAP2 mark (palette aligned to MDE indigo
+  `#5b6af5` + charcoal `#1d1d1f` per Q2/Q3), rendered to
+  16 / 24 / 32 / 48 / 64 / 128 / 256 / 512 px PNG + SVG; (b) brand
+  logotype combining the mark with the "Mackes Desktop Environment"
+  wordmark in **Geologica** (Q11/Q12); (c) README banner image
+  (1280 × 320 — single static PNG per Q49, with dark + light
+  variants since v2.2 ships both themes per Q5); (d) installer /
+  wizard splash. Coordinate with user on each refinement step
+  before final render-out.
+  Acceptance: icon meets freedesktop Icon Naming Spec; renders
+  cleanly at every required size; visual lineage to MAP2-audio mark
+  is preserved (the family connection is intentional, not erased);
+  README banner committed in both dark + light.
+  Depends: UX-10. Effort: Medium (requires user collaboration on
+  refinement direction).
+  Outputs: `data/icons/hicolor/{16x16,24x24,...}/apps/mde.png`;
+  `data/branding/` (logotype, README banner dark + light, splash).
+
+- [ ] **UX-18: Marketing screenshot set — v2.2 scope** — Produce
+  a ship-ready hero screenshot set driven by demo mode (UX-19):
+  (a) Workbench overview with the Fleet panel populated; (b)
+  command palette open mid-search; (c) Settings > Displays panel;
+  (d) Mesh topology drawing with a realistic peer graph;
+  (e) dark **and** light variants of each. Shot at 2560 × 1440 px
+  with a subtle accent-gradient frame (not raw window). Output
+  committed to `docs/screenshots/v2.2-hero/`; `README.md` updated
+  to embed the lead image.
+  **Q47 locks:** sourced from the user's actual MDE installation
+  with manually sanitized peer names / data — there is no demo mode
+  (UX-19 was cut). Backdrop: subtle indigo-blur gradient frame
+  (Q48). README hero asset: single static PNG, 1280 × 720 (Q49).
+  Dark **and** light variants per Q5.
+  Acceptance: screenshots usable verbatim on a release page; passes
+  a "would this convince a prospect" review.
+  Depends: UX-1 through UX-9, UX-14. Effort: Medium.
+  Outputs: `docs/screenshots/v2.2-hero/*.png`; updated `README.md`.
+
+- ~~**UX-19: Demo mode (`mde --demo`)**~~ — **REMOVED per Q47
+  (2026-05-21).** Demo mode is not in scope for v2.2. UX-18
+  marketing screenshots will be sourced from the user's actual MDE
+  installation with manually sanitized peer names / data. The UX-18
+  dependency on UX-19 has been dropped.
+
+- [ ] **UX-20: Custom scrollbars + edge treatments — v2.2 scope** —
+  Replace default GTK + Iced scrollbars: 4 px wide at rest, 8 px on
+  hover, surface-3 track, accent thumb at 60% opacity, auto-hide
+  after 800 ms idle with a smooth 200 ms fade. Add 16 px
+  top/bottom edge gradients on scrollable regions so users see
+  "more below / more above" cues without harsh cutoffs. A single
+  visible "default scrollbar" tells a prospect this is a hobby
+  project — Round 2 closes that tell.
+  Acceptance: no panel still uses default scrollbar styling;
+  gradients render without overlapping content; gallery (UX-13)
+  shows the scrollbar in all states.
+  Depends: UX-1, UX-13. Effort: Medium.
+  Outputs: `crates/mde-theme/src/components/scrollbar.rs`;
+  matching GTK CSS for any remaining GTK surfaces.
+
+- [ ] **UX-21: Microcopy + voice pass — v2.2 scope** — Author
+  `docs/design/voice-and-tone.md`: verb-usage rules (Add vs
+  Create vs New — pick one), sentence-case titles (not Title
+  Case), error-message style (what happened + what to do —
+  never both vague), empty-state copy (specific, friendly, one
+  clear CTA), button labels (verb-first, ≤ 3 words). Then sweep
+  every user-visible string in the Iced workspace through the
+  rules. Strings are part of the UI; this is not a copy-editing
+  pass, it is a product-credibility pass.
+  Acceptance: every visible string reviewed and either kept or
+  rewritten; voice doc cited from `CONTRIBUTING.md`; grep across
+  the workspace finds zero "TODO" / "Lorem ipsum" / "test" /
+  "foo" strings reachable from the UI.
+  Depends: UX-10. Effort: Medium.
+  Outputs: `docs/design/voice-and-tone.md`; updated string
+  literals across all crates.
+
+- [ ] **UX-22: Accessibility variants — reduced motion, high
+  contrast, colorblind-safe — v2.2 scope** — Premium means
+  accessible. (a) Honor `prefers-reduced-motion` (read via the
+  Wayland/X11 session bus, fall back to a preferences toggle):
+  when reduced, every UX-9 transition collapses to instant or
+  ≤ 80 ms cross-fade. (b) Ship a high-contrast theme variant:
+  every token gains a `high_contrast()` form where text/
+  background contrast ≥ 12:1 and borders become 2 px instead of
+  1 px. (c) Ship a colorblind-safe accent variant: drop electric
+  indigo for a ColorBrewer-derived safe trio. All three
+  accessible from Settings > Accessibility.
+  Acceptance: each variant passes its respective audit (motion-
+  disabled walkthrough, AAA contrast spot-check via the UX-12
+  contrast checker, deuteranopia simulator screenshot).
+  Depends: UX-3, UX-9. Effort: Medium.
+  Outputs: `crates/mde-theme/src/accessibility.rs`; Settings >
+  Accessibility panel in workbench.
+
+- [ ] **UX-23: Visual-regression CI gate — v2.2 scope** — Without
+  enforcement, Round 1 + Round 2 polish will drift back to chaos
+  inside two releases. Round 2 ships the gate. Tooling:
+  `mde-snapshot` cargo example launches each panel headless under
+  the Wayland-in-Docker runner already specified by HW-3, captures
+  PNG, compares to a golden in `tests/snapshots/`. Pixel-diff
+  tolerance 0.5%. PRs touching files under
+  `crates/mde-{theme,workbench,panel,files,wizard,logout-dialog}/src/`
+  MUST either pass the unchanged-snapshot run or update the golden
+  with a `design-review` PR label + reviewer sign-off.
+  Acceptance: CI workflow green on `main`; a deliberate visual
+  regression in a feature branch fails CI; updating the golden +
+  applying `design-review` label re-greens.
+  Depends: UX-1 through UX-9, UX-13, HW-3. Effort: High.
+  Outputs: `crates/mde-theme/examples/mde-snapshot.rs`;
+  `.github/workflows/ui-snapshot.yml`; `tests/snapshots/`.
+
+**Definition of Done for UX-10..UX-23 (group):** all subtasks
+`[✓] Done` per §0.8; the operational quality-bar table above
+measured and met (60 fps animations, ≥ 7:1 body contrast, 0
+off-grid spacing literals, ≤ 120 ms first-paint, ≤ 50 ms
+command-palette open, 0 default-GTK widgets visible); brand
+identity spec (UX-10) reviewed and approved by user; benchmark
+vault (UX-11) seeded; marketing screenshot set (UX-18)
+committed and embedded in README; visual-regression CI gate
+(UX-23) green on `main`; CHANGELOG entry under v2.2.
+
+**Key improvements vs Round 1 (for the cold-start reader):**
+
+1. **Brand is now written, not vibes.** UX-10 commits the visual
+   identity to a doc that downstream tasks must cite.
+2. **"Premium" is operationalized.** Replaces Round 1's "looks
+   credible" with a measurable acceptance table (fps, contrast,
+   grid, latency).
+3. **Benchmarks are named and stored.** UX-11 turns "elite team"
+   into Linear / Raycast / Arc / Cursor / Vercel / Apple System
+   Settings, with annotated reference shots.
+4. **State matrix is exhaustive and gallery-validated.** UX-13
+   moves beyond Round 1's "consistent states" to a buildable
+   gallery covering 11 components × 10 states.
+5. **Ships the single highest-impact "feels premium" feature.**
+   Command palette (UX-14) — every serious productivity tool has
+   one; Round 1 omitted it.
+6. **Demo mode (UX-19) makes screenshots and live demos
+   reproducible.** Marketing assets stop being a one-off
+   handcraft.
+7. **Density modes (UX-15) give power users a real lever**,
+   matching Linear / Notion / Things.
+8. **Accessibility is a feature deliverable (UX-22), not an
+   afterthought.** Reduced motion, high contrast, and
+   colorblind-safe ship as user-selectable variants.
+9. **Visual-regression CI gate (UX-23) prevents polish from
+   rotting.** Round 1 alone would drift in two releases without
+   this.
+10. **Wizard is its own workstream (UX-16),** since the first
+    boot owns the first impression and deserves dedicated
+    attention rather than inheriting generic panel polish.
+
+Last updated: 2026-05-21 - Claude Opus 4.7 (Round 2 — iterated
+on Round 1's UX-1..UX-9 with measurable acceptance, named
+benchmarks, command palette, demo mode, and CI-enforced
+regression prevention)
 
 ---
 
