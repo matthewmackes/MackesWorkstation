@@ -34,6 +34,7 @@ members  = [
     "crates/mde-applets/status-cluster",
     "crates/mde-applets/volume-osd",
     "crates/mde-config",
+    "crates/mde-drawer",
     "crates/mde-files",
     "crates/mde-kdc",
     "crates/mde-logout-dialog",

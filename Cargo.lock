@@ -3156,6 +3156,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mde-drawer"
+version = "0.0.0"
+dependencies = [
+ "dirs",
+ "iced",
+ "mde-panel",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "mde-files"
 version = "0.0.0"
 dependencies = [

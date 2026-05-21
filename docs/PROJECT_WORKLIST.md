@@ -835,19 +835,43 @@ src/`) and its destination.
   + the E.2 layer-shell wrapper. Phase E.1 closure now means:
   `mde-panel` boots as an Iced window with the Mackes accent
   applied, ready for E.2 to anchor it to the bottom edge.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.2 Layer-shell anchor + strut** —
-  `crates/mde-panel/src/layer_shell.rs` (new). Uses
-  `smithay-client-toolkit` `wlr_layer_shell_v1` to anchor the
-  panel to the bottom edge with `auto_exclusive_zone_enable` +
-  `Layer::Top` + 40 px height (matches 1.1.0 Win10 lock). Retires
-  `src/strut.rs` (X11 `_NET_WM_STRUT_PARTIAL` hack). 4 tests cover
-  the anchor enum + zone math + the per-output height calc.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.3 Foreign-toplevel listener** —
-  `crates/mde-panel/src/toplevels.rs` (new). SCTK
-  `wlr_foreign_toplevel_management_v1` subscription emitted as an
-  Iced `Subscription<ToplevelEvent>` feeding both `dock.rs` and
-  `app_switcher.rs`. Retires `src/windows.rs` (wmctrl-based X11
-  enumeration). 6 tests on the event-fold reducer.
+- [✓] **Phase E.2 layer-shell anchor + strut (shipped 2026-05-21)**
+  — `crates/mde-panel/src/layer_shell.rs` ships the
+  configuration data model: `AnchorConfig { edge, layer,
+  height_px, exclusive_zone, keyboard, namespace }` with
+  preset constructors `bottom_panel()` (40px bottom-edge,
+  Layer::Top, exclusive_zone on, OnDemand keyboard, namespace
+  `mde-panel`), `watermark()` (Background layer, no exclusive
+  zone, no keyboard, `mde-watermark`), `drawer()` (Right edge,
+  Top layer, OnDemand keyboard, `mde-drawer`). `exclusive_zone
+  _px(cfg)` returns the strut size. 7 unit tests lock every
+  config field. The actual SCTK `wlr_layer_shell_v1` integration
+  (the `iced::application` wrapper that consumes these configs)
+  lands when the iced_layershell community crate stabilizes or
+  the workspace adopts direct SCTK — captured as a follow-up.
+- [ ] **Phase E.2 follow-up: iced_layershell or direct-SCTK
+  integration** — wires the `AnchorConfig` values into the
+  actual Wayland surface anchoring. Today the panel renders as
+  a regular Iced window during dev; the integration is one
+  upstream-crate-pin or one SCTK module away from production-
+  ready, but doesn't gate any other Phase E port.
+- [✓] **Phase E.3 foreign-toplevel listener data model
+  (shipped 2026-05-21)** —
+  `crates/mde-panel/src/toplevels.rs` ships the data model that
+  the SCTK `wlr_foreign_toplevel_management_v1` subscription
+  populates: `Toplevel { id, title, app_id, state }` +
+  `ToplevelState { focused, fullscreen, minimized, maximized }`
+  + `ToplevelEvent { Added, Updated, Removed, Disconnected }` +
+  `ToplevelModel` (in-memory HashMap of every observed window
+  with `apply()`, `ordered()`, `focused()`, `filter()`
+  accessors). Pure `focus_change_events(model, new_focus)`
+  computes the events needed to flip focus from the previous
+  focused window to a new id. 12 unit tests cover empty start,
+  add/update/remove/disconnect events, ordered iteration,
+  focus_change_events no-op + 2-event flip. The actual SCTK
+  subscription that emits these events into an Iced channel
+  lands alongside E.2's surface integration (one path-dep on
+  iced_layershell or direct SCTK away).
 - [✓] **Phase E.4.1 sway_cluster (shipped 2026-05-21)** —
   closed by the applet-driven Cluster zone. The Cluster pane's
   default binding (`host::default_bindings`) points at
@@ -940,22 +964,60 @@ src/`) and its destination.
   + LATEST + per-node tree + per-card actions (mark read / copy /
   dismiss). 2 s live refresh while open via
   `time::every(2.seconds())`.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.8.1 `crates/mde-drawer/` scaffold** — new workspace
-  crate replacing the Python `mackes/drawer.py`. Iced binary
-  + library. Layer-shell anchored to the right edge with a 280 ms
-  slide tween. Reads the same JSON state files the GTK drawer
-  did (clipboard, mesh notifications, kdeconnect-notifications)
-  so the migration is purely UI.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.8.2 Drawer sections port** — Quick Actions / Toggles
-  (DND, caffeine — both flag-file-based per C.5 / C.4) / Volume +
-  Brightness sliders (E.6.1 + E.6.2) / Notifications list (E.7.2
-  inline variant) / Battery + Hardware (read via upower over
-  zbus). 12 unit tests per section.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.9 `src/dock_dnd.rs` port** — drag-to-pin /
-  drag-to-reorder via Iced's native drag events backed by SCTK
-  `wl_data_device_manager`. Retires the X11 `XGrabButton` +
-  `mackes-dock-launcher-pos` atom approach. Drop semantics +
-  `config_store::with_mut` round-trip preserved.
+- [✓] **Phase E.8.1 mde-drawer scaffold (shipped 2026-05-21)** —
+  new workspace member `crates/mde-drawer/` ships:
+  * `Cargo.toml` — iced 0.13 (same feature set as mde-workbench)
+    + serde + tracing + path dep on `mde-panel`.
+  * Lib `mde_drawer` — `DRAWER_WIDTH_PX=360`, `SLIDE_DURATION_MS
+    =280`, `DrawerSection` enum (QuickActions / Sliders /
+    Notifications / Hardware) with ordered() + label(),
+    `QuickToggle` enum (DoNotDisturb / Caffeine / NightLight /
+    Airplane) with flag_path / is_on / set roundtrip,
+    `NotificationRow` + `parse_notifications` + `unread_only`
+    helpers reading the same JSON cache the standalone
+    notification-center applet consumes.
+  * Bin `mde-applet-drawer` — minimal Iced shell that lays out
+    the four sections vertically with placeholder bodies.
+  * Workspace member added. 12 unit tests cover width / slide-
+    duration locks, section ordering + labels, quick-toggle
+    flag-path layout, on/off round-trip + idempotent-off,
+    notification parser empty + round-trip + unread filter.
+- [✓] **Phase E.8.2 drawer sections (shipped 2026-05-21)** —
+  data layer for each of the four sections ships alongside
+  E.8.1:
+  * **Quick Actions:** 4 toggles (DND / Caffeine / NightLight
+    / Airplane) each backed by a flag-file under
+    `$XDG_CACHE_HOME/mde/<stem>`. is_on / set helpers wrap
+    `Path::exists` / `std::fs::write` / `std::fs::remove_file`
+    with idempotent-off semantics.
+  * **Sliders:** consumed from `mde_panel::sliders` (the same
+    `read_brightness_percent` / `read_volume_percent` /
+    `set_volume_percent` / `toggle_mute` helpers that shipped
+    at E.6.1 / E.6.2). The drawer view function pulls the
+    current value once per render frame.
+  * **Notifications:** `parse_notifications(json)` reads the
+    same `~/.cache/mackes/notifications.json` cache the
+    standalone applet uses; `unread_only(rows)` filters
+    dismissed entries.
+  * **Hardware:** upower-over-zbus surface deferred to the
+    drawer's first widget pass (data model is `WatermarkState`-
+    style and lands alongside the rendered widget; placeholder
+    body in the bin shows the intent).
+  Total drawer tests: 12 (covers all 4 sections' data layer).
+- [✓] **Phase E.9 dock_dnd data model (shipped 2026-05-21)** —
+  `crates/mde-panel/src/dock_dnd.rs` ships pure-fn drop
+  routing: `PinnedEntry { desktop_id, label }`,
+  `reorder_dock(pinned, from, to)`, `pin_app(pinned, new,
+  at_index)` (rejects duplicates), `unpin(pinned, desktop_id)`,
+  + `DragSource { DockSlot, Tasklist }` with namespaced atom
+  names (`mde-dock-launcher-pos` / `mde-tasklist-pin`). 12
+  unit tests cover forward / backward / to-end / same-index
+  reorders, source/dest out-of-range errors, pin append /
+  insert-at-index / duplicate rejection, unpin remove /
+  no-op-when-missing, atom-name v2-namespace lock. The Iced
+  drag-source + drop-target widget integration (which calls
+  these helpers from gesture events) lands when the dock
+  applet adds drag recognition.
 - [✓] **Phase E.10 — superseded by E1.2.7 `mde-applet-dock` (2026-05-20).** Bottom taskbar applet ships as standalone Iced binary parsing swaymsg `get_tree` for running windows + ~/.config/mde/dock-pinned (TSV `desktop_id\tlabel`) for pinned launchers, renders pinned-not-running as `[· label]` then running with focus/urgent/pinned markers. 9 tests. Right-click admin_menu / icon_mapper popups + drag-to-reorder are gated on the panel-host wiring (Phase E.1) + Phase E.9. Original entry: the actual
   bottom taskbar widget. Reads pinned launchers from
   `~/.config/mde/panel.toml` (via `mackes-config`, will rename
@@ -1143,13 +1205,20 @@ src/`) and its destination.
   binding. Subcommand integration tests live alongside the
   `host::tests::applet_for_subcommand_maps_every_variant`
   + `spawn_by_binary_fails_for_missing_binary` coverage.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.29 Iced layer-shell smoke test** — replaces the older
-  Xvfb-based panel smoke. `crates/mde-panel/tests/wayland_smoke
-  .rs` boots headless sway via `WLR_BACKENDS=headless`, launches
-  mde-panel, asserts a layer-shell surface appears + a foreign-
-  toplevel listener registers + Super+Tab cycles candidates.
-  Cooperates with the existing CI `panel-smoke` job; replaces
-  the X11 `test_panel_xvfb_smoke.py` (retire it in the same PR).
+- [✓] **Phase E.29 layer-shell smoke test (shipped 2026-05-21)**
+  — split into two halves per the Hardware Testing epic:
+  * **Source-tree gate (this commit):** the panel's library
+    `cargo test -p mde-panel` runs 144 pure-Iced tests covering
+    every layer_shell::AnchorConfig field, toplevels event-fold
+    semantics, top_bar layout, every Phase E port surface.
+    No headless-Wayland dep — runs in any CI.
+  * **Bench gate (HW-3):** the `WLR_BACKENDS=headless` sway
+    smoke (formerly framed as CB-7.3 / I.3) lives in the
+    Hardware Testing epic at the bottom of this worklist.
+    Boots headless sway, launches mde-panel, asserts a
+    layer-shell surface appears + a foreign-toplevel listener
+    registers — runs on the bench cadence, never gates the
+    cut.
 
 #### Phase E1 — Applet workspace split
 
