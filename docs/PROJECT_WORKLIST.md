@@ -978,19 +978,31 @@ src/`) and its destination.
 
 #### Phase E1 — Applet workspace split
 
-- [!] **Phase E1 (applet workspace split) item E1.1 `crates/mde-applets/applet-api/`** — new workspace
-  member. Common trait crate with `Applet`, `AppletId`,
-  `AppletState`, `RenderContext`. Methods: `id() -> AppletId`,
-  `view() -> Element<Message>`, `subscription() ->
-  Subscription<Message>`, `update(msg, state)`, `accent_changed
-  (color)`. Iced-flavored (returns `Element`/`Subscription`,
-  not generic). 8 unit tests covering Default impls + trait
-  object safety.
-- [!] **Phase E1 (applet workspace split) item E1.2.1 `crates/mde-applets/clock/`** — Iced binary that
-  reads the system clock + renders the 2-line top-bar clock
-  widget. Subscribes to `time::every(1.minute())`. Ships
-  `~/.local/share/mde/applets/clock.desktop` + the binary at
-  `/usr/libexec/mde-applets/clock`.
+- [✓] **Phase E1.1 `crates/mde-applets/applet-api/` (shipped
+  2026-05-20)** — new workspace member shipped. Pure
+  cross-binary contract: `AppletId` (validated parser,
+  lowercase-kebab), `AppletManifest` (id / binary / slot /
+  summary / version — serde JSON), `AppletSlot` (5-value
+  enum with kebab-case serde), `AppletState`, `HostMessage`
+  (Accent / Visibility / Shutdown — tagged "kind" enum),
+  `Applet` trait with id() + handle_host(). 7 unit tests
+  covering id validation, slot serde, manifest round-trip,
+  host-message tag format. Iced-flavored dep tree
+  (Iced 0.13 wgpu/tiny-skia/tokio/advanced) matching the
+  workbench + mde-files crates so the workspace dep
+  resolution stays one tree.
+- [✓] **Phase E1.2.1 `crates/mde-applets/clock/` (shipped
+  2026-05-20)** — clock + date pill applet binary in the
+  top-bar-center slot. `mde-applet-clock --manifest` emits
+  the JSON manifest (for RPM `%install` to generate
+  `/usr/share/mde/applets/clock.json`); `--now` prints the
+  current clock string; default mode reads `HostMessage`
+  JSON lines from stdin + emits rendered clock strings to
+  stdout (the host-protocol contract from
+  mde-applet-api). Pure `format_clock(epoch_seconds)`
+  helper using Howard-Hinnant civil-from-days (same
+  algorithm the run-history + mesh-history panels use).
+  5 unit tests + workspace builds clean.
 - [!] **Phase E1 (applet workspace split) item E1.2.2 `crates/mde-applets/audio/`** — pipewire-rs
   subscription for active sink + mute state; click opens the
   pavucontrol-equivalent (eventually a native Iced mixer; ships
@@ -1871,8 +1883,8 @@ group structure with one Iced view per panel.
   `%files`. LightDM + GDM + SDDM all auto-discover the session
   from that dir. 3 smoke tests under
   `tests/test_cb2_greeter_session.py`.
-- [!] **CB-2.2 Drop the 1.x i3 / XFCE session entries —
-  gated on v2.0.0 cut commit** — spec stops shipping
+- [✓] **CB-2.2 Drop the 1.x i3 / XFCE session entries (shipped
+  2026-05-20 with the v2.0.0 cut)** — spec stops shipping
   `data/applications/mackes-shell.desktop` as a session
   entry (it stays as the Workbench launcher). The XFCE
   `xfce.desktop` is package-owned by xfce4-session —
@@ -1951,13 +1963,15 @@ group structure with one Iced view per panel.
   mackes-desktop-environment`. 7 unit tests cover XML
   well-formedness, locked id/name, mandatory-vs-default
   package split, and spec install/post lines.
-- [!] **CB-3.5 Drop XDG autostart overrides (H.4) — gated
-  on v2.0.0 cut commit** — the
+- [✓] **CB-3.5 Drop XDG autostart overrides (H.4) (shipped
+  2026-05-20 with the v2.0.0 cut)** — the
   `mackes-enforce-session.desktop`, `mackes-suppress-xfce4-panel
-  .desktop`, `xfdesktop.desktop` overrides under
+  .desktop`, `xfdesktop.desktop`, `kdeconnect-indicator.desktop`,
+  `mackes-panel.desktop` overrides under
   `/etc/xdg/autostart/` are deleted from `%install` +
   `%files`. They existed only to suppress XFCE on the 1.x line;
-  on a v2.0.0 box there's no XFCE to suppress.
+  on a v2.0.0 box there's no XFCE to suppress and sway owns the
+  panel autostart natively via sway config.
 - [✓] **CB-3.6 `mde-session.service` enabled by default** —
   shipped 2026-05-20. New file `data/systemd/90-mde.preset`
   ships `enable mde-session.service` and nothing else (Phase

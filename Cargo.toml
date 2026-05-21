@@ -17,6 +17,8 @@ members  = [
     "crates/mackes-panel",
     "crates/mackes-theme",
     "crates/mackesd",
+    "crates/mde-applets/applet-api",
+    "crates/mde-applets/clock",
     "crates/mde-config",
     "crates/mde-files",
     "crates/mde-kdc",
