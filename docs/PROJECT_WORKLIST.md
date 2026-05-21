@@ -22,6 +22,26 @@ locked work appears under **Active** with `[ ] Open`.
 
 ## Active
 
+### v2.0.0 monolithic cut (shipped 2026-05-20)
+
+- [✓] **v2.0.0 cut commit landed (tag `v2.0.0` → fa28cca,
+  RPM mde-2.0.0-1.fc44.x86_64.rpm built)** — the
+  coordinated CB-2.2 + CB-3.1/3.2/3.3/3.5 + H.1/H.2/H.4 +
+  Phase 0.8 cut landed in two commits on `main`:
+    * `4a27272` (XOrg-1.1–5.2 + spec rewrite + Wayland deps
+      + Conflicts block + autostart cleanup + x11 Cargo
+      feature for the optional X11/i3 path).
+    * `fa28cca` (version bumps to 2.0.0 in mackes/__init__.py
+      + pyproject.toml + setup.py, CHANGELOG entry,
+      test_v2_rebrand_identifiers tests updated for the
+      v2.0.0 spec content, 2.0.0 changelog).
+  Tag `v2.0.0` points at `fa28cca`. The pre-cut PatternFly
+  v6 design-system milestone that previously held the
+  v2.0.0 tag is preserved under
+  `v2.0.0-patternfly-milestone`. mde-x release-RPM
+  workflow firing on the tag push (run 26198757489 — in
+  progress at the time this entry landed).
+
 ### Notification Center (new — Rust Desktop handoff bundle, 2026-05-19)
 
 - [✓] **Notification Center modal + bell tray icon** — Rust port
