@@ -21,10 +21,12 @@ sdist:
 	else \
 		python3 setup.py sdist; \
 	fi
-	@# PEP 503 normalizes the name to `mackes_shell` in the sdist filename;
-	@# the .spec's Source0 expects the hyphenated form. Provide both.
-	@if [ -f dist/mackes_shell-$(VERSION).tar.gz ] && [ ! -f $(SDIST) ]; then \
-		cp dist/mackes_shell-$(VERSION).tar.gz $(SDIST); \
+	@# PEP 625 normalizes the name to `mackes_shell` in the sdist filename;
+	@# the .spec's Source0 expects the hyphenated form. Provide both —
+	@# always overwrite the hyphen alias so a stale prior-session copy
+	@# doesn't shadow a freshly-built underscore tarball.
+	@if [ -f dist/mackes_shell-$(VERSION).tar.gz ]; then \
+		cp -f dist/mackes_shell-$(VERSION).tar.gz $(SDIST); \
 	fi
 	@ls -la dist/
 
