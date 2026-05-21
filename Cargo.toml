@@ -32,6 +32,7 @@ members  = [
     "crates/mde-applets/recents",
     "crates/mde-applets/start-menu",
     "crates/mde-applets/status-cluster",
+    "crates/mde-applets/sway-cluster",
     "crates/mde-applets/volume-osd",
     "crates/mde-config",
     "crates/mde-drawer",

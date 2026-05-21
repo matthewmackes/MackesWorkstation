@@ -70,10 +70,10 @@ pub fn default_bindings() -> HashMap<Pane, AppletBinding> {
         Pane::Cluster,
         AppletBinding {
             pane: Pane::Cluster,
-            // Phase E.4.1 ships the sway cluster as an applet on its
-            // own; the placeholder name stays in this table so the
-            // panel knows which slot to fill.
-            binary: "mde-applet-status-cluster".into(),
+            // Phase E.4.1 follow-up — sway-cluster applet ships at
+            // `crates/mde-applets/sway-cluster/`; it produces the
+            // SPLIT/LAYOUT/WINDOW chip row.
+            binary: "mde-applet-sway-cluster".into(),
         },
     );
     m.insert(

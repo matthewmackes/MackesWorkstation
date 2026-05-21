@@ -42,6 +42,7 @@ pub mod toasts;
 pub mod top_bar;
 pub mod toplevels;
 pub mod watermark;
+pub mod weather;
 
 // ──────────────────────────────────────────────────────────────
 // Public layout zones (Phase E lock)

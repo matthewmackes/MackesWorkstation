@@ -22,6 +22,16 @@ locked work appears under **Active** with `[ ] Open`.
 
 ## Active
 
+> **Active section status (2026-05-21):** zero `[!] Blocked` items.
+> All in-tree v2.0.0 deliverables are `[✓] Done`. Remaining
+> `[ ] Open` items in this section are v2.0.0 polish follow-ups
+> (E.2 layer-shell integration, E.17 weather popover, E.4.1
+> sway-cluster applet, 6.4 snapshot tests) — none block release;
+> they are iteration-grade enhancements. Items explicitly
+> scheduled for the next release window live below in
+> **Future deliverables (post 2.0.0)**. Bench-cadence work lives
+> in **Epic: Hardware Testing** at the bottom of the file.
+
 ### v2.0.0 monolithic cut (shipped 2026-05-20)
 
 - [✓] **v2.0.0 cut commit landed (tag `v2.0.0` → fa28cca,
@@ -880,13 +890,27 @@ src/`) and its destination.
   LAYOUT / WINDOW sway-IPC chips remain pending as a follow-up
   (a dedicated cluster applet that subscribes to swayipc-async
   EventStream(Window, Workspace)) — captured below.
-- [ ] **Phase E.4.1 follow-up: sway-IPC cluster applet** — new
-  applet `crates/mde-applets/sway-cluster/` that subscribes to
-  swayipc-async EventStream(Window, Workspace) and renders the
-  SPLIT/LAYOUT/WINDOW chips. Replaces the
-  status-cluster placeholder in the Cluster pane binding once
-  it ships. 1.1.0 layout lock preserved: no workspace switcher
-  in the chip row.
+- [✓] **Phase E.4.1 follow-up: sway-cluster applet (shipped
+  2026-05-21)** — new workspace member
+  `crates/mde-applets/sway-cluster/` ships
+  `mde-applet-sway-cluster` as a polling chip applet. Pure
+  `parse_get_tree_focus(json)` walks the sway `get_tree` output
+  to the focused leaf, traces its `workspace`/`con` ancestry,
+  and emits a `ClusterRow { split, layout, window }`. Glyph
+  helpers `split_glyph(layout)` map sway's `splith`/`splitv`/
+  `tabbed`/`stacked` to single-character chips (H/V/T/S);
+  `layout_glyph(layout)` collapses workspace layouts to
+  `def`/`tab`/`stk`. The binary spawns `swaymsg -t get_tree`,
+  feeds the JSON to the parser, prints the chip row, exits 0.
+  `--manifest` mode emits the applet-api JSON manifest. The
+  panel host's `default_bindings()` flipped the `Pane::Cluster`
+  binding from the status-cluster placeholder to
+  `mde-applet-sway-cluster`. 10 unit tests cover empty-row
+  rendering, glyph mapping (known + unknown + empty), garbage
+  JSON fallthrough, no-focused-window case, full focused-leaf
+  walk, tabbed-workspace path. 1.1.0 layout lock preserved.
+  Eventual subscription-based variant (instead of 2s polling)
+  lands when swayipc-async is wired into the panel host.
 - [✓] **Phase E.4.2 hero (shipped 2026-05-21)** —
   `crates/mde-panel/src/hero.rs` ships `Hero` with
   `current`/`incoming` slide state, `set_focused(title, app_id)`,
@@ -1094,11 +1118,21 @@ src/`) and its destination.
   with content. `format_clock(epoch)` is pure for tests; the
   weather-popover surface ships as a follow-up worklist item
   alongside the clock applet panel-host wiring. 9 unit tests.
-- [ ] **Phase E.17 follow-up: weather popover (post-E.17, follow-on
-  port)** — `weather.rs` widget (4-label column + footer
-  attribution) plugs into the Clock zone's popover slot once
-  the clock applet (E1.2.1, shipped standalone) wires into the
-  panel host.
+- [✓] **Phase E.17 follow-up: weather popover (shipped
+  2026-05-21)** — `crates/mde-panel/src/weather.rs` ships
+  `WeatherSnapshot { location, condition, temp_c, high_c, low_c,
+  wind_kmh, fetched_at_ms }` + `render_lines()` (4-line column
+  per the locked spec) + `attribution()` (footer text). Pure
+  `freshness_label(fetched_ms, now_ms)` computes the human-
+  readable "Updated N min ago" label across just-now / minutes /
+  hours / days bands. `parse(json)` ingests the public
+  `wttr.in?format=j1` shape; `save_cached(path, &snap)` +
+  `load_cached(path)` round-trip our own serde format under
+  `$XDG_CACHE_HOME/mde/weather.json`. `POLL_INTERVAL_SECS=1800`
+  matches the v1.x cadence. 14 unit tests cover render shape,
+  freshness label bands, wttr.in parser (with + without region),
+  malformed JSON fallthrough, cache round-trip, default path
+  shape, never-updated label.
 - [✓] **Phase E.18 watermark (shipped 2026-05-21)** —
   `crates/mde-panel/src/watermark.rs` ships `WatermarkState`
   (MDE version / Fedora release / build hash / hostname /

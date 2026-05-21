@@ -3141,6 +3141,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mde-applet-sway-cluster"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mde-applet-volume-osd"
 version = "0.0.0"
 dependencies = [
