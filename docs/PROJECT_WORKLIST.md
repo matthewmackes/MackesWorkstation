@@ -5470,19 +5470,22 @@ committed and embedded in README; visual-regression CI gate
   **Caveat:** `.claude/` gitignored → local-only; see WF-1.a.
   Outputs: `.claude/CLAUDE.md` §1.1 (local working tree).
 
-- [ ] **WF-5.a: Pre-commit hook validating release-tag prefix —
-  v2.1 scope (follow-up to WF-5)** — Write a `.git/hooks/
-  pre-commit` (or commit it under `.claude/hooks/` and document
-  installation in `CONTRIBUTING.md`) that scans
-  `docs/PROJECT_WORKLIST.md` for any active-section task title
-  missing a `vX.Y.Z:` or `UX-\d+:` / `CB-\*:` / `WF-\*:` /
-  `XOrg-\*:` / `HW-\*:` prefix. Block commit on violation with a
-  clear "task `<title>` needs a release-tag prefix" message.
-  Acceptance: hook blocks a synthetic violation; passes on
-  current main; documented in CONTRIBUTING.md.
-  Depends: WF-5. Effort: Low.
-  Outputs: `.claude/hooks/pre-commit-worklist.sh`;
-  `CONTRIBUTING.md` install section.
+- [✓] **WF-5.a: Pre-commit hook validating release-tag prefix —
+  landed 2026-05-21** — `.claude/hooks/pre-commit-worklist.sh`
+  scans the STAGED diff of `docs/PROJECT_WORKLIST.md` for added
+  active-task lines (`+- [ ]` / `+- [>]` / `+- [!]`) and
+  validates the title against
+  `^([A-Z][A-Za-z0-9.-]*|v[0-9]+\.[0-9]+(\.[0-9]+)?):` —
+  catches `v2.0.1:`, `UX-14:`, `CB-1.5.a:`, `WF-5.a:`, `FU-1:`,
+  `NFU-2:`, `XOrg-1.2:`, `HW-3:`, etc. Pre-existing tasks are
+  NOT audited (only staged additions); Done lines (`+- [✓]`)
+  are skipped. Block-on-violation with the offending titles
+  listed.
+  Installation: `make install-hooks` symlinks
+  `.git/hooks/pre-commit` → the script. Documented in
+  `CONTRIBUTING.md`. Never touches `git config`.
+  Outputs: `.claude/hooks/pre-commit-worklist.sh`,
+  `Makefile` `install-hooks` target, `CONTRIBUTING.md` section.
 
 
 

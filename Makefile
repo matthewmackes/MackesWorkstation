@@ -12,7 +12,7 @@ NAME    := mackes-shell
 VERSION := $(shell python3 -c "import mackes; print(mackes.__version__)")
 SDIST   := dist/$(NAME)-$(VERSION).tar.gz
 
-.PHONY: sdist rpm test test-nodeps smoke lint verify rust rust-check docs iso clean install-deps
+.PHONY: sdist rpm test test-nodeps smoke lint verify rust rust-check docs iso clean install-deps install-hooks
 
 sdist:
 	@# Prefer PEP 517 build (works on Fedora 40+ without distutils).
@@ -129,6 +129,21 @@ docs:
 
 install-deps:
 	@echo 'On Fedora: sudo dnf install python3-pytest python3-pyyaml python3-gobject gtk3 xfconf xfce4-whiskermenu-plugin xfce4-pulseaudio-plugin xfce4-power-manager-plugin rust cargo rustfmt clippy'
+
+# WF-5.a (2026-05-21) — install the git pre-commit hook from
+# .claude/hooks/. Idempotent; never touches git config.
+install-hooks:
+	@if [ ! -d .git ]; then \
+		echo "✗ .git/ not found — run from repo root"; exit 1; \
+	fi
+	@if [ -e .git/hooks/pre-commit ] && [ ! -L .git/hooks/pre-commit ]; then \
+		echo "✗ .git/hooks/pre-commit already exists and is not a symlink."; \
+		echo "  Move it aside, then re-run \`make install-hooks\`."; \
+		exit 1; \
+	fi
+	@ln -sfn "$$(pwd)/.claude/hooks/pre-commit-worklist.sh" .git/hooks/pre-commit
+	@chmod +x .claude/hooks/pre-commit-worklist.sh
+	@echo "✓ .git/hooks/pre-commit → .claude/hooks/pre-commit-worklist.sh"
 
 clean:
 	rm -rf build dist rpmbuild target *.egg-info

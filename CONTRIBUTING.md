@@ -41,6 +41,23 @@ make rpm
 ls rpmbuild/RPMS/x86_64/
 ```
 
+## Installing the git hooks
+
+Two hooks ship with the repo under `.claude/hooks/`:
+
+- `post-worklist-write.sh` — Claude Code PostToolUse hook
+  (auto-wired via `.claude/settings.json`; no install step needed).
+- `pre-commit-worklist.sh` — validates `docs/PROJECT_WORKLIST.md`
+  task titles carry a release/workstream prefix per
+  `.claude/CLAUDE.md §1.1`. Install with:
+
+```bash
+make install-hooks
+```
+
+This symlinks `.git/hooks/pre-commit` → `.claude/hooks/pre-commit-worklist.sh`.
+Re-run after a fresh clone. No effect on `git config`.
+
 ## Project conventions
 
 - **Python style:** `from __future__ import annotations` at the top of
