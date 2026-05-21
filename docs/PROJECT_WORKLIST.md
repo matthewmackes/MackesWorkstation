@@ -4853,7 +4853,7 @@ Iced-side style constants (introduce `crates/mde-theme/` if needed).
   Outputs: updated `data/css/` preset CSS files; `crates/mde-theme/` palette
   constants.
 
-- [ ] **UX-4: Window chrome + header bar — v2.1 scope** — Polish the
+- [>] **UX-4: Window chrome + header bar — v2.1 scope (in progress 2026-05-21 on `ux/UX-4-window-chrome`)** — Polish the
   top-level Workbench window: (a) custom `mde-header` CSS class with
   controlled height (48 px), background matching the surface token, and a
   1 px bottom border using the divider token; (b) product wordmark

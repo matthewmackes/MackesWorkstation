@@ -17,6 +17,7 @@
 pub mod app;
 pub mod backend;
 pub mod dbus;
+pub mod header;
 pub mod keyboard;
 pub mod model;
 pub mod panels;

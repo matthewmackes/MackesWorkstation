@@ -9,11 +9,12 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use iced::widget::{column, container, row, text};
-use iced::{Color, Element, Length, Size, Subscription, Task, Theme};
+use iced::{window, Color, Element, Length, Size, Subscription, Task, Theme};
 use mde_theme::Palette;
 
 use crate::backend::{Backend, DemoBackend};
 use crate::dbus::PendingFocus;
+use crate::header::HeaderAction;
 use crate::keyboard::{KeyAction, Pane};
 use crate::model::{view_from_focus_slug, Group, View};
 use crate::panels::{
@@ -159,6 +160,12 @@ pub enum Message {
     FleetRevisions(fleet_revisions_panel::Message),
     /// CB-1.6 follow-on — Look & Feel wallpaper panel sub-message.
     Wallpaper(wallpaper_panel::Message),
+    /// UX-4 — header bar window-control click (min/max/close).
+    /// The reducer maps each variant to an `iced::window::*`
+    /// Task. The Iced runtime delivers the live `window::Id` on
+    /// every `get_latest()` so a `--focus` hand-off and a normal
+    /// startup go through the same code path.
+    WindowControl(HeaderAction),
     /// No-op — placeholder for buttons whose behaviour lands in
     /// later CB-1.x substeps.
     Noop,
@@ -501,10 +508,21 @@ impl App {
 
     /// Run the Iced application.
     pub fn run() -> iced::Result {
+        // UX-4 (d) — request a decoration-less window so the
+        // custom `crate::header` bar is the only title strip the
+        // user sees. sway tiles Iced apps without server-side
+        // decorations regardless, but setting this explicitly
+        // means GNOME-shell / KDE-on-Wayland sessions (which the
+        // X11 build feature enables for the v2.0.0 fallback path)
+        // also fall back to client-side chrome.
         iced::application(Self::title, Self::update, Self::view)
             .theme(Self::theme)
             .subscription(Self::subscription)
-            .window_size(Size::new(WIN_W, WIN_H))
+            .window(window::Settings {
+                size: Size::new(WIN_W, WIN_H),
+                decorations: false,
+                ..window::Settings::default()
+            })
             .run()
     }
 
@@ -597,8 +615,21 @@ impl App {
             Message::FleetSettings(msg) => self.fleet_settings.update(msg),
             Message::FleetRevisions(msg) => self.fleet_revisions.update(msg),
             Message::Wallpaper(msg) => self.wallpaper.update(msg, self.backend()),
+            Message::WindowControl(action) => Self::dispatch_window_action(action),
             Message::Noop => Task::none(),
         }
+    }
+
+    /// UX-4 — turn a header-button click into an `iced::window`
+    /// Task. `get_latest()` returns the most-recently-created
+    /// window id, which for the single-window workbench is the
+    /// one the user is interacting with.
+    fn dispatch_window_action(action: HeaderAction) -> Task<Message> {
+        window::get_latest().and_then(move |id| match action {
+            HeaderAction::Minimize => window::minimize(id, true),
+            HeaderAction::ToggleMaximize => window::toggle_maximize(id),
+            HeaderAction::Close => window::close(id),
+        })
     }
 
     /// CB-1.6 — when the user lands on a known panel, kick off
@@ -700,7 +731,7 @@ impl App {
             .collect::<Vec<_>>()
             .join(" / ");
 
-        let header = column![
+        let page_heading = column![
             text(crumbs).size(12),
             text(page_title(self.view)).size(26),
             text(page_subtitle(self.view)).size(13),
@@ -709,7 +740,7 @@ impl App {
 
         let body = self.panel_body();
 
-        let main = column![header, body].spacing(20).padding(24);
+        let main = column![page_heading, body].spacing(20).padding(24);
 
         let layout = row![
             sidebar,
@@ -717,7 +748,14 @@ impl App {
         ]
         .height(Length::Fill);
 
-        container(layout).into()
+        // UX-4 — custom window header sits above sidebar + body
+        // so the wordmark + window controls span the full width.
+        let window_header = crate::header::view(Message::WindowControl);
+
+        column![window_header, layout]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 
     /// Per-View body — panel views land here as they ship.
@@ -1180,9 +1218,24 @@ mod tests {
             0x1d as f32 / 255.0,
             0x1f as f32 / 255.0,
         );
-        assert!((bg.r - expected.0).abs() < 1e-4, "r {} vs {}", bg.r, expected.0);
-        assert!((bg.g - expected.1).abs() < 1e-4, "g {} vs {}", bg.g, expected.1);
-        assert!((bg.b - expected.2).abs() < 1e-4, "b {} vs {}", bg.b, expected.2);
+        assert!(
+            (bg.r - expected.0).abs() < 1e-4,
+            "r {} vs {}",
+            bg.r,
+            expected.0
+        );
+        assert!(
+            (bg.g - expected.1).abs() < 1e-4,
+            "g {} vs {}",
+            bg.g,
+            expected.1
+        );
+        assert!(
+            (bg.b - expected.2).abs() < 1e-4,
+            "b {} vs {}",
+            bg.b,
+            expected.2
+        );
     }
 
     #[test]
@@ -1198,6 +1251,38 @@ mod tests {
         assert!((primary.r - expected.0).abs() < 1e-4);
         assert!((primary.g - expected.1).abs() < 1e-4);
         assert!((primary.b - expected.2).abs() < 1e-4);
+    }
+
+    // UX-4 — the window-control reducer maps every HeaderAction
+    // to an iced::window Task. We can't observe Tasks directly
+    // in unit tests (they run inside the iced executor), but
+    // every variant must hit the dispatcher without panicking
+    // and the Noop / view-state invariants must hold.
+
+    #[test]
+    fn window_control_message_does_not_mutate_view_state() {
+        let mut app = App::new();
+        let _ = app.update(Message::SelectGroup(Group::Network));
+        let before = app.current_view();
+        let _ = app.update(Message::WindowControl(HeaderAction::Minimize));
+        let _ = app.update(Message::WindowControl(HeaderAction::ToggleMaximize));
+        let _ = app.update(Message::WindowControl(HeaderAction::Close));
+        assert_eq!(
+            app.current_view(),
+            before,
+            "window-control clicks must never re-route the user out of their current panel"
+        );
+    }
+
+    #[test]
+    fn window_control_dispatch_compiles_for_every_action() {
+        // Smoke-only — exercises the match arm in
+        // App::dispatch_window_action so adding a new
+        // HeaderAction variant without wiring it triggers a
+        // compile-time non-exhaustive-match error.
+        let _ = App::dispatch_window_action(HeaderAction::Minimize);
+        let _ = App::dispatch_window_action(HeaderAction::ToggleMaximize);
+        let _ = App::dispatch_window_action(HeaderAction::Close);
     }
 
     #[test]
