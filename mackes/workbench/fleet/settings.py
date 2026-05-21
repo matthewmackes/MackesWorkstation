@@ -70,7 +70,7 @@ class FleetSettingsPanel(Gtk.Box):
             box.pack_start(error_state(
                 "mded not installed",
                 "Install the mackesd RPM to push fleet revisions.",
-                None, None,
+                retry_label=None,
             ), False, False, 0)
             return box
 

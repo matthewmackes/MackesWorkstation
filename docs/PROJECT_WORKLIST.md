@@ -4055,6 +4055,45 @@ under `LICENSES/`.
   inverted to assert zero Obsoletes lines for those packages.
   RPM clean. Awaiting commit + push + tag.
 
+- [>] **Workbench call-site repair + mde facade stale-name purge
+  (2026-05-21 — awaiting commit)** — two parallel runtime-bug
+  cleanups landed in the working tree:
+
+  * **`error_state()` callers using positional args after `reason`**
+    — `error_state()` has a `*,` boundary after `reason`, so the
+    `None, None` and `"Retry", lambda …` positional tails in
+    `fleet/revisions.py` (2 sites), `fleet/settings.py`,
+    `network/kde_connect.py`, `network/mesh_history.py`, and
+    `network/mesh_pending.py` would have raised `TypeError` at the
+    first error path. Rewrote each call to use `retry_label=` /
+    `on_retry=` kwargs. Test suite never hit the broken paths
+    (fixture skips), so the bug was latent.
+
+  * **`a11y()` keyword-only `name` vs. two positional callers**
+    — `welcome_banner.py:117,120` passed the accessible name as a
+    positional arg. Dropped the `*,` on `a11y(widget, name, ...)`
+    in `mackes/workbench/_common.py` so both call styles
+    (positional + kwarg) work; all 39 existing kwarg callers are
+    unaffected.
+
+  * **`mde/__init__.py` facade list pruned** — dropped three
+    stale `_FACADE_SUBMODULES` entries that pointed at retired
+    modules (`menu_integration` retired Phase F.10; `preset_picker`
+    and `xconfig` long-gone from `mackes/`). The
+    `_install_facade()` ImportError swallow made them harmless
+    no-ops, but the list now matches reality (39 entries, 0 stale
+    per the pkgutil audit).
+
+  * **Test cleanup** — `tests/test_menu_integration.py` deleted
+    (referenced the retired `mackes.menu_integration` module).
+    Stale `__pycache__/menu_integration.cpython-314.pyc` removed.
+
+  Pre-commit gates: `make lint` clean (ruff F401/F541/F811/F841 ok);
+  `make test-nodeps` = 262 passed · 93 skipped · 0 failed; import
+  smoke clean for all 7 touched modules; AST scan confirms zero
+  positional callers remain after the keyword-only boundaries.
+  Awaiting `git add` + commit + `git push origin main`.
+
 
 
 - [✓] **CB-1.5.a Fleet inventory panel (Iced) — shipped

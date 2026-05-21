@@ -111,8 +111,8 @@ class MeshPendingPanel(Gtk.Box):
                 error_state(
                     "Couldn't load pending changes",
                     str(exc),
-                    "Retry",
-                    lambda *_: self._refresh(),
+                    retry_label="Retry",
+                    on_retry=lambda *_: self._refresh(),
                 ),
                 False, False, 0,
             )

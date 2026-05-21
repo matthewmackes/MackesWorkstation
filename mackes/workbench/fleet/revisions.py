@@ -100,14 +100,14 @@ class FleetRevisionsPanel(Gtk.Box):
             box.pack_start(error_state(
                 "mded not installed",
                 "Install the mackesd RPM to list / rollback revisions.",
-                None, None,
+                retry_label=None,
             ), False, False, 0)
             return box
 
         revisions, err = list_revisions()
         if err is not None and not revisions:
             box.pack_start(error_state(
-                "Couldn't load revisions", err, None, None,
+                "Couldn't load revisions", err, retry_label=None,
             ), False, False, 0)
             return box
 
@@ -116,7 +116,7 @@ class FleetRevisionsPanel(Gtk.Box):
                 "No revisions yet",
                 "Push a setting through the Fleet → Push panel "
                 "(or via `mded fleet push-setting`) to create one.",
-                None, None,
+                retry_label=None,
             ), False, False, 0)
             return box
 

@@ -328,7 +328,8 @@ class KdeConnectDetailPanel(Gtk.Box):
                     error_state(
                         f"Device {device_id} not found",
                         "It may have been unpaired since the last "
-                        "refresh.", None, None,
+                        "refresh.",
+                        retry_label=None,
                     ),
                     False, False, 0,
                 )

@@ -168,7 +168,7 @@ def set_versioned_title(window: "Gtk.Window", base: str) -> None:
     window.set_title(versioned_title(base))
 
 
-def a11y(widget: Gtk.Widget, *, name: str, tooltip: str | None = None) -> Gtk.Widget:
+def a11y(widget: Gtk.Widget, name: str, tooltip: str | None = None) -> Gtk.Widget:
     """Attach a tooltip + AT-SPI accessible name to an interactive widget.
 
     Phase 11.2 sweep helper. The accessible name is what screen readers

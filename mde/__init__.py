@@ -87,7 +87,6 @@ _FACADE_SUBMODULES: tuple[str, ...] = (
     "lightdm",
     "mackesd_bridge",
     "mde_settings_bridge",
-    "menu_integration",
     "mesh_browser",
     "mesh_discovery",
     "mesh_fs",
@@ -104,7 +103,6 @@ _FACADE_SUBMODULES: tuple[str, ...] = (
     "mesh_thumbnailer",
     "mesh_vpn",
     "mesh_wol",
-    "preset_picker",
     "presets",
     "recover",
     "snapshots",
@@ -113,7 +111,6 @@ _FACADE_SUBMODULES: tuple[str, ...] = (
     "uninstall",
     "wizard",
     "workbench",
-    "xconfig",
     "xfconf_bridge",
 )
 
