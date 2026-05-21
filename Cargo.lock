@@ -3030,6 +3030,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mde-applet-apple-menu"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mde-applet-bg"
 version = "0.0.0"
 dependencies = [
@@ -3102,6 +3111,15 @@ name = "mde-applet-recents"
 version = "0.0.0"
 dependencies = [
  "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-start-menu"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
  "serde_json",
 ]
 

@@ -1020,9 +1020,9 @@ src/`) and its destination.
   notification-center modal (split from E.7.2).
 - [✓] **Phase E1.2.7 `crates/mde-applets/dock/` (shipped 2026-05-20) — taskbar applet: parse swaymsg get_tree windows + ~/.config/mde/dock-pinned (TSV `desktop_id\tlabel`), render pinned-not-running as `[· label]` then running with focus/urgent/pinned markers; 9 tests. Original entry:** — taskbar applet
   (split from E.10).
-- [!] **Phase E1 (applet workspace split) item E1.2.8 `crates/mde-applets/start-menu/`** — start popover
+- [✓] **Phase E1.2.8 `crates/mde-applets/start-menu/` (shipped 2026-05-20) — Win10 Start popover: .desktop parser, pinned-favorites TSV parser, all-apps alpha-sort (hidden filtered), pinned-pane builder (orphan-drop), search (case-insensitive substring of name+comment, surfaces hidden too); 12 tests. Original entry:** — start popover
   (split from E.11).
-- [!] **Phase E1 (applet workspace split) item E1.2.9 `crates/mde-applets/apple-menu/`** — Super+Space
+- [✓] **Phase E1.2.9 `crates/mde-applets/apple-menu/` (shipped 2026-05-20) — Super+Space Spotlight popover: app row parser, weighted scorer (exact-name 1000 → starts-with 700 → name-contains 500 → comment 200 → exec-basename 100), tiny math evaluator (recursive-descent +/-/*/(), top-score Hit, format_hits with kind-glyphs (▶/↺/=); 14 tests. Original entry:** — Super+Space
   popover (split from E.12).
 - [✓] **Phase E1.2.10 `crates/mde-applets/status-cluster/` (shipped 2026-05-20) — battery+power-profile pill via /sys/class/power_supply + powerprofilesctl; 11 tests. Original entry:** —
   status chip cluster (split from E.15).
