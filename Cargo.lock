@@ -3012,6 +3012,116 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
+name = "mde-applet-api"
+version = "0.0.0"
+dependencies = [
+ "iced",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-app-switcher"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-bg"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-brightness-osd"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-clock"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-dock"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-mesh-status"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-network"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-notification-bell"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-notifications"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-recents"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-status-cluster"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
+name = "mde-applet-volume-osd"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde_json",
+]
+
+[[package]]
 name = "mde-config"
 version = "0.0.0"
 dependencies = [

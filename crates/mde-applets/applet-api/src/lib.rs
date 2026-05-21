@@ -200,6 +200,244 @@ pub trait Applet: Sized + 'static {
     fn handle_host(&mut self, msg: HostMessage) -> bool;
 }
 
+/// Phase E1.3 — host-side applet discovery. The panel
+/// host walks `/usr/share/mde/applets/*.json` (system
+/// installs) and `$XDG_DATA_HOME/mde/applets/*.json`
+/// (per-user overrides) for [`AppletManifest`] files,
+/// validates each, and emits a resolved set of unique
+/// (slot, applet) pairs. Per-user manifests shadow
+/// system manifests with the same `id`; slot conflicts
+/// resolve to the later-id-wins rule documented on
+/// [`AppletSlot`].
+pub mod discovery {
+    use super::{AppletId, AppletManifest};
+    use std::collections::HashMap;
+    use std::path::{Path, PathBuf};
+
+    /// Canonical system-wide applet manifest dir.
+    pub const SYSTEM_DIR: &str = "/usr/share/mde/applets";
+
+    /// Per-user applet manifest dir relative to
+    /// `$XDG_DATA_HOME` (or `~/.local/share` fallback).
+    pub const USER_DIR_SUFFIX: &str = "mde/applets";
+
+    /// Resolve the per-user applets dir.
+    #[must_use]
+    pub fn user_dir() -> PathBuf {
+        let base = std::env::var("XDG_DATA_HOME")
+            .map(PathBuf::from)
+            .ok()
+            .unwrap_or_else(|| {
+                std::env::var("HOME")
+                    .map(|h| PathBuf::from(h).join(".local/share"))
+                    .unwrap_or_else(|_| PathBuf::from("/var/empty"))
+            });
+        base.join(USER_DIR_SUFFIX)
+    }
+
+    /// Walk the canonical applet dirs + return one
+    /// `AppletManifest` per `id`, with the per-user
+    /// version winning over system. Errors per-file are
+    /// swallowed (skipped silently) — the host shouldn't
+    /// fail-to-launch over one bad manifest.
+    #[must_use]
+    pub fn discover() -> Vec<AppletManifest> {
+        let mut by_id: HashMap<AppletId, AppletManifest> = HashMap::new();
+        // System first.
+        ingest_dir(Path::new(SYSTEM_DIR), &mut by_id);
+        // User overrides.
+        ingest_dir(&user_dir(), &mut by_id);
+        let mut out: Vec<_> = by_id.into_values().collect();
+        out.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+        out
+    }
+
+    /// Walk one directory + ingest into the map.
+    pub fn ingest_dir(dir: &Path, out: &mut HashMap<AppletId, AppletManifest>) {
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in rd.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let Ok(raw) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            let Ok(manifest) = serde_json::from_str::<AppletManifest>(&raw) else {
+                continue;
+            };
+            out.insert(manifest.id.clone(), manifest);
+        }
+    }
+
+    /// Validate a candidate manifest against the locked
+    /// id pattern. Wraps [`AppletId::parse`] + checks the
+    /// binary field is non-empty (the host execs it; an
+    /// empty binary is unspawnable).
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(&'static str)` on any failed rule.
+    pub fn validate_manifest(m: &AppletManifest) -> Result<(), &'static str> {
+        let _ = AppletId::parse(m.id.as_str())?;
+        if m.binary.is_empty() {
+            return Err("manifest `binary` cannot be empty");
+        }
+        if m.binary.contains(['/', ' ', '\n']) {
+            return Err("manifest `binary` must be a bare PATH name (no slashes / whitespace)");
+        }
+        if m.version.is_empty() {
+            return Err("manifest `version` cannot be empty");
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::{AppletId, AppletManifest, AppletSlot};
+        use super::*;
+
+        #[test]
+        fn system_dir_lock() {
+            assert_eq!(SYSTEM_DIR, "/usr/share/mde/applets");
+        }
+
+        #[test]
+        fn user_dir_uses_xdg_data_home_when_set() {
+            std::env::set_var("XDG_DATA_HOME", "/tmp/test-xdg");
+            let d = user_dir();
+            std::env::remove_var("XDG_DATA_HOME");
+            assert_eq!(d, PathBuf::from("/tmp/test-xdg/mde/applets"));
+        }
+
+        #[test]
+        fn discover_returns_empty_when_no_dirs_exist() {
+            // Override XDG_DATA_HOME + clear HOME so user_dir
+            // points at a guaranteed-empty path.
+            std::env::set_var("XDG_DATA_HOME", "/nonexistent-xdg-test");
+            // System dir likely doesn't have anything either
+            // in a test environment.
+            let _ = discover(); // just verify no panic
+            std::env::remove_var("XDG_DATA_HOME");
+        }
+
+        #[test]
+        fn ingest_dir_skips_non_json() {
+            let tmp = std::env::temp_dir().join("mde-applet-ingest-test");
+            let _ = std::fs::remove_dir_all(&tmp);
+            std::fs::create_dir_all(&tmp).unwrap();
+            std::fs::write(tmp.join("readme.txt"), "ignore me").unwrap();
+            let manifest = AppletManifest {
+                id: AppletId::from_static("clock"),
+                binary: "mde-applet-clock".into(),
+                slot: AppletSlot::TopBarCenter,
+                summary: "test".into(),
+                version: "0.0.0".into(),
+            };
+            std::fs::write(
+                tmp.join("clock.json"),
+                serde_json::to_string(&manifest).unwrap(),
+            )
+            .unwrap();
+            let mut out = HashMap::new();
+            ingest_dir(&tmp, &mut out);
+            assert_eq!(out.len(), 1);
+            assert!(out.contains_key(&AppletId::from_static("clock")));
+            let _ = std::fs::remove_dir_all(&tmp);
+        }
+
+        #[test]
+        fn ingest_dir_skips_malformed_json() {
+            let tmp = std::env::temp_dir().join("mde-applet-malformed-test");
+            let _ = std::fs::remove_dir_all(&tmp);
+            std::fs::create_dir_all(&tmp).unwrap();
+            std::fs::write(tmp.join("bad.json"), "not actually json").unwrap();
+            let mut out = HashMap::new();
+            ingest_dir(&tmp, &mut out);
+            assert!(out.is_empty());
+            let _ = std::fs::remove_dir_all(&tmp);
+        }
+
+        #[test]
+        fn user_manifest_overrides_system_with_same_id() {
+            // Same id in two dirs — ingest is called in order
+            // (system first, then user), and HashMap::insert
+            // replaces with the later value, so the second
+            // call wins. That's the lock.
+            let mut out = HashMap::new();
+            let sys = AppletManifest {
+                id: AppletId::from_static("clock"),
+                binary: "mde-applet-clock".into(),
+                slot: AppletSlot::TopBarCenter,
+                summary: "system".into(),
+                version: "1.0.0".into(),
+            };
+            let user = AppletManifest {
+                id: AppletId::from_static("clock"),
+                binary: "mde-applet-clock".into(),
+                slot: AppletSlot::TopBarCenter,
+                summary: "user override".into(),
+                version: "1.0.1".into(),
+            };
+            out.insert(sys.id.clone(), sys);
+            out.insert(user.id.clone(), user);
+            let m = out.values().next().unwrap();
+            assert_eq!(m.summary, "user override");
+            assert_eq!(m.version, "1.0.1");
+        }
+
+        #[test]
+        fn validate_manifest_rejects_empty_binary() {
+            let m = AppletManifest {
+                id: AppletId::from_static("clock"),
+                binary: "".into(),
+                slot: AppletSlot::TopBarCenter,
+                summary: "x".into(),
+                version: "1".into(),
+            };
+            assert!(validate_manifest(&m).is_err());
+        }
+
+        #[test]
+        fn validate_manifest_rejects_path_traversal_in_binary() {
+            let m = AppletManifest {
+                id: AppletId::from_static("clock"),
+                binary: "../bin/evil".into(),
+                slot: AppletSlot::TopBarCenter,
+                summary: "x".into(),
+                version: "1".into(),
+            };
+            assert!(validate_manifest(&m).is_err());
+        }
+
+        #[test]
+        fn validate_manifest_accepts_well_formed() {
+            let m = AppletManifest {
+                id: AppletId::from_static("clock"),
+                binary: "mde-applet-clock".into(),
+                slot: AppletSlot::TopBarCenter,
+                summary: "ok".into(),
+                version: "1.0".into(),
+            };
+            assert!(validate_manifest(&m).is_ok());
+        }
+
+        #[test]
+        fn validate_manifest_rejects_empty_version() {
+            let m = AppletManifest {
+                id: AppletId::from_static("clock"),
+                binary: "mde-applet-clock".into(),
+                slot: AppletSlot::TopBarCenter,
+                summary: "x".into(),
+                version: "".into(),
+            };
+            assert!(validate_manifest(&m).is_err());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

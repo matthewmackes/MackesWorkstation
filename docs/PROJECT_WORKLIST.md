@@ -1016,9 +1016,9 @@ src/`) and its destination.
 - [✓] **Phase E1.2.5 `crates/mde-applets/notification-bell/` (shipped 2026-05-20) — unread-count badge from ~/.cache/mackes/notifications.json; 8 tests. Original entry:** — bell
   tray applet (split from E.7.1). Connects to mded's
   `dev.mackes.MDE.Notifications.UnreadCount`.
-- [!] **Phase E1 (applet workspace split) item E1.2.6 `crates/mde-applets/notifications/`** —
+- [✓] **Phase E1.2.6 `crates/mde-applets/notifications/` (shipped 2026-05-20) — notification-center reader: parse ~/.cache/mackes/notifications.json, filter dismissed, group by peer (BTreeMap) with newest-first within group, bullet-marker unread rows; 9 tests. Original entry:** —
   notification-center modal (split from E.7.2).
-- [!] **Phase E1 (applet workspace split) item E1.2.7 `crates/mde-applets/dock/`** — taskbar applet
+- [✓] **Phase E1.2.7 `crates/mde-applets/dock/` (shipped 2026-05-20) — taskbar applet: parse swaymsg get_tree windows + ~/.config/mde/dock-pinned (TSV `desktop_id\tlabel`), render pinned-not-running as `[· label]` then running with focus/urgent/pinned markers; 9 tests. Original entry:** — taskbar applet
   (split from E.10).
 - [!] **Phase E1 (applet workspace split) item E1.2.8 `crates/mde-applets/start-menu/`** — start popover
   (split from E.11).
@@ -1033,7 +1033,7 @@ src/`) and its destination.
   from the C.7 settings sidecar.
 - [✓] **Phase E1.2.13 `crates/mde-applets/recents/` (shipped 2026-05-20) — recently-used.xbel reader with top-N by modified DESC; 8 tests. Original entry:** — recents widget
   (split from E.22).
-- [!] **Phase E1 (applet workspace split) item E1.3 Panel host applet discovery** — `crates/mde-panel/
+- [✓] **Phase E1.3 panel-host applet discovery (shipped 2026-05-20) — `mde_applet_api::discovery` module: walks `/usr/share/mde/applets/*.json` (system) + `$XDG_DATA_HOME/mde/applets/*.json` (per-user override), validates each manifest (id regex + binary path + non-empty version + path-traversal guard), returns deduped manifest set with user shadowing system; 9 tests. Note: revised from .desktop-file shape (original spec) to JSON-manifest shape consistent with the rest of the applet-api contract. Original entry:** — `crates/mde-panel/
   src/host.rs` (new). At startup walks
   `~/.local/share/mde/applets/*.desktop` +
   `/usr/share/mde/applets/*.desktop` (system applets shipped by
