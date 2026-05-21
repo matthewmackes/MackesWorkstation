@@ -5228,7 +5228,20 @@ Last updated: 2026-05-21 — Claude Opus 4.7 (50-question lock survey
   Outputs: `crates/mde-workbench/src/command_palette/`;
   keybinding registration in `mde-session`.
 
-- [ ] **UX-15: Density modes — v2.2 scope** — Add a `Density` enum
+- [✓] **UX-15: Density modes — token + persistence landed
+  2026-05-21; Settings panel wiring tracked as UX-15.a** —
+  `mde-theme::Density { Compact, Comfortable, Spacious }` enum
+  (Q26/Q27) with `spacing_multiplier()` + stable `id()` /
+  `from_id()`. `mde-theme::Preferences { theme, density, a11y }`
+  aggregates the three lock surfaces with `Default`, optional
+  serde Serialize/Deserialize (behind the new `serde` feature),
+  `from_toml_str()` / `to_toml_string()`, and XDG-aware
+  `xdg_path()` (resolves to `$XDG_CONFIG_HOME/mde/preferences.toml`
+  or `$HOME/.config/mde/preferences.toml`). 4 new prefs unit
+  tests; mde-theme suite at 59/59 with all features. **Settings >
+  Appearance panel + live-switch hook** tracked as UX-15.a
+  follow-up — lands when the Iced Settings surface migrates to
+  mde-theme. Original scope: Add a `Density` enum
   to `mde-theme` (Compact / Comfortable [default] / Spacious).
   Every spacing token resolves through active density: Compact =
   0.75×, Comfortable = 1.0×, Spacious = 1.25× of the base 4 px
@@ -5596,6 +5609,17 @@ ups close the "consumer-side wiring" or "content fill-in" gate.
   Iced view migrations (less churn). Depends: UX-21 doc (done),
   UX-3..9 (open). Effort: Medium. Outputs: workspace-wide string
   updates; possibly a `tools/voice-audit.sh` helper.
+
+- [ ] **UX-15.a: Settings > Appearance panel wiring + live density
+  switch — v2.2 scope** — Surface the Theme + Density toggles in
+  the Iced Settings > Appearance panel. Persist via `Preferences::
+  to_toml_string()` + write to `Preferences::xdg_path()`. Live
+  re-render on toggle (no restart). Read at startup via
+  `Preferences::from_toml_str()` falling back to `Default::default()`.
+  Depends: UX-15 data layer (done), Settings panel migration to
+  mde-theme (part of UX-3..9). Effort: Low.
+  Outputs: `crates/mde-workbench/src/settings/appearance.rs`;
+  preferences.toml schema entries.
 
 - [ ] **UX-22.a: Settings > Accessibility panel wiring — v2.2 scope** —
   Surface the A11y variants from `mde-theme::accessibility` in the

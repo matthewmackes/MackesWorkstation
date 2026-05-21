@@ -35,6 +35,7 @@ pub mod accessibility;
 pub mod color;
 pub mod density;
 pub mod palette;
+pub mod prefs;
 pub mod radii;
 pub mod shadows;
 pub mod spacing;
@@ -44,6 +45,7 @@ pub mod typography;
 pub use accessibility::A11y;
 pub use color::Rgba;
 pub use density::Density;
+pub use prefs::Preferences;
 pub use theme::{Theme, Tokens};
 
 /// Convenience: resolved tokens for the most common case

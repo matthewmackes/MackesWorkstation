@@ -19,9 +19,14 @@ default = []
 # crate has no runtime dependencies and is fully testable in
 # isolation.
 iced = ["dep:iced_core"]
+# Enable serde Serialize/Deserialize on Theme / Density / A11y /
+# Preferences for TOML persistence to ~/.config/mde/preferences.toml.
+serde = ["dep:serde", "dep:toml"]
 
 [dependencies]
 iced_core = { version = "0.13", optional = true }
+serde     = { version = "1", features = ["derive"], optional = true }
+toml      = { version = "0.8", default-features = false, features = ["parse", "display"], optional = true }
 
 [dev-dependencies]
 # Reserved for future gallery (UX-13) — no dev deps today.
