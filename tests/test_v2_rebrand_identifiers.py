@@ -17,9 +17,14 @@ REPO = Path(__file__).resolve().parent.parent
 
 def test_spec_advertises_mde_provides():
     spec = (REPO / "packaging" / "fedora" / "mackes-shell.spec").read_text()
-    assert "Provides:       mde = %{version}-%{release}" in spec, (
-        "spec must declare `Provides: mde = ...` so `dnf install mde` "
-        "resolves to this RPM during the v1.x → v2.0.0 transition"
+    # v2.0.0 cut: Name: mde, so RPM auto-generates
+    # `Provides: mde = %{version}-%{release}`. The explicit line
+    # was retired (it would be a redundant duplicate). The test
+    # now asserts the package self-identifies as `mde`.
+    assert "Name:           mde" in spec, (
+        "spec must declare `Name: mde` so the package itself "
+        "is mde (and auto-Provides: mde = %{version}-%{release} "
+        "lands without an explicit duplicate line)"
     )
 
 
@@ -33,7 +38,19 @@ def test_spec_keeps_legacy_mackes_shell_provides():
 
 def test_spec_obsoletes_pre_v3_legacy():
     spec = (REPO / "packaging" / "fedora" / "mackes-shell.spec").read_text()
-    assert "Obsoletes:      mackes-shell < 3.0" in spec
+    # v2.0.0 cut: Obsoletes scope tightened to `< 2.0.0` per
+    # CB-3.1 lock (the cut commit itself is 2.0.0, so anything
+    # below it gets obsoleted). The `< 3.0` upper bound was a
+    # v1.x belt-and-suspenders that v2.0.0 retires in favor of
+    # the precise `< 2.0.0` boundary.
+    assert "Obsoletes:      mackes-shell < 2.0.0" in spec, (
+        "spec must declare `Obsoletes: mackes-shell < 2.0.0` "
+        "so v1.x installs land on mde-2.0.0 cleanly via dnf upgrade"
+    )
+    assert "Obsoletes:      mackes-xfce-workstation < 2.0.0" in spec, (
+        "spec must also Obsolete `mackes-xfce-workstation < 2.0.0` "
+        "since that's the v1.x package name being renamed to `mde`"
+    )
 
 
 def test_spec_drops_retired_systemd_install_lines():

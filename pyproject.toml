@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mackes-shell"
-version = "1.1.4"
-description = "Mackes Shell — XFCE control panel and shell manager"
+version = "2.0.0"
+description = "Mackes Desktop Environment (MDE) — Wayland-only Fedora DE (v2.0.0 cut; PyPI distribution name kept at mackes-shell for the one-release back-compat window)"
 readme = "README.md"
 license = { text = "GPL-3.0" }
 requires-python = ">=3.10"

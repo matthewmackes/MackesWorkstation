@@ -3,6 +3,80 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 2.0.0 — Mackes Desktop Environment (MDE) monolithic cut (2026-05-20)
+
+The v2.0.0 cut commit. Package rename + Wayland-only stack flip
+in one coordinated commit so `dnf upgrade` lands every 1.x user
+on `mde-2.0.0` in a single transaction.
+
+**Package identity:**
+- `Name: mde` (was `mackes-xfce-workstation`).
+- `Provides: mackes-shell` + `Provides: mackes-xfce-workstation`
+  + `Obsoletes: mackes-shell < 2.0.0` +
+  `Obsoletes: mackes-xfce-workstation < 2.0.0` so every 1.x
+  install path resolves to `mde-2.0.0`.
+
+**Dependency swap (CB-3.2):**
+- Dropped every XFCE Requires: `xfconf`, `xfce4-settings`,
+  `xfce4-session`, `xfce4-power-manager`, `terminator`, `i3`,
+  `i3status`, `dmenu`, `wmctrl`, `xprop`,
+  `xorg-x11-server-utils`, `xdotool`.
+- Added hard Wayland Requires: `sway`, `swaylock`, `swayidle`,
+  `swaybg`, `foot`, `bemenu`, `brightnessctl`, `pipewire`,
+  `wireplumber`, `grim`, `slurp`.
+- New Recommends: `cosmic-files`, `yazi`, `kanshi`,
+  `wlogout`, `wofi`.
+- Dropped BuildRequires: `xfce4-panel-devel`, `libxfce4ui-devel`
+  (C panel plugins retired).
+
+**Conflicts block (CB-3.3, Q5 lock):**
+- `Conflicts: xfce4-panel < 999`, `xfdesktop < 999`,
+  `xfce4-session < 999`, `xfce4-settings < 999`,
+  `xfwm4 < 999`, `xfce4-whiskermenu-plugin < 999`,
+  `xfce4-docklike-plugin < 999`,
+  `xfce4-pulseaudio-plugin < 999`,
+  `xfce4-power-manager-plugin < 999`, `i3 < 999`.
+- After `dnf install mde`, trying to install any of those
+  errors out cleanly ("would break mde") instead of leaving
+  the old desktop pieces running alongside MDE.
+
+**XDG autostart cleanup (CB-3.5, H.4):**
+- Retired every override: `mackes-panel.desktop`,
+  `xfdesktop.desktop`, `mackes-enforce-session.desktop`,
+  `mackes-suppress-xfce4-panel.desktop`,
+  `kdeconnect-indicator.desktop`. The Wayland session
+  orchestrator (`mde-session`) and sway config own
+  panel + desktop bring-up natively.
+
+**C panel-plugin trio retired:**
+- `mackes-clipboard`, `mackes-launcher`, `mackes-drawer` no
+  longer build or ship. Their roles move to native
+  `mackes-panel` applets in Phase E.1.x (Iced port).
+
+**Workbench:**
+- 21 Iced Workbench panels shipped across the v1.1.x
+  partial-progress cuts now compose the v2.0.0 Workbench
+  surface (`/usr/bin/mde-workbench`).
+- 5 `mded` subcommands shipped: `nodes list`,
+  `ansible-history list`, `playbooks {list, run}`,
+  `events list`.
+- Tests: 164 → 444 unit tests across mde-workbench (+170 %).
+
+**Upgrade path:**
+`dnf upgrade` on a 1.x box lands on `mde-2.0.0` via the
+Provides/Obsoletes graph. The Conflicts: block evicts any
+xfce4-* / xfwm4 / i3 packages the user previously installed
+manually; if dnf reports a refusal, the user removes the
+named package and retries (the install-helpers/uninstall
+flow already supports this).
+
+The repair panel's "Restart mded" + "Re-install MDE launcher"
+buttons handle most of the runtime first-boot smoothing.
+`mde-firstboot.target` orchestrates the
+`mde-migrate-from-1x` + `mde-shell-migrate-v2` oneshots on
+first login so xfconf state migrates to MDE settings + sway
+config seeds from the shipped template.
+
 ## 1.1.4 — Drop all XFCE Obsoletes (dnf5 install fix, take 2) (2026-05-20)
 
 `dnf install mackes-xfce-workstation-1.1.3-1.fc44.x86_64.rpm`
