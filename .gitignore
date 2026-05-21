@@ -23,8 +23,17 @@ __pycache__/
 # Session state
 *.log
 
-# Claude Code harness state — transient, not part of source
-.claude/
+# Claude Code harness state — most of it is transient.
+# Carve-outs (WF-1.a, 2026-05-21): the policy + hook surfaces are
+# project-wide rules that propagate to fresh clones, so they're
+# explicitly tracked. Skills, worktrees, settings.local.json stay
+# gitignored.
+.claude/*
+!.claude/CLAUDE.md
+!.claude/settings.json
+!.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/*.sh
 
 # Rust build artifacts (Phase 0.1+)
 /target/

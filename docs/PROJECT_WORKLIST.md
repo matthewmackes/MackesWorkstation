@@ -5414,23 +5414,16 @@ committed and embedded in README; visual-regression CI gate
   project-wide enforcement is desired.
   Outputs: `.claude/CLAUDE.md` §0.11 (local working tree).
 
-- [ ] **WF-1.a: Decide CLAUDE.md persistence policy — v2.1 scope
-  (follow-up to WF-1)** — Two paths to consider for WF-1's
-  policy + WF-5's task-title schema + WF-4's hook:
-  (a) **Move them to a tracked location** — e.g.,
-  `docs/CONTRIBUTING.md` for §0.11/§1.1, `.github/hooks/` for the
-  worklist-write hook. Each contributor's `.claude/CLAUDE.md`
-  becomes a symlink or a copy. Loses Claude Code's automatic
-  CLAUDE.md loading but propagates the policy.
-  (b) **Force-track `.claude/CLAUDE.md` + `.claude/settings.json`
-  + `.claude/hooks/*`** — amend `.gitignore` to allow these
-  specific paths through. Keeps Claude Code's existing behavior
-  AND propagates the policy. Recommended path.
-  Acceptance: user picks (a) or (b); .gitignore updated if (b);
-  CLAUDE.md / settings.json / hooks land in git.
-  Depends: WF-1, WF-4, WF-5. Effort: Low.
-  Outputs: `.gitignore` amendment (option b) OR migration of
-  rules to tracked files (option a).
+- [✓] **WF-1.a: CLAUDE.md persistence — landed 2026-05-21
+  via option (b)** — `.gitignore` amended to carve out
+  `.claude/CLAUDE.md`, `.claude/settings.json`, and
+  `.claude/hooks/*.sh` from the blanket `.claude/` ignore.
+  Skills, worktrees, and `settings.local.json` remain
+  gitignored (transient harness state per the original
+  intent). CLAUDE.md (§0.11, §1.1), settings.json (hooks
+  block), and `post-worklist-write.sh` now ship and
+  propagate to fresh clones. **WF-1 / WF-4 / WF-5 LOCAL-ONLY
+  caveats above are now lifted.**
 
 - [✓] **WF-2: `make verify` aggregate target — landed
   2026-05-21** — `Makefile` gained `verify` target that runs the
