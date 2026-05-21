@@ -95,6 +95,12 @@ jobs:
       - name: cargo test
         run: cargo test --workspace
 
+      - name: cargo check (x11 feature — XOrg fork)
+        run: cargo check --features x11 -p mde-session -p mackesd -p mde-workbench -p mde-files -p mde-logout-dialog
+
+      - name: cargo test (x11 feature — mde-session)
+        run: cargo test --features x11 -p mde-session
+
   panel-smoke:
     # 1.1.0 (#13): Xvfb-driven smoke for the live mackes-panel binary.
     # Boots the panel under a virtual X server, asserts the bottom

@@ -51,6 +51,14 @@ mde-config = { path = "../mde-config" }
 # directly rather than re-importing through mackesd-core.
 mde-mesh-types = { path = "../mde-mesh-types" }
 
+[features]
+# `wayland` (default): Iced renders via Wayland/wgpu.
+# `x11`: winit picks up DISPLAY at runtime; no Iced dep changes
+# needed since Iced 0.13 compiles both backends on Linux.
+default = ["wayland"]
+wayland = []
+x11     = []
+
 [dev-dependencies]
 # Single-instance handshake tests build minimal in-memory bus
 # fixtures (no real D-Bus connection); RequestNameReply lives in

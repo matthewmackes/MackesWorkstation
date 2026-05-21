@@ -1,0 +1,17 @@
+#!/bin/sh
+# mde-xorg-session — XOrg session entry point.
+# Invoked by the display manager from /usr/share/xsessions/mde-xorg.desktop.
+# Sets the display-server env vars and hands off to mde-session-xorg.
+
+# XOrg compositor + locker defaults (each overridable by the user).
+export MDE_COMPOSITOR="${MDE_COMPOSITOR:-i3}"
+export MDE_LOCK_CMD="${MDE_LOCK_CMD:-i3lock -c 000000}"
+
+# Ensure DISPLAY is exported for child processes.
+export DISPLAY="${DISPLAY:-:0}"
+
+# Seed XDG base dirs if the display manager didn't.
+export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-x11}"
+export XDG_CURRENT_DESKTOP="${XDG_CURRENT_DESKTOP:-MDE-X}"
+
+exec /usr/bin/mde-session-xorg

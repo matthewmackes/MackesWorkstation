@@ -1,0 +1,13 @@
+[Desktop Entry]
+# XOrg session entry for LightDM / GDM / SDDM.
+# Installed to /usr/share/xsessions/ by the mde-xorg RPM sub-package.
+# The Exec script sets MDE_COMPOSITOR=i3 and MDE_LOCK_CMD=i3lock
+# before handing off to mde-session-xorg (built --features x11).
+
+Name=Mackes Desktop Environment (XOrg)
+Comment=The mesh-first XOrg desktop — i3 window manager
+Exec=/usr/bin/mde-xorg-session
+TryExec=/usr/bin/mde-session-xorg
+Type=Application
+DesktopNames=MDE-X
+Keywords=mde;mackes;xorg;i3;mesh;

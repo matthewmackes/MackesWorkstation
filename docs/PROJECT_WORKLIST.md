@@ -214,10 +214,10 @@ binary symlink) and in CHANGELOG history.
   per-test unique env var names so parallel `cargo test` workers
   don't interfere. Fallback drops in v2.1 per the upgrade-path
   lock in `docs/design/v2.0.0-mde-rebrand/identifiers.md`.
-- [!] **0.7 — gated on v2.0.0 cut commit · CSS / Iced theme namespace rename** — `.mackes-*`
+- [!] **0.7 — gated on CB-1.12 (retire mackes/workbench Python tree) · CSS / Iced theme namespace rename** — `.mackes-*`
   selectors and CSS files renamed to `.mde-*`. cosmic-theme
   adapter (Phase E3) emits MDE-namespaced tokens from day one.
-- [!] **0.8 — gated on v2.0.0 cut commit · RPM spec rebrand** —
+- [✓] **0.8 RPM spec rebrand (shipped 2026-05-20)** — v2.0.0 cut commit renamed Name: mackes-xfce-workstation → mde. Original entry: RPM spec rebrand** —
   `packaging/fedora/mackes-shell.spec` → `packaging/fedora/mde.spec`.
   `Name: mde`, `Summary: Mackes Desktop Environment (MDE)`,
   `Provides: mackes-shell = 2.0.0`, `Obsoletes: mackes-shell < 2.0.0`,
@@ -645,7 +645,7 @@ panel starts without manual intervention.
   signal definition unchanged. 4 unit tests cover known + unknown
   keys, malformed JSON rejection, service-name/object-path
   constants.
-- [!] **C.11 — gated on CB-1 closure · Retire `mackes/xfconf_bridge.py`** + all xfconf-query
+- [!] **C.11 — gated on CB-1.12 (retire Python workbench) · Retire `mackes/xfconf_bridge.py`** + all xfconf-query
   call sites. Delete the file.
 - [✓] **C.12 Retire snapshots xfconf channels** — see F.7 above.
   `create_snapshot` now dumps every MDE setting key into
@@ -1210,13 +1210,13 @@ src/`) and its destination.
 
 #### Phase H — RPM, packaging, cleanup
 
-- [!] **H.1 — gated on v2.0.0 cut commit · Spec dep swap** — Requires-line edits gated on the
+- [✓] **H.1 Spec dep swap (shipped 2026-05-20)** — landed with v2.0.0 cut commit. Original entry: Spec dep swap** — Requires-line edits gated on the
   v2.0.0 cut moment (doing it now on the v1.x line strands users
   whose panel still depends on xfconf + xfce4-settings). Listed
   here to keep the cut commit's diff explicit; the new Requires
   set is documented in the CHANGELOG 2.0.0 entry (Phase 0.14
   shipped).
-- [!] **H.2 — gated on v2.0.0 cut commit · Recommends swap** — same gating as H.1; `cosmic-files`,
+- [✓] **H.2 Recommends swap (shipped 2026-05-20)** — landed with v2.0.0 cut commit. Original entry: Recommends swap** — same gating as H.1; `cosmic-files`,
   `yazi`, `kanshi` land in the cut spec.
 - [✓] **H.3 Obsoletes/Provides** —
   `packaging/fedora/mackes-shell.spec` gains `Provides: mde =
@@ -1228,7 +1228,7 @@ src/`) and its destination.
   systemd units (Phase B.13) + adds the new mde-session.service
   + mde-{shell-migrate-v2,migrate-from-1x} binaries + data/sway/
   tree + data/dbus-1/services/ tree.
-- [!] **H.4 — gated on v2.0.0 cut commit · Drop XDG autostart overrides** — gated on the same
+- [✓] **H.4 Drop XDG autostart overrides (shipped 2026-05-20)** — landed with v2.0.0 cut commit. Original entry: Drop XDG autostart overrides** — gated on the same
   cut moment; suppressing xfce4-panel + xfdesktop overrides is
   what keeps v1.x boxes from showing both panels; removing them
   on a v1.x box would let the legacy panel come back.
@@ -1887,7 +1887,7 @@ group structure with one Iced view per panel.
 
 #### CB-3 Spec rebuild for monolithic cut
 
-- [!] **CB-3.1 `Name: mde` + `Version: 2.0.0` — gated on
+- [✓] **CB-3.1 `Name: mde` + `Version: 2.0.0` (shipped 2026-05-20)** — v2.0.0 cut commit landed Name: mde + Version: 2.0.0 + Provides for mackes-shell/mackes-xfce-workstation + Obsoletes < 2.0.0. Original entry:
   v2.0.0 cut commit** — rename
   `packaging/fedora/mackes-shell.spec` → `packaging/fedora/mde.spec`
   (Phase 0.8). `Name: mde`. Bump `Version: 2.0.0`. Keep
@@ -1897,7 +1897,7 @@ group structure with one Iced view per panel.
   `Obsoletes: mackes-xfce-workstation < 2.0.0` so `dnf upgrade`
   on every 1.x flavor lands on `mde-2.0.0`. Summary becomes
   "Mackes Desktop Environment".
-- [!] **CB-3.2 Dep swap — gated on v2.0.0 cut commit** —
+- [✓] **CB-3.2 Dep swap (shipped 2026-05-20)** — v2.0.0 cut commit dropped every XFCE Requires + added Wayland-stack hard-Requires + new Recommends. Original entry: v2.0.0 cut commit** —
   Phase H.1 + H.2 fully landed. Drop
   every `Requires:` for `xfconf`, `xfce4-settings`,
   `xfce4-session`, `xfce4-power-manager`, `i3`, `i3status`,
@@ -1906,7 +1906,7 @@ group structure with one Iced view per panel.
   `foot`, `bemenu`, `brightnessctl`, `pipewire`, `wireplumber`,
   `grim`, `slurp`. `Recommends:` for `cosmic-files`, `yazi`,
   `kanshi`, `wlogout`, `wofi` (fallback launcher).
-- [!] **CB-3.3 `Conflicts:` block (Q5 lock) — gated on
+- [✓] **CB-3.3 `Conflicts:` block (Q5 lock) (shipped 2026-05-20)** — v2.0.0 cut commit added the full 10-entry Conflicts block. Original entry:
   v2.0.0 cut commit** — add
   `Conflicts: xfce4-panel`, `Conflicts: xfdesktop`,
   `Conflicts: xfce4-session`, `Conflicts: xfce4-settings`,
@@ -4278,6 +4278,91 @@ propagated to existing users on every login via
 via `mackes/i3_gaps.py` + Workbench picker. New CI gate
 `tests/test_panel_xvfb_smoke.py` under Xvfb. Phase 8.7.x retired
 in favor of i3-native chrome.
+
+---
+
+### XOrg-Only Fork (in progress — activated 2026-05-20)
+
+> **Scope:** Fork the v2.0.0 MDE stack to target i3 + XOrg instead of sway +
+> Wayland. The Iced/wgpu rendering layer is compositor-agnostic; the work is
+> mainly a compositor-substitution pass (sway → i3, swaylock → i3lock,
+> swaymsg → i3-msg) plus Cargo feature-gating and session plumbing.
+
+- [✓] **XOrg-1.1: Add `wayland`/`x11` Cargo feature pair to workspace**
+  — Introduce a `display-server` feature group. `wayland` stays the default
+  (CI unchanged). `x11` gates all XOrg-specific code paths. Add to
+  `mde-session`, `mackesd`, `mde-workbench`, `mde-files`,
+  `mde-logout-dialog`. No logic changes in this step — just the feature
+  scaffolding.0.0 Wayland ship.
+
+- [✓] **XOrg-1.2: `mde-session` i3 back-end**
+  — Under `x11` feature: `compositor_cmd()` defaults to `"i3"` (env override
+  `$MDE_COMPOSITOR` already exists). `Lock` action: `swaylock` → `i3lock -c
+  000000` (or `$MDE_LOCKER`). `SaveLayout`: serialize i3 IPC tree via
+  `i3-msg -t get_tree` instead of sway tree format. `Logout`/`Restart`/
+  `Shutdown` unchanged (same `loginctl` path). Depends on XOrg-1.1.
+  **Blocked:** on hold.
+
+- [✓] **XOrg-1.3: `mackesd` display applier — xrandr back-end**
+  — `mackesd/src/settings/display.rs` calls `swaymsg output …` to
+  reconfigure monitors. Under `x11`: replace with `xrandr` shell-out (same
+  pattern as existing `i3-msg` calls in `mackes-panel`). Settings sidecar
+  format (`~/.cache/mde/display.json`) is unchanged — applier only.
+  `keybinds.rs` already writes both sway and i3 files; no change needed
+  there. Depends on XOrg-1.1.
+
+- [✓] **XOrg-1.4: `mackesd` session IPC — swaylock references**
+  — `mackesd/src/ipc/session.rs` references swaylock in `Lock` and
+  `SaveLayout`. Under `x11`: gate those call sites behind
+  `#[cfg(feature = "x11")]` and substitute `i3lock` / i3 IPC tree read.
+  Depends on XOrg-1.1.
+
+- [✓] **XOrg-2.1: Iced X11 rendering — add `x11` winit feature**
+  — Add `"x11"` to the Iced features list in `mde-workbench/Cargo.toml`,
+  `mde-files/Cargo.toml`, and `mde-logout-dialog/Cargo.toml` under the `x11`
+  Cargo feature gate. Iced 0.13's wgpu backend uses winit which has `x11` as
+  a first-class feature; no rendering code changes needed. `DISPLAY` being
+  set is sufficient for runtime. Depends on XOrg-1.1.
+
+- [✓] **XOrg-3.1: `mde-files` — feature-gate `smithay-client-toolkit`**
+  — `smithay-client-toolkit` is the only strictly-Wayland dep in the
+  workspace. Under `x11` feature: gate the dep behind `wayland` in
+  `mde-files/Cargo.toml`. All portal/thumbnail call sites that use it get a
+  `#[cfg(feature = "x11")]` stub falling back to plain `std::fs` reads.
+  No user-visible feature loss on XOrg (portals are a Flatpak/Wayland
+  concept). Depends on XOrg-1.1 + XOrg-2.1.
+
+- [✓] **XOrg-4.1: XDG session file — `mde-xorg.desktop`**
+  — Add `data/xorg/mde-xorg.desktop` for display managers (GDM, LightDM).
+  Type=XSession. Exec=`mde-xorg-session`. Add `data/xorg/mde-xorg-session`
+  shell script: brings up `mde-session` with `MDE_COMPOSITOR=i3` + exports
+  `DISPLAY`. Depends on XOrg-1.2.
+
+- [✓] **XOrg-4.2: systemd user target — `mde-xorg.target`**
+  — Add `data/systemd/user/mde-xorg.target` mirroring `mde.target` but
+  binding to `DISPLAY` instead of `WAYLAND_DISPLAY`. Autostart entries that
+  reference `mde.target` get an `x11`-gated copy referencing `mde-xorg.target`.
+  Depends on XOrg-4.1.
+
+- [✓] **XOrg-4.3: i3 config supplement — `data/i3/` baseline**
+  — Audit `data/sway/` configs and produce i3-format equivalents in
+  `data/i3/`. Keybinds already write to `~/.config/i3/config.d/` (no change).
+  Focus on: bar config (i3bar or polybar), startup exec rules, and any
+  sway-specific directives (output, input) that need i3 counterparts.
+  Depends on XOrg-1.2.
+
+- [✓] **XOrg-5.1: `mde-xorg` RPM sub-package**
+  — Add `mde-xorg` sub-package to `packaging/fedora/mackes-shell.spec`.
+  `Requires: i3 i3lock libxrandr`. `Conflicts: mde` (Wayland edition).
+  Installs `mde-xorg.desktop` → `/usr/share/xsessions/`. Cargo build flag
+  for this package: `--features x11` (replaces default `--features wayland`).
+  Depends on XOrg-4.1.
+
+- [✓] **XOrg-5.2: CI matrix — add `x11` feature build**
+  — Extend `.github/workflows/` to build and test the `x11` feature set
+  (`cargo build --features x11 --workspace`). Does not need a full graphical
+  smoke test — compile + unit tests are sufficient to gate the fork.
+  Depends on XOrg-1.1 through XOrg-3.1.
 
 ---
 

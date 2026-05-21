@@ -20,6 +20,13 @@ serde_json = "1"
 # timestamps (chrono UTC millis).
 chrono     = "0.4"
 
+[features]
+# `wayland` (default): enables smithay-client-toolkit portal calls
+# once that dep lands. `x11`: stubs those calls; plain std::fs reads.
+default = ["wayland"]
+wayland = []
+x11     = []
+
 [lints.rust]
 unsafe_code     = "forbid"
 unused_must_use = "deny"

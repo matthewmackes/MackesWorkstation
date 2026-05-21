@@ -4,10 +4,10 @@
 # from rpmbuild on Fedora 40+.
 %global debug_package %{nil}
 
-Name:           mackes-xfce-workstation
-Version:        1.1.4
+Name:           mde
+Version:        2.0.0
 Release:        1%{?dist}
-Summary:        Mackes XFCE Workstation — unified shell, panel, dock, and mesh for Fedora
+Summary:        Mackes Desktop Environment (MDE) — Wayland-only Fedora DE
 
 License:        GPL-3.0
 URL:            https://github.com/matthewmackes/MAP2-RELEASES
@@ -15,103 +15,82 @@ URL:            https://github.com/matthewmackes/MAP2-RELEASES
 # keeps working; the package itself is renamed via Provides/Obsoletes.
 Source0:        mackes-shell-%{version}.tar.gz
 
-# Phase 10.1 rename: this package supersedes the legacy mackes-shell
-# package. dnf upgrade auto-replaces installations on the 2.x train.
+# v2.0.0 cut commit — package renamed `mackes-xfce-workstation` →
+# `mde`. Back-compat Provides/Obsoletes:
 Provides:       mackes-shell = %{version}-%{release}
-Obsoletes:      mackes-shell < 3.0
+Provides:       mackes-xfce-workstation = %{version}-%{release}
+Obsoletes:      mackes-shell < 2.0.0
+Obsoletes:      mackes-xfce-workstation < 2.0.0
 
-# v2.0.0 Phase 0.8 + H.3 — MDE rebrand. The package now also
-# advertises itself as `mde` so a new `dnf install mde` resolves
-# to this RPM, and `dnf upgrade` on a future explicit `mde` cut
-# (when the spec rename to `Name: mde` lands) replaces the
-# mackes-xfce-workstation row cleanly.
-Provides:       mde = %{version}-%{release}
+# CB-3.3 Q5 lock — Conflicts: block.  After v2.0.0 cuts, the
+# legacy XFCE stack is incompatible with MDE: every component
+# below is either replaced (xfce4-panel → mackes-panel,
+# xfdesktop → sway+swaybg, xfce4-session → mde-session) or
+# in v2.0.0 retires (xfwm4, i3 → sway).  `dnf install mde` on a
+# box that already has any of these errors out with a clear
+# "would break mde" message rather than silently leaving the
+# old desktop pieces running alongside MDE.  `< 999` is the
+# rpmlint silence-cap convention we use elsewhere.
+Conflicts:      xfce4-panel < 999
+Conflicts:      xfdesktop < 999
+Conflicts:      xfce4-session < 999
+Conflicts:      xfce4-settings < 999
+Conflicts:      xfwm4 < 999
+Conflicts:      xfce4-whiskermenu-plugin < 999
+Conflicts:      xfce4-docklike-plugin < 999
+Conflicts:      xfce4-pulseaudio-plugin < 999
+Conflicts:      xfce4-power-manager-plugin < 999
+Conflicts:      i3 < 999
 
-# 1.1.4 — every remaining XFCE Obsoletes line is dropped. dnf5
-# (libdnf5 ≤ 5.2.x) trips an internal `implicit_ts_elements`
-# assertion when our install transaction also carries 4-5 implicit
-# package erases via Obsoletes — even a small upgrade like
-# 1.0.7 → 1.1.4 hits it. The runtime birthright step
-# `apply_uninstall_legacy_xfce` already removes the same 5
-# packages from the live system post-install, so the spec
-# Obsoletes were belt-and-suspenders that's now actively harmful.
-# xfce4-panel was dropped in 1.1.3 because we depend on its
-# library; the other 5 follow here for the dnf5 compatibility
-# reason.
-#
-# v2.0.0's monolithic cut uses Conflicts: + Provides:/Obsoletes:
-# at the package-rename moment, with a different test surface;
-# at that point the Obsoletes question can be revisited.
-
-# Arch-specific (was BuildArch:noarch in 0.x): the package now carries a
-# compiled C xfce4-panel external plugin under %{_libdir}/xfce4/panel/
-# plugins/mackes-clipboard. The rest is pure-Python + data files.
+# v2.0.0 cut: ExclusiveArch retained because we still build the
+# Rust mackes-panel + mackesd + mde-workbench workspace binaries.
+# The C xfce4-panel plugins are dropped (Conflicts: xfce4-panel
+# above) — no libxfce4panel link, no xfce4-panel-devel
+# BuildRequires.
 ExclusiveArch:  %{ix86} x86_64 aarch64
 
-# Build dependencies — python3 for site-packages discovery + C toolchain
-# for the panel plugin + Rust toolchain for the mackes-panel binary
-# (Mackes XFCE Workstation 1.0.0 rewrite, Phase 0.3).
+# Build dependencies. v2.0.0 cut: dropped
+# xfce4-panel-devel + libxfce4ui-devel (C plugins retired).
 BuildRequires:  python3
-# C panel-plugin compile-time deps
-BuildRequires:  gcc
-BuildRequires:  make
 BuildRequires:  pkgconfig
-BuildRequires:  gtk3-devel
-BuildRequires:  xfce4-panel-devel
-BuildRequires:  libxfce4ui-devel
 # Rust toolchain for crates/mackes-panel + workspace crates
 BuildRequires:  rust
 BuildRequires:  cargo
 
-# Runtime deps the entry point and all panels need
+# Runtime deps the entry point and all panels need.
+# v2.0.0 cut: dropped every XFCE Requires (xfconf, xfce4-settings,
+# xfce4-session, xfce4-power-manager, terminator) + i3 stack
+# (i3, i3status, dmenu) per CB-3.2. The Wayland stack below
+# replaces them.
 Requires:       python3
 Requires:       python3-gobject
 Requires:       gtk3
 Requires:       python3-pyyaml
-Requires:       xfconf
-Requires:       xfce4-settings
-Requires:       xfce4-session
 
-# 1.0.7 (Phase 8.8) — i3 is the only window manager. xfwm4 is
-# fully replaced. The XFCE session host stays (xfsettingsd,
-# xfce4-power-manager, thunar, xfconf above) — i3 just owns the
-# WM role inside the XFCE session. mackes-maximizer is retired
-# (it existed only as an xfwm4 crutch; i3 tiles natively).
-Requires:       i3
-Requires:       i3status
-Requires:       dmenu
+# CB-3.2 Wayland-stack hard-Requires (v2.0.0 lock).
+Requires:       sway
+Requires:       swaylock
+Requires:       swayidle
+Requires:       swaybg
+Requires:       foot
+Requires:       bemenu
+Requires:       brightnessctl
+Requires:       pipewire
+Requires:       wireplumber
+Requires:       grim
+Requires:       slurp
 
-# Phase 10.6.6 (1.1.0) — xfce4-panel-profiles + the three xfce4-panel
-# plugins are NOT required any more: mackes-panel replaces xfce4-panel
-# entirely, and the four Obsoletes above mean dnf will refuse to pull
-# them back in. apply_panel_layout (birthright) skips itself gracefully
-# when xfce4-panel-profiles isn't installed; the wizard's legacy
-# panel-archive step preserves any pre-1.0 layout for reference.
-#
-# 1.1.0 — Right-click Start menu spawns the comprehensive Fedora admin
-# action set (Root Terminal / DNF / journalctl / systemctl / SELinux /
-# firewall / sudoedit / disk-clean) inside a terminator window with
-# the shell kept open after the command finishes (Q15/Q16 lock).
-Requires:       terminator
-
-# Phase 13.1.1 — KDE Connect Option A integration. Mackes ships its
-# own Workbench GUI talking `org.kde.kdeconnect.*` DBus + a mesh-mDNS
-# bridge so remote phones feel local. The upstream `kdeconnectd`
-# daemon stays user-session-autostarted (handled by upstream's own
-# `.desktop`); only its tray indicator is suppressed below.
+# Phase 13.1.1 — KDE Connect Option A integration. Workbench
+# Connect talks org.kde.kdeconnect.* DBus + a mesh-mDNS bridge.
+# The upstream kdeconnectd daemon stays user-session-autostarted.
 Requires:       kdeconnectd
-# Note: on Fedora 44+ the power-manager panel plugin ships inside the
-# parent xfce4-power-manager package (libxfce4powermanager.so); there
-# is no separate xfce4-power-manager-plugin RPM.
-Requires:       xfce4-power-manager
 
 # SSH enabled by default on every Mackes install
 Requires:       openssh-server
 
-# Phase 5.2 — mackes-panel shells out to `wmctrl -l` for open-window
-# enumeration (running-app dock indicators). wmctrl is a 50 KB tool
-# and ships in every Fedora repo.
-Requires:       wmctrl
+# v2.0.0 cut: wmctrl (X11-only) dropped. Wayland window
+# enumeration goes through swayipc-async (Phase E rewrite)
+# or `swaymsg -t get_tree` subprocess (today).
 
 # Plymouth boot splash — Mackes ships its own theme (data/plymouth/mackes/)
 Requires:       plymouth
@@ -169,17 +148,11 @@ Recommends:     gstreamer1-plugin-openh264
 # wizard's apply_conky step installs the user config + XDG autostart.
 # The Tweaks panel toggle turns the HUD on/off without uninstalling.
 Requires:       conky
-# v1.6.2 — per-monitor HUD placement uses xrandr; click-through uses
-# xdotool to find the conky window before clearing its SHAPE input.
-# Both degrade gracefully when absent.
-Recommends:     xorg-x11-server-utils
-Recommends:     xdotool
-
-# wmctrl + xprop still needed for the panel's window enumeration
-# (dock tasklist, EWMH strut publishing). The mackes-maximizer
-# service that previously consumed them is retired in Phase 8.8.
-Requires:       wmctrl
-Requires:       xprop
+# v2.0.0 cut: xorg-x11-server-utils, xdotool, wmctrl, xprop
+# all dropped (X11-only tools). Wayland equivalents:
+# - swaymsg / swayipc-async for window enumeration (replaces
+#   wmctrl + xprop).
+# - kanshi for per-output config (replaces xrandr / xorg-utils).
 
 # Mesh fabric (§8.11–§8.14): WireGuard via Tailscale + self-hosted Headscale
 Requires:       tailscale
@@ -229,6 +202,12 @@ Recommends:     strawberry
 Requires:       NetworkManager
 Recommends:     firewalld
 Recommends:     pulseaudio-utils
+# CB-3.2 Wayland-alternate Recommends.
+Recommends:     cosmic-files
+Recommends:     yazi
+Recommends:     kanshi
+Recommends:     wlogout
+Recommends:     wofi
 
 # Typography defaults — PatternFly v6 (Red Hat Display + Text + Mono)
 Recommends:     redhat-display-fonts
@@ -245,12 +224,38 @@ Recommends:     qnm
 %global py3_sitelib /usr/lib/python%{py3_ver}/site-packages
 
 %description
-Mackes Shell is the single GTK control panel that replaces xfce4-settings
-as the daily interface for managing an XFCE-based Fedora workstation. One
-window, a dashboard, task tabs (Look & Feel, Devices, Network, System,
-Apps, Maintain), and a first-run wizard that brings a fresh machine to a
-known preset in under five minutes. Standard XFCE shell underneath (Whisker
-Menu + xfce4-panel + xfdesktop), styled with the Carbon Design System.
+Mackes Desktop Environment (MDE) is a Wayland-only Fedora desktop
+environment built on sway as the compositor. v2.0.0 retires the XFCE
+session host that v1.x ran on top of — sway / swaylock / swayidle /
+swaybg replace xfce4-session + xfwm4 + xfdesktop; the Iced MDE
+Workbench replaces the GTK3 xfce4-settings; mde-session orchestrates
+first-boot config migration off the v1.x xfconf tree. One Workbench
+window, a dashboard, nine task groups (Look & Feel, Devices, Network,
+System, Apps, Maintain, Fleet, Help, Dashboard), and a first-run
+wizard that brings a fresh machine to a known preset in under five
+minutes. PatternFly v6 styling (Red Hat Display / Text / Mono).
+
+# ---------------------------------------------------------------------------
+# mde-xorg sub-package — XOrg/i3 edition of the MDE session
+# ---------------------------------------------------------------------------
+%package xorg
+Summary:        Mackes Desktop Environment — XOrg/i3 session
+Requires:       mde = %{version}-%{release}
+Requires:       i3
+Requires:       i3lock
+Requires:       xorg-x11-server-utils
+Requires:       xfce4-terminal
+Requires:       scrot
+Requires:       dmenu
+Recommends:     brightnessctl
+
+%description xorg
+XOrg/i3 session add-on for Mackes Desktop Environment.  Installs
+the i3-backed mde-session binary (built --features x11), the
+mde-xorg.desktop XSession entry, an i3 config tuned for MDE, and
+a systemd user target that gates on DISPLAY instead of
+WAYLAND_DISPLAY.  Install alongside the main `mde` package to get
+both session choices in the display-manager greeter.
 
 %prep
 # sdist generated by `python -m build` unpacks to mackes_shell-<version>/
@@ -258,16 +263,21 @@ Menu + xfce4-panel + xfdesktop), styled with the Carbon Design System.
 %autosetup -n mackes_shell-%{version}
 
 %build
-# Pure Python — except for the xfce4-panel external clipboard plugin (C).
-make -C data/panel-plugins/mackes-clipboard CFLAGS="%{optflags}"
-make -C data/panel-plugins/mackes-launcher  CFLAGS="%{optflags}"
-make -C data/panel-plugins/mackes-drawer    CFLAGS="%{optflags}"
+# v2.0.0 cut: C xfce4-panel external plugins retired
+# (Conflicts: xfce4-panel above). The data/panel-plugins/ tree
+# stays in the source tree as historical reference for the
+# v1.x release line but is not built or shipped in v2.0.0.
 
 # Rust workspace — mackes-panel binary + library crates (Phase 0.3).
 # Offline=false because we let Cargo resolve crates.io deps; the build
 # environment is expected to have network. If/when we vendor, drop in
 # `--offline` and a vendored target dir.
 cargo build --release --workspace
+
+# XOrg fork — build mde-session with --features x11 into a separate
+# target dir so both binaries can be installed from the same spec.
+cargo build --release --features x11 -p mde-session \
+    --target-dir target/x11
 
 %install
 # 1. Install the Python package directly into site-packages. Skip
@@ -320,14 +330,7 @@ cp -r data/icons/Mackes-Carbon %{buildroot}%{_datadir}/icons/
 # only when the user opts in (initrd rebuild is heavy and disruptive).
 install -d %{buildroot}%{_datadir}/plymouth/themes
 cp -r data/plymouth/mackes %{buildroot}%{_datadir}/plymouth/themes/
-# C plugin install (compiled in %%build above). Pass libdir explicitly
-# so on 64-bit the binary lands at %{_libdir}=/usr/lib64, not /usr/lib.
-make -C data/panel-plugins/mackes-drawer install \
-    DESTDIR=%{buildroot} prefix=%{_prefix} libdir=%{_libdir} datadir=%{_datadir}
-make -C data/panel-plugins/mackes-clipboard install \
-    DESTDIR=%{buildroot} prefix=%{_prefix} libdir=%{_libdir}
-make -C data/panel-plugins/mackes-launcher install \
-    DESTDIR=%{buildroot} prefix=%{_prefix} libdir=%{_libdir}
+# v2.0.0 cut: C panel-plugin install steps retired (see %build).
 cp -r data/grub           %{buildroot}%{_datadir}/%{name}/data/
 cp    data/media-services.yaml %{buildroot}%{_datadir}/%{name}/data/
 # Per-preset captured xfconf baselines (§8 lock). Each preset directory
@@ -423,6 +426,24 @@ install -m 0644 data/man/mded.8                 %{buildroot}%{_mandir}/man8/mded
 install -d %{buildroot}%{_datadir}/dbus-1/services
 install -m 0644 data/dbus-1/services/*.service \
     %{buildroot}%{_datadir}/dbus-1/services/
+# XOrg sub-package install steps.
+# mde-session-xorg — mde-session built --features x11.
+install -D -m 0755 target/x11/release/mde-session \
+    %{buildroot}%{_bindir}/mde-session-xorg
+# Session entry + startup script.
+install -D -m 0755 data/xorg/mde-xorg-session \
+    %{buildroot}%{_bindir}/mde-xorg-session
+install -D -m 0644 data/xorg/mde-xorg.desktop \
+    %{buildroot}%{_datadir}/xsessions/mde-xorg.desktop
+# i3 config for the MDE-X session.
+install -D -m 0644 data/i3/mde-xorg.config \
+    %{buildroot}%{_datadir}/mde-xorg/i3/mde-xorg.config
+install -D -m 0644 data/i3/config.d/mde-xorg-defaults.conf \
+    %{buildroot}%{_datadir}/mde-xorg/i3/config.d/mde-xorg-defaults.conf
+# systemd user target.
+install -D -m 0644 data/systemd/user/mde-xorg.target \
+    %{buildroot}%{_userunitdir}/mde-xorg.target
+
 # headscale.service is owned by the upstream `headscale` RPM at the same
 # path; shipping our copy would cause a file-conflict on dnf install.
 # Our data/systemd/headscale.service is kept in the source tree as a
@@ -480,32 +501,14 @@ install -D -m 0644 data/applications/mackes-shell.desktop \
 install -D -m 0644 data/applications/mackes-clipboard.desktop \
     %{buildroot}%{_datadir}/applications/mackes-clipboard.desktop
 
-# 5a. mackes-panel autostart (Phase 8.3). Drops into /etc/xdg/autostart so
-# every XFCE session brings up the new Rust panel. NoDisplay=true keeps
-# it out of menus — the panel runs implicitly.
-install -D -m 0644 data/applications/mackes-panel.desktop \
-    %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-panel.desktop
-
-# 5b. Disable xfdesktop autostart on Mackes installs — mackes-panel owns
-# the wallpaper + root-window roles (Q39/Q40). We don't uninstall the
-# xfdesktop package (still a recommends from xfce4-session), but we
-# override its autostart with Hidden=true.
-install -d %{buildroot}%{_sysconfdir}/xdg/autostart
-cat > %{buildroot}%{_sysconfdir}/xdg/autostart/xfdesktop.desktop <<'XFDESKTOP_EOF'
-[Desktop Entry]
-Type=Application
-Name=Desktop Manager (disabled by Mackes)
-Comment=mackes-panel owns the wallpaper and root-window roles on Mackes installs.
-Exec=true
-Hidden=true
-NoDisplay=true
-X-XFCE-Autostart-enabled=false
-X-GNOME-Autostart-enabled=false
-XFDESKTOP_EOF
-chmod 0644 %{buildroot}%{_sysconfdir}/xdg/autostart/xfdesktop.desktop
-# v1.6.2 — tray icon autostart (Q8 lock: panel + tray + hotkey)
-# v2.2.0 — mackes-tray.desktop removed (tray replaced by the Notification
-# Drawer panel applet).
+# v2.0.0 cut (CB-3.5, H.4): every XDG autostart override is
+# dropped. The Wayland session orchestrator (mde-session) and
+# sway config own panel/desktop bring-up natively. The
+# xfdesktop / mackes-suppress-xfce4-panel / kdeconnect-indicator
+# suppressor overrides are no longer needed because:
+# - xfce4-panel/xfdesktop are Conflicts (CB-3.3) — they can't
+#   be installed alongside MDE.
+# - kdeconnect-indicator never starts on Wayland.
 install -D -m 0644 data/applications/mackes-mesh-uri-handler.desktop \
     %{buildroot}%{_datadir}/applications/mackes-mesh-uri-handler.desktop
 # AppStream metainfo — surfaces Mackes in GNOME Software / KDE Discover
@@ -584,54 +587,17 @@ chmod 0755 %{buildroot}%{_bindir}/mackes-clipboard
 install -m 0755 bin/mackes-gvfsd-mesh %{buildroot}%{_bindir}/mackes-gvfsd-mesh
 install -m 0755 bin/mackes-mesh-open  %{buildroot}%{_bindir}/mackes-mesh-open
 
-# 6b. mackes-enforce-session — 1.0.8 hotfix. Runs from
-# /etc/xdg/autostart at every login and idempotently converges the
-# session onto i3 + mackes-panel (no xfwm4, no xfce4-panel, no
-# xfdesktop). Needed because xfce4-session's Failsafe template still
-# starts the legacy stack, and we don't ship a system xfce4-session.xml
-# override (RPM file conflict with the xfce4-session package).
+# v2.0.0 cut: mackes-enforce-session retired
+# (xfce4-session is Conflicts now; no XFCE session means no
+# need to enforce the i3 + mackes-panel session). The binary
+# still ships at /usr/bin/ for back-compat (callers in v1.x
+# upgrade paths can still invoke it; it's now a no-op stub
+# that exits 0 on Wayland).
 install -m 0755 bin/mackes-enforce-session \
     %{buildroot}%{_bindir}/mackes-enforce-session
-install -D -m 0644 data/applications/mackes-enforce-session.desktop \
-    %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-enforce-session.desktop
 
-# 6c-bis. Phase 13.1.1 — kdeconnect-indicator autostart override.
-# Mackes ships its own Workbench Connect GUI, so the upstream tray
-# indicator would double up next to it. The daemon (`kdeconnectd`)
-# stays autostarted by its own .desktop; only the indicator is
-# suppressed.
-install -d %{buildroot}%{_sysconfdir}/xdg/autostart
-cat > %{buildroot}%{_sysconfdir}/xdg/autostart/kdeconnect-indicator.desktop <<'KDC_EOF'
-[Desktop Entry]
-Type=Application
-Name=KDE Connect indicator (disabled by Mackes)
-Comment=Mackes Workbench Connect provides the native UI.
-Exec=true
-Hidden=true
-NoDisplay=true
-X-XFCE-Autostart-enabled=false
-X-GNOME-Autostart-enabled=false
-KDC_EOF
-chmod 0644 %{buildroot}%{_sysconfdir}/xdg/autostart/kdeconnect-indicator.desktop
-
-# 6c. xfce4-panel autostart override — Hidden=true, mirrors the
-# xfdesktop override at line ~400. xfce4-panel ships its own
-# /etc/xdg/autostart/xfce4-panel.desktop, so we install ours at a
-# Mackes-prefixed filename and rely on mackes-enforce-session to kill
-# any xfce4-panel that xfce4-session started directly. Belt-and-braces
-# for the XDG-autostart spawn path.
-cat > %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-suppress-xfce4-panel.desktop <<'XFP_EOF'
-[Desktop Entry]
-Type=Application
-Name=xfce4-panel suppressor (Mackes)
-Comment=mackes-panel replaces xfce4-panel on Mackes installs.
-Exec=true
-Hidden=true
-NoDisplay=true
-X-XFCE-Autostart-enabled=false
-X-GNOME-Autostart-enabled=false
-XFP_EOF
-chmod 0644 %{buildroot}%{_sysconfdir}/xdg/autostart/mackes-suppress-xfce4-panel.desktop
+# v2.0.0 cut: kdeconnect-indicator + xfce4-panel XDG suppressors
+# retired (see the CB-3.5 / H.4 comment in section 5a).
 
 %pre
 # Phase 12.1 (1.0.7) — `mackesd` runs as a dedicated system user.
@@ -701,9 +667,9 @@ fi
 # legacy org.mackes.* aliases for one-release back-compat).
 %{_datadir}/dbus-1/services/dev.mackes.MDE.*.service
 %{_datadir}/dbus-1/services/org.mackes.*.service
-# v2.0.0 Phase D.5 — sway config.
-%{_datadir}/mde/sway/config
-%{_datadir}/mde/sway/config.d/mackes-defaults.conf
+# v2.0.0 Phase D.5 — sway config now covered by the
+# %{_datadir}/%{name}/ catch-all below (Name: mde, so
+# %{_datadir}/%{name}/ == /usr/share/mde/).
 %{py3_sitelib}/mackes/
 %{py3_sitelib}/mackes_shell-%{version}.dist-info/
 %{_datadir}/%{name}/
@@ -713,16 +679,11 @@ fi
 # v2.0.0 Phase 0.9 — MDE-namespaced .desktop + metainfo aliases.
 %{_datadir}/applications/mde.desktop
 %{_metainfodir}/dev.mackes.MDE.metainfo.xml
-# Phase 8.3 — autostart entries that bring up mackes-panel and override
-# xfdesktop on Mackes installs (Q39/Q40). The mackes-enforce-session
-# entry (1.0.8 hotfix) idempotently swaps xfwm4 → i3 and quits any
-# xfce4-panel/xfdesktop that xfce4-session spawned from its Failsafe
-# client list.
-%config %{_sysconfdir}/xdg/autostart/mackes-panel.desktop
-%config %{_sysconfdir}/xdg/autostart/xfdesktop.desktop
-%config %{_sysconfdir}/xdg/autostart/mackes-enforce-session.desktop
-%config %{_sysconfdir}/xdg/autostart/mackes-suppress-xfce4-panel.desktop
-%config %{_sysconfdir}/xdg/autostart/kdeconnect-indicator.desktop
+# v2.0.0 cut: XDG autostart overrides retired
+# (mackes-panel.desktop, xfdesktop.desktop, mackes-enforce-session
+# .desktop, mackes-suppress-xfce4-panel.desktop, kdeconnect-indicator
+# .desktop). The Wayland session orchestrator (mde-session) and
+# sway config handle panel + desktop bring-up natively.
 %{_metainfodir}/io.github.matthewmackes.MackesShell.metainfo.xml
 %{_metainfodir}/shell.mackes.Panel.metainfo.xml
 %{_datadir}/gvfs/mounts/mesh.mount
@@ -732,11 +693,10 @@ fi
 %{_unitdir}/mackes-tailscale-bootstrap.service
 %{_unitdir}/mackesd.service
 # v12.16 Self-hosted DERP relay unit. Inactive on non-Host peers
-# (gated by ConditionPathExists=/var/lib/mde/derper.enabled). Lands
-# alongside the headscale DERP-map example shipped under
-# %{_datadir}/mde/headscale/.
+# (gated by ConditionPathExists=/var/lib/mde/derper.enabled). The
+# headscale DERP-map example shipped under
+# %{_datadir}/%{name}/headscale/ is covered by the data catch-all.
 %{_unitdir}/mde-derper.service
-%{_datadir}/mde/headscale/derp-map.example.json
 # v2.0.0 Phase B.13 retired 10 standalone systemd units (the 8
 # named services + 3 paired .timer files); their roles now run
 # inside `mackesd serve` as workers (Phase A.2 supervisor).
@@ -753,18 +713,15 @@ fi
 %{_userunitdir}/mde-firstboot.target
 %{_userunitdir}/mde-migrate-from-1x.service
 %{_userunitdir}/mde-shell-migrate-v2.service
-# CB-3.4 — comps group definition.
-%{_datadir}/mde/comps/mackes-desktop-environment.xml
+# CB-3.4 — comps group definition is under
+# %{_datadir}/%{name}/comps/ which is now covered by the
+# %{_datadir}/%{name}/ catch-all below.
 %config(noreplace) /etc/sudoers.d/mackes-shell
-# C panel plugins + their descriptors
-%{_libdir}/xfce4/panel/plugins/mackes-clipboard
-%{_datadir}/xfce4/panel/plugins/mackes-clipboard.desktop
-# v1.6.2 — Mackes launcher (Super+M → mackes --drawer)
-%{_libdir}/xfce4/panel/plugins/mackes-launcher
-%{_datadir}/xfce4/panel/plugins/mackes-launcher.desktop
-# v2.2.0 — Notification Drawer pill (replaces Conky HUD + tray + popover)
-%{_libdir}/xfce4/panel/plugins/mackes-drawer
-%{_datadir}/xfce4/panel/plugins/mackes-drawer.desktop
+# v2.0.0 cut: C panel plugins (mackes-clipboard, mackes-launcher,
+# mackes-drawer) retired alongside xfce4-panel.  Their roles
+# move to native mackes-panel applets in Phase E.1.x (Iced
+# port). Until then, the desktop-applet feature set is reduced
+# to the panel binary's built-in surfaces.
 # Vendored GTK themes: Orchis-Dark (gtk-2/3/4 + xfwm) is the default;
 # Shiki-Statler provides the classic xfwm4 window borders.
 %{_datadir}/themes/Orchis-Dark/
@@ -780,7 +737,51 @@ fi
 # time — activation happens in the wizard's birthright step)
 %{_datadir}/plymouth/themes/mackes/
 
+%files xorg
+%{_bindir}/mde-session-xorg
+%{_bindir}/mde-xorg-session
+%{_datadir}/xsessions/mde-xorg.desktop
+%{_datadir}/mde-xorg/
+%{_userunitdir}/mde-xorg.target
+
 %changelog
+* Wed May 20 2026 Matt Mackes <matthewmackes@gmail.com> - 2.0.0-1
+- v2.0.0 monolithic cut commit (CB-3.1 lock + CB-2.2 + CB-3.2 +
+  CB-3.3 + CB-3.5 + H.1 + H.2 + H.4 + Phase 0.7 + 0.8 landed
+  together so dnf upgrade lands on mde-2.0.0 in one transaction).
+- Name: mackes-xfce-workstation → mde. Provides + Obsoletes carry
+  both mackes-shell and mackes-xfce-workstation so existing dnf
+  upgrade paths resolve cleanly.
+- CB-3.2: every XFCE Requires dropped (xfconf, xfce4-settings,
+  xfce4-session, xfce4-power-manager, terminator, i3, i3status,
+  dmenu, wmctrl, xprop, xorg-x11-server-utils, xdotool); the
+  Wayland stack lands hard-Requires (sway, swaylock, swayidle,
+  swaybg, foot, bemenu, brightnessctl, pipewire, wireplumber,
+  grim, slurp). New Recommends: cosmic-files, yazi, kanshi,
+  wlogout, wofi.
+- CB-3.3: Conflicts block per Q5 lock (xfce4-panel, xfdesktop,
+  xfce4-session, xfce4-settings, xfwm4, xfce4-whiskermenu-plugin,
+  xfce4-docklike-plugin, xfce4-pulseaudio-plugin,
+  xfce4-power-manager-plugin, i3 — all `< 999` cap pattern).
+- CB-3.5 / H.4: every XDG autostart override retired
+  (mackes-panel.desktop, xfdesktop.desktop, mackes-enforce-session
+  .desktop, mackes-suppress-xfce4-panel.desktop,
+  kdeconnect-indicator.desktop). Wayland session orchestrator
+  handles bring-up natively.
+- C panel-plugin trio retired (mackes-clipboard, mackes-launcher,
+  mackes-drawer). Their roles move to native mackes-panel applets
+  in Phase E.1.x (Iced port). BuildRequires drops
+  xfce4-panel-devel + libxfce4ui-devel.
+- 21 Iced Workbench panels shipped in v1.1.x partial-progress
+  cuts now compose the v2.0.0 Workbench surface (mde-workbench
+  binary, /usr/bin/mde-workbench).
+- 5 mded subcommands shipped: nodes list, ansible-history list,
+  playbooks {list, run}, events list.
+
+* Wed May 20 2026 Matt Mackes <matthewmackes@gmail.com> - 1.1.4-1
+- Drop all 5 remaining XFCE Obsoletes (dnf5 implicit_ts_elements
+  assertion fix, take 2). RPM now installs cleanly on Fedora 44.
+
 * Sat May 16 2026 Matt Mackes <matthewmackes@gmail.com> - 0.2.0-1
 - Identity: stripped "PRIVATE WORK / Sub Testing Release" markers from
   dashboard, wizard, and About dialog.

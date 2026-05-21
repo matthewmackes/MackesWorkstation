@@ -150,6 +150,10 @@ tempfile = "3"
 # in CI without forcing every developer to install Docker.
 docker-tests = ["dep:testcontainers"]
 
+# XOrg fork — compile mackesd with X11 session plumbing (i3 / xrandr).
+# Used by the `mde-xorg` RPM sub-package build.
+x11 = []
+
 # v2.0.0 Phase A — opt-in async worker pool + DBus surface. Enabled by
 # `cargo build --features async-services` and by `mackesd serve` in
 # the binary. The library's `workers/`, `ipc/`, and `settings/`

@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace      = true
 authors.workspace      = true
 repository.workspace   = true
-description  = "MDE user-session orchestrator — execs sway + owns the dev.mackes.MDE.Session DBus surface"
+description  = "MDE user-session orchestrator — execs sway (wayland feature) or i3 (x11 feature) + owns the dev.mackes.MDE.Session DBus surface"
 
 [[bin]]
 name = "mde-session"
@@ -29,6 +29,13 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 mackesd-core = { package = "mackesd", path = "../mackesd", features = ["async-services"] }
 # XDG path resolution (same crate mackesd uses).
 dirs = "5"
+
+[features]
+# `wayland` (default): sway compositor + swaylock screen locker.
+# `x11`: i3 compositor + i3lock screen locker.
+default = ["wayland"]
+wayland = []
+x11     = []
 
 [dev-dependencies]
 tempfile = "3"

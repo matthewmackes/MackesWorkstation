@@ -4,11 +4,14 @@
 //! `dev.mackes.MDE.Session.Lock` fires. The command is read from the
 //! `$MDE_LOCK_CMD` env var with a sensible swaylock default.
 
-/// Default lock command. swaylock --color black is the established
-/// minimum (`pam_unix` for the password, no extra fanfare). Operators
-/// who want a fancier screensaver set `$MDE_LOCK_CMD` to their own
-/// invocation.
+/// Default lock command.
+/// - `wayland` feature: `swaylock --color 000000` (pam_unix, no fanfare)
+/// - `x11` feature: `i3lock -c 000000` (same intent, XOrg-native)
+/// Override either with `$MDE_LOCK_CMD`.
+#[cfg(not(feature = "x11"))]
 pub const DEFAULT_LOCK_CMD: &str = "swaylock --color 000000";
+#[cfg(feature = "x11")]
+pub const DEFAULT_LOCK_CMD: &str = "i3lock -c 000000";
 
 /// Resolve the lock command from `$MDE_LOCK_CMD` (or the legacy
 /// `$MACKES_LOCK_CMD` via the Phase 0.6 shim), defaulting to
@@ -65,8 +68,15 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "x11"))]
     fn default_lock_cmd_is_swaylock_with_black_bg() {
         assert_eq!(DEFAULT_LOCK_CMD, "swaylock --color 000000");
+    }
+
+    #[test]
+    #[cfg(feature = "x11")]
+    fn default_lock_cmd_is_i3lock_with_black_bg() {
+        assert_eq!(DEFAULT_LOCK_CMD, "i3lock -c 000000");
     }
 
     #[test]

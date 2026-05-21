@@ -27,6 +27,13 @@ path = "src/main.rs"
 iced       = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "tokio", "advanced"] }
 clap       = { version = "4.5", features = ["derive"] }
 
+[features]
+# `wayland` (default): Wayland window hints via Iced.
+# `x11`: X11 window class set at startup; no Iced dep changes needed.
+default = ["wayland"]
+wayland = []
+x11     = []
+
 [lints.rust]
 unsafe_code     = "forbid"
 unused_must_use = "deny"

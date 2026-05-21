@@ -33,11 +33,21 @@ use anyhow::Context;
 use tokio::process::Command;
 use tokio::signal::unix::{signal, SignalKind};
 
-/// Compositor command. Defaults to `sway`; override via
-/// `$MDE_COMPOSITOR` for development.
+/// Compositor command. Defaults to `sway` (wayland feature) or `i3`
+/// (x11 feature); override via `$MDE_COMPOSITOR` for development.
 fn compositor_cmd() -> String {
     mackesd_core::env_with_legacy_fallback("MDE_COMPOSITOR", "MACKES_COMPOSITOR")
-        .unwrap_or_else(|| "sway".to_owned())
+        .unwrap_or_else(default_compositor)
+}
+
+#[cfg(not(feature = "x11"))]
+fn default_compositor() -> String {
+    "sway".to_owned()
+}
+
+#[cfg(feature = "x11")]
+fn default_compositor() -> String {
+    "i3".to_owned()
 }
 
 #[tokio::main]

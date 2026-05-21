@@ -78,14 +78,14 @@ impl SessionState {
         Ok(())
     }
 
-    /// Snapshot the current sway layout JSON to
+    /// Snapshot the current WM layout JSON to
     /// `$XDG_CACHE_HOME/mde/session-layout.json` so the next login
     /// can restore window placement.
     async fn save_layout(&self) -> zbus::fdo::Result<()> {
         tracing::info!("Session.SaveLayout invoked");
-        let layout = run_swaymsg_get_tree()
+        let layout = run_wm_get_tree()
             .await
-            .map_err(|e| zbus::fdo::Error::Failed(format!("swaymsg failed: {e}")))?;
+            .map_err(|e| zbus::fdo::Error::Failed(format!("wm get_tree failed: {e}")))?;
         let path = layout_save_path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| {
@@ -127,13 +127,21 @@ fn layout_save_path() -> std::path::PathBuf {
     cache.join("mde").join("session-layout.json")
 }
 
-async fn run_swaymsg_get_tree() -> anyhow::Result<String> {
-    let out = tokio::process::Command::new("swaymsg")
+/// Fetch the current WM tree as JSON.
+/// - `wayland` feature: `swaymsg -t get_tree`
+/// - `x11` feature: `i3-msg -t get_tree`
+async fn run_wm_get_tree() -> anyhow::Result<String> {
+    #[cfg(not(feature = "x11"))]
+    let wm_msg = "swaymsg";
+    #[cfg(feature = "x11")]
+    let wm_msg = "i3-msg";
+
+    let out = tokio::process::Command::new(wm_msg)
         .args(["-t", "get_tree"])
         .output()
         .await?;
     if !out.status.success() {
-        anyhow::bail!("swaymsg get_tree exited non-zero");
+        anyhow::bail!("{wm_msg} get_tree exited non-zero");
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
