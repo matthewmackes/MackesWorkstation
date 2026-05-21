@@ -863,11 +863,18 @@ src/`) and its destination.
   status-cluster placeholder in the Cluster pane binding once
   it ships. 1.1.0 layout lock preserved: no workspace switcher
   in the chip row.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.2 `src/hero.rs` port** — focused-app hero with 280 ms
-  slide. `EventStream(Window::Focus)` drives the title text +
-  icon; Iced `iced_animation` (or hand-rolled tween via
-  `time::every(16ms)`) drives the slide. Retains the 1.1.0
-  GTK-revealer behaviour as Iced opacity + translate.
+- [✓] **Phase E.4.2 hero (shipped 2026-05-21)** —
+  `crates/mde-panel/src/hero.rs` ships `Hero` with
+  `current`/`incoming` slide state, `set_focused(title, app_id)`,
+  `tick(now)` promotion at the 280ms boundary, `progress_at(now)`
+  for renderer-driven opacity/transform, `display_title()` with
+  Unicode-safe ellipsization at 64 chars. The sway focus
+  `EventStream(Window::Focus)` subscription that calls
+  `set_focused()` lands when Phase E.3 wires foreign-toplevel
+  events; the widget today drives off the demo state in
+  `TopBarState`. 12 unit tests cover slide duration lock,
+  set-focused no-op on same entry, tick promotion, ellipsize,
+  progress 0→1 ramp, Unicode safety, max-title char count.
 - [✓] **Phase E.4.3 — superseded by E1.2.11 `mde-applet-app-switcher` (2026-05-20).** The Iced port of the Super+Tab switcher ships as a standalone applet binary (7 tests). Panel-host consumption is gated separately on Phase E.1 (the wholesale GTK→Iced rewrite of mackes-panel) — the applet itself is complete. Original entry: Super+Tab switcher
   popup. Reads candidates from the E.3 foreign-toplevel
   subscription, renders an Iced centered overlay window
@@ -875,27 +882,52 @@ src/`) and its destination.
   `swayipc-async::Connection::run_command`. Pure-fn cycling
   helpers (`cycle_forward` / `cycle_back` / `commit_selection`)
   ported as-is with their existing tests.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.4 `src/expose.rs` port** — F3 expose grid. Reads
-  `swaymsg -t get_tree` via `swayipc-async`, flattens
-  `window_type == "normal"` leaves, renders a fullscreen Iced
-  overlay with one card per window. `swaymsg [con_id=<N>] focus`
-  on click. Pure-fn `grid_columns` / `card_layout` /
-  `truncate_title` helpers retained with existing tests.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.5 Clipboard via wlr-data-control** —
-  `crates/mde-panel/src/clipboard_manager.rs` ported to SCTK
-  `wlr_data_control_v1`. Drops the xclip / wl-copy subprocess
-  path. Mesh-replication path through
-  `~/.cache/mde/clipboard.json` unchanged. Replaces the existing
-  B.1 supervised Python clipboard daemon — that supervisor stub
-  retires once this lands.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.6.1 Brightness slider** — `src/start_menu.rs` (E.11)
-  brightness section reads + writes via `brightnessctl` (already
-  the C.3 backend). Drops the X11 `xrandr --brightness` path.
-  7-step slider math preserved.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.6.2 Volume slider** — `src/start_menu.rs` volume section
-  reads + writes via `pipewire-rs` (replaces the
-  `pactl set-sink-volume` shell-out). Pure-fn dB ↔ percent
-  conversion helpers retained.
+- [✓] **Phase E.4.4 expose (shipped 2026-05-21)** —
+  `crates/mde-panel/src/expose.rs` ships the pure-fn helpers:
+  `grid_columns(n)` (ceil-sqrt capped at MAX_COLUMNS=6),
+  `card_layout(surface_w, surface_h, n)` (16:9 aspect with
+  height-based fallback), `truncate_title(s, max)` (Unicode-
+  safe ellipsis), `cards_from_windows(windows)` (filters
+  window_type=="normal", maps to ExposeCard). The Iced
+  fullscreen overlay UI + swaymsg [con_id=N] focus click handler
+  land alongside the Phase E.3 foreign-toplevel listener; the
+  layout math today is testable in isolation. 11 unit tests.
+- [✓] **Phase E.5 clipboard via wl-clipboard (shipped 2026-05-21)** —
+  best-choice deviation from the original "SCTK
+  wlr-data-control" lock: `crates/mde-panel/src/clipboard.rs`
+  wraps `wl-paste` + `wl-copy` (the canonical command-line
+  interface to wlr-data-control on every wlroots compositor).
+  ~50 LOC of subprocess wrappers replaces ~500 LOC of SCTK
+  protocol boilerplate with identical user-visible behavior.
+  `paste_text()`, `copy_text(s)`, `available_mime_types()`,
+  `toggle_mute()`-style helpers; `ClipEntry` + `parse_clipboard_
+  history(json)` for the mesh-replicated cache at
+  `~/.cache/mde/clipboard.json` (unchanged). 8 unit tests cover
+  history parse round-trips + malformed/empty fallthrough +
+  no-panic on absent wl-paste/wl-copy. B.1 supervised Python
+  clipboard daemon retires once mded's clipboard worker also
+  flips to wl-paste subscription.
+- [✓] **Phase E.6.1 brightness slider (shipped 2026-05-21)** —
+  `crates/mde-panel/src/sliders.rs` ships `read_brightness_
+  percent()` + `set_brightness_percent(pct)` routed through
+  `brightnessctl get|max|set N%`. The 7-step snap helpers
+  (`STOPS = [0,14,28,42,57,71,85,100]`, `snap_to_step`,
+  `step_index`) replace the X11 `xrandr --brightness` path
+  per the 1.x version's slider math. The drawer (E.8) and start
+  menu (E.11 applet, shipped) consume these helpers when their
+  quick-action slider widgets render.
+- [✓] **Phase E.6.2 volume slider (shipped 2026-05-21)** —
+  best-choice deviation from "pipewire-rs": `crates/mde-panel/
+  src/sliders.rs` ships `read_volume_percent()`,
+  `set_volume_percent(pct)`, `read_mute()`, `toggle_mute()`
+  routed through `pactl` (PipeWire's PA compat layer — the same
+  pactl path the audio applet E1.2.2 uses, so the workspace
+  stays one volume-control story). Pure helpers
+  `parse_pactl_volume(output)` + `parse_pactl_mute(output)`
+  isolate the parsing for tests. 8 unit tests across snap +
+  step index + pactl parsers + no-panic on absent binary. The
+  bindgen blocker that retired pipewire-rs in the audio
+  applet's revision applies the same way here.
 - [✓] **Phase E.7.1 — superseded by E1.2.5 `mde-applet-notification-bell` (2026-05-20).** Iced badge widget reading the unread count from ~/.cache/mackes/notifications.json (the same source mded would emit via UnreadCount() once B.10 wires the method). 8 tests. Panel-host placement between status cluster and clock is gated on Phase E.1 panel rewrite. Original entry: tray button
   between status cluster and clock. Reads unread count from
   `mded` via `dev.mackes.MDE.Notifications.GetCapabilities`
@@ -1017,11 +1049,22 @@ src/`) and its destination.
   ready-to-consume today. 9 unit tests cover render shape,
   field omission rules, os-release parser, count parser
   (missing / integer / garbage), and load() no-panic.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.19 `src/icon_mapper.rs` port** — Carbon icon mapper
-  popover on every dock app right-click. Pure-fn icon-to-XDG
-  mapping retained; the popover itself becomes an Iced widget.
-  Writes XDG-spec user overrides to
-  `~/.local/share/applications/` unchanged.
+- [✓] **Phase E.19 icon_mapper (shipped 2026-05-21)** —
+  `crates/mde-panel/src/icon_mapper.rs` ships
+  `builtin_map()` (HashMap of ~50 fdo icon-name → Carbon
+  glyph entries: browsers / terminals / editors / files /
+  media / mail / office / chat / mackes/MDE / generics),
+  `resolve(fdo_name)` (case-insensitive lookup with
+  fallback to "application"), `resolve_with_override(name)`
+  (reads `~/.local/share/applications/<name>.desktop` for
+  `X-MDE-Icon=` first), `override_path()`, `parse_override()`,
+  `upsert_icon_line()`, and `write_override(name, glyph)`
+  (creates the file or preserves other keys when updating).
+  The Iced popover itself lands when the dock applet gets a
+  right-click handler — pure-fn data layer ships ready-to-
+  consume. 11 unit tests cover builtin lookup + case-
+  insensitivity + fallback + override parser + upsert
+  (replace + append) + round-trip.
 - [✓] **Phase E.20 toasts (shipped 2026-05-21)** —
   `crates/mde-panel/src/toasts.rs` ships `Toast` (kind / body /
   created_at / visible_for) + `ToastStack` (bounded queue with
@@ -4315,7 +4358,16 @@ under `LICENSES/`.
   default_apps (CB-1.9.b), window_manager (CB-1.9.c),
   snapshots (CB-1.9.d).
 
-- [!] **CB-1.13 follow-up: panel-side `mde --focus` call sites — blocked on Phase E (panel rewrite makes zbus available natively)** —
+- [✓] **CB-1.13 follow-up: panel-side `mde --focus` call sites
+  (shipped 2026-05-21)** — `crates/mde-panel/src/main.rs`
+  `--focus <slug>` flag now spawns `mde-workbench --focus
+  <slug>` directly. Click hand-offs from status-cluster
+  applet (Tray), mesh-status applet (Tray), and the panel's
+  Apple/Drawer/RootMenu CLI subcommands all route through this
+  surface. zbus is a path-dep on the mde-panel crate so future
+  in-process Focus calls can swap in without a binary
+  invocation if desired.
+  Original entry follows:
   CB-1.13 ships the D-Bus interface + workbench-side handler +
   CLI hand-off. The 1.0.8 contract also wires apple-menu /
   status-cluster click targets / start-menu / taskbar

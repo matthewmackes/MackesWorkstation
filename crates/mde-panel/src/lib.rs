@@ -27,9 +27,14 @@
 use iced::{Element, Size, Task, Theme};
 
 pub mod admin_menu;
+pub mod clipboard;
+pub mod expose;
+pub mod hero;
 pub mod host;
+pub mod icon_mapper;
 pub mod recover;
 pub mod root_menu;
+pub mod sliders;
 pub mod theme;
 pub mod toasts;
 pub mod top_bar;
