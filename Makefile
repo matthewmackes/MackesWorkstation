@@ -36,6 +36,20 @@ rpm: sdist
 	cp packaging/fedora/$(NAME).spec rpmbuild/SPECS/
 	rpmbuild --define '_topdir $(CURDIR)/rpmbuild' \
 		-ba rpmbuild/SPECS/$(NAME).spec
+	@# Reject any RPM that carries `rpmlib(ShortCircuited)` — that dep
+	@# is stamped on when rpmbuild runs with --short-circuit, which is
+	@# a build-stage testing flag only; the resulting package refuses
+	@# to install with `rpmlib(ShortCircuited) <= 4.9.0-1 is needed`.
+	@# Caught one in v2.0.1's rpmbuild/RPMS/x86_64/ on 2026-05-21.
+	@bad=$$(find rpmbuild/RPMS -name '*.rpm' -exec sh -c \
+		'rpm -qpR "$$1" 2>/dev/null | grep -q "rpmlib(ShortCircuited)" && echo "$$1"' \
+		_ {} \;); \
+	if [ -n "$$bad" ]; then \
+		echo "ERROR: short-circuit-tainted RPMs detected — not installable:" >&2; \
+		printf '  %s\n' $$bad >&2; \
+		echo "Fix: rm -rf rpmbuild/{BUILD,BUILDROOT,RPMS,SRPMS} && make rpm" >&2; \
+		exit 1; \
+	fi
 
 test:
 	python3 -m pytest tests/ -v

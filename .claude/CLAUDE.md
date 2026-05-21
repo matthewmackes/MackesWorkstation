@@ -82,6 +82,16 @@ seven without asking for confirmation between steps unless a step fails:
    `## X.Y.Z — <one-line summary> (YYYY-MM-DD)`. Describe what shipped.
 3. **Smoke test:** `python3 -c "import mackes; print(mackes.__version__)"`.
 4. **Local RPM build:** `make rpm` (clean dist + rpmbuild first).
+   **Always go through `make rpm`.** Never invoke `rpmbuild` directly
+   with `--short-circuit` (or any subset flag like `-bi` / `-bb`
+   without a clean source tree). Short-circuit builds stamp the
+   `rpmlib(ShortCircuited) <= 4.9.0-1` dep on the output, which
+   makes the RPM uninstallable (`dnf install` rejects it with
+   `is needed by mde-X.Y.Z`). `make rpm` now verifies this and
+   fails loudly — if you see that guard fire, blow away
+   `rpmbuild/{BUILD,BUILDROOT,RPMS,SRPMS}` and rerun `make rpm`
+   without flags. v2.0.1's `rpmbuild/RPMS/x86_64/mde-2.0.1-…rpm`
+   was the first one this caught (2026-05-21).
 5. **Commit:** `git commit` with the rulebook's HEREDOC format.
 6. **Push + tag:**
    ```bash
