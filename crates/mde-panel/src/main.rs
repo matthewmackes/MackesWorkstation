@@ -68,15 +68,42 @@ fn main() -> iced::Result {
         return Ok(());
     }
 
-    if cli.apple_menu || cli.expose || cli.drawer || cli.root_menu || cli.focus.is_some() {
-        info!(
-            apple_menu = cli.apple_menu,
-            expose = cli.expose,
-            drawer = cli.drawer,
-            root_menu = cli.root_menu,
-            focus = cli.focus.as_deref().unwrap_or(""),
-            "subcommand requested — Phase E port pending; falling through to main app"
-        );
+    use mde_panel::host::{applet_for_subcommand, spawn_by_binary, SubCommand};
+
+    let sub = if cli.apple_menu {
+        Some(SubCommand::AppleMenu)
+    } else if cli.expose {
+        Some(SubCommand::Expose)
+    } else if cli.drawer {
+        Some(SubCommand::Drawer)
+    } else if cli.root_menu {
+        Some(SubCommand::RootMenu)
+    } else {
+        None
+    };
+
+    if let Some(sub) = sub {
+        let binary = applet_for_subcommand(sub);
+        match spawn_by_binary(binary) {
+            Ok(mut child) => {
+                info!(binary, "spawned applet — waiting for exit");
+                let _ = child.wait();
+            }
+            Err(e) => {
+                tracing::error!(binary, error = ?e, "applet spawn failed");
+                return Ok(());
+            }
+        }
+        return Ok(());
+    }
+
+    if let Some(slug) = cli.focus.as_deref() {
+        info!(slug, "focus hand-off — calling mde-workbench");
+        let _ = std::process::Command::new("mde-workbench")
+            .arg("--focus")
+            .arg(slug)
+            .spawn();
+        return Ok(());
     }
 
     info!("starting Iced panel app");

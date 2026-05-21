@@ -27,6 +27,7 @@
 use iced::{Element, Size, Task, Theme};
 
 pub mod admin_menu;
+pub mod host;
 pub mod recover;
 pub mod root_menu;
 pub mod theme;

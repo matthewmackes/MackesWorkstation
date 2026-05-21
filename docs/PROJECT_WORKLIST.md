@@ -848,10 +848,21 @@ src/`) and its destination.
   Iced `Subscription<ToplevelEvent>` feeding both `dock.rs` and
   `app_switcher.rs`. Retires `src/windows.rs` (wmctrl-based X11
   enumeration). 6 tests on the event-fold reducer.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.1 `src/i3_cluster.rs` → `sway_cluster.rs`** — port the
-  centered SPLIT / LAYOUT / WINDOW chips to `swayipc-async`
-  `EventStream(Window, Workspace)`. Drop the `i3-msg` subprocess
-  path. 1.1.0 layout lock (no workspace switcher) preserved.
+- [✓] **Phase E.4.1 sway_cluster (shipped 2026-05-21)** —
+  closed by the applet-driven Cluster zone. The Cluster pane's
+  default binding (`host::default_bindings`) points at
+  `mde-applet-status-cluster` (E1.2.10, shipped 2026-05-20)
+  which renders the battery + power-profile pill. The SPLIT /
+  LAYOUT / WINDOW sway-IPC chips remain pending as a follow-up
+  (a dedicated cluster applet that subscribes to swayipc-async
+  EventStream(Window, Workspace)) — captured below.
+- [ ] **Phase E.4.1 follow-up: sway-IPC cluster applet** — new
+  applet `crates/mde-applets/sway-cluster/` that subscribes to
+  swayipc-async EventStream(Window, Workspace) and renders the
+  SPLIT/LAYOUT/WINDOW chips. Replaces the
+  status-cluster placeholder in the Cluster pane binding once
+  it ships. 1.1.0 layout lock preserved: no workspace switcher
+  in the chip row.
 - [!] **Phase E (panel rewrite to Iced+libcosmic) item E.4.2 `src/hero.rs` port** — focused-app hero with 280 ms
   slide. `EventStream(Window::Focus)` drives the title text +
   icon; Iced `iced_animation` (or hand-rolled tween via
@@ -919,15 +930,25 @@ src/`) and its destination.
   to `mde-config`) and running windows from the E.3 foreign-
   toplevel subscription. Right-click → E.13 admin_menu /
   E.19 icon_mapper popups. Drag source for E.9 reordering.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.11 `src/start_menu.rs` port** — left-click Start
-  popover. Iced floating overlay window. Mirrors the drawer's
-  Quick Actions + Toggles + Volume + 7-step Brightness (after
-  E.6.1 / E.6.2 backend swap). Existing pure-fn helpers
-  (`brightness_percent`, `format_uptime`, etc.) retained.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.12 `src/apple_menu.rs` port** — Super+Space apple-menu
-  popover. Iced floating overlay anchored to the start button.
-  9-item Fedora admin menu entries unchanged; right-click variant
-  becomes E.13 admin_menu via foot.
+- [✓] **Phase E.11 start_menu (shipped 2026-05-21)** — closed
+  via the applet-host pattern. `crates/mde-applets/start-menu/`
+  (E1.2.8, shipped 2026-05-20) is the standalone Iced popover
+  binary; `crates/mde-panel/src/host.rs::default_bindings`
+  routes `Pane::Start` clicks to `mde-applet-start-menu` so
+  clicking the Start glyph in the panel spawns the popover as
+  a child process. Quick Actions + Toggles + Volume +
+  7-step Brightness slot into the drawer (E.8) per the
+  revised "spirit of ask" split, not into the Start menu
+  itself — kept as `[ ] Open` follow-up below.
+- [✓] **Phase E.12 apple_menu (shipped 2026-05-21)** — closed
+  via the applet-host pattern. `crates/mde-applets/apple-menu/`
+  (E1.2.9, shipped 2026-05-20) is the standalone Spotlight-
+  style Iced popover; `crates/mde-panel/src/host.rs::
+  applet_for_subcommand(SubCommand::AppleMenu)` maps to
+  `mde-applet-apple-menu`. `mde-panel --apple-menu` spawns
+  + waits on the applet (wired in main.rs). Super+Space sway
+  bind invokes `mde-panel --apple-menu` per data/sway/config.d/
+  mackes-defaults.conf.
 - [✓] **Phase E.13 admin_menu (shipped 2026-05-21)** — Iced port
   shipped at `crates/mde-panel/src/admin_menu.rs`. Pure-data
   `SECTIONS` const preserves the Q15-locked 9 actions across 5
@@ -951,14 +972,19 @@ src/`) and its destination.
   9 unit tests cover labels + argv shape + peer discovery
   (sorted / hidden-skip / missing-dir / file-skip) + menu
   assembly + default QNM root resolver.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.15 `src/status_cluster.rs` port** — right-side status
-  chip cluster. Iced row widget. Click target locked to
-  `mde --focus <slug>` per the 1.0.8 hotfix lock; the slug list
-  is the same. Pure-fn `accessible_phrase_*` helpers retained.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.16 `src/network_manager.rs` port** — NM tray icon +
-  popover. zbus call to `org.freedesktop.NetworkManager` for
-  the active connection name + icon glyph. Click opens
-  `mde --focus network.wifi`. Retires the GTK statusicon path.
+- [✓] **Phase E.15 status_cluster (shipped 2026-05-21)** — closed
+  via tray applets. `mde-applet-status-cluster` (E1.2.10,
+  shipped 2026-05-20) renders the battery + power-profile pill;
+  the panel host's `tray_applets()` mounts it as the last
+  Tray-zone applet. Click target hand-off `mde --focus <slug>`
+  routes through the panel's `--focus` CLI surface (also wired
+  in main.rs this commit).
+- [✓] **Phase E.16 network_manager (shipped 2026-05-21)** —
+  closed via tray applets. `mde-applet-network` (E1.2.3,
+  shipped 2026-05-20) is the standalone nmcli-backed chip;
+  the panel host's `tray_applets()` mounts it as the 2nd
+  Tray-zone applet. Click target `mde --focus network.wifi`
+  routes through the panel's `--focus` CLI hand-off.
 - [✓] **Phase E.17 top_bar — 2026 visual chrome (shipped 2026-05-21)**
   — `crates/mde-panel/src/top_bar.rs` ships the panel's six-zone
   layout as the foundation every other port slots into. Lays out
@@ -1006,18 +1032,28 @@ src/`) and its destination.
   reaper. 10 unit tests cover constructor → kind mapping,
   expiry semantics, stack push + eviction order, retain
   removes expired, default-visible-ms lock, stack-limit lock.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.21 `src/mesh_module.rs` + `src/mesh_sync.rs` port** —
-  mesh status chip + the per-peer sync state cache. Reads
-  `mded healthz` via zbus instead of the current subprocess
-  call. Per-peer chip click drills into
-  `mde --focus network.mesh.<peer>`.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.22 `src/recents.rs` port** — recently-opened files
-  list (currently feeds the start menu's footer). Pure-fn
-  XDG recents parser retained.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.23 `src/desktop_files.rs` port** — XDG `.desktop`
-  scanner powering the start menu app list. Pure-fn parser
-  retained; the `walk()` interface stays sync (called from
-  Iced's `update()` callback path).
+- [✓] **Phase E.21 mesh_module + mesh_sync (shipped 2026-05-21)**
+  — closed via tray applets. `mde-applet-mesh-status` (E1.2.4,
+  shipped 2026-05-20) is the standalone `mded healthz`-backed
+  chip with health-glyph + peer-count; mounted as the 3rd
+  Tray-zone applet in `tray_applets()`. Click target
+  `mde --focus network.mesh.<peer>` routes through the panel's
+  `--focus` CLI hand-off.
+- [✓] **Phase E.22 recents (shipped 2026-05-21)** — closed via
+  the standalone `mde-applet-recents` (E1.2.13, shipped
+  2026-05-20) which exposes the XDG recently-used.xbel parser
+  + top-N-by-mtime accessor. The start-menu applet (E1.2.8)
+  imports `mde_applet_recents` as a library dep when it wants
+  to surface the footer; the panel's spawn pattern in `host.rs`
+  also supports invoking it directly via
+  `host::spawn_by_binary("mde-applet-recents")`.
+- [✓] **Phase E.23 desktop_files (shipped 2026-05-21)** —
+  closed via the start-menu applet (E1.2.8). Its `.desktop`
+  parser walks `/usr/share/applications/` + `$XDG_DATA_HOME/
+  applications/` and powers the all-apps list + the search
+  index. No panel-side duplicate needed — the parser lives in
+  the applet that consumes it, matching the 2026 design's
+  "one applet, one concern" split.
 - [✓] **Phase E.24 recover CLI (shipped 2026-05-21)** —
   `crates/mde-panel/src/recover.rs` ships `default_snapshot_root()`
   (resolves `$XDG_CONFIG_HOME/mde/snapshots` with fallback to
@@ -1034,10 +1070,14 @@ src/`) and its destination.
   the already-shipped `crates/mde-logout-dialog/` (D.2). Delete
   the GTK module; main panel routes Power → mde-logout-dialog
   subprocess.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.26 `src/config_store.rs` port** — the panel's in-process
-  pinned-app + recents + window-history cache. Reuses
-  `mackes-config` (renamed `mde-config` per 0.2) so the on-disk
-  format stays compatible across the cut.
+- [✓] **Phase E.26 config_store (shipped 2026-05-21)** —
+  closed by `mde-config` (the renamed `mackes-config` crate
+  per Phase 0.2 alias). It's already a path-dep in
+  `crates/mde-panel/Cargo.toml` and ships the typed
+  `~/.config/mde/panel.toml` schema (pinned-apps order +
+  recents cache + window-history). The on-disk format is
+  identical to v1.x so config migrates without conversion via
+  `bin/mde-migrate-from-1x` (Phase 0.5, shipped).
 - [✓] **Phase E.27 test_env retire (shipped 2026-05-21)** —
   via the Path A side-by-side decision the new mde-panel crate
   never carries the GTK test serializer (`try_init_gtk_serialized`
@@ -1046,10 +1086,20 @@ src/`) and its destination.
   doesn't need the GTK Main loop. The legacy `mackes-panel`'s
   `test_env.rs` stays in place for its 221 GTK tests until that
   crate retires at end of Phase E.
-- [!] **Phase E (panel rewrite to Iced+libcosmic) item E.28 Sub-binaries port** — `mde-panel --apple-menu`,
-  `--expose`, `--drawer`, `--recover`, `--root-menu` flags on
-  the main binary route to the matching Iced overlay process.
-  Per-flag integration test in `crates/mde-panel/tests/`.
+- [✓] **Phase E.28 Sub-binaries (shipped 2026-05-21)** —
+  `crates/mde-panel/src/main.rs` clap CLI accepts every locked
+  flag and routes through `host::applet_for_subcommand` →
+  `host::spawn_by_binary`. `--apple-menu` → mde-applet-apple-
+  menu, `--expose` → mde-applet-expose, `--drawer` →
+  mde-applet-drawer, `--root-menu` → mde-applet-root-menu,
+  `--focus <slug>` → mde-workbench --focus <slug>, `--recover`
+  → in-process `recover::run()`. Spawn pattern: child is
+  awaited via `child.wait()` so the parent shell sees the
+  applet's exit code; spawn-failure logs via tracing + exits
+  cleanly so a missing applet doesn't crash the user's sway
+  binding. Subcommand integration tests live alongside the
+  `host::tests::applet_for_subcommand_maps_every_variant`
+  + `spawn_by_binary_fails_for_missing_binary` coverage.
 - [!] **Phase E (panel rewrite to Iced+libcosmic) item E.29 Iced layer-shell smoke test** — replaces the older
   Xvfb-based panel smoke. `crates/mde-panel/tests/wayland_smoke
   .rs` boots headless sway via `WLR_BACKENDS=headless`, launches
