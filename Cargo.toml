@@ -20,6 +20,7 @@ members  = [
     "crates/mde-applets/app-switcher",
     "crates/mde-applets/apple-menu",
     "crates/mde-applets/applet-api",
+    "crates/mde-applets/audio",
     "crates/mde-applets/bg",
     "crates/mde-applets/brightness-osd",
     "crates/mde-applets/clock",

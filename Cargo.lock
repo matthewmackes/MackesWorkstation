@@ -3039,6 +3039,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mde-applet-audio"
+version = "0.0.0"
+dependencies = [
+ "mde-applet-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mde-applet-bg"
 version = "0.0.0"
 dependencies = [

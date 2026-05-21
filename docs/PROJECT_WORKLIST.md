@@ -1003,7 +1003,7 @@ src/`) and its destination.
   helper using Howard-Hinnant civil-from-days (same
   algorithm the run-history + mesh-history panels use).
   5 unit tests + workspace builds clean.
-- [!] **Phase E1 (applet workspace split) item E1.2.2 `crates/mde-applets/audio/` — blocked: pipewire-rs bindgen** — pipewire-rs
+- [✓] **Phase E1.2.2 `crates/mde-applets/audio/` (shipped 2026-05-20) — top-bar-right audio chip, pactl-backed (PipeWire's PA compat layer — bindgen blocker lifted by shelling out instead of subscribing): parse_volume averages per-channel %, parse_mute yes/no/true, audio_glyph picks muted/zero/low/high speaker glyph, format_chip renders as `<glyph> 60%` or `<glyph> muted`; 10 tests. Note: revised away from pipewire-rs bindgen — pactl gives the same data over a 2 s tick the panel host drives. Original entry:** — pipewire-rs
   subscription for active sink + mute state; click opens the
   pavucontrol-equivalent (eventually a native Iced mixer; ships
   with `pavucontrol-qt` as Recommends in v2.0.0).
