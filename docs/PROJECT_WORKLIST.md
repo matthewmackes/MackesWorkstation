@@ -4212,7 +4212,10 @@ under `LICENSES/`.
   positional callers remain after the keyword-only boundaries.
   Commit `f0f06b8` pushed to `origin/main`.
 
-- [>] **v2.0.1 Wayland session hotfix (2026-05-21)** — the v2.0.0
+- [✓] **v2.0.1 Wayland session hotfix (2026-05-21 — shipped:
+  tag `v2.0.1` pushed, release workflow `26252012680` succeeded,
+  GitHub release published with `mde-2.0.1-1.fc44.x86_64.rpm` +
+  src.rpm + install.sh + uninstall.sh)** — the v2.0.0
   RPM (`mde-2.0.0-1.fc44.x86_64`, built before e011771) declared
   every `mde-*` Rust binary in `%files` but `%install` never copied
   them out of `target/release/`. Effect on a freshly installed box:
@@ -4244,8 +4247,9 @@ under `LICENSES/`.
     reporting, allow-list audit). Total: 266 pass / 93 skip / 0
     fail.
 
-  Awaiting `make rpm` + `dnf upgrade <rpm>` for local
-  validation, then commit + push + `vX.Y.Z` tag flow per §0.6.
+  Commit `95fc4be` on origin/main; tag `v2.0.1` published the
+  GitHub release. Local `dnf upgrade` on the reporter's live box
+  is a separate validation step (not a §0.8 release gate).
 
 
 
