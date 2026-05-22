@@ -29,13 +29,20 @@ mackes-transport = { path = "../mackes-transport" }
 # here, generate PKCS#8 bytes, and feed them back into ring via
 # mde-kdc-proto's `PairingKeyPair::from_pkcs8`. The hot sign /
 # verify path stays on ring; rsa runs once per first-launch.
-rsa = "0.9"
+rsa  = "0.9"
 rand = "0.8"
+
+# KDC2-3.7 — PKCS#8 PEM encode/decode for the identity.pem
+# file. Re-uses the rsa crate's pkcs8 dep.
+pkcs8 = { version = "0.10", features = ["pem"] }
 
 # Serde for the pairing store's on-disk format.
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml       = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true

@@ -3212,10 +3212,12 @@ version = "0.0.0"
 dependencies = [
  "mackes-transport",
  "mde-kdc-proto",
+ "pkcs8",
  "rand 0.8.6",
  "rsa",
  "serde",
  "serde_json",
+ "tempfile",
  "toml",
 ]
 
