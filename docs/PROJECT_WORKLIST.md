@@ -5483,20 +5483,20 @@ sections are conditional on `device.kind == Phone | Tablet`.
   Option<ConnectFacts>`** — Edit
   `crates/mde-peer-card/src/lib.rs:1-105`. Populated when the
   daemon-API layer reports KDC-reachable. 4 unit tests.
-- [ ] **KDC2-5.4: Conditional phone section (battery + ring +
+- [✓] **KDC2-5.4: Conditional phone section (battery + ring +
   find + MPRIS)** — Iced view. Renders only when
   `device.kind == Phone | Tablet`. Buttons call D-Bus methods
   on `dev.mackes.MDE.Connect`. 6 widget tests via
   `iced-test`-equivalent fixture.
-- [ ] **KDC2-5.5: Conditional messaging section (SMS thread list
+- [✓] **KDC2-5.5: Conditional messaging section (SMS thread list
   + composer)** — Android-only (gated on
   `kdeconnect.sms.messages` capability). Thread list + per-
   thread message view + send composer. 5 widget tests.
-- [ ] **KDC2-5.6: Conditional share section (drop file → SendFile)** —
+- [✓] **KDC2-5.6: Conditional share section (drop file → SendFile)** —
   Drag-and-drop target in the peer-card. Calls
   `SendFile` D-Bus method which routes through `mesh_router`
   for `MessageClass::FileBulk`. 4 widget tests.
-- [ ] **KDC2-5.7: Common chrome (Clipboard / Notifications mirror
+- [✓] **KDC2-5.7: Common chrome (Clipboard / Notifications mirror
   / Pair toggles)** — Renders for every peer-card (both phones
   and MDE peers when the remote has KDC). Toggles persist to
   policy.toml. 5 widget tests.
