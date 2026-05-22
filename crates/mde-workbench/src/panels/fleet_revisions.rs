@@ -6,11 +6,12 @@
 //! shipped the Python wrapper around the same `mded
 //! revisions` subcommand tree; this Iced port mirrors it.
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Task};
 use mde_theme::{Density, EmptyState, Icon, Palette};
 use serde::Deserialize;
 
+use crate::controls::{variant_button, ButtonVariant};
 use crate::panel_chrome::{empty_state, panel_container};
 use crate::panels::fleet_settings::run_mded;
 
@@ -127,13 +128,13 @@ impl FleetRevisionsPanel {
         } else {
             "Refresh"
         };
-        let refresh_btn = {
-            let mut b = button(text(refresh_label));
-            if !self.busy {
-                b = b.on_press(crate::Message::FleetRevisions(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            refresh_label,
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::FleetRevisions(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         let rows: Vec<Element<'_, crate::Message>> = self
             .revisions
@@ -200,12 +201,15 @@ fn revision_row<'a>(rev: &'a Revision, busy: bool) -> Element<'a, crate::Message
             &rev.summary
         },
     );
-    let mut rollback_btn = button(text("Rollback"));
-    if !busy {
-        rollback_btn = rollback_btn.on_press(crate::Message::FleetRevisions(
+    // UX-7.a — per-row rollback routed through Secondary.
+    let rollback_btn = variant_button(
+        "Rollback",
+        ButtonVariant::Secondary,
+        (!busy).then(|| crate::Message::FleetRevisions(
             Message::RollbackClicked(rev.revision_id.clone()),
-        ));
-    }
+        )),
+        Palette::dark(),
+    );
     row![text(label).size(13).width(Length::Fill), rollback_btn]
         .spacing(12)
         .into()

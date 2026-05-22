@@ -13,10 +13,13 @@ use std::process::Stdio;
 
 use async_stream::stream;
 use futures::stream::{Stream, StreamExt};
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Padding, Task};
+use mde_theme::Palette;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 #[derive(Debug, Clone, Default)]
 pub struct SystemUpdatePanel {
@@ -128,20 +131,21 @@ impl SystemUpdatePanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let check_btn = {
-            let mut b = button(text("Check for updates"));
-            if !self.busy {
-                b = b.on_press(crate::Message::SystemUpdate(Message::CheckClicked));
-            }
-            b
-        };
-        let install_btn = {
-            let mut b = button(text("Install all updates"));
-            if !self.busy {
-                b = b.on_press(crate::Message::SystemUpdate(Message::InstallClicked));
-            }
-            b
-        };
+        // UX-7.a — Check (Ghost) + Install (Primary) routed
+        // through the shared button variants.
+        let palette = Palette::dark();
+        let check_btn = variant_button(
+            "Check for updates",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::SystemUpdate(Message::CheckClicked)),
+            palette,
+        );
+        let install_btn = variant_button(
+            "Install all updates",
+            ButtonVariant::Primary,
+            (!self.busy).then(|| crate::Message::SystemUpdate(Message::InstallClicked)),
+            palette,
+        );
 
         column![
             text("System Update").size(20),

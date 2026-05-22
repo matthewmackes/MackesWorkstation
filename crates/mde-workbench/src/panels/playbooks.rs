@@ -22,11 +22,12 @@
 
 use std::path::PathBuf;
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Task};
 use mde_theme::{Density, EmptyState, Icon, Palette};
 use tokio::process::Command;
 
+use crate::controls::{variant_button, ButtonVariant};
 use crate::panel_chrome::{empty_state, panel_container};
 
 /// One role under `roles/` — `name` is the directory name, the
@@ -116,8 +117,13 @@ impl PlaybooksPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let refresh_btn =
-            button(text("Refresh")).on_press(crate::Message::Playbooks(Message::RefreshClicked));
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            Some(crate::Message::Playbooks(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         if self.playbooks.is_empty() {
             // UX-6.b — empty-state with refresh CTA.
@@ -145,13 +151,14 @@ impl PlaybooksPanel {
             } else {
                 "Run".to_string()
             };
-            let run_btn = {
-                let mut b = button(text(run_label));
-                if !running {
-                    b = b.on_press(crate::Message::Playbooks(Message::RunClicked(name)));
-                }
-                b
-            };
+            // UX-7.a — per-row Run routed through Secondary;
+            // Primary would over-emphasize one role over the others.
+            let run_btn = variant_button(
+                run_label,
+                ButtonVariant::Secondary,
+                (!running).then(|| crate::Message::Playbooks(Message::RunClicked(name))),
+                Palette::dark(),
+            );
             col.push(
                 row![
                     text(&pb.name).width(Length::Fixed(240.0)),

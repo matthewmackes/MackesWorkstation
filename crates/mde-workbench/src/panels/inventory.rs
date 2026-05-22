@@ -8,11 +8,12 @@
 //! shell-out to a direct zbus surface; until then the subprocess
 //! pattern matches the fleet_settings + fleet_revisions panels.
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Padding, Task};
 use mde_theme::{Density, EmptyState, Icon, Palette};
 use tokio::process::Command;
 
+use crate::controls::{variant_button, ButtonVariant};
 use crate::panel_chrome::{empty_state, panel_container, status_badge, BadgeSeverity};
 
 /// One row of the inventory list — projection of the JSON object
@@ -124,13 +125,13 @@ impl InventoryPanel {
     }
 
     fn view_list(&self) -> Element<'_, crate::Message> {
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::Inventory(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::Inventory(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         if self.rows.is_empty() {
             // UX-6 — canonical empty-state for fleet panels.
@@ -160,9 +161,15 @@ impl InventoryPanel {
         .spacing(12);
 
         let rows = self.rows.iter().fold(column![], |col, row_data| {
+            // UX-7.a — per-row Detail routed through Ghost.
             let drill = {
                 let id = row_data.node_id.clone();
-                button(text("Detail")).on_press(crate::Message::Inventory(Message::FocusRow(id)))
+                variant_button(
+                    "Detail",
+                    ButtonVariant::Ghost,
+                    Some(crate::Message::Inventory(Message::FocusRow(id))),
+                    Palette::dark(),
+                )
             };
             // UX-6 — health renders as a pill-shaped status
             // badge sized to the value. Severity maps from the
@@ -204,8 +211,13 @@ impl InventoryPanel {
     }
 
     fn view_focus(&self, node_id: &str) -> Element<'_, crate::Message> {
-        let back_btn =
-            button(text("← Back to roster")).on_press(crate::Message::Inventory(Message::Back));
+        // UX-7.a — back routed through Ghost (low-emphasis nav).
+        let back_btn = variant_button(
+            "← Back to roster",
+            ButtonVariant::Ghost,
+            Some(crate::Message::Inventory(Message::Back)),
+            Palette::dark(),
+        );
         column![
             row![back_btn, text(format!("Peer detail — {node_id}")).size(18),].spacing(12),
             text(&self.status).size(13),

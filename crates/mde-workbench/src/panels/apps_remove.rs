@@ -14,9 +14,12 @@
 
 use std::collections::HashSet;
 
-use iced::widget::{button, checkbox, column, container, row, scrollable, text};
+use iced::widget::{checkbox, column, container, row, scrollable, text};
 use iced::{Element, Length, Padding, Task};
+use mde_theme::Palette;
 use tokio::process::Command;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 /// v2.0.0 bloat list — packages that are commonly preinstalled
 /// on Fedora workstation but redundant under MDE (sway +
@@ -159,32 +162,33 @@ impl AppsRemovePanel {
 
     pub fn view(&self) -> Element<'_, crate::Message> {
         let busy = self.busy;
-        let select_all = {
-            let mut b = button(text("Select all"));
-            if !busy {
-                b = b.on_press(crate::Message::AppsRemove(Message::SelectAllClicked));
-            }
-            b
+        // UX-7.a — bulk select toggles → Ghost (low emphasis).
+        let palette = Palette::dark();
+        let select_all = variant_button(
+            "Select all",
+            ButtonVariant::Ghost,
+            (!busy).then(|| crate::Message::AppsRemove(Message::SelectAllClicked)),
+            palette,
+        );
+        let deselect_all = variant_button(
+            "Deselect all",
+            ButtonVariant::Ghost,
+            (!busy).then(|| crate::Message::AppsRemove(Message::DeselectAllClicked)),
+            palette,
+        );
+        // UX-7.a — bulk-remove → Primary (dominant destructive
+        // action on this panel; label conveys count when not busy).
+        let remove_label = if busy {
+            "Removing…".to_string()
+        } else {
+            format!("Remove selected ({})", self.selected.len())
         };
-        let deselect_all = {
-            let mut b = button(text("Deselect all"));
-            if !busy {
-                b = b.on_press(crate::Message::AppsRemove(Message::DeselectAllClicked));
-            }
-            b
-        };
-        let remove_btn = {
-            let label = if busy {
-                "Removing…".to_string()
-            } else {
-                format!("Remove selected ({})", self.selected.len())
-            };
-            let mut b = button(text(label));
-            if !busy {
-                b = b.on_press(crate::Message::AppsRemove(Message::RemoveSelectedClicked));
-            }
-            b
-        };
+        let remove_btn = variant_button(
+            remove_label,
+            ButtonVariant::Primary,
+            (!busy).then(|| crate::Message::AppsRemove(Message::RemoveSelectedClicked)),
+            palette,
+        );
 
         let rows = BLOAT.iter().fold(column![], |col, (pkg, desc)| {
             let name = (*pkg).to_string();

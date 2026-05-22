@@ -5003,22 +5003,40 @@ Iced-side style constants (introduce `crates/mde-theme/` if needed).
   Outputs: `crates/mde-theme/src/components/{button,input,toggle,
   spinner,skeleton}.rs`; updated Iced view calls.
 
-- [ ] **UX-7.a: Control-state sweep + focus-ring render — v2.1+
-  scope (chain on UX-7 Phase 1)** — (a) Render the 2 px accent
-  focus ring on `crate::controls::variant_button` when the
-  button holds keyboard focus. iced 0.13's button doesn't
-  expose `ButtonStatus::Focused` directly; either upgrade to
-  iced 0.14 (chains UX-PRE) or implement via a custom widget
-  wrapping `iced::advanced::Widget`. (b) Sweep every panel's
-  `button(text(...))` call site to the
-  `variant_button(label, ButtonVariant::*, on_press, palette)`
-  helper; similarly route every `text_input(...)` through
-  `styled_text_input(...)`. Acceptance: grep finds zero
-  remaining `iced::widget::button(` calls outside `controls.rs`
-  + `header.rs` + `sidebar.rs`; same for `text_input(`.
-  (c) Add a hover/focus interactive-demo gallery panel that
-  exercises every control state — useful for design review +
-  for the UX-13 state-matrix gallery follow-up. Effort: Medium.
+- [>] **UX-7.a: Control-state sweep + focus-ring render — v2.1+
+  scope (sweep portion landed 2026-05-22; focus-ring BLOCKED
+  on UX-PRE Iced 0.14)** — (a) **BLOCKED on UX-PRE** — Render
+  the 2 px accent focus ring on `crate::controls::variant_button`
+  when the button holds keyboard focus. iced 0.13's button
+  doesn't expose `ButtonStatus::Focused`; resolves when
+  UX-PRE Iced 0.14 lands (upstream softbuffer / Rust 1.95
+  blocker). (b) **DONE 2026-05-22** — Swept every panel's
+  `button(text(...))` call site to `variant_button(label,
+  ButtonVariant::*, on_press, palette)`. Grep confirms zero
+  remaining `iced::widget::button(` calls outside
+  `controls.rs` / `header.rs` / `sidebar.rs` / `panel_chrome.rs`
+  (the four chrome wrappers that legitimately wrap the iced
+  button as their inner widget). Variant routing convention:
+  Primary = dominant CTA (Save / Apply / Install / Push /
+  Restore confirm); Secondary = outlined alternates
+  (Restore row, Connect / Disconnect, Rollback, per-row Run /
+  Toggle, Source add); Ghost = low-emphasis (Refresh / Detail
+  / Back / Repair tools / Remove). The `text_input(...)` sweep
+  is deferred to UX-7.b — `styled_text_input` needs a
+  `width(Length)` knob first since fonts / themes / wallpaper
+  field-rows call `.width(Length::Fill)` on the input.
+  (c) Hover/focus interactive-demo gallery panel — chains on
+  UX-13 state-matrix work; tracked there.
+
+- [ ] **UX-7.b: text_input sweep — v2.1+ scope (chain on UX-7.a
+  sweep)** — Extend `crate::controls::styled_text_input` with a
+  `width: Length` parameter, then sweep every panel's
+  `text_input(placeholder, value).on_input(handler)` call site
+  to the styled wrapper. Affected panels: fonts, themes,
+  wallpaper, displays, notifications, power, window_manager,
+  fleet_settings, apps_installed, apps_install, apps_sources,
+  mesh_join. Acceptance: grep finds zero remaining
+  `text_input(` calls outside `controls.rs`. Effort: Low.
 
 - [✓] **UX-8: Icons + visual language — v2.1 scope (v1 landed 2026-05-21 on `main`; UX-8.a chains the SVG bundle)** — Audit all icon
   usage. **Locked icon system: Carbon** (per Q24, Q37–Q39). (a)

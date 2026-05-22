@@ -9,8 +9,11 @@
 //! `mackes/workbench/maintain/resources.py`. Reads /proc
 //! directly — no psutil-equivalent dep needed.
 
-use iced::widget::{button, column, progress_bar, row, text};
+use iced::widget::{column, progress_bar, row, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 #[derive(Debug, Clone, Default)]
 pub struct ResourcesPanel {
@@ -78,8 +81,13 @@ impl ResourcesPanel {
     pub fn view(&self) -> Element<'_, crate::Message> {
         let mem_frac = safe_fraction(self.mem_used_mib, self.mem_total_mib);
         let disk_frac = safe_fraction(self.disk_used_gib, self.disk_total_gib);
-        let refresh_btn =
-            button(text("Refresh")).on_press(crate::Message::Resources(Message::RefreshClicked));
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            Some(crate::Message::Resources(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         column![
             row![

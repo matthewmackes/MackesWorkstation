@@ -10,7 +10,10 @@
 
 use std::path::PathBuf;
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 use iced::{Element, Length, Padding, Task};
 use tokio::process::Command;
 
@@ -70,8 +73,13 @@ impl LogsPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let refresh_btn =
-            button(text("Refresh")).on_press(crate::Message::Logs(Message::RefreshClicked));
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            Some(crate::Message::Logs(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         column![
             text("mackes.log").size(16),

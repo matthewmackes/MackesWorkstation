@@ -10,9 +10,12 @@
 //! grid baked into the binary (filter by Fedora-shipped vs
 //! third-party at build time, no per-preset coupling).
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
+use iced::widget::{column, container, row, scrollable, text, text_input};
 use iced::{Element, Length, Padding, Task};
+use mde_theme::Palette;
 use tokio::process::Command;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 /// Curated MDE-recommended packages. Surfaces a 1-click row
 /// for each. Names are dnf-installable on Fedora workstation
@@ -123,29 +126,26 @@ impl AppsInstallPanel {
     pub fn view(&self) -> Element<'_, crate::Message> {
         let name_input = text_input("Package name (e.g. ripgrep)", &self.name_input)
             .on_input(|v| crate::Message::AppsInstall(Message::NameChanged(v)));
-        let install_btn = {
-            let mut b = button(text(if self.busy {
-                "Installing…"
-            } else {
-                "Install"
-            }));
-            if !self.busy {
-                b = b.on_press(crate::Message::AppsInstall(Message::InstallClicked));
-            }
-            b
-        };
+        // UX-7.a — install routed through Primary (dominant CTA).
+        let install_label = if self.busy { "Installing…" } else { "Install" };
+        let install_btn = variant_button(
+            install_label,
+            ButtonVariant::Primary,
+            (!self.busy).then(|| crate::Message::AppsInstall(Message::InstallClicked)),
+            Palette::dark(),
+        );
 
         let quick_rows = RECOMMENDED.iter().fold(column![], |col, (pkg, desc)| {
             let name = (*pkg).to_string();
-            let btn = {
-                let mut b = button(text("Install"));
-                if !self.busy {
-                    b = b.on_press(crate::Message::AppsInstall(Message::QuickInstallClicked(
-                        name,
-                    )));
-                }
-                b
-            };
+            // UX-7.a — quick-install per recent-app routed through
+            // Secondary (less prominent than the main install button).
+            let btn = variant_button(
+                "Install",
+                ButtonVariant::Secondary,
+                (!self.busy)
+                    .then(|| crate::Message::AppsInstall(Message::QuickInstallClicked(name))),
+                Palette::dark(),
+            );
             col.push(
                 row![
                     text(*pkg).width(Length::Fixed(140.0)),

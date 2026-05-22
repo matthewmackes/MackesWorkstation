@@ -8,11 +8,12 @@
 //! surfaces the same rows for human inspection without
 //! requiring the user to run audit-verify by hand.
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Padding, Task};
 use mde_theme::{Density, EmptyState, Icon, Palette};
 use tokio::process::Command;
 
+use crate::controls::{variant_button, ButtonVariant};
 use crate::panel_chrome::{empty_state, panel_container};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -104,13 +105,13 @@ impl MeshHistoryPanel {
     }
 
     fn view_list(&self) -> Element<'_, crate::Message> {
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::MeshHistory(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::MeshHistory(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         if self.rows.is_empty() {
             // UX-6 — canonical empty-state pattern (icon slot +
@@ -135,8 +136,13 @@ impl MeshHistoryPanel {
 
         let rows = self.rows.iter().fold(column![], |col, r| {
             let id = r.event_id;
-            let detail =
-                button(text("Detail")).on_press(crate::Message::MeshHistory(Message::FocusRow(id)));
+            // UX-7.a — per-row Detail routed through Ghost.
+            let detail = variant_button(
+                "Detail",
+                ButtonVariant::Ghost,
+                Some(crate::Message::MeshHistory(Message::FocusRow(id))),
+                Palette::dark(),
+            );
             let payload_preview: String = r.payload.chars().take(80).collect();
             col.push(
                 row![
@@ -161,7 +167,13 @@ impl MeshHistoryPanel {
     }
 
     fn view_detail<'a>(&'a self, row: &'a EventRow) -> Element<'a, crate::Message> {
-        let back = button(text("← Back")).on_press(crate::Message::MeshHistory(Message::Back));
+        // UX-7.a — back routed through Ghost.
+        let back = variant_button(
+            "← Back",
+            ButtonVariant::Ghost,
+            Some(crate::Message::MeshHistory(Message::Back)),
+            Palette::dark(),
+        );
         column![
             row![
                 back,

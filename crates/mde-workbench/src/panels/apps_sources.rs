@@ -13,9 +13,12 @@
 //! `dnf5-plugins` package which is install-by-default on
 //! Fedora workstation.
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
+use iced::widget::{column, container, row, scrollable, text, text_input};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
 use tokio::process::Command;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RepoRow {
@@ -218,13 +221,14 @@ impl AppsSourcesPanel {
     pub fn view(&self) -> Element<'_, crate::Message> {
         let filter_input = text_input("Filter…", &self.filter)
             .on_input(|v| crate::Message::AppsSources(Message::FilterChanged(v)));
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::AppsSources(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let palette = Palette::dark();
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::AppsSources(Message::RefreshClicked)),
+            palette,
+        );
 
         let filtered: Vec<&RepoRow> = self
             .repos
@@ -236,16 +240,16 @@ impl AppsSourcesPanel {
             let id = r.id.clone();
             let next_enable = !r.enabled;
             let btn_label = if r.enabled { "Disable" } else { "Enable" };
-            let toggle_btn = {
-                let mut b = button(text(btn_label));
-                if !self.busy {
-                    b = b.on_press(crate::Message::AppsSources(Message::ToggleClicked {
-                        id,
-                        enable: next_enable,
-                    }));
-                }
-                b
-            };
+            // UX-7.a — per-row enable/disable toggle → Secondary.
+            let toggle_btn = variant_button(
+                btn_label,
+                ButtonVariant::Secondary,
+                (!self.busy).then(|| crate::Message::AppsSources(Message::ToggleClicked {
+                    id,
+                    enable: next_enable,
+                })),
+                palette,
+            );
             let state_label = if r.enabled { "enabled" } else { "disabled" };
             col.push(
                 row![
@@ -259,12 +263,14 @@ impl AppsSourcesPanel {
         });
 
         let busy = self.busy;
-        let add_button = |label: &str, msg: Message| {
-            let mut b = button(text(label.to_string()));
-            if !busy {
-                b = b.on_press(crate::Message::AppsSources(msg));
-            }
-            b
+        // UX-7.a — third-party source add → Secondary.
+        let add_button = |label: &'static str, msg: Message| {
+            variant_button(
+                label,
+                ButtonVariant::Secondary,
+                (!busy).then(|| crate::Message::AppsSources(msg)),
+                palette,
+            )
         };
 
         column![

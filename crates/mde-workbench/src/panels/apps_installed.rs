@@ -9,9 +9,12 @@
 //! <name>` directly so it doesn't need to depend on the v1.x
 //! Python library through the rebrand window.
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input};
+use iced::widget::{column, container, row, scrollable, text, text_input};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
 use tokio::process::Command;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PackageRow {
@@ -108,13 +111,13 @@ impl AppsInstalledPanel {
     pub fn view(&self) -> Element<'_, crate::Message> {
         let filter_input = text_input("Filter…", &self.filter)
             .on_input(|v| crate::Message::AppsInstalled(Message::FilterChanged(v)));
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::AppsInstalled(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::AppsInstalled(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         let filtered: Vec<&PackageRow> = self
             .packages
@@ -124,13 +127,16 @@ impl AppsInstalledPanel {
 
         let rows_view = filtered.iter().fold(column![], |col, p| {
             let name = p.name.clone();
-            let remove_btn = {
-                let mut b = button(text("Remove"));
-                if !self.busy {
-                    b = b.on_press(crate::Message::AppsInstalled(Message::RemoveClicked(name)));
-                }
-                b
-            };
+            // UX-7.a — per-row Remove routed through Ghost
+            // (destructive — but Secondary feels too prominent
+            // for a removal-from-list affordance).
+            let remove_btn = variant_button(
+                "Remove",
+                ButtonVariant::Ghost,
+                (!self.busy)
+                    .then(|| crate::Message::AppsInstalled(Message::RemoveClicked(name))),
+                Palette::dark(),
+            );
             col.push(
                 row![
                     text(&p.name).width(Length::Fixed(280.0)),
