@@ -5470,14 +5470,14 @@ sections are conditional on `device.kind == Phone | Tablet`.
   `DeviceUpdated` signals and renders a small phone glyph
   next to notifications that originated from a phone. 4
   widget tests.
-- [ ] **KDC2-5.12: Delete `docs/help/kde-connect.md` + sidebar
+- [✓] **KDC2-5.12: Delete `docs/help/kde-connect.md` + sidebar
   index entry** — 237 LOC of help docs become obsolete.
   Cross-links from `troubleshooting.md` + `mesh-vpn.md` get
   rewritten to point at peer-card help.
-- [ ] **KDC2-5.13: Delete `tests/test_kde_connect_panels.py` +
+- [✓] **KDC2-5.13: Delete `tests/test_kde_connect_panels.py` +
   `tests/test_drawer_phone_notifications.py`** — 233 LOC of
   tests that target deleted code.
-- [ ] **KDC2-5.14: Update `mackes/workbench/help.py` +
+- [✓] **KDC2-5.14: Update `mackes/workbench/help.py` +
   `welcome_banner.py`** — Remove `kde-connect` from
   `_TOPIC_ORDER` and `_TOPIC_LABELS` in help.py. Drop the
   KDC link from welcome banner (banner itself survives for
