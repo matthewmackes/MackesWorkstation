@@ -4921,7 +4921,7 @@ Iced-side style constants (introduce `crates/mde-theme/` if needed).
   view exists for every panel that can render zero rows.
   Effort: Medium-to-High (one panel ≈ 5 min; sweep ≈ 2–3 hrs).
 
-- [ ] **UX-7: Control states + interaction feedback — v2.1 scope** —
+- [✓] **UX-7: Control states + interaction feedback — v2.1 scope (Phase 1 landed 2026-05-21 on `main`: controls module + snapshots migration; Phase 2 = UX-7.a sweep + focus-ring render)** —
   Define and apply consistent states for every interactive element:
   (a) buttons: 3 variants (primary = accent fill, secondary = outline,
   ghost = text-only); height 36 px; `RADIUS_MD`; `SPACE_12` horizontal
@@ -4936,6 +4936,23 @@ Iced-side style constants (introduce `crates/mde-theme/` if needed).
   Depends: UX-1, UX-3. Effort: High.
   Outputs: `crates/mde-theme/src/components/{button,input,toggle,
   spinner,skeleton}.rs`; updated Iced view calls.
+
+- [ ] **UX-7.a: Control-state sweep + focus-ring render — v2.1+
+  scope (chain on UX-7 Phase 1)** — (a) Render the 2 px accent
+  focus ring on `crate::controls::variant_button` when the
+  button holds keyboard focus. iced 0.13's button doesn't
+  expose `ButtonStatus::Focused` directly; either upgrade to
+  iced 0.14 (chains UX-PRE) or implement via a custom widget
+  wrapping `iced::advanced::Widget`. (b) Sweep every panel's
+  `button(text(...))` call site to the
+  `variant_button(label, ButtonVariant::*, on_press, palette)`
+  helper; similarly route every `text_input(...)` through
+  `styled_text_input(...)`. Acceptance: grep finds zero
+  remaining `iced::widget::button(` calls outside `controls.rs`
+  + `header.rs` + `sidebar.rs`; same for `text_input(`.
+  (c) Add a hover/focus interactive-demo gallery panel that
+  exercises every control state — useful for design review +
+  for the UX-13 state-matrix gallery follow-up. Effort: Medium.
 
 - [✓] **UX-8: Icons + visual language — v2.1 scope (v1 landed 2026-05-21 on `main`; UX-8.a chains the SVG bundle)** — Audit all icon
   usage. **Locked icon system: Carbon** (per Q24, Q37–Q39). (a)

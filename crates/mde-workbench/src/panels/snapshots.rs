@@ -20,10 +20,11 @@
 
 use std::path::{Path, PathBuf};
 
-use iced::widget::{button, column, row, scrollable, text, text_input};
+use iced::widget::{column, row, scrollable, text};
 use iced::{Element, Length, Padding, Task};
 use mde_theme::{Density, EmptyState, Icon, Palette};
 
+use crate::controls::{styled_text_input, variant_button, ButtonVariant};
 use crate::panel_chrome::{card, dialog, empty_state, panel_container};
 
 /// Subdirectory name under each snapshot dir that holds the
@@ -174,16 +175,28 @@ impl SnapshotsPanel {
             return self.view_confirm(path);
         }
 
-        let create_btn = {
-            let mut b = button(text("Create snapshot"));
-            if !self.busy {
-                b = b.on_press(crate::Message::Snapshots(Message::CreateClicked));
-            }
-            b
+        // UX-7 — buttons and inputs route through the shared
+        // control primitives so hover/focus/active/disabled
+        // states are consistent across panels.
+        let palette = Palette::dark();
+        let create_press = if self.busy {
+            None
+        } else {
+            Some(crate::Message::Snapshots(Message::CreateClicked))
         };
+        let create_btn = variant_button(
+            "Create snapshot",
+            ButtonVariant::Primary,
+            create_press,
+            palette,
+        );
 
-        let new_name = text_input("Snapshot name", &self.new_name_input)
-            .on_input(|v| crate::Message::Snapshots(Message::NewNameChanged(v)));
+        let new_name = styled_text_input(
+            "Snapshot name",
+            &self.new_name_input,
+            |v| crate::Message::Snapshots(Message::NewNameChanged(v)),
+            palette,
+        );
 
         if self.rows.is_empty() {
             // UX-6 — empty-state with the same create flow
@@ -213,16 +226,28 @@ impl SnapshotsPanel {
         let rows_view = self.rows.iter().fold(column![], |col, row_data| {
             let restore_path = row_data.path.clone();
             let delete_path = row_data.path.clone();
+            let restore_btn = variant_button(
+                "Restore",
+                ButtonVariant::Secondary,
+                Some(crate::Message::Snapshots(Message::RestoreClicked(
+                    restore_path,
+                ))),
+                palette,
+            );
+            let delete_btn = variant_button(
+                "Delete",
+                ButtonVariant::Ghost,
+                Some(crate::Message::Snapshots(Message::DeleteClicked(
+                    delete_path,
+                ))),
+                palette,
+            );
             let card_body = row![
                 text(&row_data.name).width(Length::Fixed(220.0)),
                 text(&row_data.timestamp).width(Length::Fixed(220.0)),
                 text(&row_data.hostname).width(Length::Fixed(160.0)),
-                button(text("Restore")).on_press(crate::Message::Snapshots(
-                    Message::RestoreClicked(restore_path),
-                )),
-                button(text("Delete")).on_press(crate::Message::Snapshots(Message::DeleteClicked(
-                    delete_path
-                ),)),
+                restore_btn,
+                delete_btn,
             ]
             .spacing(12)
             .into();
@@ -241,9 +266,24 @@ impl SnapshotsPanel {
     }
 
     fn view_confirm(&self, path: &str) -> Element<'_, crate::Message> {
-        // UX-9 (c) — confirm dialog now uses the shared dialog
-        // chrome: 480 px max-width, Radii::modal corners,
-        // Shadow::modal drop shadow, palette.raised background.
+        // UX-9 (c) — confirm dialog uses the shared dialog
+        // chrome. UX-7 — buttons route through the variant
+        // helpers (Primary for the destructive confirm, Ghost
+        // for cancel) so hover/focus states stay consistent
+        // with the rest of the app.
+        let palette = Palette::dark();
+        let confirm_btn = variant_button(
+            "Confirm restore",
+            ButtonVariant::Primary,
+            Some(crate::Message::Snapshots(Message::RestoreConfirmed)),
+            palette,
+        );
+        let cancel_btn = variant_button(
+            "Cancel",
+            ButtonVariant::Ghost,
+            Some(crate::Message::Snapshots(Message::RestoreCancelled)),
+            palette,
+        );
         let body: Element<'_, crate::Message> = column![
             text("Restore snapshot?").size(20),
             text(format!(
@@ -256,13 +296,7 @@ impl SnapshotsPanel {
                  copies.",
             )
             .size(13),
-            row![
-                button(text("Confirm restore"))
-                    .on_press(crate::Message::Snapshots(Message::RestoreConfirmed)),
-                button(text("Cancel"))
-                    .on_press(crate::Message::Snapshots(Message::RestoreCancelled)),
-            ]
-            .spacing(12),
+            row![confirm_btn, cancel_btn].spacing(12),
         ]
         .spacing(12)
         .into();
