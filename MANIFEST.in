@@ -22,6 +22,15 @@ recursive-include crates *.toml *.rs *.sql
 # splash MP4 played before the wizard surfaces)
 recursive-include branding *.png *.svg *.mp4 *.webm
 
+# BR-0 brand asset pack (2026-05-21). `mde_theme::brand` uses
+# `include_bytes!()` against `assets/brand/baked/*.svg` so the
+# baked SVGs MUST land in the sdist — without them the cargo
+# build inside rpmbuild fails to compile mde-theme.
+recursive-include assets *.png *.svg *.md
+include assets/brand/cursor/.gitkeep
+include assets/brand/raw/.gitkeep
+include assets/brand/sounds/.gitkeep
+
 # Specs and CI
 recursive-include packaging *
 recursive-include install-helpers *.sh

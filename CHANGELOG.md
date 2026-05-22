@@ -3,6 +3,137 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 2.0.2 — 2.0 Bug Fixes (2026-05-22)
+
+Bug-fix release on the v2.0.x line. Hardens the v2.0.0 monolithic
+cut with the UX-3..UX-9 chrome polish work, the PC-2/3/4.a/10/12
+peer-card foundations, the BR-0 brand asset pack, the
+short-circuit RPM guard, and the first green ci pytest run since
+pre-1.1.0. Larger feature work (UX-7.a sweep, UX-8.a SVG bundle,
+UX-9.a animation wiring, PC-3.a event-source integration,
+PC-5/6/7 online enrichment, CB-1.8 follow-up, 12.18 HTTPS-tunnel)
+ships in a later minor.
+
+### Chrome + design system (UX round 1)
+
+- **UX-3 — palette + iced::Theme coherence.** `iced::Theme::Custom("MDE")`
+  is derived from `mde_theme::Palette`, so every widget that defers
+  to the framework palette renders against the Q-locked indigo
+  (`#5b6af5`) accent + Q-locked Apple-charcoal (`#1d1d1f`) background
+  instead of Iced's stock dark navy.
+- **UX-4 — custom MDE window header bar.** sway tiles Iced apps
+  without server-side decorations; the workbench now draws a 48 px
+  `palette.surface` header bar with the "MDE" wordmark at
+  `TypeRole::Subheading` (14 sp medium) and min / max / close
+  controls that hover-tint with the accent (close hover-tints
+  danger). `decorations: false` requested so GNOME-shell /
+  KDE-on-Wayland sessions also fall back to client-side chrome.
+- **UX-5 — sidebar nav polish.** 240 px fixed sidebar, 40 px nav
+  rows with a reserved 20 px icon slot, accent stripe + tint +
+  accent text on the selected row, surface-2 hover, 1 px hairline
+  section dividers with all-caps 11 sp muted labels, focus ring
+  on the active row when the sidebar pane holds keyboard focus.
+- **UX-6 — panel chrome primitives (Phase 1+2 + 6.a + 6.b).** New
+  `crates/mde-workbench/src/panel_chrome.rs` exposes
+  `panel_container`, `section_header`, `section_block`,
+  `data_row`, `status_badge` (5 severities), `card`, and
+  `empty_state` (plus `dialog`, `dialog_backdrop`, `tooltip` from
+  UX-9). SPACE_24 outer padding now applies at `App::view()`
+  centrally, so every panel inherits it; `Padding::new(0.0)`
+  no-op wrappers swept from 32 panels. Six data panels
+  (snapshots / inventory / mesh_history / fleet_revisions /
+  playbooks / run_history) carry a polished zero-data view.
+- **UX-7 — control state primitives (Phase 1).** `controls.rs`
+  ships `variant_button(Primary | Secondary | Ghost)`,
+  `styled_text_input`, `toggle` pill, `skeleton`, and `spinner`
+  with the locked dimensions (36 px button height, RADIUS_MD,
+  SPACE_12 padding, 40 % disabled opacity, 2 px focus ring).
+  Snapshots panel migrates as the canonical example. The 27-site
+  sweep across remaining panels + focus-ring render are
+  follow-ups (UX-7.a; focus-ring chains on the UX-PRE Iced
+  upgrade).
+- **UX-8 — Carbon icon API (v1).** `mde_theme::icons::Icon`
+  enum (48 semantic variants) + `mde_icon(icon, size) ->
+  ResolvedIcon` resolver paired with Q37-locked size tiers
+  (16 / 20 / 24 / 32 / 48 px). Window controls, empty-state
+  hero icons, and `icon_for_device_type` peer-card router swap
+  in. Real Carbon SVG bundling is UX-8.a follow-up.
+- **UX-9 — motion + dialog chrome (Phase 1).** `mde_theme::motion`
+  centralizes the locked durations (180 ms panel mount, 2 s
+  notification pulse, 120 ms tooltip fade) + dialog tokens
+  (480 px max-width, 50 % backdrop). `panel_chrome::dialog`,
+  `dialog_backdrop`, `tooltip` widgets ship. Snapshots-restore
+  confirm dialog migrates to the new chrome. UX-9.a wires the
+  actual animation subscriptions (needs Iced 0.14).
+
+### Peer Connection Card foundations
+
+- **PC-2** — `PeerProbe` schema moved from the PC-1 placeholder
+  to its canonical home `crates/mackes-mesh-types/src/peer_probe.rs`
+  (re-exported as `mde_mesh_types::peer_probe::*`). Cross-crate
+  consumers (mded peer-join worker, future workbench Fleet
+  panels) now share one definition.
+- **PC-3** — stand-alone peer-join handler
+  (`crates/mackesd/src/peer_join.rs`): writes
+  `~/.cache/mde/peers/<id>/probe.json`, spawns
+  `mde-peer-card --peer <id>` as a detached child, debounces
+  re-spawn within a 30 s per-peer window. Event-source
+  integration into the mesh / topology layer chains as PC-3.a.
+- **PC-4.a** — production `Hwdb` index over
+  `/usr/share/hwdata/usb.ids`; `Hwdb::shared()` caches the
+  parsed index process-wide via `OnceLock`. `HwdbInfo::from_lookup`
+  returns resolved vendor / product names with hex-string
+  fallbacks for unknown IDs.
+- **PC-10** — `mackes_config::PeerCardConfig.online_enrichment`
+  toggle (default `true`); when `false`, PC-5/6/7 enrichment
+  short-circuits and the card renders hwdb-only.
+- **PC-12** — RPM spec ships `mde-peer-card` at `%{_bindir}/`;
+  always spawned on demand by PC-3, no autostart entry.
+
+### Brand assets
+
+- **BR-0** — `assets/brand/` ships wordmark / wordmark-hero /
+  monogram / app-icon / greeter-wordmark in both PNG (ChatGPT-
+  generated raw originals + flat slots) and baked SVG forms;
+  `crates/mde-theme/src/brand.rs` runtime loader resolves
+  `BrandSlot` to bytes with `$MDE_BRAND_DIR` override and
+  `include_bytes!` fallback. BR-1..BR-5 consumer-side wiring
+  scheduled for v2.2.
+
+### Infrastructure
+
+- **Short-circuit RPM guard** — `make rpm` rejects any artifact
+  carrying `rpmlib(ShortCircuited) <= 4.9.0-1`. v2.0.1 shipped
+  two RPMs with that dep (manual `rpmbuild --short-circuit`
+  during iteration); the guard catches it the next time. See
+  `.claude/CLAUDE.md §0.6` for the canonical-path note.
+- **ci pytest green** — pytest had been red since pre-1.1.0
+  (10 failures from `empty_state(... None, None)` keyword-only
+  arg mismatches in 4 legacy GTK panels + an order-sensitive
+  facade test). Fixed the call sites + switched the facade
+  test to `sys.modules` lookup (order-independent). The
+  Python ci job can finally land green: 412 passed · 11
+  skipped · 0 failed.
+
+### Test counts (all green)
+
+- mde-workbench lib: 479 (was 452 pre-cut)
+- mde-theme lib: 83 (was 59)
+- mde-peer-card lib: 30 (was 21)
+- mackes-config lib: 20 (was 18)
+- mackesd peer_join: 8 (new)
+- pytest: 412 (was 402, 10 failures gone)
+
+### Known follow-ups (Open in `docs/PROJECT_WORKLIST.md`)
+
+UX-7.a control sweep + focus-ring render · UX-8.a Carbon SVG
+bundle · UX-9.a animation wiring · PC-3.a event-source
+integration · PC-5/6/7 online enrichment · CB-1.8 follow-up
+(10 Network admin Iced panels) · 12.18 HTTPS-tunnel. The
+**UX-PRE** Iced 0.13 → 0.14 workspace bump is BLOCKED on
+upstream softbuffer 0.4.8 / Rust 1.95 incompatibility; it
+gates Phase E.2 layer-shell + the UX-7.a focus-ring render.
+
 ## 2.0.1 — Wayland session hotfix (2026-05-21)
 
 The v2.0.0 RPM declared every `mde-*` Rust binary in `%files` but the
