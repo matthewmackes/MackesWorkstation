@@ -5530,12 +5530,12 @@ Removes the platform's last Qt surface. Adds explicit
   Add `%check` step: `rpm -qpR %{buildroot}/...rpm |
   grep -iE '^(qt[0-9]|kf[0-9])' && exit 1 || true`. The
   build fails loudly if any Qt dep sneaks in.
-- [ ] **KDC2-6.5: Delete `crates/mackes-kdc/` + update
+- [✓] **KDC2-6.5: Delete `crates/mackes-kdc/` + update
   workspace `Cargo.toml`** — Whole crate (296 LOC lib +
   150 LOC tests). Drop the entry from root `Cargo.toml`
   workspace members. Land after KDC2-3 is functional so
   the bridge worker has a replacement.
-- [ ] **KDC2-6.6: Delete `crates/mackesd/src/workers/kdc_bridge.rs`** —
+- [✓] **KDC2-6.6: Delete `crates/mackesd/src/workers/kdc_bridge.rs`** —
   154 LOC worker. Remove from worker registry in
   `mackesd::lib.rs`. Replaced by KDC2-3.10's `kdc_host` worker.
 - [ ] **KDC2-6.7: `mde-wizard` re-pair card on v2.0.x → v2.1.0

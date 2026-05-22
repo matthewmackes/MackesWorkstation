@@ -84,7 +84,9 @@ pub mod clipboard;
 pub mod derp;
 pub mod fs_sync;
 pub mod heartbeat;
-pub mod kdc_bridge;
+// KDC2-6.6 — legacy `kdc_bridge` retired alongside the upstream
+// kdeconnectd wrapper. The native KDC host worker
+// (`workers::kdc_host`) replaces it in the v2.1+ stack.
 pub mod kdc_host;
 pub mod lan_discovery;
 pub mod mdns;

@@ -2923,15 +2923,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mackes-kdc"
-version = "0.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
 name = "mackes-mesh-types"
 version = "0.0.0"
 dependencies = [
@@ -2983,7 +2974,6 @@ dependencies = [
  "ed25519-dalek",
  "fs2",
  "insta",
- "mackes-kdc",
  "mackes-mesh-types",
  "mackes-transport",
  "mde-kdc",
