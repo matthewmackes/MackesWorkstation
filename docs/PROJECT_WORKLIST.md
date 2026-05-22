@@ -5358,7 +5358,7 @@ re-relay) into one.
   called for a synthetic phone, route the TLS bytes through
   the Tailscale `Transport` (not direct LAN). 4 unit tests +
   integration test confirming end-to-end byte flow.
-- [ ] **KDC2-4.5: `PathSwitch` log distinguishes direct-LAN vs
+- [✓] **KDC2-4.5: `PathSwitch` log distinguishes direct-LAN vs
   mesh-shunt phone reach** — Extend `SwitchReason` with
   `MeshShuntActivated` + `DirectLanRecovered` variants so the
   audit log differentiates. 3 unit tests.

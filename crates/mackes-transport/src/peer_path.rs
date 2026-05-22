@@ -34,6 +34,17 @@ pub enum SwitchReason {
     /// previous transport and applied a 5-minute cooldown
     /// before allowing it back as primary.
     FlapPenalty,
+    /// KDC2-4.5 — phone went off-LAN; mesh-shunt activated,
+    /// router now reaches the phone via a neighbor MDE peer's
+    /// KDC channel. Distinct from `HealthDegraded(DirectUdp)`
+    /// so the audit log + operator UI can show "via peer-A"
+    /// instead of "direct UDP lost."
+    MeshShuntActivated,
+    /// KDC2-4.5 — phone re-appeared on the local LAN; router
+    /// is back on the direct path. Pairs with
+    /// `MeshShuntActivated` so the audit log captures the
+    /// complete roaming cycle.
+    DirectLanRecovered,
 }
 
 impl SwitchReason {
@@ -49,6 +60,8 @@ impl SwitchReason {
             SwitchReason::Policy => "policy".to_string(),
             SwitchReason::ManualOverride => "manual_override".to_string(),
             SwitchReason::FlapPenalty => "flap_penalty".to_string(),
+            SwitchReason::MeshShuntActivated => "mesh_shunt_activated".to_string(),
+            SwitchReason::DirectLanRecovered => "direct_lan_recovered".to_string(),
         }
     }
 }
@@ -185,6 +198,41 @@ mod tests {
         assert_eq!(SwitchReason::Policy.audit_token(), "policy");
         assert_eq!(SwitchReason::ManualOverride.audit_token(), "manual_override");
         assert_eq!(SwitchReason::FlapPenalty.audit_token(), "flap_penalty");
+        // KDC2-4.5 — mesh-shunt + direct-LAN-recovery tokens.
+        assert_eq!(
+            SwitchReason::MeshShuntActivated.audit_token(),
+            "mesh_shunt_activated",
+        );
+        assert_eq!(
+            SwitchReason::DirectLanRecovered.audit_token(),
+            "direct_lan_recovered",
+        );
+    }
+
+    #[test]
+    fn mesh_shunt_variants_round_trip_through_json() {
+        for r in [
+            SwitchReason::MeshShuntActivated,
+            SwitchReason::DirectLanRecovered,
+        ] {
+            let raw = serde_json::to_string(&r).unwrap();
+            let back: SwitchReason = serde_json::from_str(&raw).unwrap();
+            assert_eq!(back, r);
+        }
+    }
+
+    #[test]
+    fn mesh_shunt_variants_serialize_as_snake_case() {
+        // Wire-compat lock: the JSON form matches the audit-
+        // token form (same string).
+        assert_eq!(
+            serde_json::to_string(&SwitchReason::MeshShuntActivated).unwrap(),
+            r#""mesh_shunt_activated""#,
+        );
+        assert_eq!(
+            serde_json::to_string(&SwitchReason::DirectLanRecovered).unwrap(),
+            r#""direct_lan_recovered""#,
+        );
     }
 
     #[test]
