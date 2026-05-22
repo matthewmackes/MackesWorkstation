@@ -18,6 +18,9 @@
 use std::fmt;
 use std::sync::Mutex;
 
+use ring::aead::{
+    Aad, LessSafeKey, Nonce, UnboundKey, AES_256_GCM, NONCE_LEN,
+};
 use ring::rand::{SecureRandom, SystemRandom};
 use ring::signature::{
     RsaKeyPair, UnparsedPublicKey, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
@@ -309,6 +312,101 @@ pub fn verify_signature(
     public_key
         .verify(message, signature)
         .map_err(|_| CryptoError::SignatureInvalid)
+}
+
+// ────────────────────────────────────────────────────────────────
+// KDC2-2.4c — AES-256-GCM session encryption
+// ────────────────────────────────────────────────────────────────
+//
+// After the RSA pairing handshake (2.4b) the two peers share an
+// AES-256 session key. From that point on every packet body is
+// sealed with AES-GCM. This module exposes two pure helpers
+// (seal_session / open_session) plus a nonce generator. The
+// **nonce-counter** is the host's responsibility — KDC2-3's
+// host integration owns one monotonic counter per session and
+// passes a fresh 12-byte nonce on every seal call. Reusing a
+// nonce with the same key catastrophically breaks GCM, so we
+// take the nonce as an explicit input rather than generating it
+// inside the seal helper.
+
+/// AES-256-GCM session key length in bytes.
+pub const SESSION_KEY_LEN: usize = 32;
+
+/// AES-256-GCM nonce length in bytes (re-exported from ring's
+/// constant so callers don't need a ring import). Always 12.
+pub const SESSION_NONCE_LEN: usize = NONCE_LEN;
+
+/// Seal `plaintext` under `session_key` + `nonce` with AES-256-GCM
+/// AEAD. Returns the ciphertext with the GCM tag appended.
+///
+/// `aad` is the wire packet's metadata (e.g. envelope `id` +
+/// `kind` bytes) — covered by the GCM authentication so an
+/// attacker can't swap headers between packets.
+///
+/// **Nonce uniqueness is the caller's responsibility.** Reusing
+/// the same `(session_key, nonce)` pair across two seal calls
+/// breaks confidentiality + integrity. The host (KDC2-3) owns a
+/// monotonic per-session counter that feeds this helper.
+pub fn seal_session(
+    session_key: &[u8],
+    nonce: [u8; SESSION_NONCE_LEN],
+    aad: &[u8],
+    plaintext: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    if session_key.len() != SESSION_KEY_LEN {
+        return Err(CryptoError::WrongAlgorithm);
+    }
+    let unbound = UnboundKey::new(&AES_256_GCM, session_key)
+        .map_err(|_| CryptoError::WrongAlgorithm)?;
+    let key = LessSafeKey::new(unbound);
+
+    let mut in_out = plaintext.to_vec();
+    let ring_nonce = Nonce::assume_unique_for_key(nonce);
+    key.seal_in_place_append_tag(ring_nonce, Aad::from(aad), &mut in_out)
+        .map_err(|_| CryptoError::Io { code: "aead_seal_failed" })?;
+    Ok(in_out)
+}
+
+/// Open `ciphertext` under `session_key` + `nonce` with
+/// AES-256-GCM AEAD. Returns the plaintext on successful
+/// authentication; `CryptoError::AeadAuthFailed` on tampered
+/// ciphertext / tag mismatch / wrong key / wrong nonce.
+///
+/// Same nonce-uniqueness contract as [`seal_session`]: the caller
+/// must hand the matching counter value the sender used.
+pub fn open_session(
+    session_key: &[u8],
+    nonce: [u8; SESSION_NONCE_LEN],
+    aad: &[u8],
+    ciphertext: &[u8],
+) -> Result<Vec<u8>, CryptoError> {
+    if session_key.len() != SESSION_KEY_LEN {
+        return Err(CryptoError::WrongAlgorithm);
+    }
+    let unbound = UnboundKey::new(&AES_256_GCM, session_key)
+        .map_err(|_| CryptoError::WrongAlgorithm)?;
+    let key = LessSafeKey::new(unbound);
+
+    let mut in_out = ciphertext.to_vec();
+    let ring_nonce = Nonce::assume_unique_for_key(nonce);
+    let plaintext = key
+        .open_in_place(ring_nonce, Aad::from(aad), &mut in_out)
+        .map_err(|_| CryptoError::AeadAuthFailed)?;
+    Ok(plaintext.to_vec())
+}
+
+/// Generate a fresh AES-256-GCM session key (32 random bytes from
+/// ring's `SystemRandom`). Used at the end of the RSA pairing
+/// handshake to seed the session.
+///
+/// Returns `CryptoError::Io` only if ring's RNG fails — vanishingly
+/// rare on a working Linux box; defensive against syscall errors.
+pub fn generate_session_key() -> Result<[u8; SESSION_KEY_LEN], CryptoError> {
+    let rng = SystemRandom::new();
+    let mut key = [0_u8; SESSION_KEY_LEN];
+    rng.fill(&mut key)
+        .map_err(|_| CryptoError::Io { code: "session_key_rng_failed" })?;
+    Ok(key)
 }
 
 #[cfg(test)]
