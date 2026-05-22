@@ -74,6 +74,87 @@ locked work appears under **Active** with `[ ] Open`.
   workflow firing on the tag push (run 26198757489 — in
   progress at the time this entry landed).
 
+### v2.0.3 hotfix bundle (operator-verification on bench machine 2026-05-22)
+
+Bench-install of `mde-2.0.2-1.fc44` on a real laptop + 4K-TV
+dual-monitor rig surfaced a handful of v2.0.x defects. None
+block boot but several leave the operator looking at a
+swaynag error banner or a tiled grey strip in place of the
+dock. The fixes below are scoped for v2.0.3 cut.
+
+- [✓] **v2.0.3: sway config parse errors + duplicate bindings
+  (operator-verification 2026-05-22)** — `data/sway/config`
+  shipped with `bindsym $mod+Shift+r restart` which is an
+  i3-only command (sway has no `restart`). Sway fired
+  swaynag on every login. Also five bindings (`$mod+q/w/e/l/
+  space`) were defined in both the main config and
+  `config.d/mackes-defaults.conf`, generating duplicate-
+  binding warnings. Fixed by deleting the conflicting
+  main-config bindings (mackes-defaults wins), changing
+  `restart` to `reload`, and adding arrow-key navigation
+  aliases (`$mod+arrows`) to replace the focus-right
+  binding that mackes-defaults repurposes for
+  `loginctl lock-session`. Also added an `exec mde-panel`
+  autostart line so the panel comes up on login (it was
+  not previously wired into the sway config).
+- [✓] **v2.0.3: for_window mde-panel title match (interim)
+  (operator-verification 2026-05-22)** — added
+  `for_window [title="^mde-panel$"] floating enable,
+  border none` alongside the existing `[app_id=...]` rule
+  so the panel gets floated until the Iced app_id
+  propagation bug (next item) is fixed. Once the panel
+  sets its xdg `app_id`, the title rule becomes dead but
+  harmless.
+- [ ] **v2.0.3: investigate Iced app_id not propagating to
+  xdg_shell — mde-panel** — Sway sees
+  `shell: "xdg_shell", app_id: ""` for the running
+  mde-panel process. `crates/mackes-panel/src/main.rs:340`
+  calls `.application_id(APP_ID)` with `APP_ID =
+  "shell.mackes.Panel"`. Investigate whether Iced 0.13's
+  `application_id()` writes the xdg-shell `app_id`
+  property or only the WM_CLASS-equivalent. May require
+  upgrading to Iced 0.14 (UX-PRE) or hand-rolling the
+  xdg_toplevel `set_app_id` call before the surface is
+  presented. Acceptance: `swaymsg -t get_tree` reports
+  `app_id: "shell.mackes.Panel"` for the running panel.
+- [ ] **v2.0.3: remove obsolete qnm-daemon.service from
+  user systemd units** — Legacy v1.x
+  `~/.config/systemd/user/qnm-daemon.service` survives
+  the v1.x → v2.0.0 migration and crash-loops every 3
+  seconds because `~/.local/bin/qnm-daemon` no longer
+  exists. Workaround on the bench was
+  `systemctl --user disable qnm-daemon.service`. Real
+  fix: extend the Phase 0.5 migrator
+  (`mde-migrate-from-1x.service`) to disable + remove
+  the stale unit on first MDE boot. Acceptance: fresh
+  upgrade from v1.x → v2.0.3 leaves no `qnm-daemon`
+  systemd unit referencing the missing binary.
+- [ ] **v2.0.3: replace dunst with mako (Wayland-native
+  notifications)** — `dunst.service` ships as a D-Bus
+  activated unit (`BusName=org.freedesktop.Notifications`)
+  but dunst is X11-only and crashes on every Wayland
+  login (`Cannot open X11 display`). Workaround on the
+  bench was `systemctl --user mask dunst.service`. Real
+  fix: (a) add `mako` to `packaging/fedora/mackes-
+  shell.spec` Requires, (b) ship a `mako.service`
+  override that owns the `org.freedesktop.Notifications`
+  D-Bus name in MDE sessions, (c) add `Conflicts: dunst`
+  to the spec so dunst is removed on install, (d) drop a
+  `mde-applet-notifications` integration test that
+  confirms toast delivery via mako. Acceptance: fresh
+  install of mde shows no failed `dunst.service`; a
+  notify-send call reaches mde-applet-notifications.
+- [ ] **v2.0.3: dual-monitor default scaling config** —
+  Bench rig is laptop eDP-1 1366×768 + 4K-TV DP-2
+  3840×2160 at scale=1.0. UI elements on the 4K TV at
+  scale 1.0 are unreadable across a living room. Add a
+  scale-detection helper to `mde-wm` that reads the EDID
+  manufacturer/model + resolution and applies a
+  reasonable default (`scale=2.0` for ≥3840-wide
+  displays; `scale=1.0` for ≤1920-wide). Acceptance:
+  fresh login on the bench rig leaves DP-2 readable
+  without manual `wlr-randr --scale` invocation.
+
 ### Notification Center (new — Rust Desktop handoff bundle, 2026-05-19)
 
 - [✓] **Notification Center modal + bell tray icon** — Rust port
