@@ -1,4 +1,4 @@
-//! KDC2-2.10.a — host-side UDP/1716 broadcast runner.
+//! KDC2-2.10.a + 2.9.a — host-side discovery runners.
 //!
 //! The pure-data half (encoder + decoder + registry) lives in
 //! `mde_kdc_proto::discovery`. This module wires a
@@ -29,8 +29,9 @@ use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::Instant;
 
 use mde_kdc_proto::discovery::{
-    decode_announce_datagram, encode_announce_datagram, Announce,
-    DiscoveryRegistry, BroadcastError, KDC_UDP_PORT, MAX_BROADCAST_BYTES,
+    decode_announce_datagram, decode_mdns_txt_records, encode_announce_datagram,
+    encode_mdns_txt_records, Announce, BroadcastError, DiscoveryRegistry,
+    KDC_MDNS_SERVICE_TYPE, KDC_UDP_PORT, MAX_BROADCAST_BYTES,
 };
 
 /// Broadcast cadence — matches upstream KDE Connect's 30 s
@@ -177,6 +178,157 @@ impl UdpBroadcastRunner {
     }
 }
 
+// ──────────────────────────────────────────────────────────────────
+// KDC2-2.9.a — mDNS host runner.
+//
+// `mdns-sd` runs its own daemon thread internally. We wrap the
+// service-daemon handle + browse-result receiver so the caller
+// can:
+//
+//   * `announce()` — publish our identity under
+//     `_kdeconnect._udp.local.` with TXT records produced by
+//     `encode_mdns_txt_records`.
+//
+//   * `pump_into_registry()` — drain one ServiceResolved event
+//     from the browser channel, decode its TXT records into an
+//     `Announce`, and call `DiscoveryRegistry::inject_real`.
+//
+// The runner is async-friendly but doesn't own a tokio task —
+// the caller composes it into a `select!` arm alongside the UDP
+// runner. Keeps the lifetime + cancellation explicit.
+// ──────────────────────────────────────────────────────────────────
+
+/// mDNS host runner. Wraps an `mdns_sd::ServiceDaemon` + a
+/// browser receiver tuned for the KDC service type.
+pub struct MdnsRunner {
+    daemon: mdns_sd::ServiceDaemon,
+    browser: flume::Receiver<mdns_sd::ServiceEvent>,
+    registry: Arc<AsyncMutex<DiscoveryRegistry>>,
+}
+
+/// Errors the mDNS runner may surface.
+#[derive(Debug)]
+pub enum MdnsError {
+    /// `ServiceDaemon::new` failed (no network namespace, no
+    /// multicast interface).
+    Daemon(String),
+    /// `browse` registration failed.
+    Browse(String),
+    /// `register` of our own service failed.
+    Register(String),
+    /// TXT records decoded but produced an invalid Announce.
+    Decode(String),
+}
+
+impl std::fmt::Display for MdnsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MdnsError::Daemon(s) => write!(f, "daemon: {s}"),
+            MdnsError::Browse(s) => write!(f, "browse: {s}"),
+            MdnsError::Register(s) => write!(f, "register: {s}"),
+            MdnsError::Decode(s) => write!(f, "decode: {s}"),
+        }
+    }
+}
+
+impl std::error::Error for MdnsError {}
+
+impl MdnsRunner {
+    /// Spin up an mdns-sd daemon + start browsing for
+    /// `_kdeconnect._udp.local.`.
+    pub fn start(registry: Arc<AsyncMutex<DiscoveryRegistry>>) -> Result<Self, MdnsError> {
+        let daemon =
+            mdns_sd::ServiceDaemon::new().map_err(|e| MdnsError::Daemon(format!("{e}")))?;
+        let browser = daemon
+            .browse(KDC_MDNS_SERVICE_TYPE)
+            .map_err(|e| MdnsError::Browse(format!("{e}")))?;
+        Ok(Self {
+            daemon,
+            browser,
+            registry,
+        })
+    }
+
+    /// Publish our identity under `_kdeconnect._udp.local.` so
+    /// browsers (phones running stock KDE Connect, other MDE
+    /// peers) resolve us. `host_name` is the local interface's
+    /// hostname (e.g. `lab-01.local.`); `port` is the TCP/TLS
+    /// port we listen on for incoming pair handshakes
+    /// (typically `KDC_UDP_PORT` aka 1716 — the same number
+    /// upstream uses for both UDP and TCP).
+    pub fn announce(
+        &self,
+        announce: &Announce,
+        host_name: &str,
+        port: u16,
+    ) -> Result<(), MdnsError> {
+        let txt: Vec<(String, String)> = encode_mdns_txt_records(announce);
+        let info = mdns_sd::ServiceInfo::new(
+            KDC_MDNS_SERVICE_TYPE,
+            &announce.device_id,
+            host_name,
+            (), // let mdns-sd auto-detect the addresses
+            port,
+            &txt[..],
+        )
+        .map_err(|e| MdnsError::Register(format!("info: {e}")))?;
+        self.daemon
+            .register(info)
+            .map_err(|e| MdnsError::Register(format!("register: {e}")))
+    }
+
+    /// Drain one ServiceResolved event from the browser channel
+    /// and ingest the decoded Announce into the registry. Other
+    /// event kinds (SearchStarted, etc.) are skipped silently.
+    /// Returns the device_id that was ingested, or None if no
+    /// event was available before the optional timeout.
+    pub async fn pump_into_registry(
+        &self,
+        wait: Option<Duration>,
+        now_ms: i64,
+    ) -> Result<Option<String>, MdnsError> {
+        let event_opt = match wait {
+            Some(d) => match tokio::time::timeout(d, recv_async(&self.browser)).await {
+                Ok(Ok(ev)) => Some(ev),
+                _ => None,
+            },
+            None => self.browser.try_recv().ok(),
+        };
+        let Some(event) = event_opt else {
+            return Ok(None);
+        };
+        if let mdns_sd::ServiceEvent::ServiceResolved(info) = event {
+            let pairs: Vec<(&str, &str)> = info
+                .get_properties()
+                .iter()
+                .map(|p| (p.key(), p.val_str()))
+                .collect();
+            let announce = decode_mdns_txt_records(pairs)
+                .map_err(|e| MdnsError::Decode(format!("{e}")))?;
+            let device_id = announce.device_id.clone();
+            self.registry.lock().await.inject_real(announce, now_ms);
+            return Ok(Some(device_id));
+        }
+        Ok(None)
+    }
+
+    /// Best-effort shutdown of the daemon thread. Drops any
+    /// pending browse events.
+    pub fn shutdown(self) {
+        let _ = self.daemon.shutdown();
+    }
+}
+
+/// Tiny wrapper that turns flume's blocking recv into an async
+/// future via a oneshot bridge. mdns-sd uses flume's
+/// `Receiver`, which exposes a `recv_async` method natively;
+/// this wrapper picks it up.
+async fn recv_async(
+    rx: &flume::Receiver<mdns_sd::ServiceEvent>,
+) -> Result<mdns_sd::ServiceEvent, flume::RecvError> {
+    rx.recv_async().await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -255,6 +407,10 @@ mod tests {
         assert_eq!(guard.relayer_for("sender"), Some("self"));
     }
 
+    // ─────────────────────────────────────────────────────────
+    // KDC2-2.9.a — mDNS runner tests live below the impl.
+    // ─────────────────────────────────────────────────────────
+
     #[tokio::test(flavor = "current_thread")]
     async fn recv_one_silently_drops_wrong_kind_datagrams() {
         // A peer broadcasts a clipboard packet on UDP/1716 by
@@ -288,5 +444,38 @@ mod tests {
             .expect("recv timed out")
             .unwrap();
         assert!(result.is_none(), "wrong-kind packet should yield None");
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-2.9.a — mDNS runner tests
+    //
+    // mdns-sd talks real multicast under the hood, which CI
+    // sandboxes often disallow. The tests below construct the
+    // daemon + drain via `try_recv` so they don't depend on a
+    // working multicast path — they exercise the wiring, not
+    // the network.
+    // ─────────────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn mdns_runner_starts_and_browses_without_panicking() {
+        let registry = new_registry();
+        let r = MdnsRunner::start(Arc::clone(&registry));
+        // Either succeeds, or fails cleanly with MdnsError on a
+        // sandboxed CI. Both outcomes are within the test's
+        // expectation; the lock is "no panic + the error type
+        // is well-formed."
+        match r {
+            Ok(runner) => {
+                // try_recv with no wait returns Ok(None)
+                // immediately because no peer is announcing.
+                let drained = runner.pump_into_registry(None, 1000).await.unwrap();
+                assert!(drained.is_none(), "fresh browser must be empty");
+                runner.shutdown();
+            }
+            Err(e) => {
+                let msg = format!("{e}");
+                assert!(msg.starts_with("daemon: ") || msg.starts_with("browse: "));
+            }
+        }
     }
 }

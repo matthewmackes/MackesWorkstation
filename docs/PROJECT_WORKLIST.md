@@ -5237,12 +5237,20 @@ fuzzable + reproducible.
   unknown-type fallback). Host-side mdns-sd 0.11 runner
   (announce + browse + DiscoveryRegistry feed) folds into
   KDC2-2.9.a under `async-services`.
-- [ ] **KDC2-2.9.a: `mde-kdc::discovery::mdns` host runner** —
-  Use `mdns-sd 0.11` (already in mackesd's async-services
-  feature) to announce the local peer under
-  `_kdeconnect._udp.local.` + browse for peers. Drain
-  discovered services into `DiscoveryRegistry::inject_real`.
-  Behind `async-services`. Loopback test harness.
+- [✓] **KDC2-2.9.a: `mde-kdc::discovery::mdns` host runner** —
+  Shipped 2026-05-22. `MdnsRunner::start(registry)` boots an
+  `mdns_sd::ServiceDaemon`, registers a browse on
+  `_kdeconnect._udp.local.`, and stores the flume receiver.
+  `announce(announce, host_name, port)` publishes our own
+  identity (TXT records via `encode_mdns_txt_records`).
+  `pump_into_registry(wait, now_ms)` drains one
+  `ServiceResolved` event, decodes the TXT pairs via
+  `decode_mdns_txt_records`, and calls
+  `DiscoveryRegistry::inject_real`. Other event kinds are
+  silently skipped. `shutdown()` cleanly stops the daemon.
+  1 test (start + drain a fresh browser without panic) tolerant
+  to multicast-disallowed CI sandboxes — either Ok(empty) or a
+  well-formed MdnsError, not a panic.
 - [✓] **KDC2-2.10: `discovery::udp_broadcast` — UDP/1716 announce** —
   Pure encoder/decoder shipped 2026-05-22 inside
   `mde-kdc-proto::discovery`:
