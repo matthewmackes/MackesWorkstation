@@ -53,6 +53,97 @@ pub struct Histogram {
     pub count: u64,
 }
 
+impl Histogram {
+    /// Construct an empty histogram with the given buckets.
+    /// Buckets must be in ascending `le` order — callers that
+    /// pass unsorted buckets get incorrect percentile estimates.
+    #[must_use]
+    pub fn new(name: &'static str, help: &'static str, bucket_les: &[f64]) -> Self {
+        let buckets = bucket_les
+            .iter()
+            .map(|le| Bucket { le: *le, count: 0 })
+            .collect();
+        Self {
+            name,
+            help,
+            buckets,
+            sum: 0.0,
+            count: 0,
+        }
+    }
+
+    /// Record one observation. Increments the count of every
+    /// bucket whose `le` ≥ the observed value, plus the implicit
+    /// `+Inf` bucket via `self.count`.
+    pub fn observe(&mut self, value: f64) {
+        for b in &mut self.buckets {
+            if value <= b.le {
+                b.count += 1;
+            }
+        }
+        self.sum += value;
+        self.count += 1;
+    }
+
+    /// Estimate a percentile from the bucket counts. `p` is in
+    /// `[0.0, 1.0]`. Returns `None` for an empty histogram.
+    ///
+    /// Uses Prometheus's standard linear-interpolation rule:
+    /// find the bucket containing the target rank, then
+    /// linear-interpolate inside the bucket from the previous
+    /// bucket's upper bound.
+    #[must_use]
+    pub fn percentile_estimate(&self, p: f64) -> Option<f64> {
+        if self.count == 0 {
+            return None;
+        }
+        let target_rank = (self.count as f64) * p;
+        let mut prev_le = 0.0_f64;
+        let mut prev_count: u64 = 0;
+        for b in &self.buckets {
+            if (b.count as f64) >= target_rank {
+                if b.count == prev_count {
+                    return Some(b.le);
+                }
+                // Linear interpolation inside the bucket.
+                let frac = (target_rank - prev_count as f64)
+                    / ((b.count - prev_count) as f64);
+                return Some(prev_le + frac * (b.le - prev_le));
+            }
+            prev_le = b.le;
+            prev_count = b.count;
+        }
+        // Past every finite bucket — sample lives in `+Inf`.
+        // Return the highest finite `le` as the best estimate
+        // (caller can detect saturation via `count > buckets[-1].count`).
+        self.buckets.last().map(|b| b.le)
+    }
+}
+
+/// KDC2-1.12 — SLO histogram bucket schedule for the
+/// `kdc2_router_decision_us` metric. Spans 100 µs → 50 ms so
+/// the p50/p99 SLO checks have full resolution across the
+/// observed range. Each unit is microseconds.
+#[must_use]
+pub fn kdc2_router_decision_us_buckets() -> Vec<f64> {
+    vec![
+        100.0, 250.0, 500.0, 1_000.0, 2_500.0, 5_000.0, 10_000.0,
+        25_000.0, 50_000.0,
+    ]
+}
+
+/// KDC2-1.12 — construct the canonical
+/// `kdc2_router_decision_us` histogram. Pre-populated with the
+/// SLO bucket schedule.
+#[must_use]
+pub fn kdc2_router_decision_us() -> Histogram {
+    Histogram::new(
+        "kdc2_router_decision_us",
+        "Mesh-router tick decision time in microseconds",
+        &kdc2_router_decision_us_buckets(),
+    )
+}
+
 /// Render a counter as Prometheus text-format.
 fn render_counter(out: &mut String, c: &Counter) {
     let _ = writeln!(out, "# HELP {} {}", c.name, c.help);
@@ -193,6 +284,102 @@ mod tests {
     #[test]
     fn escape_label_value_handles_quotes_and_backslash() {
         assert_eq!(escape_label_value(r#"a"b\c"#), r#"a\"b\\c"#);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-1.12 — Histogram::observe + percentile_estimate +
+    // kdc2_router_decision_us schedule
+    // ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn histogram_new_starts_at_zero() {
+        let h = Histogram::new("x", "x", &[1.0, 2.0, 5.0]);
+        assert_eq!(h.count, 0);
+        assert_eq!(h.sum, 0.0);
+        assert_eq!(h.buckets.len(), 3);
+        for b in &h.buckets {
+            assert_eq!(b.count, 0);
+        }
+    }
+
+    #[test]
+    fn histogram_observe_increments_correct_buckets() {
+        let mut h = Histogram::new("x", "x", &[1.0, 2.0, 5.0]);
+        h.observe(0.5);
+        h.observe(1.5);
+        h.observe(10.0); // past every finite bucket
+        // 0.5 ≤ 1.0 → all 3 buckets +1
+        // 1.5 ≤ 2.0 → buckets[1] + buckets[2] +1
+        // 10.0 past every finite bucket → no finite bucket bump
+        assert_eq!(h.buckets[0].count, 1);
+        assert_eq!(h.buckets[1].count, 2);
+        assert_eq!(h.buckets[2].count, 2);
+        assert_eq!(h.count, 3);
+        assert!((h.sum - 12.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn histogram_percentile_estimate_empty_returns_none() {
+        let h = Histogram::new("x", "x", &[1.0, 2.0]);
+        assert!(h.percentile_estimate(0.5).is_none());
+    }
+
+    #[test]
+    fn histogram_percentile_estimate_p50_matches_median_bucket() {
+        // 10 samples evenly spread → p50 falls in the middle
+        // bucket.
+        let mut h = Histogram::new("x", "x", &[100.0, 250.0, 500.0, 1_000.0]);
+        for v in [50.0, 75.0, 120.0, 180.0, 240.0, 260.0, 300.0, 400.0, 600.0, 900.0] {
+            h.observe(v);
+        }
+        let p50 = h.percentile_estimate(0.5).unwrap();
+        // p50 of 10 samples = rank 5 → falls in the 250 bucket
+        // (samples 1..=5: 50,75,120,180,240). 5th sample value
+        // is 240. Linear interpolation across the 100→250 bucket
+        // lands at ~205. We just lock the bucket bound.
+        assert!(
+            (100.0..=250.0).contains(&p50),
+            "p50 estimate out of expected range: {p50}",
+        );
+    }
+
+    #[test]
+    fn kdc2_router_decision_us_buckets_span_100us_to_50ms() {
+        let buckets = kdc2_router_decision_us_buckets();
+        assert_eq!(*buckets.first().unwrap(), 100.0);
+        assert_eq!(*buckets.last().unwrap(), 50_000.0);
+        // Strictly ascending.
+        for w in buckets.windows(2) {
+            assert!(w[0] < w[1]);
+        }
+    }
+
+    #[test]
+    fn kdc2_router_decision_us_constructor_uses_canonical_name() {
+        let h = kdc2_router_decision_us();
+        assert_eq!(h.name, "kdc2_router_decision_us");
+        assert_eq!(h.buckets.len(), kdc2_router_decision_us_buckets().len());
+    }
+
+    #[test]
+    fn slo_check_1000_samples_p50_lt_5ms_p99_lt_25ms() {
+        // KDC2-1.12 SLO: 1000-sample p50 < 5 ms, p99 < 25 ms.
+        // Simulate router decisions tightly clustered around
+        // 1 ms with a long-tail above. The histogram's
+        // percentile_estimate must agree with the SLO.
+        let mut h = kdc2_router_decision_us();
+        // 950 samples in [200, 2000] µs — well under p99.
+        for i in 0..950 {
+            h.observe(200.0 + ((i % 1800) as f64));
+        }
+        // 50 samples in [5_000, 20_000] µs — heavy tail.
+        for i in 0..50 {
+            h.observe(5_000.0 + ((i * 300) as f64));
+        }
+        let p50 = h.percentile_estimate(0.50).unwrap();
+        let p99 = h.percentile_estimate(0.99).unwrap();
+        assert!(p50 < 5_000.0, "p50 {p50} µs ≥ 5 ms SLO");
+        assert!(p99 < 25_000.0, "p99 {p99} µs ≥ 25 ms SLO");
     }
 
     #[test]

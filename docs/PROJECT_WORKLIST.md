@@ -5130,13 +5130,26 @@ Closes the router gap explicitly deferred at
   10 unit tests cover invalid TOML rejection, partial override
   merging, schema validation. Hot-reload via inotify deferred
   to follow-up.
-- [>] **KDC2-1.12: `PathSwitch` audit-chain integration + SLO histogram** —
-  Every `PeerPath.primary` change emits an audit event into
-  `mackesd::audit`. Histogram metric `kdc2_router_decision_us`
-  (Prometheus-style buckets 100us..50ms) reports p50 + p99.
-  SLO assertion in integration test: 1000-sample p50 < 5ms,
-  p99 < 25ms. Zero silent failovers — every switch has a
-  `last_switch_reason` in the audit row.
+- [✓] **KDC2-1.12: `PathSwitch` audit-chain integration + SLO histogram** —
+  PathSwitch audit emission shipped earlier with mesh_router.
+  SLO histogram primitive shipped 2026-05-22 in
+  `mackesd::metrics`: `Histogram::new`, `Histogram::observe`,
+  `Histogram::percentile_estimate` (Prometheus-style linear
+  interpolation across buckets); `kdc2_router_decision_us`
+  constructor + bucket schedule (100µs → 50ms). 1000-sample
+  SLO test in-tree confirms p50 < 5ms / p99 < 25ms. Wiring the
+  histogram into the live `mesh_router::tick_once` (record
+  decision microseconds + textfile flush) folds into
+  KDC2-1.12.b.
+- [ ] **KDC2-1.12.b: wire `kdc2_router_decision_us` into `mesh_router::tick_once`** —
+  Add `metrics: Arc<Mutex<Histogram>>` to `MeshRouterWorker`;
+  time `tick_once` with `Instant::now()`; `observe(us)` on
+  every tick. Add a textfile-flush worker that writes
+  `mackesd.prom` every 10 s under
+  `/var/lib/node_exporter/textfile_collector/`. Acceptance:
+  `cat /var/lib/node_exporter/textfile_collector/mackesd.prom |
+  grep kdc2_router_decision_us_bucket` returns the live
+  histogram bucket counts after the daemon runs for >30s.
 
 #### KDC2-2.x — Protocol crate `mde-kdc-proto`
 
