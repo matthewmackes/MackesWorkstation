@@ -3208,6 +3208,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mde-kdc-proto"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mde-logout-dialog"
 version = "0.0.0"
 dependencies = [
