@@ -88,6 +88,7 @@ pub mod kdc_bridge;
 pub mod lan_discovery;
 pub mod mdns;
 pub mod media_sync;
+pub mod mesh_router;
 pub mod nats;
 pub mod notification_relay;
 pub mod perf;
