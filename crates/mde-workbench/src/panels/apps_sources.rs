@@ -14,7 +14,7 @@
 //! Fedora workstation.
 
 use iced::widget::{button, column, container, row, scrollable, text, text_input};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -269,7 +269,7 @@ impl AppsSourcesPanel {
 
         column![
             row![filter_input, refresh_btn].spacing(12),
-            scrollable(container(rows_view.spacing(4)).padding(Padding::new(0.0)))
+            scrollable(container(rows_view.spacing(4)))
                 .height(Length::Fill),
             text(format!(
                 "{} matching / {} total ({} enabled)",
@@ -299,7 +299,7 @@ impl AppsSourcesPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

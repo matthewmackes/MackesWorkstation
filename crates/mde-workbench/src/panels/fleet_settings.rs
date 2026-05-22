@@ -10,7 +10,7 @@
 use std::process::Stdio;
 
 use iced::widget::{button, column, row, text, text_input};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Default)]
@@ -135,7 +135,7 @@ impl FleetSettingsPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

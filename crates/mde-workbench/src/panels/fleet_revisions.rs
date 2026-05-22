@@ -7,7 +7,7 @@
 //! revisions` subcommand tree; this Iced port mirrors it.
 
 use iced::widget::{button, column, container, row, scrollable, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use serde::Deserialize;
 
 use crate::panels::fleet_settings::run_mded;
@@ -155,7 +155,7 @@ impl FleetRevisionsPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

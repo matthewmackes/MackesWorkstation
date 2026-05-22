@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, row, text, text_input};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 
 use crate::backend::Backend;
 use crate::panels::json_helpers::{quote_json, strip_json_quotes};
@@ -188,7 +188,7 @@ impl FontsPanel {
             row![save_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(10)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

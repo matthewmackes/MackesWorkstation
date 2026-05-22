@@ -92,7 +92,7 @@ impl LogsPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

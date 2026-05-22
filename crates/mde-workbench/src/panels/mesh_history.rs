@@ -151,12 +151,12 @@ impl MeshHistoryPanel {
 
         column![
             row![refresh_btn, text(&self.status).size(13)].spacing(12),
-            scrollable(container(rows.spacing(4)).padding(Padding::new(0.0))).height(Length::Fill),
+            scrollable(container(rows.spacing(4))).height(Length::Fill),
             text(format!("{} events in chain", self.rows.len())).size(13),
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 
@@ -183,7 +183,7 @@ impl MeshHistoryPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

@@ -23,7 +23,7 @@
 use std::path::PathBuf;
 
 use iced::widget::{button, column, container, row, scrollable, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 /// One role under `roles/` — `name` is the directory name, the
@@ -129,7 +129,7 @@ impl PlaybooksPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -159,7 +159,7 @@ impl PlaybooksPanel {
         });
 
         column![
-            scrollable(container(rows.spacing(8)).padding(Padding::new(0.0))).height(Length::Fill),
+            scrollable(container(rows.spacing(8))).height(Length::Fill),
             row![
                 refresh_btn,
                 text(&self.status).size(13),
@@ -169,7 +169,7 @@ impl PlaybooksPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

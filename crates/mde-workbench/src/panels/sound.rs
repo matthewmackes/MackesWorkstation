@@ -16,7 +16,7 @@
 //! which the pickers alone satisfy.
 
 use iced::widget::{button, checkbox, column, pick_list, row, slider, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 /// pactl's `list short sinks` / `list short sources` output is
@@ -225,7 +225,7 @@ impl SoundPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -275,7 +275,7 @@ impl SoundPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

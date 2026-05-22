@@ -10,7 +10,7 @@
 //! directly — no psutil-equivalent dep needed.
 
 use iced::widget::{button, column, progress_bar, row, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 
 #[derive(Debug, Clone, Default)]
 pub struct ResourcesPanel {
@@ -110,7 +110,7 @@ impl ResourcesPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

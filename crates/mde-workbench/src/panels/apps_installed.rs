@@ -10,7 +10,7 @@
 //! Python library through the rebrand window.
 
 use iced::widget::{button, column, container, row, scrollable, text, text_input};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -143,7 +143,7 @@ impl AppsInstalledPanel {
 
         column![
             row![filter_input, refresh_btn].spacing(12),
-            scrollable(container(rows_view.spacing(4)).padding(Padding::new(0.0)))
+            scrollable(container(rows_view.spacing(4)))
                 .height(Length::Fill),
             text(format!(
                 "{} matching / {} installed",
@@ -155,7 +155,7 @@ impl AppsInstalledPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

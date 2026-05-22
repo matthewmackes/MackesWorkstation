@@ -8,7 +8,7 @@
 //! state-change paths (permanent + reload).
 
 use iced::widget::{button, checkbox, column, container, pick_list, row, scrollable, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 /// Curated list of common firewalld services the panel exposes
@@ -171,7 +171,7 @@ impl FirewallPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -211,7 +211,7 @@ impl FirewallPanel {
             ]
             .spacing(12),
             text("Services").size(16),
-            scrollable(container(service_rows.spacing(4)).padding(Padding::new(0.0)))
+            scrollable(container(service_rows.spacing(4)))
                 .height(Length::Fixed(240.0)),
             text(format!(
                 "{} service(s) enabled in zone {}",
@@ -223,7 +223,7 @@ impl FirewallPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

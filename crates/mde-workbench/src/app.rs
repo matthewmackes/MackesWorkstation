@@ -741,7 +741,15 @@ impl App {
 
         let body = self.panel_body();
 
-        let main = column![page_heading, body].spacing(20).padding(24);
+        // UX-6.a — outer panel padding (SPACE_24) is supplied
+        // here once for every panel, replacing the per-panel
+        // `Padding::new(0.0)` no-op wrappers. Density-aware via
+        // `panel_chrome::outer_padding`.
+        let main = column![page_heading, body]
+            .spacing(20)
+            .padding(crate::panel_chrome::outer_padding(
+                mde_theme::Density::Comfortable,
+            ));
 
         let layout = row![
             sidebar,

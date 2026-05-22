@@ -21,7 +21,7 @@
 use std::path::{Path, PathBuf};
 
 use iced::widget::{column, row, scrollable, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use mde_theme::{Density, EmptyState, Icon, Palette};
 
 use crate::controls::{styled_text_input, variant_button, ButtonVariant};
@@ -261,7 +261,7 @@ impl SnapshotsPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 

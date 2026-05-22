@@ -10,7 +10,7 @@
 //! import type wireguard file <path>` directly.
 
 use iced::widget::{button, column, container, row, scrollable, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -134,7 +134,7 @@ impl VpnPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -159,7 +159,7 @@ impl VpnPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -191,7 +191,7 @@ impl VpnPanel {
 
         column![
             row![refresh_btn, text(&self.status).size(13)].spacing(12),
-            scrollable(container(rows.spacing(4)).padding(Padding::new(0.0))).height(Length::Fill),
+            scrollable(container(rows.spacing(4))).height(Length::Fill),
             text(format!(
                 "{} VPN(s) · {} active",
                 self.vpns.len(),
@@ -201,7 +201,7 @@ impl VpnPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

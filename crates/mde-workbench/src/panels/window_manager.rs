@@ -17,7 +17,7 @@
 //! config file" captures the missing piece.
 
 use iced::widget::{button, column, pick_list, row, text, text_input};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 /// Layout values the sway IPC `layout` command accepts at the
@@ -194,7 +194,7 @@ impl WindowManagerPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -235,7 +235,7 @@ impl WindowManagerPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

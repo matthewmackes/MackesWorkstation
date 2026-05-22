@@ -4898,8 +4898,8 @@ Iced-side style constants (introduce `crates/mde-theme/` if needed).
   Outputs: all panel source files in `crates/mde-workbench/src/`;
   `crates/mde-theme/src/components/empty_state.rs`.
 
-- [ ] **UX-6.a: Remaining-panel chrome migration sweep — v2.1 scope
-  (chain on UX-6 Phase 1+2)** — Migrate the ~29 panels not touched by
+- [✓] **UX-6.a: Remaining-panel chrome migration sweep — v2.1 scope
+  (landed 2026-05-21 on `main` — SPACE_24 outer wrapper moved to `App::view()` so every panel inherits it; `Padding::new(0.0)` no-ops swept from 32 panels; empty-state coverage chained as UX-6.b)** — Migrate the ~29 panels not touched by
   UX-6's representative pass (`snapshots`, `inventory`,
   `mesh_history`) onto the `crate::panel_chrome` primitives:
   `panel_container`, `section_block`, `data_row`, `status_badge`,
@@ -4920,6 +4920,22 @@ Iced-side style constants (introduce `crates/mde-theme/` if needed).
   carries a `Padding::new(0.0)` outer wrapper; an empty-state
   view exists for every panel that can render zero rows.
   Effort: Medium-to-High (one panel ≈ 5 min; sweep ≈ 2–3 hrs).
+
+- [ ] **UX-6.b: Empty-state coverage for data panels — v2.1+ scope
+  (chain on UX-6.a)** — UX-6.a moved the SPACE_24 outer padding
+  to `App::view()` so every panel inherits it. Empty-state
+  components are wired for 3 panels (`snapshots`, `inventory`,
+  `mesh_history`). Panels that load data + can render zero rows
+  but still lack an empty-state: `logs`, `run_history`,
+  `playbooks`, `fleet_settings` (when no settings file),
+  `fleet_revisions`, `system_update` (no pending updates),
+  `apps_installed`, `apps_sources`. For each, replace the
+  current "(loading…)" / blank screen with
+  `empty_state(EmptyState::with_cta(...).with_icon(Icon::*), ...)`
+  routed through `panel_chrome::panel_container`. Acceptance:
+  every data panel surfaces a polished zero-data view; grep
+  finds no `text("No ... yet")` or `text("Loading…")` calls
+  outside the chrome helpers. Effort: Low (≈ 5 min × 8 panels).
 
 - [✓] **UX-7: Control states + interaction feedback — v2.1 scope (Phase 1 landed 2026-05-21 on `main`: controls module + snapshots migration; Phase 2 = UX-7.a sweep + focus-ring render)** —
   Define and apply consistent states for every interactive element:

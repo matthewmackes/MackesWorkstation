@@ -11,7 +11,7 @@
 use std::sync::Arc;
 
 use iced::widget::{button, checkbox, column, row, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 
 use crate::backend::Backend;
 use crate::panels::json_helpers::{encode_bool, parse_bool};
@@ -153,7 +153,7 @@ impl RemovablePanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

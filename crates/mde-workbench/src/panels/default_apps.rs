@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use iced::widget::{column, pick_list, row, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 
 /// Curated MIME categories. Order is the panel render order.
 pub const CATEGORIES: &[(&str, &[&str])] = &[
@@ -201,7 +201,7 @@ impl DefaultAppsPanel {
         }
         col.push(row![text(&self.status).size(13)].spacing(12))
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into()
     }
 }

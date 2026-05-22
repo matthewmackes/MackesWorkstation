@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use iced::widget::{button, column, pick_list, row, text, text_input};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 
 use crate::backend::Backend;
 use crate::panels::json_helpers::{quote_json, strip_json_quotes};
@@ -135,7 +135,7 @@ impl WallpaperPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

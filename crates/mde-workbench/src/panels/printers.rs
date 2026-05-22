@@ -16,7 +16,7 @@
 //!     (lpoptions -d <queue>)
 
 use iced::widget::{button, column, pick_list, row, text};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Default)]
@@ -134,7 +134,7 @@ impl PrintersPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -151,7 +151,7 @@ impl PrintersPanel {
             ]
             .spacing(8)
             .width(Length::Fill)
-            .padding(Padding::new(0.0))
+            
             .into();
         }
 
@@ -181,7 +181,7 @@ impl PrintersPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

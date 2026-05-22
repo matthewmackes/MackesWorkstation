@@ -165,7 +165,7 @@ impl AppsInstallPanel {
             .size(13),
             row![name_input, install_btn].spacing(12),
             text("MDE recommendations").size(16),
-            scrollable(container(quick_rows.spacing(4)).padding(Padding::new(0.0)))
+            scrollable(container(quick_rows.spacing(4)))
                 .height(Length::Fixed(280.0)),
             text("Output").size(14),
             scrollable(
@@ -178,7 +178,7 @@ impl AppsInstallPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

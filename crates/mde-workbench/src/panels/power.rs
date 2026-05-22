@@ -10,7 +10,7 @@
 use std::sync::Arc;
 
 use iced::widget::{button, checkbox, column, pick_list, row, text, text_input};
-use iced::{Element, Length, Padding, Task};
+use iced::{Element, Length, Task};
 
 use crate::backend::Backend;
 use crate::panels::json_helpers::{
@@ -235,7 +235,7 @@ impl PowerPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }

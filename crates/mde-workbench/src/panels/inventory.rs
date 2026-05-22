@@ -189,7 +189,7 @@ impl InventoryPanel {
 
         column![
             header,
-            scrollable(container(rows.spacing(6)).padding(Padding::new(0.0))).height(Length::Fill),
+            scrollable(container(rows.spacing(6))).height(Length::Fill),
             row![
                 refresh_btn,
                 text(&self.status).size(13),
@@ -199,7 +199,7 @@ impl InventoryPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 
@@ -218,7 +218,7 @@ impl InventoryPanel {
         ]
         .spacing(12)
         .width(Length::Fill)
-        .padding(Padding::new(0.0))
+        
         .into()
     }
 }
