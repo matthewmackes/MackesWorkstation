@@ -121,6 +121,17 @@ impl LoadedPolicy {
     }
 }
 
+// KDC2-3.11 — `LoadedPolicy` IS the `PluginAuthority` consumed
+// by the KDC dispatch check. Gated behind the `async-services`
+// feature so the trait impl + the mde-kdc dep tree only land
+// in the daemon binary build.
+#[cfg(feature = "async-services")]
+impl mde_kdc::dispatch::PluginAuthority for LoadedPolicy {
+    fn plugin_allowed(&self, name: &str) -> bool {
+        LoadedPolicy::plugin_allowed(self, name)
+    }
+}
+
 /// Parse a single TOML string into a [`LoadedPolicy`]. Used by
 /// both [`load_with_paths`] (system + user merge) and unit tests
 /// (in-memory string).
