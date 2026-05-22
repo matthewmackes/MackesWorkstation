@@ -5194,12 +5194,26 @@ fuzzable + reproducible.
   pinning logic. Verifies remote cert matches the paired-device
   fingerprint stored by the host (KDC2-3.7). 8 unit tests with
   mocked rustls config.
-- [ ] **KDC2-2.9: `discovery::mdns` — announce + listen on `_kdeconnect._udp`** —
-  Uses `mdns-sd 0.11` (already a workspace dep per LAN
-  discovery worker). Announce identity packet TXT records;
-  listen for peer announces. Pure-library: returns
-  `Stream<DiscoveredPeer>` instead of doing I/O directly.
-  6 unit tests with mocked mdns-sd backend.
+- [✓] **KDC2-2.9: `discovery::mdns` — TXT-record encoder/decoder** —
+  Pure-data half shipped 2026-05-22 inside
+  `mde-kdc-proto::discovery`:
+  `KDC_MDNS_SERVICE_TYPE = "_kdeconnect._udp.local."` /
+  `encode_mdns_txt_records(&Announce) -> Vec<(String,String)>` /
+  `decode_mdns_txt_records(iter)` with upstream-compatible
+  keys (`id`/`name`/`type`/`protocol`/`incomingCapabilities`/
+  `outgoingCapabilities`). Unknown keys ignored for
+  forward-compat; unknown device-type tokens fall back to
+  `DeviceType::Unknown`. 7 unit tests (round-trip, key-name
+  lock, comma-joining, forward-compat, missing-id error,
+  unknown-type fallback). Host-side mdns-sd 0.11 runner
+  (announce + browse + DiscoveryRegistry feed) folds into
+  KDC2-2.9.a under `async-services`.
+- [ ] **KDC2-2.9.a: `mde-kdc::discovery::mdns` host runner** —
+  Use `mdns-sd 0.11` (already in mackesd's async-services
+  feature) to announce the local peer under
+  `_kdeconnect._udp.local.` + browse for peers. Drain
+  discovered services into `DiscoveryRegistry::inject_real`.
+  Behind `async-services`. Loopback test harness.
 - [✓] **KDC2-2.10: `discovery::udp_broadcast` — UDP/1716 announce** —
   Pure encoder/decoder shipped 2026-05-22 inside
   `mde-kdc-proto::discovery`:

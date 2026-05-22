@@ -211,6 +211,120 @@ fn trim_trailing_whitespace(bytes: &[u8]) -> &[u8] {
     &bytes[..end]
 }
 
+// ──────────────────────────────────────────────────────────────────
+// KDC2-2.9 — mDNS announce on `_kdeconnect._udp.local.`
+//
+// KDE Connect (recent versions) advertises identity via mDNS in
+// addition to the UDP/1716 broadcast. The service name is
+// `_kdeconnect._udp`; the instance name is the device id; the
+// identity info rides in TXT records as key=value strings.
+//
+// Pure data: encoder/decoder for the TXT-record map. The host
+// runner (mdns-sd 0.11 announce + browse) lives in
+// `mde-kdc::discovery::mdns` under the async-services feature.
+// ──────────────────────────────────────────────────────────────────
+
+/// mDNS service type stock KDE Connect uses. Receivers browse
+/// for this exact string — changing it breaks discovery.
+pub const KDC_MDNS_SERVICE_TYPE: &str = "_kdeconnect._udp.local.";
+
+/// Encode an `Announce` as the TXT-record key/value pairs to
+/// publish under the `_kdeconnect._udp` mDNS service. Stable key
+/// names match upstream's choices so phones browsing for the
+/// service decode our records cleanly.
+///
+/// Capability lists are comma-joined — upstream uses the same
+/// shape so it round-trips against stock-client receivers.
+#[must_use]
+pub fn encode_mdns_txt_records(announce: &Announce) -> Vec<(String, String)> {
+    let device_type_token = match announce.device_type {
+        DeviceType::Phone => "phone",
+        DeviceType::Tablet => "tablet",
+        DeviceType::Desktop => "desktop",
+        DeviceType::Unknown => "unknown",
+    };
+    vec![
+        ("id".to_string(), announce.device_id.clone()),
+        ("name".to_string(), announce.device_name.clone()),
+        ("type".to_string(), device_type_token.to_string()),
+        ("protocol".to_string(), announce.protocol_version.to_string()),
+        (
+            "incomingCapabilities".to_string(),
+            announce.incoming_capabilities.join(","),
+        ),
+        (
+            "outgoingCapabilities".to_string(),
+            announce.outgoing_capabilities.join(","),
+        ),
+    ]
+}
+
+/// Decode a TXT-record map (typically what mdns-sd yields from a
+/// `ServiceResolved` event) into an `Announce`. Unknown keys are
+/// ignored — upstream may add forward-compat fields, and the
+/// receiver shouldn't reject a peer for them.
+pub fn decode_mdns_txt_records<'a, I>(records: I) -> Result<Announce, BroadcastError>
+where
+    I: IntoIterator<Item = (&'a str, &'a str)>,
+{
+    let mut id: Option<String> = None;
+    let mut name: Option<String> = None;
+    let mut device_type = DeviceType::Unknown;
+    let mut protocol_version: u32 = crate::PROTOCOL_VERSION;
+    let mut incoming: Vec<String> = Vec::new();
+    let mut outgoing: Vec<String> = Vec::new();
+    for (k, v) in records {
+        match k {
+            "id" => id = Some(v.to_string()),
+            "name" => name = Some(v.to_string()),
+            "type" => {
+                device_type = match v {
+                    "phone" => DeviceType::Phone,
+                    "tablet" => DeviceType::Tablet,
+                    "desktop" => DeviceType::Desktop,
+                    _ => DeviceType::Unknown,
+                }
+            }
+            "protocol" => {
+                protocol_version = v.parse().map_err(|e| {
+                    BroadcastError::Decode(format!("protocol field: {e}"))
+                })?;
+            }
+            "incomingCapabilities" => {
+                incoming = split_capabilities(v);
+            }
+            "outgoingCapabilities" => {
+                outgoing = split_capabilities(v);
+            }
+            _ => {} // forward-compat: ignore unknown keys
+        }
+    }
+    let device_id = id.ok_or_else(|| {
+        BroadcastError::Decode("missing required TXT key: id".into())
+    })?;
+    let device_name = name.ok_or_else(|| {
+        BroadcastError::Decode("missing required TXT key: name".into())
+    })?;
+    Ok(Announce {
+        device_id,
+        device_name,
+        device_type,
+        protocol_version,
+        incoming_capabilities: incoming,
+        outgoing_capabilities: outgoing,
+    })
+}
+
+fn split_capabilities(raw: &str) -> Vec<String> {
+    if raw.is_empty() {
+        return Vec::new();
+    }
+    raw.split(',')
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
 /// KDC2-2.11 — in-memory registry the host's discovery layer
 /// polls for unified real + synthetic announces.
 ///
@@ -586,6 +700,104 @@ mod tests {
     fn decode_rejects_malformed_json() {
         let r = decode_announce_datagram(b"not json\n");
         assert!(matches!(r, Err(BroadcastError::Decode(_))));
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-2.9 — mDNS TXT-record encoder/decoder
+    // ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn mdns_service_type_is_locked() {
+        assert_eq!(KDC_MDNS_SERVICE_TYPE, "_kdeconnect._udp.local.");
+    }
+
+    #[test]
+    fn mdns_txt_records_round_trip() {
+        let a = sample_broadcast_announce();
+        let records = encode_mdns_txt_records(&a);
+        let borrowed: Vec<(&str, &str)> = records
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        let back = decode_mdns_txt_records(borrowed).unwrap();
+        assert_eq!(back, a);
+    }
+
+    #[test]
+    fn mdns_txt_uses_upstream_key_names() {
+        // Stock-client interop lock: keys must be `id`, `name`,
+        // `type`, `protocol`, `incomingCapabilities`,
+        // `outgoingCapabilities`. Any rename breaks discovery
+        // against stock KDE Connect phones.
+        let a = sample_broadcast_announce();
+        let records = encode_mdns_txt_records(&a);
+        let keys: std::collections::BTreeSet<_> =
+            records.iter().map(|(k, _)| k.as_str()).collect();
+        for required in [
+            "id",
+            "name",
+            "type",
+            "protocol",
+            "incomingCapabilities",
+            "outgoingCapabilities",
+        ] {
+            assert!(keys.contains(required), "missing TXT key: {required}");
+        }
+    }
+
+    #[test]
+    fn mdns_capability_lists_are_comma_joined() {
+        let a = Announce {
+            device_id: "x".into(),
+            device_name: "x".into(),
+            device_type: DeviceType::Phone,
+            protocol_version: 7,
+            incoming_capabilities: vec!["a".into(), "b".into(), "c".into()],
+            outgoing_capabilities: vec![],
+        };
+        let records = encode_mdns_txt_records(&a);
+        let map: std::collections::HashMap<_, _> = records
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        assert_eq!(map["incomingCapabilities"], "a,b,c");
+        assert_eq!(map["outgoingCapabilities"], "");
+    }
+
+    #[test]
+    fn mdns_decode_ignores_unknown_keys() {
+        // Forward-compat: upstream may add new TXT keys; we
+        // shouldn't reject a peer for them.
+        let records: Vec<(&str, &str)> = vec![
+            ("id", "abc"),
+            ("name", "test"),
+            ("type", "phone"),
+            ("protocol", "7"),
+            ("incomingCapabilities", "kdeconnect.clipboard"),
+            ("outgoingCapabilities", ""),
+            ("futureField", "ignored"),
+        ];
+        let a = decode_mdns_txt_records(records).unwrap();
+        assert_eq!(a.device_id, "abc");
+        assert_eq!(a.device_type, DeviceType::Phone);
+    }
+
+    #[test]
+    fn mdns_decode_fails_when_id_missing() {
+        let records: Vec<(&str, &str)> = vec![("name", "x")];
+        let r = decode_mdns_txt_records(records);
+        assert!(matches!(r, Err(BroadcastError::Decode(_))));
+    }
+
+    #[test]
+    fn mdns_decode_unknown_type_token_maps_to_unknown_devicetype() {
+        let records: Vec<(&str, &str)> = vec![
+            ("id", "abc"),
+            ("name", "test"),
+            ("type", "smartwatch-2030"),
+        ];
+        let a = decode_mdns_txt_records(records).unwrap();
+        assert_eq!(a.device_type, DeviceType::Unknown);
     }
 
     #[test]
