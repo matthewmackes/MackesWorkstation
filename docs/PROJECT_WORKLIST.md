@@ -150,11 +150,38 @@ spacing on the modular 12-step scale (NFU-1).
   PC-3, future mde-workbench Fleet → Peer panel) now share one
   definition.
 
-- [ ] **PC-3: `mded` peer-join worker — v2.1+ scope (chain on PC-2)** —
-  `crates/mded/src/workers/peer_join.rs`. On `peer_joined { id }`,
-  writes the peer's probe to `~/.cache/mde/peers/<peer-id>/probe.json`
-  and spawns `mde-peer-card --peer <id>`. Debounces re-spawn within
-  a 30 s window per peer-id.
+- [✓] **PC-3: `mded` peer-join handler — handler landed 2026-05-21
+  (PC-3.a wires the event source)** —
+  `crates/mackesd/src/peer_join.rs`. `handle_peer_joined(probe)`
+  writes `~/.cache/mde/peers/<peer-id>/probe.json` (or
+  `$XDG_CACHE_HOME/mde/...`) via `write_probe`, then spawns
+  `mde-peer-card --peer <id>` as a detached child via
+  `spawn_peer_card`. Per-peer debounce (`Mutex<HashMap>` +
+  `Instant`) blocks re-spawn inside a 30 s window
+  (`DEBOUNCE_WINDOW` const). 8 unit tests cover: first-spawn,
+  blocks within window, allows after window, reset clears
+  state, cache-path shape under `HOME`, `XDG_CACHE_HOME`
+  override, full probe round-trip, 30 s window lock. The
+  event-source integration (calling `handle_peer_joined` from
+  the mesh / enrollment layer on `peer_joined` events) is
+  PC-3.a follow-up below — the handler is stand-alone and
+  testable without it.
+
+- [ ] **PC-3.a: Wire peer_join handler into mackesd event loop
+  — v2.1+ scope (chain on PC-3 + the mackesd event model)** —
+  The `peer_join::handle_peer_joined` function is stand-alone
+  + tested. The remaining work: emit a `peer_joined { id,
+  probe }` event from the right call site in mackesd's
+  enrollment / topology layer (likely
+  `crates/mackesd/src/enrollment.rs` after a successful
+  passcode-verify, or in the reconcile loop when a new peer
+  appears in the wireguard peer table). Wire that emission
+  through the existing `events.rs` channel to a worker task
+  (when `async-services` is enabled) that calls
+  `peer_join::handle_peer_joined(&probe)`. Acceptance: a
+  fixture peer-join event in a unit test routes through the
+  emission → handler → probe.json write + child-spawn (mock
+  the child via an injectable `Spawner` trait). Effort: Medium.
 
 - [✓] **PC-4: Local enrichment (hwdb + usb.ids) — placeholder landed
   2026-05-21** — `enrich/hwdb.rs` stub resolves vendor / product
