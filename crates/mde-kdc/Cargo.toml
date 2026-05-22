@@ -42,6 +42,12 @@ rand = "0.8"
 # file. Re-uses the rsa crate's pkcs8 dep.
 pkcs8 = { version = "0.10", features = ["pem"] }
 
+# KDC2-2.7 — X.509 self-signed cert generation. rcgen accepts
+# an existing PKCS#8 RSA keypair via `KeyPair::from_pkcs8_pem
+# _and_sign_algo`, so the device identity (CN = peer-id) is
+# bound to the same RSA-2048 keypair the handshake signs with.
+rcgen = "0.13"
+
 # Serde for the pairing store's on-disk format.
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
