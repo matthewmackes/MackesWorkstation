@@ -30,6 +30,7 @@ use std::time::Duration;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+pub mod conformance;
 pub mod health;
 pub mod peer_path;
 pub mod transport_capabilities;
