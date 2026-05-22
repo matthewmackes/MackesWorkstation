@@ -5344,11 +5344,11 @@ re-relay) into one.
   on peer A pairs a phone, write the phone's identity (id,
   name, fingerprint, capabilities, last_seen) to the per-peer
   phones manifest in QNM-Shared. 6 unit tests with tempdir.
-- [>] **KDC2-4.2: `mackesd` reads neighbors' `phones.json` on tick** —
+- [✓] **KDC2-4.2: `mackesd` reads neighbors' `phones.json` on tick** —
   Existing reconcile worker tick (`crates/mackesd/src/worker.rs`)
   walks neighbors' QNM-Shared dirs; extend to also read
   `<neighbor>/connect/phones.json`. 4 unit tests.
-- [ ] **KDC2-4.3: `KdcHost` subscribes to neighbor phones → inject
+- [✓] **KDC2-4.3: `KdcHost` subscribes to neighbor phones → inject
   synthetic mDNS** — For each phone in a neighbor's
   `phones.json`, call `mde_kdc_proto::discovery::inject_synthetic`
   so the local discovery stream sees the phone as a peer. Phone

@@ -2951,6 +2951,7 @@ dependencies = [
  "libc",
  "mackes-config",
  "mackes-mesh-types",
+ "mackes-theme",
  "serde",
  "serde_json",
  "sha2",
@@ -2986,6 +2987,7 @@ dependencies = [
  "mackes-mesh-types",
  "mackes-transport",
  "mde-kdc",
+ "mde-kdc-proto",
  "mdns-sd",
  "rand 0.8.6",
  "rusqlite",
@@ -3201,6 +3203,7 @@ version = "0.0.0"
 dependencies = [
  "chrono",
  "iced",
+ "mackes-theme",
  "serde",
  "serde_json",
  "tokio",
@@ -3244,6 +3247,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "iced",
+ "mackes-theme",
 ]
 
 [[package]]

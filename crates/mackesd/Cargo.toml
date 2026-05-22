@@ -54,6 +54,13 @@ mackes-transport = { path = "../mackes-transport" }
 # already gates tokio + zbus.
 mde-kdc = { path = "../mde-kdc", optional = true }
 
+# KDC2-4.3 — pure protocol crate; mackesd's mesh-shunt helper
+# in `transport::mesh_shunt` consumes `DiscoveryRegistry` +
+# `Announce` + `SyntheticAnnounce` for the phones.json →
+# registry fan-out. No feature gate — these are pure types,
+# no I/O or async runtime needed in the base build.
+mde-kdc-proto = { path = "../mde-kdc-proto" }
+
 # Storage: SQLite via rusqlite (sync, no async runtime needed for the
 # reconcile loop's cadence). WAL mode + 5 s busy timeout per 12.A.2.
 rusqlite = { version = "0.32", features = ["bundled"] }
