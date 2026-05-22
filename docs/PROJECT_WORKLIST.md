@@ -115,30 +115,27 @@ dock. The fixes below are scoped for v2.0.3 cut.
   propagation bug (next item) is fixed. Once the panel
   sets its xdg `app_id`, the title rule becomes dead but
   harmless.
-- [ ] **v2.0.3: investigate Iced app_id not propagating to
-  xdg_shell — mde-panel** — Sway sees
-  `shell: "xdg_shell", app_id: ""` for the running
-  mde-panel process. `crates/mackes-panel/src/main.rs:340`
-  calls `.application_id(APP_ID)` with `APP_ID =
-  "shell.mackes.Panel"`. Investigate whether Iced 0.13's
-  `application_id()` writes the xdg-shell `app_id`
-  property or only the WM_CLASS-equivalent. May require
-  upgrading to Iced 0.14 (UX-PRE) or hand-rolling the
-  xdg_toplevel `set_app_id` call before the surface is
-  presented. Acceptance: `swaymsg -t get_tree` reports
-  `app_id: "shell.mackes.Panel"` for the running panel.
-- [ ] **v2.0.3: remove obsolete qnm-daemon.service from
-  user systemd units** — Legacy v1.x
-  `~/.config/systemd/user/qnm-daemon.service` survives
-  the v1.x → v2.0.0 migration and crash-loops every 3
-  seconds because `~/.local/bin/qnm-daemon` no longer
-  exists. Workaround on the bench was
-  `systemctl --user disable qnm-daemon.service`. Real
-  fix: extend the Phase 0.5 migrator
-  (`mde-migrate-from-1x.service`) to disable + remove
-  the stale unit on first MDE boot. Acceptance: fresh
-  upgrade from v1.x → v2.0.3 leaves no `qnm-daemon`
-  systemd unit referencing the missing binary.
+- [✓] **v2.0.3: investigate Iced app_id not propagating to
+  xdg_shell — mde-panel** — Resolved at source 2026-05-22.
+  Root cause: Iced 0.13's `iced::Settings::id` only flows
+  to BSD targets on Linux; the xdg_shell `app_id` property
+  needs `window::Settings::platform_specific.application_id`
+  set instead. `crates/mde-panel/src/lib.rs::App::run` now
+  builds `window::Settings { platform_specific:
+  window::settings::PlatformSpecific { application_id:
+  APP_ID.to_string(), .. } }` — `swaymsg -t get_tree`
+  reports `app_id: "shell.mackes.Panel"` on the running
+  panel. No Iced 0.14 upgrade required.
+- [✓] **v2.0.3: remove obsolete qnm-daemon.service from
+  user systemd units** — Resolved 2026-05-22 in
+  `bin/mde-migrate-from-1x`. The migrator now ships
+  `OBSOLETE_USER_UNITS = ["qnm-daemon.service"]` and a
+  `disable_obsolete_unit()` pass that `systemctl --user
+  stop && disable && reset-failed` before unlinking the
+  stale unit file. Operator-verification on the v2.0.2
+  bench surfaced a 290-restart crash loop; the migrator
+  extension lands the fix at source for every future
+  v1.x → v2.0.x upgrade.
 - [>] **v2.0.3: replace dunst with mako (Wayland-native
   notifications)** — `dunst.service` ships as a D-Bus
   activated unit (`BusName=org.freedesktop.Notifications`)
@@ -231,16 +228,19 @@ dock. The fixes below are scoped for v2.0.3 cut.
   away) while a 40"+ 4K TV uses 2.0 (sofa distance).
   Captured as v2.1+ scope task below.
 
-- [ ] **v2.1: EDID-aware per-output scale** — Refine the
-  width-only heuristic in `bin/mde-output-autoscale`
-  by parsing the output's EDID (via `wlr-randr --json`
-  or sway's `get_outputs` if it ever exposes physical
-  size + EDID directly) so a 27" 4K monitor gets 1.5
-  (high DPI, viewer ~60 cm away) while a 40"+ 4K TV
-  gets 2.0 (sofa distance). Acceptance: a 4K Acer
-  XB272 monitor + a 4K Vizio V405 TV plugged into the
-  same machine pick different scales without manual
-  intervention. Effort: Medium.
+- [✓] **v2.1: EDID-aware per-output scale** — Shipped
+  2026-05-22 in `bin/mde-output-autoscale`. `pick_scale`
+  takes optional `physical_width_mm` / `physical_height_mm`
+  derived from sway 1.8+'s `physical_width` /
+  `physical_height` fields (sway reads them from EDID).
+  Diagonal split for the 4K branch: ≤ 32" → 1.5 (desk
+  monitor), > 32" → 2.0 (sofa-distance TV). Outputs
+  without physical dimensions fall back to the legacy
+  width-only result (4K → 2.0). Verified against the
+  27" Acer XB272 (597×336 mm → 1.5) + 40" Vizio V405
+  (880×495 mm → 2.0) at the same `swaymsg -t
+  get_outputs` invocation: different scales picked
+  without operator intervention.
 
 ### Notification Center (new — Rust Desktop handoff bundle, 2026-05-19)
 

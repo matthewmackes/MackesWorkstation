@@ -44,17 +44,52 @@ import sys
 from typing import Iterable
 
 
-def pick_scale(width: int) -> float:
-    """Return the heuristic scale for an output of the given pixel width.
+def pick_scale(
+    width: int,
+    physical_width_mm: int | None = None,
+    physical_height_mm: int | None = None,
+) -> float:
+    """Return the heuristic scale for an output of the given pixel + physical size.
 
-    Branches sorted by typical bench-rig coverage: 4K TVs first, then
-    2K monitors, then everything 1080p and below.
+    v2.1 EDID-aware refinement: when sway reports physical dimensions on
+    a 4K output, the scale split between desktop monitor (closer
+    viewing) and TV (sofa distance) is decided by the diagonal:
+
+      * 4K @ diagonal ≤ 32" → scale 1.5 (high-DPI monitor, ~60 cm away)
+      * 4K @ diagonal > 32" → scale 2.0 (TV, sofa distance)
+
+    A monitor without physical dimensions falls back to the width-only
+    heuristic (1.5 for ≥ 2560, 2.0 for ≥ 3840).
+
+    Branches sorted by typical bench-rig coverage: 4K first, then 2K,
+    then everything 1080p and below.
     """
+    diagonal_in = _diagonal_inches(physical_width_mm, physical_height_mm)
     if width >= 3840:
+        # EDID-aware split when we know the physical size.
+        if diagonal_in is not None and diagonal_in > 32.0:
+            return 2.0  # 40"+ TV — sofa distance
+        if diagonal_in is not None:
+            return 1.5  # 27"-32" 4K monitor — desk distance
+        # Unknown physical size; legacy width-only fallback.
         return 2.0
     if width >= 2560:
         return 1.5
     return 1.0
+
+
+def _diagonal_inches(width_mm: int | None, height_mm: int | None) -> float | None:
+    """Compute the panel diagonal in inches from sway's `physical_width`
+    + `physical_height`. Returns None when either is missing / zero /
+    negative (sway reports 0 for outputs whose EDID didn't carry the
+    fields).
+    """
+    if not isinstance(width_mm, int) or width_mm <= 0:
+        return None
+    if not isinstance(height_mm, int) or height_mm <= 0:
+        return None
+    diagonal_mm = (width_mm * width_mm + height_mm * height_mm) ** 0.5
+    return diagonal_mm / 25.4
 
 
 def get_outputs() -> list[dict]:
@@ -109,7 +144,14 @@ def plan_scales(outputs: Iterable[dict]) -> list[tuple[str, float]]:
         # Operator override — leave it alone.
         if abs(float(current_scale) - 1.0) > 1e-6:
             continue
-        desired = pick_scale(width)
+        # v2.1 EDID-aware split: sway >=1.8 surfaces `physical_width`
+        # + `physical_height` in mm on outputs whose EDID carries the
+        # fields. When present, pick_scale uses the diagonal to
+        # choose between 1.5 (desk-distance monitor) and 2.0 (sofa-
+        # distance TV) on the 4K branch.
+        physical_w = out.get("physical_width") if isinstance(out.get("physical_width"), int) else None
+        physical_h = out.get("physical_height") if isinstance(out.get("physical_height"), int) else None
+        desired = pick_scale(width, physical_w, physical_h)
         if abs(desired - 1.0) <= 1e-6:
             # Heuristic says "leave at 1.0" — nothing to do.
             continue
