@@ -283,6 +283,24 @@ enum Cmd {
         #[arg(long)]
         node_id: Option<String>,
     },
+
+    /// PC-3.a — trigger the `peer-joined` handler for a given
+    /// peer-id.
+    ///
+    /// Writes the peer's [`PeerProbe`] to the cache, then spawns
+    /// `mde-peer-card --peer <id>` (subject to the 30s per-peer
+    /// debounce). Today the probe is the fixture; once the
+    /// store grows live probe data, this command will load from
+    /// there. Operator-driven for now; the reconcile loop will
+    /// emit the same event when a new peer enrolls.
+    PeerCard {
+        /// Stable peer id (e.g. `peer:lab-01`).
+        #[arg(long, value_name = "PEER_ID")]
+        peer: String,
+        /// Don't spawn the modal — print the would-be action.
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 /// Subcommands for `mackesd ansible-history`. CB-1.5.c
@@ -750,6 +768,37 @@ fn main() -> anyhow::Result<()> {
             // Boots the tokio runtime, registers the worker pool +
             // the existing reconcile worker, blocks on SIGTERM.
             run_serve(qnm_root, node_id, db_path)?;
+        }
+        Cmd::PeerCard { peer, dry_run } => {
+            // PC-3.a — operator-driven trigger for the peer-card
+            // modal. Writes the probe + spawns mde-peer-card with
+            // a 30 s per-peer debounce. Uses a fixture probe for
+            // now (the live probe-from-store path lands when
+            // PC-3.b ships the read query). dry-run reports the
+            // intended action without touching disk or spawning
+            // the child.
+            use mackes_mesh_types::PeerProbe;
+            let mut probe = PeerProbe::fixture();
+            probe.peer_id = peer.clone();
+            if dry_run {
+                println!(
+                    "peer-card: would write probe + spawn modal for peer={peer} (debounce respected)",
+                );
+                return Ok(());
+            }
+            match mackesd_core::peer_join::handle_peer_joined(&probe) {
+                Ok(Some(pid)) => {
+                    println!("peer-card: spawned modal (pid={pid}) for peer={peer}");
+                }
+                Ok(None) => {
+                    println!(
+                        "peer-card: peer={peer} probe written; spawn skipped (debounced within 30s window)",
+                    );
+                }
+                Err(e) => {
+                    return Err(anyhow::anyhow!("peer-card failed for {peer}: {e}"));
+                }
+            }
         }
         #[cfg(feature = "async-services")]
         Cmd::FleetPushSetting {

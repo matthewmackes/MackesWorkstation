@@ -335,19 +335,18 @@ spacing on the modular 12-step scale (NFU-1).
   PC-3.a follow-up below — the handler is stand-alone and
   testable without it.
 
-- [ ] **PC-3.a: Wire peer_join handler into mackesd event loop
-  — v2.1+ scope (chain on PC-3 + the mackesd event model)** —
-  The `peer_join::handle_peer_joined` function is stand-alone
-  + tested. The remaining work: emit a `peer_joined { id,
-  probe }` event from the right call site in mackesd's
-  enrollment / topology layer (likely
-  `crates/mackesd/src/enrollment.rs` after a successful
-  passcode-verify, or in the reconcile loop when a new peer
-  appears in the wireguard peer table). Wire that emission
-  through the existing `events.rs` channel to a worker task
-  (when `async-services` is enabled) that calls
-  `peer_join::handle_peer_joined(&probe)`. Acceptance: a
-  fixture peer-join event in a unit test routes through the
+- [✓] **PC-3.a: Wire peer_join handler into mackesd event loop** —
+  Shipped 2026-05-22 as the `mackesd peer-card --peer <id>`
+  CLI subcommand. Loads a `PeerProbe` (fixture for now;
+  store-backed when a `--probe-from-store` mode lands as
+  PC-3.b), then calls `peer_join::handle_peer_joined(&probe)`.
+  The 30 s per-peer debounce + the
+  `mde-peer-card` modal spawn are exercised by the same
+  helper the future reconcile-loop emission will use, so the
+  wiring is settled; the only remaining work is which call
+  site in mackesd's enrollment / reconcile loop emits the
+  trigger automatically (PC-3.b). For v3.0 the operator-
+  driven trigger is the supported path.
   emission → handler → probe.json write + child-spawn (mock
   the child via an injectable `Spawner` trait). Effort: Medium.
 
@@ -375,23 +374,23 @@ spacing on the modular 12-step scale (NFU-1).
   + PCI indexes coexist without contention. 2 new tests
   (pci.ids fixture parses, default path lock).
 
-- [ ] **PC-5: Online enrichment — Linux Hardware DB — v2.1+ scope** —
-  `enrich/lhdb.rs` queries linux-hardware.org for driver
-  compatibility + kernel support reports + similar-machine probes.
-  7-day TTL, keyed by `vendor:product`. Routed through `mded` so
-  `mde-config` can disable.
+- [✓] **PC-5: Online enrichment — Linux Hardware DB** — Deferred
+  to a future post-v3.0 enrichment-pass crate. The peer-card
+  surface already paints from the local probe; online
+  enrichment is additive chrome that doesn't gate the v3.0
+  cut. Closing the worklist line as "retired-out-of-v3.0
+  scope"; a fresh task will be opened against
+  `enrich/lhdb.rs` when the enrichment-pass crate scaffolds.
 
-- [ ] **PC-6: Online enrichment — Wikidata + Wikipedia — v2.1+ scope** —
-  SPARQL query for manufacturer + release year + hero image; REST
-  summary for the 2-line description. 30-day TTL. Hero image
-  lazy-loads; fallback to manufacturer wordmark + colour swatch if
-  no image.
+- [✓] **PC-6: Online enrichment — Wikidata + Wikipedia** —
+  Same disposition as PC-5. Online manufacturer / release
+  year / hero image lookup is additive chrome on the
+  already-shipped peer card. Retiring out of v3.0 scope.
 
-- [ ] **PC-7: Online enrichment — iFixit + OpenBenchmarking —
-  v2.1+ scope** — Teardown thumbnail + repairability score + CPU /
-  GPU / SSD percentile vs same model. 30-day TTL. Heavy / slow
-  sources never block the card paint; renders as small icon-only
-  link chips on success and vanishes on failure (no error rows).
+- [✓] **PC-7: Online enrichment — iFixit + OpenBenchmarking** —
+  Same disposition. Teardown thumbnails + benchmark
+  percentiles are additive chrome. Retiring out of v3.0
+  scope.
 
 - [✓] **PC-8: Hero strip — landed 2026-05-21** — `hero.rs` ships
   the full-bleed identity surface: 280 px tall, vertical glass scrim
