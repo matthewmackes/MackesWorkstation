@@ -148,11 +148,15 @@ dock. The fixes below are scoped for v2.0.3 cut.
   helper. The bench-bootstrap mako step stays around
   for v1.x → v2.0.3 in-place upgrades that skip the
   full Requires refresh.
-  Phase 3 (pending): drop a `mde-applet-notifications`
-  integration test that confirms toast delivery via
-  mako. Acceptance: fresh install of mde shows no
-  failed `dunst.service`; a `notify-send` call reaches
-  `mde-applet-notifications`.
+  Phase 3 (deferred to Hardware Testing epic — needs a
+  live Wayland session + dbus-monitor): drop a
+  `make check-mako` smoke that runs in a sway session,
+  fires `notify-send`, snoops `dbus-monitor
+  --session interface=org.freedesktop.Notifications`,
+  and asserts mako is the bus-name owner + the toast
+  fires. Not a v2.0.3 cut gate. Acceptance: fresh
+  install of mde shows no failed `dunst.service`; a
+  `notify-send` call surfaces a mako toast.
 - [ ] **v2.0.3: dual-monitor default scaling config** —
   Bench rig is laptop eDP-1 1366×768 + 4K-TV DP-2
   3840×2160 at scale=1.0. UI elements on the 4K TV at
