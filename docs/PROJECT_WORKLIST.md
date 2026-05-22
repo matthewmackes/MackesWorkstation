@@ -129,21 +129,27 @@ dock. The fixes below are scoped for v2.0.3 cut.
   the stale unit on first MDE boot. Acceptance: fresh
   upgrade from v1.x → v2.0.3 leaves no `qnm-daemon`
   systemd unit referencing the missing binary.
-- [ ] **v2.0.3: replace dunst with mako (Wayland-native
+- [>] **v2.0.3: replace dunst with mako (Wayland-native
   notifications)** — `dunst.service` ships as a D-Bus
   activated unit (`BusName=org.freedesktop.Notifications`)
   but dunst is X11-only and crashes on every Wayland
   login (`Cannot open X11 display`). Workaround on the
-  bench was `systemctl --user mask dunst.service`. Real
-  fix: (a) add `mako` to `packaging/fedora/mackes-
-  shell.spec` Requires, (b) ship a `mako.service`
-  override that owns the `org.freedesktop.Notifications`
-  D-Bus name in MDE sessions, (c) add `Conflicts: dunst`
-  to the spec so dunst is removed on install, (d) drop a
-  `mde-applet-notifications` integration test that
-  confirms toast delivery via mako. Acceptance: fresh
-  install of mde shows no failed `dunst.service`; a
-  notify-send call reaches mde-applet-notifications.
+  bench was `systemctl --user mask dunst.service`.
+  Phase 1 (shipped 2026-05-22):
+  `install-helpers/bench-bootstrap.sh` lands as a
+  reversible operator-run helper that
+  `dnf install`s mako (+ Wayland debug tools), masks
+  dunst.service, and enables mako.service so it owns
+  org.freedesktop.Notifications on next login.
+  Phase 2 (pending): (a) add `Requires: mako` and
+  `Conflicts: dunst` to `packaging/fedora/mackes-
+  shell.spec` so fresh installs auto-converge, (b) drop
+  a `mde-applet-notifications` integration test that
+  confirms toast delivery via mako, (c) retire the
+  bench-bootstrap mako step once Phase 2 RPMs land.
+  Acceptance: fresh install of mde shows no failed
+  `dunst.service`; a `notify-send` call reaches
+  `mde-applet-notifications`.
 - [ ] **v2.0.3: dual-monitor default scaling config** —
   Bench rig is laptop eDP-1 1366×768 + 4K-TV DP-2
   3840×2160 at scale=1.0. UI elements on the 4K TV at
