@@ -19,6 +19,9 @@ use std::fmt;
 use std::sync::Mutex;
 
 use ring::rand::{SecureRandom, SystemRandom};
+use ring::signature::{
+    RsaKeyPair, UnparsedPublicKey, RSA_PKCS1_2048_8192_SHA256, RSA_PKCS1_SHA256,
+};
 use zeroize::Zeroize;
 
 /// Opaque identifier for a key — used by the wire layer to
@@ -48,6 +51,13 @@ pub enum CryptoError {
     /// Caller passed a key of the wrong algorithm (e.g. an AES key
     /// where an RSA key was expected).
     WrongAlgorithm,
+    /// Underlying crypto-library I/O failure (ring's sign /
+    /// encrypt occasionally returns generic errors that don't
+    /// map cleanly to the variants above).
+    Io {
+        /// Stable machine-greppable code for the failure.
+        code: &'static str,
+    },
 }
 
 impl fmt::Display for CryptoError {
@@ -57,6 +67,7 @@ impl fmt::Display for CryptoError {
             CryptoError::UnknownKey(k) => write!(f, "unknown_key({k})"),
             CryptoError::AeadAuthFailed => write!(f, "aead_auth_failed"),
             CryptoError::WrongAlgorithm => write!(f, "wrong_algorithm"),
+            CryptoError::Io { code } => write!(f, "io({code})"),
         }
     }
 }
@@ -191,6 +202,113 @@ impl KeyStore for RingKeyStore {
         // zeroize via their `Drop` impl.
         keys.retain(|k| k.handle != handle);
     }
+}
+
+// ────────────────────────────────────────────────────────────────
+// KDC2-2.4b — RSA-2048 pairing handshake helpers
+// ────────────────────────────────────────────────────────────────
+//
+// The KDE Connect pairing handshake is a sign-and-verify dance:
+// each peer signs a challenge with its RSA-2048 private key and
+// the other peer verifies against a previously-exchanged public
+// key. Upstream uses RSA-PKCS1-v1_5 with SHA-256 (NOT RSA-PSS).
+// We match upstream for stock-client interop.
+//
+// These helpers are PURE — they take key material + a message and
+// return signatures / verification results. Key generation lives
+// here too (one helper). All persistence (writing the keypair to
+// disk, loading it on next boot) lives in mde-kdc::pairing — not
+// in this crate.
+
+/// RSA-2048 keypair holder. Wraps ring's `RsaKeyPair` with the
+/// raw DER-encoded private key bytes the host needs to persist.
+pub struct PairingKeyPair {
+    key_pair: RsaKeyPair,
+    der_bytes: Vec<u8>,
+}
+
+impl PairingKeyPair {
+    /// Construct from PKCS#8-DER private-key bytes. Used by the
+    /// host (KDC2-3) to load a previously-persisted key on
+    /// daemon restart.
+    ///
+    /// Returns `Err(CryptoError::WrongAlgorithm)` if the bytes
+    /// don't decode as a valid RSA private key.
+    pub fn from_pkcs8(der: &[u8]) -> Result<Self, CryptoError> {
+        let key_pair = RsaKeyPair::from_pkcs8(der)
+            .map_err(|_| CryptoError::WrongAlgorithm)?;
+        Ok(Self {
+            key_pair,
+            der_bytes: der.to_vec(),
+        })
+    }
+
+    /// PKCS#8-DER bytes for the private key. Used by the host to
+    /// persist the keypair across daemon restarts.
+    #[must_use]
+    pub fn pkcs8_bytes(&self) -> &[u8] {
+        &self.der_bytes
+    }
+
+    /// Sign `message` with RSA-PKCS1-v1_5 over SHA-256. Matches
+    /// upstream KDE Connect's signing algorithm for handshake
+    /// challenges.
+    ///
+    /// Errors with `CryptoError::Io` if ring's signer fails (this
+    /// is essentially impossible with a valid keypair — left as
+    /// an error path rather than an unwrap for defensive
+    /// programming).
+    pub fn sign(&self, message: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        let rng = SystemRandom::new();
+        let mut sig = vec![0_u8; self.key_pair.public().modulus_len()];
+        self.key_pair
+            .sign(&RSA_PKCS1_SHA256, &rng, message, &mut sig)
+            .map_err(|_| CryptoError::Io { code: "rsa_sign_failed" })?;
+        Ok(sig)
+    }
+}
+
+impl std::fmt::Debug for PairingKeyPair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never let the private key bytes leak via Debug. Audit
+        // log + panic dumps must never see them.
+        f.debug_struct("PairingKeyPair").finish_non_exhaustive()
+    }
+}
+
+impl Drop for PairingKeyPair {
+    fn drop(&mut self) {
+        self.der_bytes.zeroize();
+    }
+}
+
+// NOTE on RSA keypair generation: ring 0.17.x does NOT expose a
+// stable public API for generating fresh RSA-2048 keypairs. We
+// intentionally do not ship a `generate_pairing_keypair()` stub
+// here — it would only return an error in production, which is
+// worse than not existing at all (the host crate must visibly
+// own the gap). KDC2-3 host integration (mde-kdc) pulls in the
+// pure-Rust `rsa = "0.9"` crate just for keygen, then feeds the
+// PKCS#8 bytes back into [`PairingKeyPair::from_pkcs8`] here for
+// sign/verify. Splitting it this way keeps the protocol crate
+// dep-light (no `rsa` until the host actually needs to generate)
+// while preserving the ring-backed sign/verify hot path.
+
+/// Verify an RSA-PKCS1-v1_5/SHA-256 signature against a peer's
+/// public key (in DER form). Used by the host integration when
+/// a paired peer sends a signed handshake challenge.
+///
+/// Returns `Ok(())` on valid signature, `Err(CryptoError::
+/// SignatureInvalid)` on tampered / wrong-key signatures.
+pub fn verify_signature(
+    public_key_der: &[u8],
+    message: &[u8],
+    signature: &[u8],
+) -> Result<(), CryptoError> {
+    let public_key = UnparsedPublicKey::new(&RSA_PKCS1_2048_8192_SHA256, public_key_der);
+    public_key
+        .verify(message, signature)
+        .map_err(|_| CryptoError::SignatureInvalid)
 }
 
 #[cfg(test)]
