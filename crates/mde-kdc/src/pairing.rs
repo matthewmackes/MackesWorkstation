@@ -33,10 +33,10 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
 use mde_kdc_proto::crypto::PairingKeyPair;
 use pkcs8::der::pem::LineEnding;
-use pkcs8::der::Encode;
 use pkcs8::{DecodePrivateKey, EncodePrivateKey};
 use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
@@ -129,11 +129,18 @@ struct DevicesFile {
 /// `PairingStore::open_or_init(dir)` is the canonical entry
 /// point — it loads existing state or creates a fresh identity
 /// on first launch.
+/// KDC2-3.5.a — interior-mutability refactor (2026-05-22).
+/// `devices` lives behind a `std::sync::Mutex` so D-Bus
+/// `Pair`/`Unpair`/`UpdateDevice` methods can mutate through
+/// an `Arc<PairingStore>` without dropping back to a single
+/// owner. Lock holds are short (a single in-memory map op
+/// + a TOML serialize) — fine for std::sync::Mutex even
+/// from inside an async task.
 #[derive(Debug)]
 pub struct PairingStore {
     config_dir: PathBuf,
     identity: PairingKeyPair,
-    devices: BTreeMap<String, PairedDevice>,
+    devices: Mutex<BTreeMap<String, PairedDevice>>,
 }
 
 impl PairingStore {
@@ -156,7 +163,7 @@ impl PairingStore {
         Ok(Self {
             config_dir,
             identity,
-            devices,
+            devices: Mutex::new(devices),
         })
     }
 
@@ -169,11 +176,12 @@ impl PairingStore {
         identity: PairingKeyPair,
         devices: Vec<PairedDevice>,
     ) -> Self {
-        let devices = devices.into_iter().map(|d| (d.id.clone(), d)).collect();
+        let devices: BTreeMap<String, PairedDevice> =
+            devices.into_iter().map(|d| (d.id.clone(), d)).collect();
         Self {
             config_dir,
             identity,
-            devices,
+            devices: Mutex::new(devices),
         }
     }
 
@@ -187,32 +195,54 @@ impl PairingStore {
     /// Total number of paired devices. Cheap.
     #[must_use]
     pub fn paired_count(&self) -> usize {
-        self.devices.len()
+        self.devices.lock().expect("pairing-store mutex poisoned").len()
     }
 
-    /// Look up a paired device by id.
+    /// Look up a paired device by id. Returns a clone — the
+    /// caller can't hold a reference into the Mutex.
     #[must_use]
-    pub fn get(&self, id: &str) -> Option<&PairedDevice> {
-        self.devices.get(id)
+    pub fn get(&self, id: &str) -> Option<PairedDevice> {
+        self.devices
+            .lock()
+            .expect("pairing-store mutex poisoned")
+            .get(id)
+            .cloned()
     }
 
     /// Insert (or replace) a paired device + persist.
-    pub fn upsert(&mut self, device: PairedDevice) -> Result<(), PairingError> {
-        self.devices.insert(device.id.clone(), device);
+    pub fn upsert(&self, device: PairedDevice) -> Result<(), PairingError> {
+        {
+            let mut guard = self.devices.lock().expect("pairing-store mutex poisoned");
+            guard.insert(device.id.clone(), device);
+        }
         self.persist_devices()
     }
 
     /// Forget a paired device. No-op if id is unknown. Persists.
-    pub fn forget(&mut self, id: &str) -> Result<(), PairingError> {
-        if self.devices.remove(id).is_some() {
+    /// Returns `Ok(true)` when a device was actually removed,
+    /// `Ok(false)` for the unknown-id no-op — D-Bus callers map
+    /// the latter to `NoSuchDevice`.
+    pub fn forget(&self, id: &str) -> Result<bool, PairingError> {
+        let removed = {
+            let mut guard = self.devices.lock().expect("pairing-store mutex poisoned");
+            guard.remove(id).is_some()
+        };
+        if removed {
             self.persist_devices()?;
         }
-        Ok(())
+        Ok(removed)
     }
 
-    /// Iterate over every paired device (ordered by id).
-    pub fn iter(&self) -> impl Iterator<Item = &PairedDevice> {
-        self.devices.values()
+    /// Snapshot every paired device (ordered by id). Returns a
+    /// cloned `Vec` because the lock can't outlive this call.
+    #[must_use]
+    pub fn list(&self) -> Vec<PairedDevice> {
+        self.devices
+            .lock()
+            .expect("pairing-store mutex poisoned")
+            .values()
+            .cloned()
+            .collect()
     }
 
     /// Where the store lives on disk. Used by tests + diagnostics.
@@ -278,8 +308,11 @@ impl PairingStore {
     }
 
     fn persist_devices(&self) -> Result<(), PairingError> {
-        let file = DevicesFile {
-            devices: self.devices.values().cloned().collect(),
+        let file = {
+            let guard = self.devices.lock().expect("pairing-store mutex poisoned");
+            DevicesFile {
+                devices: guard.values().cloned().collect(),
+            }
         };
         let raw = toml::to_string_pretty(&file)
             .map_err(|e| PairingError::Toml(format!("serialize: {e}")))?;
@@ -378,7 +411,7 @@ mod tests {
     #[test]
     fn upsert_persists_a_device_to_disk() {
         let tmp = tempdir().unwrap();
-        let mut store = PairingStore::open_or_init(tmp.path()).unwrap();
+        let store = PairingStore::open_or_init(tmp.path()).unwrap();
         let device = PairedDevice {
             id: "abc-123".into(),
             name: "Pixel 8".into(),
@@ -400,13 +433,13 @@ mod tests {
         drop(store);
         let store = PairingStore::open_or_init(tmp.path()).unwrap();
         assert_eq!(store.paired_count(), 1);
-        assert_eq!(store.get("abc-123"), Some(&device));
+        assert_eq!(store.get("abc-123"), Some(device));
     }
 
     #[test]
     fn forget_removes_and_persists() {
         let tmp = tempdir().unwrap();
-        let mut store = PairingStore::open_or_init(tmp.path()).unwrap();
+        let store = PairingStore::open_or_init(tmp.path()).unwrap();
         store
             .upsert(PairedDevice {
                 id: "x".into(),
@@ -420,17 +453,17 @@ mod tests {
             })
             .unwrap();
         assert_eq!(store.paired_count(), 1);
-        store.forget("x").unwrap();
+        assert!(store.forget("x").unwrap());
         assert_eq!(store.paired_count(), 0);
-        // Idempotent: forgetting an unknown id is a no-op.
-        store.forget("never-existed").unwrap();
+        // Idempotent: forgetting an unknown id returns Ok(false).
+        assert!(!store.forget("never-existed").unwrap());
         assert_eq!(store.paired_count(), 0);
     }
 
     #[test]
-    fn iter_returns_devices_in_id_order() {
+    fn list_returns_devices_in_id_order() {
         let tmp = tempdir().unwrap();
-        let mut store = PairingStore::open_or_init(tmp.path()).unwrap();
+        let store = PairingStore::open_or_init(tmp.path()).unwrap();
         for id in ["c", "a", "b"] {
             store
                 .upsert(PairedDevice {
@@ -445,8 +478,33 @@ mod tests {
                 })
                 .unwrap();
         }
-        let ids: Vec<&str> = store.iter().map(|d| d.id.as_str()).collect();
-        assert_eq!(ids, vec!["a", "b", "c"]);
+        let ids: Vec<String> = store.list().into_iter().map(|d| d.id).collect();
+        assert_eq!(ids, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+    }
+
+    #[test]
+    fn upsert_through_shared_arc_works_with_immutable_ref() {
+        // KDC2-3.5.a lock — the whole point of the refactor is
+        // that an Arc<PairingStore> can mutate without an outer
+        // Mutex<>. Prove it.
+        use std::sync::Arc;
+        let tmp = tempdir().unwrap();
+        let store = Arc::new(PairingStore::open_or_init(tmp.path()).unwrap());
+        let cloned = Arc::clone(&store);
+        cloned
+            .upsert(PairedDevice {
+                id: "from-arc".into(),
+                name: "n".into(),
+                kind: "phone".into(),
+                fingerprint: "FF".into(),
+                public_key_b64: "AA".into(),
+                capabilities: vec![],
+                paired_at: 0,
+                last_seen_at: 0,
+            })
+            .unwrap();
+        assert_eq!(store.paired_count(), 1);
+        assert!(store.get("from-arc").is_some());
     }
 
     #[test]

@@ -109,7 +109,7 @@ impl From<&PairedDevice> for DeviceInfo {
 /// logic directly).
 #[must_use]
 pub fn list_devices_from(store: &PairingStore) -> Vec<DeviceInfo> {
-    store.iter().map(DeviceInfo::from).collect()
+    store.list().iter().map(DeviceInfo::from).collect()
 }
 
 /// Pure helper: fetch one device by id. Returns `None` when
@@ -120,7 +120,7 @@ pub fn get_device_from(
     store: &PairingStore,
     device_id: &str,
 ) -> Option<DeviceInfo> {
-    store.get(device_id).map(DeviceInfo::from)
+    store.get(device_id).as_ref().map(DeviceInfo::from)
 }
 
 /// The Connect interface implementation. Backed by the
@@ -300,7 +300,7 @@ mod tests {
 
     fn make_store_with_devices(devices: Vec<PairedDevice>) -> PairingStore {
         let tmp = tempdir().unwrap();
-        let mut store = PairingStore::open_or_init(tmp.path()).unwrap();
+        let store = PairingStore::open_or_init(tmp.path()).unwrap();
         for d in devices {
             store.upsert(d).unwrap();
         }

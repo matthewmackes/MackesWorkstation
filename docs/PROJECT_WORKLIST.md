@@ -5278,20 +5278,19 @@ service. Hosts the `dev.mackes.MDE.Connect.*` D-Bus interface.
   Unpair: drop fingerprint + signal `DeviceRemoved`. 8 unit
   tests covering accept/reject/timeout. **Blocked on KDC2-3.5.a
   + KDC2-3.2.a** (interior-mutability refactor + real network).
-- [ ] **KDC2-3.5.a: `PairingStore` interior-mutability refactor** —
-  Today `PairingStore::upsert` / `forget` take `&mut self`, so
-  D-Bus mutating methods can't run against the `Arc<PairingStore>`
-  the host hands to `ConnectInterface`. Refactor to internal
-  `tokio::sync::Mutex<BTreeMap<String, PairedDevice>>` so the
-  external API takes `&self` + locks internally. Touches:
-  `PairingStore` (interior mutability), `KdcHost::new`
-  (signature unchanged but `is_paired` becomes `async`),
-  `KdcHostWorker::init_host` (wrap on construction),
-  `ConnectInterface::pairing_store` (type stays `Arc<PairingStore>`
-  because the store now owns its own Mutex). 6 existing pairing
-  tests refactored to `#[tokio::test]`. Acceptance: `cargo test
-  -p mde-kdc --lib pairing` green; the KDC2-3.5 D-Bus methods
-  unblocked.
+- [✓] **KDC2-3.5.a: `PairingStore` interior-mutability refactor** —
+  Shipped 2026-05-22. Chose `std::sync::Mutex` over
+  `tokio::sync::Mutex` because every locked region is a single
+  in-memory map op + TOML serialize — no awaits inside the lock,
+  no async blocking concerns. `upsert` / `forget` now take
+  `&self`; `get` returns a cloned `Option<PairedDevice>`; new
+  `list() -> Vec<PairedDevice>` replaces the iterator (lifetime
+  of guard can't escape). `forget` returns `bool` (true=removed,
+  false=unknown-id) so D-Bus can map to `NoSuchDevice`.
+  `KdcHost::new` signature unchanged; `KdcHostWorker::init_host`
+  unchanged. 8 pairing tests passing including a new
+  `upsert_through_shared_arc_works_with_immutable_ref` lock test.
+  Unblocks KDC2-3.5 (PairDevice/UnpairDevice).
 - [ ] **KDC2-3.2.a: Real TLS-wrapped TCP socket in `KdcHost::open`** —
   Replaces the StubConnection. Discovers peer address from
   `PairedDevice.last_known_address` (NEW field — add to

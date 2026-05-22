@@ -150,7 +150,7 @@ mod tests {
 
     fn make_host_with_peer(peer_id: &str) -> KdcHost {
         let tmp = tempdir().unwrap();
-        let mut store = PairingStore::open_or_init(tmp.path()).unwrap();
+        let store = PairingStore::open_or_init(tmp.path()).unwrap();
         store
             .upsert(PairedDevice {
                 id: peer_id.into(),
