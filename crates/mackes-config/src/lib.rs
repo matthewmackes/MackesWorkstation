@@ -23,6 +23,29 @@ pub struct PanelConfig {
     /// Mesh-sync behavior for this very file (Q18–Q21).
     #[serde(default)]
     pub mesh: MeshConfig,
+
+    /// PC-10 — peer-card privacy + behaviour toggles.
+    #[serde(default)]
+    pub peer_card: PeerCardConfig,
+}
+
+/// PC-10 — peer connection card preferences. Controls which
+/// enrichment sources the card may consult on peer-join.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PeerCardConfig {
+    /// Online enrichment master switch. When `false`, PC-5/6/7
+    /// sources are skipped and the card renders hwdb-only.
+    /// Default `true` per PC-10 lock.
+    #[serde(default = "true_default")]
+    pub online_enrichment: bool,
+}
+
+impl Default for PeerCardConfig {
+    fn default() -> Self {
+        Self {
+            online_enrichment: true,
+        }
+    }
 }
 
 /// What lives in the top bar.
@@ -185,6 +208,7 @@ pub fn default_config() -> PanelConfig {
         top_bar: TopBarConfig::default(),
         dock: DockConfig::default(),
         mesh: MeshConfig::default(),
+        peer_card: PeerCardConfig::default(),
     }
 }
 
@@ -200,6 +224,18 @@ mod tests {
         assert!(cfg.mesh.replicate);
         assert_eq!(cfg.mesh.drift_check_seconds, 300);
         assert!(cfg.dock.items.is_empty());
+        // PC-10 — online enrichment defaults to true.
+        assert!(cfg.peer_card.online_enrichment);
+    }
+
+    #[test]
+    fn peer_card_online_enrichment_can_be_disabled() {
+        // PC-10 — operator can disable online enrichment in the
+        // config; mded's peer-join worker should then short-
+        // circuit PC-5/6/7 and the card renders hwdb-only.
+        let cfg = parse("[peer_card]\nonline_enrichment = false\n")
+            .expect("peer_card section parses");
+        assert!(!cfg.peer_card.online_enrichment);
     }
 
     #[test]

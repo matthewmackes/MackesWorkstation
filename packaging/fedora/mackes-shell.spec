@@ -607,6 +607,14 @@ install -D -m 0755 target/release/mde-applet-drawer \
 install -D -m 0755 target/release/mde-wizard \
     %{buildroot}%{_bindir}/mde-wizard
 
+# PC-12 (2026-05-21) — mde-peer-card hero modal spawned on
+# mesh-peer join by mded's peer-join worker (PC-3). Always
+# spawned on demand; no autostart entry needed.
+if [ -f target/release/mde-peer-card ]; then
+    install -D -m 0755 target/release/mde-peer-card \
+        %{buildroot}%{_bindir}/mde-peer-card
+fi
+
 # v2.0.0 Phase E1.x — applet binaries (panel-host spawns these per
 # pane / per tray slot via mde-panel host.rs).
 for applet in mde-applet-app-switcher mde-applet-apple-menu \
@@ -721,6 +729,7 @@ fi
 %{_bindir}/mded
 %{_bindir}/mde-applet-drawer
 %{_bindir}/mde-wizard
+%{_bindir}/mde-peer-card
 %{_bindir}/mde-applet-app-switcher
 %{_bindir}/mde-applet-apple-menu
 %{_bindir}/mde-applet-audio

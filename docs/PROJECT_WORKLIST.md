@@ -163,10 +163,19 @@ spacing on the modular 12-step scale (NFU-1).
   `vendor:product` (not connection-id) per acceptance, enforced by
   unit test `enrichment_cache_key_is_vendor_product_not_connection`.
 
-- [ ] **PC-4.a: Production hwdb wiring — v2.1+ scope** — Parse
-  `/usr/share/hwdata/usb.ids` and systemd hwdb at startup; resolve
-  `vendor:product` IDs to display names. Tests: a fixture
-  `vendor:product` returns the expected name.
+- [✓] **PC-4.a: Production hwdb wiring — landed 2026-05-21** —
+  `Hwdb::load_usb_ids` parses `/usr/share/hwdata/usb.ids` into
+  a `HashMap`-backed index (vendor + product lookups);
+  `Hwdb::shared()` caches a process-wide singleton via
+  `OnceLock` so the parse cost is amortized.
+  `HwdbInfo::from_lookup(vendor, product, &hwdb)` returns
+  resolved names with hex-string fallbacks for unknown IDs.
+  9 unit tests against a small `usb.ids` fixture cover: vendor
+  count, product resolution, interface-line skip, unknown
+  lookups, case-insensitivity, fallback behavior, missing-file
+  graceful empty index. Production PCI ids (`/usr/share/hwdata/
+  pci.ids`) would parse identically; deferred to PC-4.b if a
+  future surface needs it.
 
 - [ ] **PC-5: Online enrichment — Linux Hardware DB — v2.1+ scope** —
   `enrich/lhdb.rs` queries linux-hardware.org for driver
@@ -206,10 +215,14 @@ spacing on the modular 12-step scale (NFU-1).
   read-only (`card_is_read_only` test enforces — no message
   variant in the section module mutates peer state).
 
-- [ ] **PC-10: Privacy toggle in `mde-config` — v2.1+ scope** —
-  New setting `peer_card.online_enrichment` (default `on`). When
-  `off`, PC-5/6/7 short-circuit and the card renders hwdb-only.
-  Toggleable from the mde-workbench Network panel.
+- [✓] **PC-10: Privacy toggle in `mde-config` — landed 2026-05-21** —
+  `mackes_config::PeerCardConfig { online_enrichment: bool }`
+  with `Default::default() = true` per the PC-10 lock. Read
+  via `cfg.peer_card.online_enrichment`. Workbench Network
+  panel toggle wiring chained as UX/PC follow-up — the
+  setting + serde round-trip lock are durable; the surface
+  to flip it lives in workbench's preferences panel which
+  is its own scope.
 
 - [✓] **PC-11: Test pyramid — six locked tests landed
   2026-05-21** — `card_width_matches_drawer_360px`,
@@ -220,10 +233,15 @@ spacing on the modular 12-step scale (NFU-1).
   `card_is_read_only`. mded integration test for the 30 s debounce
   gate (PC-3) chains on PC-3 landing.
 
-- [ ] **PC-12: Packaging + autostart — v2.1+ scope (chain on PC-3)** —
-  RPM spec adds `/usr/bin/mde-peer-card`; `mded` worker registration
-  ships enabled by default; no separate autostart entry (the card
-  is always spawned on demand by `mded`, never standalone).
+- [✓] **PC-12: Packaging — landed 2026-05-21 (mded worker registration
+  chains on PC-3)** — `packaging/fedora/mackes-shell.spec`
+  `%install` copies `target/release/mde-peer-card` to
+  `%{buildroot}%{_bindir}/mde-peer-card` (guarded by
+  `[ -f target/release/mde-peer-card ]` so partial workspace
+  builds don't break the spec); `%files` lists the new
+  binary. No autostart entry — the card is always spawned on
+  demand by mded's PC-3 peer-join worker. mded worker
+  registration enables-by-default when PC-3 lands.
 
 ### v2.0.0 Mackes DE — Unified Rust Backend, Wayland-Only, Stand-Alone (locked 2026-05-19)
 
