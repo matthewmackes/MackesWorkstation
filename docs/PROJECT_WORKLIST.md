@@ -5199,10 +5199,26 @@ fuzzable + reproducible.
   listen for peer announces. Pure-library: returns
   `Stream<DiscoveredPeer>` instead of doing I/O directly.
   6 unit tests with mocked mdns-sd backend.
-- [ ] **KDC2-2.10: `discovery::udp_broadcast` — UDP/1716 announce** —
-  KDE Connect's secondary discovery mechanism (UDP broadcast
-  every 30s). Pure encoder/decoder + a thin
-  `tokio::net::UdpSocket` runner. 5 unit tests.
+- [✓] **KDC2-2.10: `discovery::udp_broadcast` — UDP/1716 announce** —
+  Pure encoder/decoder shipped 2026-05-22 inside
+  `mde-kdc-proto::discovery`:
+  `encode_announce_datagram(&Announce, ts_ms)` /
+  `decode_announce_datagram(&[u8])` / `KDC_UDP_PORT = 1716` /
+  `MAX_BROADCAST_BYTES = 8 KiB` / `BroadcastError`
+  (encode/decode/wrong-kind/too-large). 7 unit tests covering
+  round-trip, kind-filter, oversized-datagram defense,
+  trailing-whitespace tolerance. The host-side
+  `tokio::net::UdpSocket` runner (bind, broadcast every 30 s,
+  recv loop) folds into a KDC2-2.10.a follow-up under the
+  `async-services` feature.
+- [ ] **KDC2-2.10.a: `mde-kdc::discovery::udp_broadcast` host runner** —
+  `tokio::net::UdpSocket` bound to `0.0.0.0:1716` (and a
+  per-interface broadcast emitter on a 30 s cadence). Drains
+  decoded announces into the host's `DiscoveryRegistry`.
+  Behind the `async-services` feature gate; tests use the
+  loopback interface so they're safe in CI. Acceptance: a
+  loopback peer broadcast on UDP/1716 lands in the registry
+  within one broadcast interval.
 - [✓] **KDC2-2.11: `discovery` — synthetic-announce injection API** —
   Critical seam for KDC2-4.x mesh-shunt. `inject_synthetic(
   peer_id, source: SyntheticSource)` lets a higher-layer

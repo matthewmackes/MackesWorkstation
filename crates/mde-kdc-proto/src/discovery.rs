@@ -101,6 +101,116 @@ impl SyntheticAnnounce {
 /// expected jitter without holding ghosts.
 pub const STALE_WINDOW_MS: i64 = 90_000;
 
+// ──────────────────────────────────────────────────────────────────
+// KDC2-2.10 — UDP/1716 broadcast encoder/decoder.
+//
+// Stock KDE Connect broadcasts a `kdeconnect.identity` packet on
+// UDP/1716 every ~30 s so phones on the same LAN find desktop
+// peers (and vice-versa). Pure data — the actual `UdpSocket`
+// bind/send/recv lives in `mde-kdc::discovery::udp_broadcast`
+// (host integration); this module ships the wire encoder/decoder
+// so both halves agree on the byte format.
+//
+// Format: the JSON of a `wire::Packet` with `kind ==
+// "kdeconnect.identity"` and `body == Announce` (serde
+// camelCase, matching `Announce`'s derive). Newline-terminated
+// per upstream's framing — the receiver's parser stops at the
+// first '\n'. Larger-than-MTU announces are not expected (every
+// field is short), but receivers MUST tolerate up to the
+// `MAX_BROADCAST_BYTES` cap below.
+// ──────────────────────────────────────────────────────────────────
+
+/// UDP port stock KDE Connect uses for the broadcast announce.
+/// Locked at 1716 for wire compatibility — phones won't talk to
+/// MDE peers on any other port. Receivers also bind here.
+pub const KDC_UDP_PORT: u16 = 1716;
+
+/// Maximum bytes a receiver should accept from a single UDP
+/// datagram before discarding. 8 KiB is generous — real-world
+/// announces are < 1 KiB — and shields against a malicious
+/// peer broadcasting a giant identity body.
+pub const MAX_BROADCAST_BYTES: usize = 8 * 1024;
+
+/// Errors the broadcast encoder/decoder may surface.
+#[derive(Debug)]
+pub enum BroadcastError {
+    /// `serde_json::to_vec` failed on the announce body. Cannot
+    /// happen for valid `Announce` data — surfaced for forward-
+    /// compat if the type ever grows non-serializable fields.
+    Encode(String),
+    /// `serde_json::from_slice` failed — datagram wasn't a valid
+    /// kdeconnect.identity packet.
+    Decode(String),
+    /// Packet decoded but `type` wasn't `kdeconnect.identity`.
+    WrongPacketKind(String),
+    /// Packet exceeded `MAX_BROADCAST_BYTES`.
+    TooLarge(usize),
+}
+
+impl std::fmt::Display for BroadcastError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BroadcastError::Encode(s) => write!(f, "encode: {s}"),
+            BroadcastError::Decode(s) => write!(f, "decode: {s}"),
+            BroadcastError::WrongPacketKind(s) => write!(f, "wrong_packet_kind: {s}"),
+            BroadcastError::TooLarge(n) => write!(f, "too_large: {n} bytes"),
+        }
+    }
+}
+
+impl std::error::Error for BroadcastError {}
+
+/// Encode an `Announce` as the bytes of a UDP/1716 broadcast
+/// datagram. Newline-terminated per upstream framing.
+///
+/// `ts_ms` populates the packet `id` — receivers use it as a
+/// dedupe key.
+pub fn encode_announce_datagram(
+    announce: &Announce,
+    ts_ms: i64,
+) -> Result<Vec<u8>, BroadcastError> {
+    let body = serde_json::to_value(announce)
+        .map_err(|e| BroadcastError::Encode(format!("announce body: {e}")))?;
+    let packet = crate::wire::Packet {
+        id: ts_ms,
+        kind: "kdeconnect.identity".to_string(),
+        body,
+        ..Default::default()
+    };
+    let mut bytes = serde_json::to_vec(&packet)
+        .map_err(|e| BroadcastError::Encode(format!("packet: {e}")))?;
+    bytes.push(b'\n');
+    Ok(bytes)
+}
+
+/// Decode a UDP/1716 broadcast datagram into an `Announce`.
+/// Tolerates trailing newline / whitespace and rejects packets
+/// whose `type` isn't `kdeconnect.identity`.
+pub fn decode_announce_datagram(bytes: &[u8]) -> Result<Announce, BroadcastError> {
+    if bytes.len() > MAX_BROADCAST_BYTES {
+        return Err(BroadcastError::TooLarge(bytes.len()));
+    }
+    // Strip the upstream newline terminator (and any incidental
+    // trailing whitespace) so serde doesn't choke.
+    let trimmed = trim_trailing_whitespace(bytes);
+    let packet: crate::wire::Packet = serde_json::from_slice(trimmed)
+        .map_err(|e| BroadcastError::Decode(format!("{e}")))?;
+    if packet.kind != "kdeconnect.identity" {
+        return Err(BroadcastError::WrongPacketKind(packet.kind));
+    }
+    let announce: Announce = serde_json::from_value(packet.body)
+        .map_err(|e| BroadcastError::Decode(format!("body: {e}")))?;
+    Ok(announce)
+}
+
+fn trim_trailing_whitespace(bytes: &[u8]) -> &[u8] {
+    let mut end = bytes.len();
+    while end > 0 && bytes[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    &bytes[..end]
+}
+
 /// KDC2-2.11 — in-memory registry the host's discovery layer
 /// polls for unified real + synthetic announces.
 ///
@@ -402,5 +512,93 @@ mod tests {
         });
         assert_eq!(r.relayer_for("phone-A"), Some("peer-B"));
         assert_eq!(r.len(), 1);
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-2.10 — UDP/1716 broadcast encoder/decoder
+    // ─────────────────────────────────────────────────────────
+
+    fn sample_broadcast_announce() -> Announce {
+        Announce {
+            device_id: "abc-123".into(),
+            device_name: format!("lab-01 {}", crate::MDE_DEVICE_NAME_SUFFIX),
+            device_type: DeviceType::Desktop,
+            protocol_version: crate::PROTOCOL_VERSION,
+            incoming_capabilities: vec!["kdeconnect.clipboard".into()],
+            outgoing_capabilities: vec!["kdeconnect.notification".into()],
+        }
+    }
+
+    #[test]
+    fn kdc_udp_port_is_locked_to_1716() {
+        // Wire-compat lock: stock KDE Connect listens on 1716
+        // only. Any change breaks phone discovery.
+        assert_eq!(KDC_UDP_PORT, 1716);
+    }
+
+    #[test]
+    fn encode_announce_datagram_round_trips() {
+        let a = sample_broadcast_announce();
+        let bytes = encode_announce_datagram(&a, 1_700_000_000_000).unwrap();
+        // Newline-terminated per upstream framing.
+        assert_eq!(bytes.last().copied(), Some(b'\n'));
+        let back = decode_announce_datagram(&bytes).unwrap();
+        assert_eq!(back, a);
+    }
+
+    #[test]
+    fn encode_announce_uses_kdeconnect_identity_kind() {
+        // Receivers (stock KDC clients) filter on this exact
+        // `type` token. Lock it explicitly.
+        let bytes = encode_announce_datagram(&sample_broadcast_announce(), 0).unwrap();
+        let s = std::str::from_utf8(&bytes).unwrap();
+        assert!(s.contains(r#""type":"kdeconnect.identity""#));
+    }
+
+    #[test]
+    fn decode_rejects_wrong_packet_kind() {
+        // Hand-craft a non-identity packet on UDP/1716 (someone
+        // misconfigured a peer to spam clipboard packets at the
+        // broadcast port). Must reject.
+        let p = crate::wire::Packet {
+            id: 1,
+            kind: "kdeconnect.clipboard".into(),
+            body: serde_json::json!({}),
+            ..Default::default()
+        };
+        let mut bytes = serde_json::to_vec(&p).unwrap();
+        bytes.push(b'\n');
+        let r = decode_announce_datagram(&bytes);
+        assert!(matches!(r, Err(BroadcastError::WrongPacketKind(_))));
+    }
+
+    #[test]
+    fn decode_rejects_oversized_datagram() {
+        // Receiver-side defense: hostile peer floods us with a
+        // huge datagram. Must surface `TooLarge` instead of
+        // attempting to parse.
+        let big = vec![b'x'; MAX_BROADCAST_BYTES + 1];
+        let r = decode_announce_datagram(&big);
+        assert!(matches!(r, Err(BroadcastError::TooLarge(_))));
+    }
+
+    #[test]
+    fn decode_rejects_malformed_json() {
+        let r = decode_announce_datagram(b"not json\n");
+        assert!(matches!(r, Err(BroadcastError::Decode(_))));
+    }
+
+    #[test]
+    fn decode_tolerates_trailing_whitespace_and_no_newline() {
+        let a = sample_broadcast_announce();
+        let bytes = encode_announce_datagram(&a, 42).unwrap();
+        // Strip the newline + add spaces — should still decode.
+        let mut weird = bytes.clone();
+        while weird.last().copied().map_or(false, |b| b.is_ascii_whitespace()) {
+            weird.pop();
+        }
+        weird.extend_from_slice(b"   \t");
+        let back = decode_announce_datagram(&weird).unwrap();
+        assert_eq!(back, a);
     }
 }
