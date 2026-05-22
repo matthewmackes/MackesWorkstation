@@ -231,7 +231,14 @@ pub fn nav_model() -> Vec<NavEntry> {
                 Panel::new("vpn", "VPN"),
                 Panel::new("firewall", "Firewall"),
                 Panel::new("remote_desktop", "Remote Desktop"),
-                Panel::new("kde_connect", "KDE Connect"),
+                // KDC2-5.8 (v2.1, 2026-05-22): "KDE Connect"
+                // standalone panel retired. KDC integration
+                // surfaces through `mde-peer-card` under the
+                // Mesh sidebar group + conditional phone
+                // sections (KDC2-5.4..5.7). The v13.0 wrapper
+                // approach was superseded by KDC2 native; the
+                // sidebar entry would have led to a broken
+                // panel.
             ],
         },
         NavEntry {
@@ -402,5 +409,40 @@ mod tests {
     #[test]
     fn group_display_renders_label() {
         assert_eq!(format!("{}", Group::LookAndFeel), "Look & Feel");
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-5.8 — "KDE Connect" panel retirement.
+    // The v13.0 standalone panel was superseded by the KDC2
+    // native re-implementation; integration surfaces through
+    // mde-peer-card now. The sidebar entry would have led to
+    // a broken panel — regression tests below catch any future
+    // re-addition.
+    // ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn kde_connect_panel_id_absent_from_nav_model() {
+        let nav = nav_model();
+        for entry in &nav {
+            for panel in &entry.panels {
+                assert_ne!(
+                    panel.slug, "kde_connect",
+                    "kde_connect panel must not reappear in nav (KDC2-5.8)",
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn kde_connect_focus_slug_no_longer_resolves() {
+        // `mde --focus network.kde_connect` must return None
+        // now that the panel id is gone. Operators who had
+        // muscle memory for the old slug see a clean miss
+        // rather than a broken panel.
+        assert_eq!(
+            view_from_focus_slug("network.kde_connect"),
+            None,
+            "stale kde_connect slug must not resolve",
+        );
     }
 }
