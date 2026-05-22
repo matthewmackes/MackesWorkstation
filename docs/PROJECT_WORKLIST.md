@@ -5,6 +5,16 @@
 **Status legend:**
 `[ ] Open` · `[>] In Progress` · `[✓] Done` · `[!] Blocked`
 
+> **Release strategy (locked 2026-05-22 by operator):**
+> **No releases ship until the worklist is cleared. The next
+> cut is v3.0.0.** Tasks tagged `v2.0.4:`, `v2.1:`, `v2.1.0:` or
+> any other intermediate version in their titles still land on
+> `main`, but they ship as part of the v3.0 monolithic cut.
+> Per-task prefixes stay as historical scoping markers; the
+> release-tag they actually ride is v3.0. The iteration loop's
+> exit condition is: every non-Hardware-Testing-epic item
+> `[✓] Done`, then `cut release 3.0.0`.
+
 **Authority:** this file is the only durable worklist. Per
 `.claude/CLAUDE.md` §1, no parallel task tracker (in-session
 `TaskList` scratchpad, side notes, separate planning docs) is
