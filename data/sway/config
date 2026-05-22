@@ -141,6 +141,7 @@ for_window [window_type="dialog"]      floating enable
 # through this path). The helper is operator-override-safe: it skips
 # any output whose current scale isn't exactly 1.0.
 exec_always mde-output-autoscale
+exec mde-applet-bg
 exec mde-panel
 
 # ---------------------------------------------------------------------------
