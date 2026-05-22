@@ -37,6 +37,8 @@ use std::sync::Mutex;
 
 use mde_kdc_proto::crypto::PairingKeyPair;
 use pkcs8::der::pem::LineEnding;
+#[cfg(test)]
+use pkcs8::der::Encode;
 use pkcs8::{DecodePrivateKey, EncodePrivateKey};
 use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};

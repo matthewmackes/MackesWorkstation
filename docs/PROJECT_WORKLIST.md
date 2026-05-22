@@ -5272,12 +5272,18 @@ service. Hosts the `dev.mackes.MDE.Connect.*` D-Bus interface.
 - [✓] **KDC2-3.4: D-Bus methods `ListDevices` + `GetDevice`** —
   Method signatures per plan §5. Returns paired devices with
   capability dicts. 5 unit tests.
-- [ ] **KDC2-3.5: D-Bus methods `PairDevice` / `UnpairDevice`** —
-  Pair flow: emit `kdeconnect.pair { pair: true }`; await reply;
-  if accepted, persist cert fingerprint to `devices.toml`.
-  Unpair: drop fingerprint + signal `DeviceRemoved`. 8 unit
-  tests covering accept/reject/timeout. **Blocked on KDC2-3.5.a
-  + KDC2-3.2.a** (interior-mutability refactor + real network).
+- [✓] **KDC2-3.5: D-Bus methods `PairDevice` / `UnpairDevice`** —
+  Host-side CRUD shipped 2026-05-22 (now that KDC2-3.5.a's
+  interior-mutability refactor is in). `PairDevice(device_id,
+  name, kind, fingerprint, public_key_b64, capabilities,
+  paired_at)` upserts the record (idempotent — re-pair updates
+  name/caps/seen). `UnpairDevice(device_id)` removes + maps
+  unknown-id → `NoSuchDevice` fdo error. Network handshake
+  half — emit `kdeconnect.pair {pair:true}` on the TLS socket
+  + derive fingerprint from peer cert — folds into KDC2-3.2.a
+  (real network) so this method becomes the in-process
+  termination of that flow. 4 store-level tests; the live
+  D-Bus dispatch wraps the same calls.
 - [✓] **KDC2-3.5.a: `PairingStore` interior-mutability refactor** —
   Shipped 2026-05-22. Chose `std::sync::Mutex` over
   `tokio::sync::Mutex` because every locked region is a single

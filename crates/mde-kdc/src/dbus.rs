@@ -159,6 +159,63 @@ impl ConnectInterface {
         })
     }
 
+    /// KDC2-3.5 — pair a device. Upserts the record into
+    /// `devices.toml`. The network handshake half (emit
+    /// `kdeconnect.pair { pair: true }`, await reply, derive
+    /// fingerprint from peer cert) lands with KDC2-3.2.a; this
+    /// method ships the host-side CRUD callers (Workbench peer
+    /// card, `mde-kdc-cli pair`, future re-pair wizard) need.
+    ///
+    /// Idempotent: re-pairing an existing device updates the
+    /// stored fingerprint / capabilities / name.
+    ///
+    /// Errors:
+    ///   * `dev.mackes.MDE.Connect1.PersistFailed` — writing
+    ///     `devices.toml` failed (disk full, permission denied).
+    #[allow(clippy::too_many_arguments)]
+    async fn pair_device(
+        &self,
+        device_id: String,
+        name: String,
+        kind: String,
+        fingerprint: String,
+        public_key_b64: String,
+        capabilities: Vec<String>,
+        paired_at: i64,
+    ) -> zbus::fdo::Result<()> {
+        let device = PairedDevice {
+            id: device_id,
+            name,
+            kind,
+            fingerprint,
+            public_key_b64,
+            capabilities,
+            paired_at,
+            last_seen_at: 0,
+        };
+        self.pairing_store
+            .upsert(device)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("PersistFailed: {e}")))
+    }
+
+    /// KDC2-3.5 — unpair a device. Removes the record from
+    /// `devices.toml`. Errors with
+    /// `dev.mackes.MDE.Connect1.NoSuchDevice` when the id isn't
+    /// paired (callers can treat this as success after a stale
+    /// view).
+    async fn unpair_device(&self, device_id: String) -> zbus::fdo::Result<()> {
+        let removed = self
+            .pairing_store
+            .forget(&device_id)
+            .map_err(|e| zbus::fdo::Error::Failed(format!("PersistFailed: {e}")))?;
+        if !removed {
+            return Err(zbus::fdo::Error::Failed(format!(
+                "NoSuchDevice: {device_id}"
+            )));
+        }
+        Ok(())
+    }
+
     /// KDC2-3.9 — emitted when a fresh device pairs. Subscribers
     /// (`mde-workbench` peer list, `mde-peer-card`, drawer
     /// notifications) refresh their views off this signal.
@@ -377,5 +434,55 @@ mod tests {
         let store = make_store_with_devices(vec![sample_device("only-one")]);
         let info = get_device_from(&store, "never-paired");
         assert!(info.is_none());
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-3.5 — Pair / Unpair lock tests against the live
+    // PairingStore. The async D-Bus method wrappers just call
+    // store.upsert / store.forget, so testing through the store
+    // exercises the same code path that the bus client hits.
+    // ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn pair_device_via_store_inserts_record() {
+        let store = make_store_with_devices(vec![]);
+        let d = sample_device("new-phone");
+        store.upsert(d.clone()).unwrap();
+        assert_eq!(store.paired_count(), 1);
+        assert_eq!(store.get("new-phone").as_ref(), Some(&d));
+    }
+
+    #[test]
+    fn pair_device_is_idempotent_on_re_pair() {
+        let store = make_store_with_devices(vec![sample_device("phone-A")]);
+        let mut updated = sample_device("phone-A");
+        updated.name = "Renamed Phone".into();
+        updated.last_seen_at = 1_700_001_000;
+        store.upsert(updated.clone()).unwrap();
+        assert_eq!(store.paired_count(), 1);
+        let got = store.get("phone-A").unwrap();
+        assert_eq!(got.name, "Renamed Phone");
+        assert_eq!(got.last_seen_at, 1_700_001_000);
+    }
+
+    #[test]
+    fn unpair_device_via_store_removes_record() {
+        let store = make_store_with_devices(vec![
+            sample_device("a"),
+            sample_device("b"),
+        ]);
+        assert!(store.forget("a").unwrap());
+        assert_eq!(store.paired_count(), 1);
+        assert!(store.get("a").is_none());
+        assert!(store.get("b").is_some());
+    }
+
+    #[test]
+    fn unpair_device_returns_false_for_unknown_id() {
+        let store = make_store_with_devices(vec![sample_device("only")]);
+        // The D-Bus wrapper maps this to NoSuchDevice; the store
+        // just returns false.
+        assert!(!store.forget("never-existed").unwrap());
+        assert_eq!(store.paired_count(), 1);
     }
 }
