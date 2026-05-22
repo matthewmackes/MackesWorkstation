@@ -5012,93 +5012,458 @@ under `LICENSES/`.
 >
 > Plan source: `~/.claude/plans/bubbly-frolicking-papert.md`.
 
-- [ ] **KDC2-1: Transport trait + router** — Add
-  `crates/mackes-transport/` (new workspace member) defining
-  `trait Transport` with `probe / open / health / capabilities`.
-  Extend `crates/mackesd/src/topology/mod.rs:40-54` `EdgeKind`
-  enum with `KdcTls` variant + `From<TransportKind> for EdgeKind`
-  conversion. Wire `mesh_router` worker that picks per-message
-  path per the 4 message classes (`Control` always KDC,
-  `Clipboard` best-path, `FileBulk` throughput-best, `Notification`
-  dual-send idempotent at receiver). Feed every `PathSwitch` into
-  `mackesd::audit` with `last_switch_reason`. SLO instrumentation
-  (p50 < 5ms, p99 < 25ms decision latency) lands as a histogram
-  metric. Closes the router gap deferred at
-  `crates/mackesd/src/topology/mod.rs:3679-3682`. Acceptance:
-  router unit tests cover all four message classes; loopback
-  integration test confirms zero silent failovers. Effort: High.
-- [ ] **KDC2-2: Protocol crate `mde-kdc-proto`** — Pure-library
-  greenfield Rust crate `crates/mde-kdc-proto/`. Zero D-Bus, zero
-  filesystem, zero networking. Modules: `codec`, `crypto`,
-  `discovery`, `plugins`, `wire`. KDC wire-protocol compatible so
-  stock Android/iOS clients pair without modification. Capability-
-  negotiation header on every handshake so two MDE peers light
-  up MDE-only features (mesh-relay, peer-card-probe-share) with
-  graceful fallback when the remote is stock. libFuzzer corpus
-  for the codec. In-process loopback test harness exercises a
-  full handshake → message-send → ack round-trip without any host
-  glue. Acceptance: `cargo fuzz run codec` clean for 10 min;
-  loopback test green; phone pairs over LAN against the loopback
-  binary in CI. Effort: High.
-- [ ] **KDC2-3: Host integration `mde-kdc`** — New
-  `crates/mde-kdc/` workspace member glues `mde-kdc-proto` to
-  the rest of MDE. Implements `Transport` (Phase KDC2-1) for the
-  KDC wire. Hosts the `dev.mackes.MDE.Connect.*` D-Bus interface
-  via zbus 5. Pairing store at `~/.config/mde/connect/devices.toml`
-  + `identity.pem`. Registers as an `mackesd` worker so the
-  daemon lifecycle owns it. Acceptance: `busctl --user
-  introspect dev.mackes.MDE.Connect` shows the documented
-  interface; pairing a fresh phone writes `devices.toml`; `mackesd`
-  systemd unit restart cleanly tears down + restores the worker.
-  Effort: Medium.
-- [ ] **KDC2-4: Mesh-shunt inside protocol** — The v13.0 mesh-mDNS
-  bridge concept lands as a synthetic-announce injection in
-  `mde-kdc-proto::discovery`. When peer A is paired with phone X,
-  peer B sees X in its discovery list via the mesh-relay
-  announcement so X is reachable from B without re-pairing.
-  Phones are first-class mesh participants for clipboard / file /
-  notification operations. Acceptance: in a 3-peer + 1-phone
-  fixture, the phone receives a Clipboard message from any of the
-  three peers regardless of which one paired it. Effort: Medium.
-- [ ] **KDC2-5: UI fold into mde-peer-card** — Extend
-  `crates/mde-peer-card/` with phone/tablet conditional sections
-  (battery, ring, find, MPRIS, SMS, Share) gated on
-  `device.kind == Phone | Tablet`. Two-MDE-peer pairs see the
-  common chrome (Clipboard / Notifications mirror / Pair toggles)
-  but no phone-only sections. Delete the `kde_connect` placeholder
-  panel from `crates/mde-workbench/src/panels/`. Drop any drawer
-  Connect entries. Mesh sidebar group is the single entry point;
-  no separate "Connect" group. Acceptance: workbench renders no
-  KDC-specific UI outside of mde-peer-card; peer-card renders
-  phone sections only for `Phone | Tablet` peers; phone Connect
-  actions all route through the new D-Bus surface. Effort: Medium.
-- [ ] **KDC2-6: Packaging hardcut** — Edit
-  `packaging/fedora/mackes-shell.spec`: drop `Requires:
-  kdeconnectd`. Add `Obsoletes: kdeconnect kdeconnectd` so dnf
-  removes the upstream packages on upgrade. Add `Conflicts:
-  kdeconnect-cli kdeconnect-indicator gsconnect` so the legacy
-  user-side tools can't coexist (they'd try to bind port 1716).
-  `%check` step asserts the built RPM has zero Qt / KF6 in its
-  dep closure (`rpm -qpR | grep -E '^(qt|kf)'` exits non-zero).
-  Birthright wizard gains a "re-pair your phones" card on the
-  v2.0.x → v2.1.0 first-boot path. CHANGELOG v2.1.0 has a
-  Breaking Changes section calling out the pair-migration hardcut.
-  Acceptance: `dnf install mde-2.1.0` pulls 0 Qt packages;
-  `dnf upgrade mde-2.0.3 → mde-2.1.0` removes kdeconnectd cleanly.
-  Effort: Medium.
-- [ ] **KDC2-7: Acceptance gates** — Definition of Done per
-  `.claude/CLAUDE.md` §0.8. Five end-to-end checks: (1) phone
-  pairs via the official Android KDE Connect app over LAN; (2)
-  phone is reachable across the mesh from a non-pairing peer; (3)
-  `dnf install mde` dry-run shows zero Qt packages; (4) router
-  decision latency p50 < 5ms (histogram metric, 1000-sample
-  window); (5) installing `kdeconnect-cli` after MDE is up
-  results in `kdeconnect-cli` refusing to start due to port 1716
-  conflict (proves MDE owns the wire). Bench-hardware acceptance
-  lives in the Hardware Testing epic per
-  [[feedback_hardware_testing_epic]] — these 5 gates are the
-  v2.1.0 release-cut prerequisite, NOT the hardware bench tests.
-  Effort: Medium.
+> **Workstream layout** (sub-tasks below each epic):
+> - **KDC2-1.x** — Transport trait + mesh router (12 sub-tasks)
+> - **KDC2-2.x** — Protocol crate `mde-kdc-proto` (20 sub-tasks)
+> - **KDC2-3.x** — Host integration `mde-kdc` + D-Bus surface (11)
+> - **KDC2-4.x** — Mesh-shunt inside protocol (6 sub-tasks)
+> - **KDC2-5.x** — UI fold into `mde-peer-card` (14 sub-tasks)
+> - **KDC2-6.x** — Packaging hardcut + RPM Qt-free (8 sub-tasks)
+> - **KDC2-7.x** — Acceptance gates / Definition of Done (7)
+>
+> **Total:** 78 sub-tasks. **Definition of Done** per
+> `.claude/CLAUDE.md` §0.8 is KDC2-7.x — all five end-to-end
+> gates must pass before the v2.1.0 release cut. Bench-hardware
+> validation lives separately in the Hardware Testing epic per
+> [[feedback_hardware_testing_epic]].
+
+#### KDC2-1.x — Transport trait + mesh router
+
+Closes the router gap explicitly deferred at
+`crates/mackesd/src/topology/mod.rs:3679-3682`. Introduces the
+`mackes-transport` crate (workspace member) so future transports
+(BLE mesh, Matrix relay, LoRa) plug in via the same trait.
+
+- [ ] **KDC2-1.1: Scaffold `crates/mackes-transport/`** — New
+  workspace member. `Cargo.toml` declares dependencies (serde,
+  async-trait, thiserror, tokio for `Channel` async I/O). Empty
+  `src/lib.rs` with module declarations only. Add to root
+  `Cargo.toml` workspace `members` list (insertion-sorted).
+  Acceptance: `cargo check -p mackes-transport` clean.
+- [ ] **KDC2-1.2: `Transport` trait + `TransportKind` enum** —
+  `trait Transport: Send + Sync` with `fn kind() -> TransportKind`,
+  `async fn probe(&self, peer: &PeerId) -> ProbeOutcome`,
+  `async fn open(&self, peer: &PeerId) -> Result<Channel,
+  TransportError>`, `fn health(&self) -> HealthSnapshot`,
+  `fn capabilities(&self) -> TransportCapabilities`. Enum
+  variants: `TailscaleDirectUdp`, `TailscaleDerpRelay`,
+  `Https443Tunnel`, `KdcTls`. Add 8 unit tests for enum
+  exhaustiveness + serde round-trip.
+- [ ] **KDC2-1.3: `PeerPath`, `MessageClass`, `SwitchReason`** —
+  `struct PeerPath { peer_id, primary, fallback,
+  last_switch_at, last_switch_reason, health_score,
+  message_class_overrides }`. `enum MessageClass { Control,
+  Clipboard, FileBulk, Notification }`. `enum SwitchReason
+  { Initial, HealthDegraded(TransportKind), Policy,
+  ManualOverride, FlapPenalty }`. 6 unit tests cover construction
+  + JSON round-trip.
+- [ ] **KDC2-1.4: `ProbeOutcome` + `HealthSnapshot` + `TransportError`** —
+  `struct ProbeOutcome { rtt_ms, throughput_mbps_estimate,
+  packet_loss, last_handshake_age_s }`. `struct HealthSnapshot
+  { score: f32, recent_failures: u32, last_success_at }`.
+  `enum TransportError` with `Unreachable`, `HandshakeFailed`,
+  `PolicyDenied`, `BackendBusy`, `Timeout`. 4 unit tests cover
+  health scoring + error categorization.
+- [ ] **KDC2-1.5: `TransportCapabilities` + capability bitset** —
+  `struct TransportCapabilities { supports_bulk: bool,
+  supports_streaming: bool, supports_broadcast: bool,
+  mtu: Option<u32>, encryption_kind: EncryptionKind }`. Used by
+  the router to filter transports per `MessageClass` (e.g.,
+  `FileBulk` skips a transport with `supports_bulk == false`).
+  4 unit tests.
+- [ ] **KDC2-1.6: Conformance test suite (`tests/transport_conformance.rs`)** —
+  14 trait-conformance tests that every `Transport` impl runs.
+  Covers: probe-without-pair returns `Unreachable`,
+  open-after-probe returns `Channel`, health degrades after N
+  failures, capabilities are stable across calls, error
+  categorization is correct. Test fixture provides a `MockPeer`.
+- [ ] **KDC2-1.7: Add `EdgeKind::KdcTls` + conversion** — Edit
+  `crates/mackesd/src/topology/mod.rs:40-54`. Add `KdcTls`
+  variant. Implement `impl From<TransportKind> for EdgeKind`.
+  Update topology renderer to draw KDC edges with a distinct
+  line style (dashed indigo). 5 unit tests cover the conversion
+  + render output for all 4 EdgeKind variants.
+- [ ] **KDC2-1.8: Scaffold `mackesd::workers::mesh_router`** —
+  New file `crates/mackesd/src/workers/mesh_router.rs`. Struct
+  `MeshRouterWorker { state: Arc<DashMap<PeerId, PeerPath>>,
+  registry: Arc<Registry>, transports: Vec<Arc<dyn Transport>> }`.
+  Implements `Worker` trait with 10-15s tick cadence. Gated
+  behind `async-services` feature.
+- [ ] **KDC2-1.9: `select_best_transport` pure-fn scorer** —
+  Pure-fn takes `&[Arc<dyn Transport>]`, `peer_id`,
+  `message_class`, `&Policy` → `(primary: TransportKind,
+  fallback: Option<TransportKind>, reason: SwitchReason)`.
+  Scoring: probe → weight by class (Clipboard favors latency,
+  FileBulk favors throughput, Notification dual-send) → apply
+  flap penalty using existing `FailureWindow` from
+  `https_fallback.rs`. 12 unit tests cover scoring matrix.
+- [ ] **KDC2-1.10: `/etc/mde/connect/policy.toml` default ships in package** —
+  New file under `data/etc/mde/connect/policy.toml`. Declares
+  per-message-class transport preferences, flap thresholds,
+  health-score weights, plugin allow/deny lists. RPM `%files`
+  installs it as `%config(noreplace)`. Documented schema.
+- [ ] **KDC2-1.11: `policy.toml` parser + operator-override merge** —
+  New module `crates/mackesd/src/transport/policy.rs`. Parses
+  `/etc/mde/connect/policy.toml` (system) then merges
+  `~/.config/mde/connect/policy.toml` (operator override).
+  10 unit tests cover invalid TOML rejection, partial override
+  merging, schema validation. Hot-reload via inotify deferred
+  to follow-up.
+- [ ] **KDC2-1.12: `PathSwitch` audit-chain integration + SLO histogram** —
+  Every `PeerPath.primary` change emits an audit event into
+  `mackesd::audit`. Histogram metric `kdc2_router_decision_us`
+  (Prometheus-style buckets 100us..50ms) reports p50 + p99.
+  SLO assertion in integration test: 1000-sample p50 < 5ms,
+  p99 < 25ms. Zero silent failovers — every switch has a
+  `last_switch_reason` in the audit row.
+
+#### KDC2-2.x — Protocol crate `mde-kdc-proto`
+
+Pure-library greenfield Rust. Zero D-Bus, zero filesystem,
+zero networking deps. This is the load-bearing enterprise
+boundary: every protocol-layer change is unit-testable +
+fuzzable + reproducible.
+
+- [ ] **KDC2-2.1: Scaffold `crates/mde-kdc-proto/`** — New
+  workspace member. `Cargo.toml` declares minimal deps (serde,
+  serde_json, thiserror, ed25519-dalek, rcgen for cert, rustls
+  PKI types — all pure-library, no I/O). Module declarations:
+  `codec`, `crypto`, `discovery`, `plugins`, `wire`. Workspace
+  registered.
+- [ ] **KDC2-2.2: `codec::Packet` enum + ~25 packet-type variants** —
+  Tagged enum for `kdeconnect.identity`, `kdeconnect.pair`,
+  `kdeconnect.ping`, `kdeconnect.notification`,
+  `kdeconnect.notification.reply`, `kdeconnect.clipboard`,
+  `kdeconnect.clipboard.connect`, `kdeconnect.share.request`,
+  `kdeconnect.sms.request`, `kdeconnect.sms.messages`,
+  `kdeconnect.telephony`, `kdeconnect.battery`,
+  `kdeconnect.battery.request`, `kdeconnect.mpris`,
+  `kdeconnect.mpris.request`, `kdeconnect.runcommand`,
+  `kdeconnect.findmyphone.request`, plus all 8 secondary
+  payload types. Serde tag `"type"`.
+- [ ] **KDC2-2.3: `codec` — JSON framing + length prefixing** —
+  Wire format: newline-terminated JSON objects per the KDE
+  Connect spec. `encode(&Packet) -> Vec<u8>`, `decode(buf) ->
+  Result<(Packet, usize_consumed), CodecError>`. 12 unit tests
+  cover partial buffers, malformed JSON, oversized packets,
+  unknown types (silently routed to `Packet::Unknown`).
+- [ ] **KDC2-2.4: `codec` — payload-channel handshake** — KDE
+  Connect's secondary TLS channel for binary payloads (file
+  share, large clipboard). Encode/decode the `payloadSize`,
+  `payloadTransferInfo.port` handshake on the primary channel
+  + a separate `PayloadStream` reader/writer for the secondary.
+  8 unit tests with in-memory transports.
+- [ ] **KDC2-2.5: `codec` — round-trip tests for every Packet variant** —
+  One test per variant: construct, encode, decode, assert
+  equality. Catches schema drift on enum changes. ~25 tests.
+- [ ] **KDC2-2.6: `crypto::KeyStore` trait + Ed25519 in-memory impl** —
+  Trait abstracts identity material so post-quantum migration
+  is a swap. Methods: `identity_pubkey()`, `sign(&[u8]) ->
+  Signature`, `verify(...) -> bool`. In-memory impl uses
+  ed25519-dalek directly. 6 unit tests cover key generation,
+  sign/verify, serde round-trip.
+- [ ] **KDC2-2.7: `crypto` — X.509 self-signed cert generation** — KDE
+  Connect uses TLS with self-signed Ed25519 certs; fingerprint
+  is the device identity. Use `rcgen` to issue the cert with
+  device-id CN. `generate_identity_cert(&KeyStore, device_id) ->
+  CertChain`. 5 unit tests.
+- [ ] **KDC2-2.8: `crypto` — TLS handshake helper (rustls)** — Pure
+  helper that wraps a `tokio_rustls::TlsStream` with the cert
+  pinning logic. Verifies remote cert matches the paired-device
+  fingerprint stored by the host (KDC2-3.7). 8 unit tests with
+  mocked rustls config.
+- [ ] **KDC2-2.9: `discovery::mdns` — announce + listen on `_kdeconnect._udp`** —
+  Uses `mdns-sd 0.11` (already a workspace dep per LAN
+  discovery worker). Announce identity packet TXT records;
+  listen for peer announces. Pure-library: returns
+  `Stream<DiscoveredPeer>` instead of doing I/O directly.
+  6 unit tests with mocked mdns-sd backend.
+- [ ] **KDC2-2.10: `discovery::udp_broadcast` — UDP/1716 announce** —
+  KDE Connect's secondary discovery mechanism (UDP broadcast
+  every 30s). Pure encoder/decoder + a thin
+  `tokio::net::UdpSocket` runner. 5 unit tests.
+- [ ] **KDC2-2.11: `discovery` — synthetic-announce injection API** —
+  Critical seam for KDC2-4.x mesh-shunt. `inject_synthetic(
+  peer_id, source: SyntheticSource)` lets a higher-layer
+  (the host crate) push a mesh-relayed phone announce into
+  the local discovery stream. Receiver can't tell synthetic
+  from real (and shouldn't care). 6 unit tests.
+- [ ] **KDC2-2.12: `plugins::Plugin` trait + dispatch table** — Each
+  plugin owns one or more `Packet` variants. `trait Plugin {
+  fn handles(&self) -> &[PacketKind]; fn process(&mut self,
+  pkt: Packet, ctx: &mut Context) -> Vec<Packet> }`. Dispatch
+  table built at startup from policy.toml allow-list. 8 unit
+  tests cover dispatch, missing-plugin fallback, allow-list
+  filtering.
+- [ ] **KDC2-2.13: `plugins::Notification`** — Mirror Android
+  notifications. Handles `kdeconnect.notification` +
+  `kdeconnect.notification.reply` + dismissal. 6 unit tests.
+- [ ] **KDC2-2.14: `plugins::Clipboard`** — Bidirectional clipboard
+  sync. Handles `kdeconnect.clipboard` +
+  `kdeconnect.clipboard.connect` (initial sync on connection).
+  Debounce + loop-detection. 8 unit tests.
+- [ ] **KDC2-2.15: `plugins::Share` + payload streaming** — File
+  share via the secondary payload channel (KDC2-2.4). Receives
+  `kdeconnect.share.request` + reads bytes from the payload
+  port. 5 unit tests.
+- [ ] **KDC2-2.16: `plugins::Ping` + `plugins::FindMyPhone`** —
+  Two simple plugins. Ping: 2-line echo. FindMyPhone: triggers
+  remote loud alarm. 4 unit tests.
+- [ ] **KDC2-2.17: `plugins::Battery` + `plugins::Mpris`** — Battery
+  state poll/push. MPRIS now-playing relay + remote control.
+  6 unit tests.
+- [ ] **KDC2-2.18: `plugins::Sms` (Android-only)** — SMS thread/
+  message list + send. Gated on `kdeconnect.sms.messages`
+  capability advertised by the remote (iOS doesn't have it).
+  8 unit tests + capability-gating coverage.
+- [ ] **KDC2-2.19: `plugins::RunCommand` (default-off in policy)** —
+  Remote command execution. Disabled by default in policy.toml;
+  operator must explicitly allow per-device. 5 unit tests
+  including policy-deny path.
+- [ ] **KDC2-2.20: `wire::CapabilityHeader` + handshake negotiation** —
+  Every connection's first packet is the identity packet which
+  carries `incomingCapabilities` + `outgoingCapabilities`. MDE
+  adds a custom `mdeCapabilities` field listing extra features
+  (mesh-relay, peer-card-probe-share) so two MDE peers light up
+  enhanced behavior. Stock clients ignore unknown fields. 10
+  unit tests cover negotiation matrix + downgrade paths.
+
+#### KDC2-3.x — Host integration `mde-kdc` + D-Bus surface
+
+Replaces the 8-LOC stub at `crates/mde-kdc/src/lib.rs:1-8`
+with the host glue that turns `mde-kdc-proto` into a running
+service. Hosts the `dev.mackes.MDE.Connect.*` D-Bus interface.
+
+- [ ] **KDC2-3.1: Replace `crates/mde-kdc/` 8-LOC stub** — Edit
+  `Cargo.toml` to drop the `mackes-kdc` re-export dep and add
+  real deps (`mde-kdc-proto`, `mackes-transport`, `zbus 5`,
+  `tokio`, `serde`). Update `src/lib.rs` skeleton.
+- [ ] **KDC2-3.2: `KdcHost` struct implementing `Transport`** —
+  Wraps `mde-kdc-proto` with the `Transport` trait from
+  KDC2-1.2. Routes incoming packets through the protocol
+  plugins; exposes outgoing-packet API for the D-Bus methods.
+  8 unit tests.
+- [ ] **KDC2-3.3: D-Bus host scaffold (zbus 5)** — Acquire bus
+  name `dev.mackes.MDE.Connect` on the user session bus.
+  `Connect` object at `/dev/mackes/MDE/Connect`. Single-instance
+  guard via name-acquired check. 4 unit tests with
+  zbus's connection-mocking helpers.
+- [ ] **KDC2-3.4: D-Bus methods `ListDevices` + `GetDevice`** —
+  Method signatures per plan §5. Returns paired devices with
+  capability dicts. 5 unit tests.
+- [ ] **KDC2-3.5: D-Bus methods `PairDevice` / `UnpairDevice`** —
+  Pair flow: emit `kdeconnect.pair { pair: true }`; await reply;
+  if accepted, persist cert fingerprint to `devices.toml`.
+  Unpair: drop fingerprint + signal `DeviceRemoved`. 8 unit
+  tests covering accept/reject/timeout.
+- [ ] **KDC2-3.6: D-Bus methods `RingDevice` + `SendSms` +
+  `SendClipboard` + `SendFile`** — Action methods. Each routes
+  through `mesh_router.choose(peer_id, MessageClass)` to pick
+  the transport. 8 unit tests with a `MockMeshRouter`.
+- [ ] **KDC2-3.7: Pairing store at `~/.config/mde/connect/`** —
+  `devices.toml` (TOML schema: id, name, kind, fingerprint,
+  capabilities, paired_at, last_seen_at). `identity.pem`
+  (PKCS#8 Ed25519 keypair + self-signed X.509). First-launch
+  generates fresh identity. 6 unit tests with a `tempdir`
+  fixture.
+- [ ] **KDC2-3.8: First-launch identity generation** — On
+  `KdcHost::new()` if `~/.config/mde/connect/identity.pem`
+  missing, generate Ed25519 keypair + self-signed cert via
+  KDC2-2.6/2.7 + persist atomically. Audit-log the event.
+  3 unit tests.
+- [ ] **KDC2-3.9: D-Bus signals `DeviceAdded` / `DeviceRemoved`
+  / `DeviceUpdated`** — Emit on pair, unpair, online/offline
+  transition, capability change. Subscribers: `mde-workbench`
+  peer list, `mde-peer-card`, `mde-drawer` notifications.
+  6 unit tests.
+- [ ] **KDC2-3.10: Wire `KdcHost` as `mackesd` worker** — New
+  `crates/mackesd/src/workers/kdc_host.rs` registers `KdcHost`
+  in the worker pool under `async-services`. Shutdown plumbing
+  + restart policy mirror existing workers (e.g., `lan_discovery`).
+  4 unit tests + integration test for clean restart.
+- [ ] **KDC2-3.11: Plugin policy enforcement (RunCommand gating)** —
+  At plugin-dispatch time, consult `policy.toml`
+  `[plugins.runcommand] allow_devices` list. Reject with
+  `PolicyDenied` if the device isn't allowed. Audit-log every
+  denial. 5 unit tests.
+
+#### KDC2-4.x — Mesh-shunt inside protocol
+
+The v13.0 mesh-mDNS bridge concept survives but moves inside
+`mde-kdc-proto::discovery` as the synthetic-announce path
+opened by KDC2-2.11. Collapses 3 separate code paths from
+v13.0 (bridge service, kdc_bridge worker, mesh announce
+re-relay) into one.
+
+- [ ] **KDC2-4.1: `mackesd` writes phone-reachability to
+  `QNM-Shared/<peer>/connect/phones.json`** — When `KdcHost`
+  on peer A pairs a phone, write the phone's identity (id,
+  name, fingerprint, capabilities, last_seen) to the per-peer
+  phones manifest in QNM-Shared. 6 unit tests with tempdir.
+- [ ] **KDC2-4.2: `mackesd` reads neighbors' `phones.json` on tick** —
+  Existing reconcile worker tick (`crates/mackesd/src/worker.rs`)
+  walks neighbors' QNM-Shared dirs; extend to also read
+  `<neighbor>/connect/phones.json`. 4 unit tests.
+- [ ] **KDC2-4.3: `KdcHost` subscribes to neighbor phones → inject
+  synthetic mDNS** — For each phone in a neighbor's
+  `phones.json`, call `mde_kdc_proto::discovery::inject_synthetic`
+  so the local discovery stream sees the phone as a peer. Phone
+  appears in `ListDevices` D-Bus output. 5 unit tests.
+- [ ] **KDC2-4.4: TLS channel uses `mesh-transport` Tailscale impl
+  when remote is mesh-shunted** — When `KdcHost::open()` is
+  called for a synthetic phone, route the TLS bytes through
+  the Tailscale `Transport` (not direct LAN). 4 unit tests +
+  integration test confirming end-to-end byte flow.
+- [ ] **KDC2-4.5: `PathSwitch` log distinguishes direct-LAN vs
+  mesh-shunt phone reach** — Extend `SwitchReason` with
+  `MeshShuntActivated` + `DirectLanRecovered` variants so the
+  audit log differentiates. 3 unit tests.
+- [ ] **KDC2-4.6: 3-peer + 1-phone integration test** — Docker
+  fixture (already exists per Phase I.2) extended with a fake
+  Android client. Phone pairs with peer-A; assert peer-B + C
+  also see it; send Clipboard from peer-C; assert phone
+  receives. End-to-end gate.
+
+#### KDC2-5.x — UI fold into `mde-peer-card`
+
+Per lock #5: no separate "Connect" sidebar group. Phones and
+MDE peers both render in the existing Mesh group. Phone-specific
+sections are conditional on `device.kind == Phone | Tablet`.
+
+- [ ] **KDC2-5.1: Extend `mackes-mesh-types::PeerKind`** — Add
+  `Phone` + `Tablet` variants alongside `Desktop` / `Server` /
+  `Embedded` / `Unknown`. 5 unit tests for serde + display
+  formatting. Mirror in `mde-mesh-types` re-export.
+- [ ] **KDC2-5.2: Add `ConnectFacts` + `BatterySnapshot` +
+  `PairingState` to mesh-types** — Shared types so peer-card,
+  workbench, and applets all consume the same model. 6 unit
+  tests.
+- [ ] **KDC2-5.3: Extend `PeerCardData` with `connect:
+  Option<ConnectFacts>`** — Edit
+  `crates/mde-peer-card/src/lib.rs:1-105`. Populated when the
+  daemon-API layer reports KDC-reachable. 4 unit tests.
+- [ ] **KDC2-5.4: Conditional phone section (battery + ring +
+  find + MPRIS)** — Iced view. Renders only when
+  `device.kind == Phone | Tablet`. Buttons call D-Bus methods
+  on `dev.mackes.MDE.Connect`. 6 widget tests via
+  `iced-test`-equivalent fixture.
+- [ ] **KDC2-5.5: Conditional messaging section (SMS thread list
+  + composer)** — Android-only (gated on
+  `kdeconnect.sms.messages` capability). Thread list + per-
+  thread message view + send composer. 5 widget tests.
+- [ ] **KDC2-5.6: Conditional share section (drop file → SendFile)** —
+  Drag-and-drop target in the peer-card. Calls
+  `SendFile` D-Bus method which routes through `mesh_router`
+  for `MessageClass::FileBulk`. 4 widget tests.
+- [ ] **KDC2-5.7: Common chrome (Clipboard / Notifications mirror
+  / Pair toggles)** — Renders for every peer-card (both phones
+  and MDE peers when the remote has KDC). Toggles persist to
+  policy.toml. 5 widget tests.
+- [ ] **KDC2-5.8: Delete `mde-workbench::panels::kde_connect`
+  placeholder** — Drop the entry at
+  `crates/mde-workbench/src/model.rs:234`. Remove panel file
+  if it exists. 2 negative tests: panel id no longer in
+  workbench enum.
+- [ ] **KDC2-5.9: Delete `mackes/workbench/network/kde_connect.py`** —
+  380 LOC of Python KDC panels. Drop the file +
+  cross-references. Update `mackes/workbench/__init__.py`
+  if it imports.
+- [ ] **KDC2-5.10: Drop `mackes/drawer.py` KDC phone-notification
+  sections** — Lines 558-586 (load phone notifs from
+  upstream cache file) + 981-988 (📱 badge). Replaced by D-Bus
+  signal subscription in the Iced applet (KDC2-5.11).
+- [ ] **KDC2-5.11: Move 📱 badge to `crates/mde-applets/notifications/`** —
+  Iced applet subscribes to `dev.mackes.MDE.Connect`
+  `DeviceUpdated` signals and renders a small phone glyph
+  next to notifications that originated from a phone. 4
+  widget tests.
+- [ ] **KDC2-5.12: Delete `docs/help/kde-connect.md` + sidebar
+  index entry** — 237 LOC of help docs become obsolete.
+  Cross-links from `troubleshooting.md` + `mesh-vpn.md` get
+  rewritten to point at peer-card help.
+- [ ] **KDC2-5.13: Delete `tests/test_kde_connect_panels.py` +
+  `tests/test_drawer_phone_notifications.py`** — 233 LOC of
+  tests that target deleted code.
+- [ ] **KDC2-5.14: Update `mackes/workbench/help.py` +
+  `welcome_banner.py`** — Remove `kde-connect` from
+  `_TOPIC_ORDER` and `_TOPIC_LABELS` in help.py. Drop the
+  KDC link from welcome banner (banner itself survives for
+  other onboarding cards).
+
+#### KDC2-6.x — Packaging hardcut + RPM Qt-free
+
+Removes the platform's last Qt surface. Adds explicit
+`Conflicts:` so users can't accidentally co-install upstream.
+
+- [ ] **KDC2-6.1: Drop `Requires: kdeconnectd` from spec** — Edit
+  `packaging/fedora/mackes-shell.spec:92-95`. Single-line
+  removal. RPM rebuild verifies dnf no longer pulls
+  kdeconnectd.
+- [ ] **KDC2-6.2: Add `Obsoletes: kdeconnect kdeconnectd
+  kdeconnect-cli kdeconnect-indicator`** — Forces dnf to
+  uninstall upstream packages on upgrade. 0.0.0 version
+  bound so it always wins.
+- [ ] **KDC2-6.3: Add `Conflicts: kdeconnect kdeconnect-cli
+  gsconnect`** — Prevents co-installation. Both would try
+  to bind port 1716; the conflict surfaces the issue at
+  install time rather than runtime.
+- [ ] **KDC2-6.4: `%check` stanza asserts Qt-free dep closure** —
+  Add `%check` step: `rpm -qpR %{buildroot}/...rpm |
+  grep -iE '^(qt[0-9]|kf[0-9])' && exit 1 || true`. The
+  build fails loudly if any Qt dep sneaks in.
+- [ ] **KDC2-6.5: Delete `crates/mackes-kdc/` + update
+  workspace `Cargo.toml`** — Whole crate (296 LOC lib +
+  150 LOC tests). Drop the entry from root `Cargo.toml`
+  workspace members. Land after KDC2-3 is functional so
+  the bridge worker has a replacement.
+- [ ] **KDC2-6.6: Delete `crates/mackesd/src/workers/kdc_bridge.rs`** —
+  154 LOC worker. Remove from worker registry in
+  `mackesd::lib.rs`. Replaced by KDC2-3.10's `kdc_host` worker.
+- [ ] **KDC2-6.7: `mde-wizard` re-pair card on v2.0.x → v2.1.0
+  first boot** — Birthright wizard detects upgrade-from-v2.0.x
+  state and shows a one-time card explaining the hardcut.
+  Card text + screenshot reference. 3 widget tests.
+- [ ] **KDC2-6.8: CHANGELOG v2.1.0 + version bump via cut-release** —
+  CHANGELOG entry with a Breaking Changes subsection calling
+  out the pair-migration hardcut + the `kdeconnect-cli`
+  removal. Version bump in 4 files per
+  `.claude/CLAUDE.md` §0.6 (`mackes/__init__.py`,
+  `pyproject.toml`, `setup.py`, spec).
+
+#### KDC2-7.x — Acceptance gates (Definition of Done)
+
+Per `.claude/CLAUDE.md` §0.8, all 7 sub-tasks below must
+pass before the v2.1.0 release cut. Bench-hardware
+acceptance lives in the Hardware Testing epic separately.
+
+- [ ] **KDC2-7.1: Phone pairs via official Android KDE Connect
+  over LAN** — Manual gate. Install MDE v2.1.0 on a peer;
+  install official KDE Connect from Play Store; pair; send
+  ping; receive ping. Pass if both directions work.
+- [ ] **KDC2-7.2: Phone reachable across mesh from non-pairing
+  peer** — Peer-A on LAN-A pairs phone; peer-B on LAN-B sees
+  the phone in `mde-workbench` peer list; sends Clipboard
+  from peer-B; phone receives. Pass = end-to-end OK.
+- [ ] **KDC2-7.3: `rpm -qR mde-2.1.0 | grep -iE 'qt[0-9]|kf[0-9]'`
+  returns empty** — Built RPM has zero Qt / KF6 in its dep
+  closure. Already gated by KDC2-6.4 `%check` but re-asserted
+  as a release gate.
+- [ ] **KDC2-7.4: Router decision latency p50 < 5ms, p99 < 25ms** —
+  `mde-bench connect-router --samples=1000` reports the
+  histogram. Pass requires both percentile thresholds.
+- [ ] **KDC2-7.5: First-packet warm latency < 3s + roaming switch
+  < 10s** — Matches the v12.14-23 connectivity-scope SLOs.
+  `mde-bench connect-warm` + `mde-bench connect-roam`.
+- [ ] **KDC2-7.6: `dnf install kdeconnect-cli` after MDE is up
+  fails with conflict** — Proves the `Conflicts:` line is
+  effective. Manual: `sudo dnf install kdeconnect-cli` on a
+  v2.1.0 host returns the conflict error.
+- [ ] **KDC2-7.7: `journalctl -u mded --since '5min ago' | grep
+  PathSwitch` shows audit-logged switches with
+  `last_switch_reason`** — Run a 5-minute load that forces
+  several transport switches (kill Tailscale interface mid-
+  flight). Assert every switch is in the audit log with a
+  human-readable reason. Zero silent failovers.
 
 ### UX-1 through UX-9: MDE Application Chrome — Premium UI Polish (v2.1 scope)
 
