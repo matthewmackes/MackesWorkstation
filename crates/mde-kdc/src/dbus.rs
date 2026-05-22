@@ -23,7 +23,10 @@
 
 use std::sync::Arc;
 
-use crate::pairing::PairingStore;
+use serde::{Deserialize, Serialize};
+use zbus::zvariant::Type;
+
+use crate::pairing::{PairedDevice, PairingStore};
 
 /// Bus name MDE acquires on the user session bus.
 pub const BUS_NAME: &str = "dev.mackes.MDE.Connect";
@@ -61,32 +64,99 @@ impl std::fmt::Display for DbusError {
 
 impl std::error::Error for DbusError {}
 
+/// D-Bus-exposed view of a paired device. Subset of
+/// [`crate::pairing::PairedDevice`] — drops the internal
+/// `public_key_b64` field (not exposed over the bus) +
+/// derives `zbus::zvariant::Type` so it can be returned from
+/// the `ListDevices` / `GetDevice` methods.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+pub struct DeviceInfo {
+    /// Stable device id (KDC UUID).
+    pub id: String,
+    /// Display name.
+    pub name: String,
+    /// `phone` / `tablet` / `desktop` / `unknown`.
+    pub kind: String,
+    /// SHA-256 fingerprint, `AB:CD:EF:...` format.
+    pub fingerprint: String,
+    /// Plugin tokens the device advertised under
+    /// `incomingCapabilities`.
+    pub capabilities: Vec<String>,
+    /// Unix epoch seconds of the pair operation.
+    pub paired_at: i64,
+    /// Unix epoch seconds of the most-recent reachability
+    /// observation.
+    pub last_seen_at: i64,
+}
+
+impl From<&PairedDevice> for DeviceInfo {
+    fn from(d: &PairedDevice) -> Self {
+        Self {
+            id: d.id.clone(),
+            name: d.name.clone(),
+            kind: d.kind.clone(),
+            fingerprint: d.fingerprint.clone(),
+            capabilities: d.capabilities.clone(),
+            paired_at: d.paired_at,
+            last_seen_at: d.last_seen_at,
+        }
+    }
+}
+
+/// Pure helper: collect every paired device into `DeviceInfo`
+/// records. Used by both the `ListDevices` D-Bus method + the
+/// unit tests (which bypass D-Bus to test the conversion
+/// logic directly).
+#[must_use]
+pub fn list_devices_from(store: &PairingStore) -> Vec<DeviceInfo> {
+    store.iter().map(DeviceInfo::from).collect()
+}
+
+/// Pure helper: fetch one device by id. Returns `None` when
+/// the id isn't in the store; the D-Bus method translates this
+/// to a `zbus::fdo::Error::Failed` with a known error string.
+#[must_use]
+pub fn get_device_from(
+    store: &PairingStore,
+    device_id: &str,
+) -> Option<DeviceInfo> {
+    store.get(device_id).map(DeviceInfo::from)
+}
+
 /// The Connect interface implementation. Backed by the
-/// shared `PairingStore`; methods + signals land in KDC2-3.4
-/// onwards.
-///
-/// `zbus`'s derive macro at this scaffold stage exposes a
-/// no-method interface so the bus-name acquisition + object
-/// registration are testable independently from the eventual
-/// method implementations. KDC2-3.4 fills in `ListDevices` +
-/// `GetDevice`; 3.5 adds the pair-flow methods, etc.
-#[allow(dead_code)] // pairing_store consumed by KDC2-3.4+
+/// shared `PairingStore`; method implementations grow per
+/// KDC2-3.4..3.6.
 pub struct ConnectInterface {
     pairing_store: Arc<PairingStore>,
 }
 
 #[zbus::interface(name = "dev.mackes.MDE.Connect1")]
 impl ConnectInterface {
-    /// Stub method — the host's own version string. Used by
-    /// `gdbus introspect` smoke tests + ad-hoc operator probes
-    /// (`gdbus call --session --dest dev.mackes.MDE.Connect
-    /// --object-path /dev/mackes/MDE/Connect --method
-    /// dev.mackes.MDE.Connect1.Version`).
-    ///
-    /// Methods that mutate state (Pair/Unpair/RingDevice/
-    /// SendSms/SendFile) land in KDC2-3.4 onwards.
+    /// Host's own version string. Used by `gdbus introspect`
+    /// smoke tests + ad-hoc operator probes.
     async fn version(&self) -> String {
         env!("CARGO_PKG_VERSION").to_string()
+    }
+
+    /// KDC2-3.4 — return every paired device as a
+    /// `Vec<DeviceInfo>`. Operator probe:
+    ///
+    /// ```text
+    /// gdbus call --session --dest dev.mackes.MDE.Connect \
+    ///   --object-path /dev/mackes/MDE/Connect \
+    ///   --method dev.mackes.MDE.Connect1.ListDevices
+    /// ```
+    async fn list_devices(&self) -> Vec<DeviceInfo> {
+        list_devices_from(&self.pairing_store)
+    }
+
+    /// KDC2-3.4 — fetch a paired device by id. Errors with
+    /// `dev.mackes.MDE.Connect1.NoSuchDevice` when the id
+    /// isn't paired.
+    async fn get_device(&self, device_id: String) -> zbus::fdo::Result<DeviceInfo> {
+        get_device_from(&self.pairing_store, &device_id).ok_or_else(|| {
+            zbus::fdo::Error::Failed(format!("NoSuchDevice: {device_id}"))
+        })
     }
 }
 
@@ -186,5 +256,98 @@ mod tests {
         assert!(format!("{}", DbusError::Connect("x".into())).starts_with("connect: "));
         assert!(format!("{}", DbusError::ObjectRegister("y".into()))
             .starts_with("object_register: "));
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-3.4 — ListDevices + GetDevice pure helpers
+    //
+    // The actual D-Bus dispatch (via zbus's runtime) requires
+    // a live session bus + an async runtime context the unit
+    // test fixture doesn't set up. We test the conversion +
+    // lookup logic the methods delegate to.
+    // ─────────────────────────────────────────────────────────
+
+    use crate::pairing::PairedDevice;
+    use tempfile::tempdir;
+
+    fn make_store_with_devices(devices: Vec<PairedDevice>) -> PairingStore {
+        let tmp = tempdir().unwrap();
+        let mut store = PairingStore::open_or_init(tmp.path()).unwrap();
+        for d in devices {
+            store.upsert(d).unwrap();
+        }
+        // Leak the tempdir guard — the store's identity.pem
+        // lives on disk for the store's lifetime.
+        std::mem::forget(tmp);
+        store
+    }
+
+    fn sample_device(id: &str) -> PairedDevice {
+        PairedDevice {
+            id: id.into(),
+            name: format!("Device {id}"),
+            kind: "phone".into(),
+            fingerprint: "AB:CD:EF".into(),
+            public_key_b64: "AA==".into(),
+            capabilities: vec!["kdeconnect.clipboard".into()],
+            paired_at: 1_700_000_000,
+            last_seen_at: 1_700_000_500,
+        }
+    }
+
+    #[test]
+    fn device_info_drops_public_key_field() {
+        let d = sample_device("abc");
+        let info = DeviceInfo::from(&d);
+        // DeviceInfo deliberately does NOT expose the public
+        // key bytes over D-Bus (private to the pairing store).
+        // Serialize check: no `publicKey` substring.
+        let raw = serde_json::to_string(&info).unwrap();
+        assert!(
+            !raw.contains("public_key") && !raw.contains("publicKey"),
+            "DeviceInfo must not leak public_key_b64: {raw}",
+        );
+        // The other fields are present.
+        assert!(raw.contains("abc"));
+        assert!(raw.contains("phone"));
+        assert!(raw.contains("AB:CD:EF"));
+    }
+
+    #[test]
+    fn list_devices_returns_empty_when_no_pairings() {
+        let store = make_store_with_devices(vec![]);
+        let infos = list_devices_from(&store);
+        assert!(infos.is_empty());
+    }
+
+    #[test]
+    fn list_devices_returns_each_paired_device() {
+        let store = make_store_with_devices(vec![
+            sample_device("a"),
+            sample_device("b"),
+            sample_device("c"),
+        ]);
+        let mut infos = list_devices_from(&store);
+        // BTreeMap-backed iteration returns id-sorted.
+        infos.sort_by(|x, y| x.id.cmp(&y.id));
+        assert_eq!(infos.len(), 3);
+        assert_eq!(infos[0].id, "a");
+        assert_eq!(infos[1].id, "b");
+        assert_eq!(infos[2].id, "c");
+    }
+
+    #[test]
+    fn get_device_returns_some_for_known_id() {
+        let store = make_store_with_devices(vec![sample_device("abc-123")]);
+        let info = get_device_from(&store, "abc-123");
+        assert!(info.is_some());
+        assert_eq!(info.unwrap().id, "abc-123");
+    }
+
+    #[test]
+    fn get_device_returns_none_for_unknown_id() {
+        let store = make_store_with_devices(vec![sample_device("only-one")]);
+        let info = get_device_from(&store, "never-paired");
+        assert!(info.is_none());
     }
 }
