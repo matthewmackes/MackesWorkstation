@@ -24,6 +24,12 @@ mde-kdc-proto = { path = "../mde-kdc-proto" }
 # can dispatch through it transparently.
 mackes-transport = { path = "../mackes-transport" }
 
+# KDC2-3.2 — async-trait macro for the Transport impl. Pulling
+# just the macro crate; tokio dependency is deferred until
+# KDC2-2.8 lands the rustls-based TLS transport and we actually
+# need a runtime.
+async-trait = "0.1"
+
 # Pure-Rust RSA — used ONLY for keypair generation. ring 0.17.x
 # does not expose stable RSA keygen, so we pull the rsa crate
 # here, generate PKCS#8 bytes, and feed them back into ring via

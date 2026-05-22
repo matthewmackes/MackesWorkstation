@@ -3210,6 +3210,7 @@ dependencies = [
 name = "mde-kdc"
 version = "0.0.0"
 dependencies = [
+ "async-trait",
  "mackes-transport",
  "mde-kdc-proto",
  "pkcs8",
