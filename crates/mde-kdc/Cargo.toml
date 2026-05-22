@@ -54,6 +54,9 @@ rcgen = "0.13"
 # `ServerCertVerifier` impl that matches against a SHA-256
 # fingerprint the host's pairing store records at first-pair.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+# KDC2-3.2.a — async TLS wrapper over tokio sockets. Matches
+# rustls 0.23. Default features keep `ring` transitive.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
 sha2 = "0.10"
 
 # KDC2-3.3 — D-Bus host. zbus 5 with the tokio runtime so the

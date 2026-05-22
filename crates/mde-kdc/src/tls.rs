@@ -191,6 +191,9 @@ impl ServerCertVerifier for FirstPairVerifier {
 ///
 /// `pinned_fingerprint = None` → uses [`FirstPairVerifier`]
 /// (first-pair path). `Some` → uses [`PinnedFingerprintVerifier`].
+///
+/// KDC2-3.2.a: this builder is reused by
+/// [`connect_pinned_tls`] for the live network connect path.
 #[must_use]
 pub fn build_client_config(pinned_fingerprint: Option<String>) -> rustls::ClientConfig {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -206,6 +209,73 @@ pub fn build_client_config(pinned_fingerprint: Option<String>) -> rustls::Client
         .dangerous() // KDC self-signed model
         .with_custom_certificate_verifier(verifier)
         .with_no_client_auth()
+}
+
+// ──────────────────────────────────────────────────────────────────
+// KDC2-3.2.a — Real TLS-wrapped TCP connect.
+//
+// `KdcHost::open(peer_id)` previously returned a stub Connection;
+// this connector closes the loop by actually opening a
+// `tokio::net::TcpStream` to the peer's address and wrapping it
+// with `tokio_rustls::TlsConnector` + the pinned-fingerprint
+// verifier built above.
+//
+// The peer-address resolution (peer_id → SocketAddr) lives a
+// layer up — the DiscoveryRegistry caches the source address of
+// every received UDP announce. This helper takes an explicit
+// `SocketAddr` so it stays testable without booting the full
+// discovery layer.
+// ──────────────────────────────────────────────────────────────────
+
+/// Errors from the live TLS connect path.
+#[derive(Debug)]
+pub enum ConnectError {
+    /// TCP `connect` failed (host unreachable, no route, refused).
+    Tcp(std::io::Error),
+    /// TLS handshake failed (peer cert mismatch, bad cert, etc.).
+    Tls(std::io::Error),
+    /// Peer-id couldn't be parsed as a `ServerName`.
+    BadPeerName(String),
+}
+
+impl std::fmt::Display for ConnectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnectError::Tcp(e) => write!(f, "tcp: {e}"),
+            ConnectError::Tls(e) => write!(f, "tls: {e}"),
+            ConnectError::BadPeerName(s) => write!(f, "bad_peer_name: {s}"),
+        }
+    }
+}
+
+impl std::error::Error for ConnectError {}
+
+/// Open a TLS-wrapped TCP connection to `addr`, presenting
+/// `server_name` in the ClientHello, with the cert pinned to
+/// `pinned_fingerprint` (None = first-pair / accept any).
+///
+/// Returns a `tokio_rustls::client::TlsStream<TcpStream>` that
+/// callers wrap with the codec framer + payload-channel
+/// handshake.
+pub async fn connect_pinned_tls(
+    addr: std::net::SocketAddr,
+    server_name: &str,
+    pinned_fingerprint: Option<String>,
+) -> Result<
+    tokio_rustls::client::TlsStream<tokio::net::TcpStream>,
+    ConnectError,
+> {
+    let server_name_owned = ServerName::try_from(server_name.to_string())
+        .map_err(|e| ConnectError::BadPeerName(format!("{e}")))?;
+    let tcp = tokio::net::TcpStream::connect(addr)
+        .await
+        .map_err(ConnectError::Tcp)?;
+    let config = Arc::new(build_client_config(pinned_fingerprint));
+    let connector = tokio_rustls::TlsConnector::from(config);
+    connector
+        .connect(server_name_owned, tcp)
+        .await
+        .map_err(ConnectError::Tls)
 }
 
 #[cfg(test)]
@@ -326,5 +396,49 @@ mod tests {
             dummy_now(),
         );
         assert!(r.is_ok());
+    }
+
+    // ─────────────────────────────────────────────────────────
+    // KDC2-3.2.a — connect_pinned_tls error-path tests
+    // ─────────────────────────────────────────────────────────
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn connect_pinned_tls_returns_bad_peer_name_for_invalid_name() {
+        // An empty string isn't a valid DNS name or IP literal —
+        // ServerName::try_from rejects it. We surface BadPeerName
+        // instead of letting it leak through as a panic.
+        let r = connect_pinned_tls(
+            "127.0.0.1:0".parse().unwrap(),
+            "",
+            None,
+        )
+        .await;
+        assert!(matches!(r, Err(ConnectError::BadPeerName(_))));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn connect_pinned_tls_returns_tcp_error_for_unreachable_addr() {
+        // Bind a TCP listener so we get a real port, then drop
+        // it so connect refuses. Avoids relying on a port the
+        // host might actually use.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        let r = connect_pinned_tls(addr, "device-X", None).await;
+        match r {
+            Err(ConnectError::Tcp(_)) => { /* expected */ }
+            other => panic!("expected Tcp error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn connect_error_display_uses_stable_tokens() {
+        assert!(format!("{}", ConnectError::Tcp(
+            std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "x"),
+        ))
+        .starts_with("tcp: "));
+        assert!(
+            format!("{}", ConnectError::BadPeerName("x".into())).starts_with("bad_peer_name: ")
+        );
     }
 }

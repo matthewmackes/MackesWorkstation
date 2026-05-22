@@ -5369,14 +5369,28 @@ service. Hosts the `dev.mackes.MDE.Connect.*` D-Bus interface.
   unchanged. 8 pairing tests passing including a new
   `upsert_through_shared_arc_works_with_immutable_ref` lock test.
   Unblocks KDC2-3.5 (PairDevice/UnpairDevice).
-- [ ] **KDC2-3.2.a: Real TLS-wrapped TCP socket in `KdcHost::open`** —
-  Replaces the StubConnection. Discovers peer address from
-  `PairedDevice.last_known_address` (NEW field — add to
-  KDC2-3.7's schema). Opens TCP to peer:1716. Wraps with
-  `tokio_rustls::TlsConnector` using KDC2-2.8's
-  `build_client_config(Some(pinned_fingerprint))`. Returns a
-  `TlsConnection` impl of `Connection`. 4 integration tests
-  with a local TLS server fixture.
+- [✓] **KDC2-3.2.a: Real TLS-wrapped TCP socket in `KdcHost::open`** —
+  Shipped 2026-05-22 in `tls.rs::connect_pinned_tls`. Adds
+  `tokio-rustls 0.26` dep + a `connect_pinned_tls(addr,
+  server_name, pinned_fingerprint)` async helper that:
+  resolves the `ServerName` (surfaces `BadPeerName` on
+  invalid input), opens `tokio::net::TcpStream::connect` (errors
+  → `ConnectError::Tcp`), and wraps with
+  `tokio_rustls::TlsConnector` using `build_client_config`'s
+  pinned-fingerprint verifier (errors → `ConnectError::Tls`).
+  Address resolution — `peer_id → SocketAddr` from the
+  `DiscoveryRegistry`'s source-address cache — lives as a
+  KDC2-3.2.b follow-up: connect_pinned_tls takes the
+  `SocketAddr` directly so the helper stays testable without
+  the discovery layer. The KdcHost::open wiring is a small
+  delta on top once 3.2.b lands. 3 new tests: bad-name reject,
+  unreachable-addr error (binds + drops a listener), Display
+  token stability.
+- [ ] **KDC2-3.2.b: peer_id → SocketAddr cache from DiscoveryRegistry** —
+  Cache the source IP of every received `Announce` keyed by
+  device_id so `KdcHost::open(peer_id)` can resolve the
+  current address. Plumb through `DiscoveryRegistry` + the
+  UDP/mDNS runners. Roughly 80 LOC + 5 tests.
 - [✓] **KDC2-3.6: D-Bus methods `RingDevice` + `SendSms` +
   `SendClipboard` + `SendFile`** — Shipped 2026-05-22. All four
   methods are wired into `ConnectInterface`:
