@@ -13,9 +13,15 @@
 //! `clipboard` first (smallest body shape); KDC2-2.6..2.9 land
 //! the remaining seven.
 
+pub mod battery;
 pub mod clipboard;
+pub mod notification;
+pub mod ping;
 
+pub use battery::{battery_packet, BatteryBody};
 pub use clipboard::{clipboard_packet, from_packet_body, ClipboardBody};
+pub use notification::{notification_packet, NotificationBody};
+pub use ping::{ping_packet, PingBody};
 
 use std::fmt;
 
