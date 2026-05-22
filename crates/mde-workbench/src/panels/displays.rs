@@ -13,11 +13,13 @@
 
 use std::sync::Arc;
 
-use iced::widget::{button, checkbox, column, pick_list, row, slider, text, text_input};
+use iced::widget::{checkbox, column, pick_list, row, slider, text, text_input};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
 use tokio::process::Command;
 
 use crate::backend::Backend;
+use crate::controls::{variant_button, ButtonVariant};
 use crate::panels::json_helpers::{
     encode_bool, parse_bool, parse_u32, quote_json, strip_json_quotes,
 };
@@ -210,13 +212,13 @@ impl DisplaysPanel {
         }
 
         let save_label = if self.busy { "Saving…" } else { "Save" };
-        let save_btn = {
-            let mut b = button(text(save_label));
-            if !self.busy {
-                b = b.on_press(crate::Message::Displays(Message::SaveClicked));
-            }
-            b
-        };
+        // UX-7.a — save routed through the shared button variant.
+        let save_btn = variant_button(
+            save_label,
+            ButtonVariant::Primary,
+            (!self.busy).then(|| crate::Message::Displays(Message::SaveClicked)),
+            Palette::dark(),
+        );
 
         // pick_list needs an owned-string list. `outputs` is
         // Vec<String> so we clone here; the count is tiny

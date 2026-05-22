@@ -6,8 +6,11 @@
 
 use std::sync::Arc;
 
-use iced::widget::{button, column, pick_list, row, text, text_input};
+use iced::widget::{column, pick_list, row, text, text_input};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 use crate::backend::Backend;
 use crate::panels::json_helpers::{quote_json, strip_json_quotes};
@@ -156,13 +159,13 @@ impl FontsPanel {
 
     pub fn view(&self) -> Element<'_, crate::Message> {
         let save_label = if self.busy { "Saving…" } else { "Save" };
-        let save_btn = {
-            let mut b = button(text(save_label));
-            if !self.busy {
-                b = b.on_press(crate::Message::Fonts(Message::SaveClicked));
-            }
-            b
-        };
+        // UX-7.a — save routed through the shared button variant.
+        let save_btn = variant_button(
+            save_label,
+            ButtonVariant::Primary,
+            (!self.busy).then(|| crate::Message::Fonts(Message::SaveClicked)),
+            Palette::dark(),
+        );
         let hinting_pick: pick_list::PickList<'_, &'static str, _, _, crate::Message> =
             pick_list(HINTING, current_value(HINTING, &self.hinting), |v| {
                 crate::Message::Fonts(Message::HintingChanged(v.to_string()))

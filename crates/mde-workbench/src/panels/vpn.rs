@@ -9,9 +9,12 @@
 //! CB-1.8 follow-up. Users can still `nmcli connection
 //! import type wireguard file <path>` directly.
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
 use tokio::process::Command;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct VpnRow {
@@ -138,13 +141,13 @@ impl VpnPanel {
             .into();
         }
 
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::Vpn(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::Vpn(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         if self.vpns.is_empty() {
             return column![
@@ -167,16 +170,18 @@ impl VpnPanel {
             let name = v.name.clone();
             let next_activate = !v.active;
             let btn_label = if v.active { "Disconnect" } else { "Connect" };
-            let btn = {
-                let mut b = button(text(btn_label));
-                if !self.busy {
-                    b = b.on_press(crate::Message::Vpn(Message::ToggleClicked {
-                        name,
-                        activate: next_activate,
-                    }));
-                }
-                b
-            };
+            // UX-7.a — per-row toggle routed through the shared
+            // button variant. Secondary fits beside the row's
+            // status text without dominating.
+            let btn = variant_button(
+                btn_label,
+                ButtonVariant::Secondary,
+                (!self.busy).then(|| crate::Message::Vpn(Message::ToggleClicked {
+                    name,
+                    activate: next_activate,
+                })),
+                Palette::dark(),
+            );
             let state = if v.active { "active" } else { "inactive" };
             col.push(
                 row![

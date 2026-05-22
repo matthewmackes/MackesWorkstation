@@ -12,9 +12,12 @@
 //! re-joining a known SSID (where NM already has the
 //! credentials) work end-to-end through `nmcli connection up`.
 
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
 use tokio::process::Command;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ConnectionRow {
@@ -158,13 +161,13 @@ impl WifiPanel {
             .into();
         }
 
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::Wifi(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::Wifi(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         let conn_view = self.connections.iter().fold(column![], |col, c| {
             col.push(
@@ -181,13 +184,14 @@ impl WifiPanel {
         let scan_view = self.networks.iter().fold(column![], |col, n| {
             let ssid = n.ssid.clone();
             let in_use_mark = if n.in_use { "✓" } else { "" };
-            let connect_btn = {
-                let mut b = button(text("Connect"));
-                if !self.busy && !n.in_use {
-                    b = b.on_press(crate::Message::Wifi(Message::ConnectClicked(ssid)));
-                }
-                b
-            };
+            // UX-7.a — per-row Connect routed through Secondary.
+            let connect_btn = variant_button(
+                "Connect",
+                ButtonVariant::Secondary,
+                (!self.busy && !n.in_use)
+                    .then(|| crate::Message::Wifi(Message::ConnectClicked(ssid))),
+                Palette::dark(),
+            );
             col.push(
                 row![
                     text(in_use_mark).width(Length::Fixed(20.0)),
