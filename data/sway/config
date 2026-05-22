@@ -118,8 +118,10 @@ bindsym $mod+Shift+r reload
 # ---------------------------------------------------------------------------
 # Window rules — float MDE panel surfaces + dialogs
 # ---------------------------------------------------------------------------
-for_window [app_id="^mde-panel$"]   floating enable, border none
-for_window [title="^mde-panel$"]    floating enable, border none
+for_window [app_id="^shell\.mackes\.Panel$"] floating enable, border none
+# Title-match fallback for the v2.0.x pre-app_id binaries — harmless once
+# the app_id rule above starts matching (v2.0.3+).
+for_window [title="^mde-panel$"]             floating enable, border none
 for_window [app_id="^mde-shell$"]   floating enable
 for_window [app_id="^mde-session$"] floating enable
 for_window [window_role="pop-up"]      floating enable

@@ -42,6 +42,20 @@ PAIRS: list[tuple[Path, Path]] = [
 ]
 
 
+# Obsolete user-level systemd units that v1.x left behind in
+# `~/.config/systemd/user/`. v2.0.0 replaced these with the
+# `mackesd`/`mde-session` daemons, so the legacy unit files
+# crash-loop every 3 s on first v2 boot (the binary they reference
+# was removed from $PATH). Disable + delete each on first run.
+#
+# Added 2026-05-22 (v2.0.3 hotfix) after operator-verification on
+# the bench machine surfaced `qnm-daemon.service` restarting 290+
+# times within minutes of login.
+OBSOLETE_USER_UNITS: list[str] = [
+    "qnm-daemon.service",
+]
+
+
 def _log(level: str, msg: str) -> None:
     """Log via systemd-cat with the `mde-migrate` tag when possible;
     fall back to stderr when systemd-cat isn't installed."""
@@ -95,18 +109,90 @@ def migrate_pair(legacy: Path, target: Path) -> str:
         return "failed"
 
 
-def main(pairs: list[tuple[Path, Path]] | None = None) -> int:
-    """Walk every (legacy, target) pair. Returns 0 unless any pair
-    explicitly fails (collision is not a failure — the user keeps
-    their data; a banner can prompt them to resolve later)."""
+def disable_obsolete_unit(name: str, *,
+                          user_units_dir: Path | None = None) -> str:
+    """Disable + remove an obsolete v1.x systemd user unit.
+
+    Returns one of: 'removed' (unit existed and was deleted),
+    'noop' (unit not present — nothing to do), or 'failed' (an
+    error occurred mid-operation; the unit may be in a partial
+    state, but the caller is informed).
+
+    Strategy:
+      1. ``systemctl --user disable --now <name>`` — stops a
+         running instance and removes any ``.wants`` symlinks. If
+         systemctl is missing or fails, log and continue (the
+         unit might still be removable by deleting the file).
+      2. Delete the unit file at
+         ``~/.config/systemd/user/<name>`` if it exists.
+      3. ``systemctl --user daemon-reload`` so systemd forgets the
+         unit immediately (defensive — without this the next
+         ``systemctl status <name>`` still reports the unit as
+         loaded-but-not-found).
+    """
+    units_dir = user_units_dir or (
+        Path.home() / ".config" / "systemd" / "user"
+    )
+    unit_file = units_dir / name
+    if not unit_file.exists():
+        return "noop"
+
+    # disable --now is best-effort: if it fails (e.g. systemctl
+    # absent in a container, or the unit was never enabled) we
+    # still try to delete the file below.
+    if shutil.which("systemctl") is not None:
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "disable", "--now", name],
+                check=False, timeout=10,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            _log("warning",
+                 f"systemctl disable {name} failed (continuing): {exc}")
+
+    try:
+        unit_file.unlink()
+    except OSError as exc:
+        _log("err", f"failed to remove obsolete unit {unit_file}: {exc}")
+        return "failed"
+
+    if shutil.which("systemctl") is not None:
+        try:
+            subprocess.run(
+                ["systemctl", "--user", "daemon-reload"],
+                check=False, timeout=10,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    _log("info", f"removed obsolete v1.x user unit: {name}")
+    return "removed"
+
+
+def main(pairs: list[tuple[Path, Path]] | None = None,
+         obsolete_units: list[str] | None = None) -> int:
+    """Walk every (legacy, target) pair and disable each obsolete
+    v1.x user unit. Returns 0 unless something explicitly fails
+    (collision is not a failure — the user keeps their data; a
+    banner can prompt them to resolve later)."""
     results = []
     for legacy, target in (pairs or PAIRS):
         results.append(migrate_pair(legacy, target))
-    failures = sum(1 for r in results if r == "failed")
+    unit_results = []
+    for unit in (obsolete_units if obsolete_units is not None
+                 else OBSOLETE_USER_UNITS):
+        unit_results.append(disable_obsolete_unit(unit))
+    failures = (sum(1 for r in results if r == "failed")
+                + sum(1 for r in unit_results if r == "failed"))
     moved = sum(1 for r in results if r == "moved")
+    removed = sum(1 for r in unit_results if r == "removed")
     _log("info", (
         f"mde-migrate-from-1x: moved={moved} failed={failures} "
-        f"total_pairs={len(results)}"
+        f"total_pairs={len(results)} "
+        f"obsolete_units_removed={removed} "
+        f"obsolete_units_total={len(unit_results)}"
     ))
     return 1 if failures else 0
 

@@ -24,7 +24,16 @@
 
 #![forbid(unsafe_code)]
 
-use iced::{Element, Size, Task, Theme};
+use iced::{window, Element, Size, Task, Theme};
+
+/// xdg-shell `app_id` advertised to the Wayland compositor. Sway's
+/// `for_window [app_id="shell.mackes.Panel"]` rule in
+/// `data/sway/config` matches against this string. The reverse-DNS
+/// form (vs. the bare `mde-panel`) follows the freedesktop
+/// recommendation that the `app_id` match the basename of the
+/// `.desktop` file — `shell.mackes.Panel.desktop` ships at
+/// `/usr/share/applications/`.
+pub const APP_ID: &str = "shell.mackes.Panel";
 
 pub mod admin_menu;
 pub mod clipboard;
@@ -149,11 +158,22 @@ impl App {
     /// Launch the panel via the Iced runtime.
     ///
     /// Phase E.2 wraps this with a layer-shell anchor (bottom edge,
-    /// 40 px height, exclusive zone).
+    /// 40 px height, exclusive zone). Until then, the panel renders
+    /// as a regular xdg_shell window whose `app_id` is set via
+    /// `window::settings::PlatformSpecific::application_id` — sway's
+    /// `for_window [app_id="shell.mackes.Panel"]` rule picks that up
+    /// and floats the window with no border.
     pub fn run() -> iced::Result {
         iced::application(Self::title, Self::update, Self::view)
             .theme(Self::theme)
-            .window_size(Size::new(1920.0, 40.0))
+            .window(window::Settings {
+                size: Size::new(1920.0, 40.0),
+                platform_specific: window::settings::PlatformSpecific {
+                    application_id: APP_ID.to_string(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
             .run()
     }
 
@@ -208,6 +228,15 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn app_id_matches_sway_config_lock() {
+        // sway's `for_window [app_id="shell.mackes.Panel"]` rule in
+        // data/sway/config matches against APP_ID. If this string ever
+        // changes, the sway config rule (and the .desktop file basename)
+        // must be updated in lockstep — this test catches the drift.
+        assert_eq!(APP_ID, "shell.mackes.Panel");
     }
 
     #[test]

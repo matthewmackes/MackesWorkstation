@@ -130,3 +130,55 @@ def test_on_same_filesystem_handles_missing_parent_gracefully():
         # Missing parents -> returns False (no crash).
         assert mod._on_same_filesystem(a, b) is False
     _with_tmpdir(body)
+
+
+# ----------------------------------------------------------------------
+# v2.0.3 hotfix — obsolete v1.x systemd user unit cleanup
+# (operator-verification 2026-05-22 surfaced `qnm-daemon.service` in a
+# crash-loop on first v2 boot)
+# ----------------------------------------------------------------------
+
+def test_disable_obsolete_unit_noop_when_file_absent():
+    def body(tmp):
+        mod = _load_module()
+        units = tmp / "systemd-user"
+        units.mkdir()
+        # No file present -> noop, no errors.
+        assert mod.disable_obsolete_unit(
+            "qnm-daemon.service", user_units_dir=units,
+        ) == "noop"
+    _with_tmpdir(body)
+
+
+def test_disable_obsolete_unit_removes_file_when_present():
+    def body(tmp):
+        mod = _load_module()
+        units = tmp / "systemd-user"
+        units.mkdir()
+        unit = units / "qnm-daemon.service"
+        unit.write_text("[Unit]\nDescription=stale\n")
+        result = mod.disable_obsolete_unit(
+            "qnm-daemon.service", user_units_dir=units,
+        )
+        # systemctl may or may not be present in the test env, but
+        # whichever way the disable call goes, the file must be
+        # removed.
+        assert result == "removed"
+        assert not unit.exists()
+    _with_tmpdir(body)
+
+
+def test_main_runs_obsolete_unit_step_and_returns_zero():
+    def body(tmp):
+        mod = _load_module()
+        # No pairs, no obsolete units -> still exits 0 with bookkeeping.
+        assert mod.main(pairs=[], obsolete_units=[]) == 0
+    _with_tmpdir(body)
+
+
+def test_obsolete_unit_constant_includes_qnm_daemon():
+    """Lock the v1.x → v2 unit cleanup list. If qnm-daemon.service is
+    removed from OBSOLETE_USER_UNITS, an operator upgrading from v1.x
+    will inherit a crash-looping unit referencing a missing binary."""
+    mod = _load_module()
+    assert "qnm-daemon.service" in mod.OBSOLETE_USER_UNITS
