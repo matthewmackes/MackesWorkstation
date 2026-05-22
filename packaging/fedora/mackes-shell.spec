@@ -5,7 +5,7 @@
 %global debug_package %{nil}
 
 Name:           mde
-Version:        2.0.3
+Version:        3.0.0
 Release:        1%{?dist}
 Summary:        Mackes Desktop Environment (MDE) — Wayland-only Fedora DE
 

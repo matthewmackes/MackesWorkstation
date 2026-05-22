@@ -3,6 +3,129 @@
 All notable user-facing and architectural changes. The current line is
 unreleased; tag versions get a date when they ship.
 
+## 3.0.0 — KDC2 native re-implementation + v3 cut (2026-05-22)
+
+The headline change: MDE replaces its v13 wrapper of upstream
+`kdeconnectd` with a built-in native KDE Connect host (the
+"KDC2" re-implementation). The Workbench grows a Connect peer
+card; phone notifications flow through mako via the
+`dev.mackes.MDE.Connect` D-Bus surface and the Iced
+notifications applet badges them with the phone glyph.
+
+### Breaking changes
+
+* **Phones must be re-paired exactly once.** The pair-store
+  format moved from `~/.config/kdeconnect/` to
+  `~/.config/mde/connect/` and the handshake keypair is
+  generated fresh on first launch. The wizard surfaces a
+  one-time card on the v2.0.x → v3.0.0 upgrade explaining
+  this; re-pair each phone from **Workbench → Connect** after
+  finishing setup.
+* **`kdeconnectd` is no longer required.** The native
+  re-implementation runs in-process inside `mackesd` and
+  binds UDP/1716 + the D-Bus name (`dev.mackes.MDE.Connect`).
+  The upstream `kdeconnectd`, `kdeconnect-cli`, and
+  `kdeconnect-indicator` packages are **Obsoletes:**d on
+  upgrade and **Conflicts:** on co-install. Operators that
+  relied on `kdeconnect-cli` should script against the
+  `dev.mackes.MDE.Connect1` D-Bus interface instead
+  (`RingDevice` / `SendSms` / `SendClipboard` / `SendFile` /
+  `PairDevice` / `UnpairDevice`).
+* **`org.mackes.*` D-Bus aliases removed.** The v2.0.0
+  one-release back-compat window for the legacy bus names
+  closed. Only `dev.mackes.MDE.*` ships from v3.0 onward.
+* **Qt-free dep closure.** With the wrapper gone, MDE pulls
+  zero `libQt*` / `libKF*` / `PyQt*` / `PySide*` deps. A
+  spec `%check` guard fails the build if any sneak in.
+
+### KDC2 platform
+
+* **Pure protocol crate `mde-kdc-proto`** — wire (Packet,
+  codec, framing), discovery (Announce + UDP/1716 encoder +
+  mDNS TXT encoder + DiscoveryRegistry with source-address
+  cache), crypto (KeyStore trait + RingKeyStore with
+  RSA-2048 PKCS#1v15/SHA-256 + AES-256-GCM session AEAD),
+  plugins (ten typed packet bodies: Battery / Clipboard /
+  Notification / Share / SMS / Ping / FindMyPhone / MPRIS /
+  Telephony / RunCommand). 120+ unit tests including
+  libFuzzer corpus seed on the codec.
+* **Host crate `mde-kdc`** — first-launch identity
+  generation (PKCS#8 RSA-2048), file-backed pairing store
+  with interior mutability, live TLS connect via
+  `tokio_rustls` + cert-fingerprint pinning, D-Bus host on
+  the user session bus with `ListDevices` / `GetDevice` /
+  `PairDevice` / `UnpairDevice` / `RingDevice` / `SendSms`
+  / `SendClipboard` / `SendFile` methods + `DeviceAdded` /
+  `DeviceRemoved` / `DeviceUpdated` signals + dispatch-time
+  policy enforcement (per-device gating via
+  `[plugins.<name>] allow_devices`), and host-side
+  `UdpBroadcastRunner` + `MdnsRunner` discovery I/O.
+* **Transport trait crate `mackes-transport`** —
+  `Transport` trait + `MessageClass` + capability model,
+  `PeerPath` per-peer router state, scorer
+  (`select_best_transport` with flap-penalty cooldown),
+  conformance harness.
+* **Mesh router worker** in `mackesd` — ticks every 10 s,
+  records decision time into the
+  `kdc2_router_decision_us` Prometheus histogram
+  (100µs..50ms bucket schedule); SLO check asserts
+  p50 < 5 ms / p99 < 25 ms. Mesh-shunt fan-out reads
+  every neighbor's `phones.json` from QNM-Shared and
+  injects synthetic announces so a phone paired with one
+  peer becomes reachable from every peer. `PathSwitch`
+  audit events distinguish direct-LAN ↔ mesh-shunt ↔
+  flap-penalty transitions.
+* **Metrics-flush worker** writes
+  `/var/lib/node_exporter/textfile_collector/mackesd.prom`
+  every 10 s; the `kdc2_router_decision_us` snapshot
+  reflects live router observations.
+
+### Packaging
+
+* `Obsoletes: kdeconnect kdeconnectd kdeconnect-cli
+  kdeconnect-indicator`,
+  `Conflicts: kdeconnect kdeconnect-cli gsconnect`.
+* Legacy `crates/mackes-kdc/` (296 LOC) + `kdc_bridge`
+  worker (154 LOC) + `data/dbus-1/services/org.mackes.*`
+  aliases deleted.
+* Spec `%check` stanza scans every Rust binary with `ldd`
+  + the Python tree with grep for `PyQt[0-9]+` /
+  `PySide[0-9]+` — fails the build on any hit.
+
+### Other
+
+* **mde-output-autoscale grows EDID-aware diagonal split.**
+  4K outputs with a known physical size now pick 1.5
+  (desk-distance monitor) or 2.0 (sofa-distance TV) by
+  diagonal — a 27" 4K Acer XB272 and a 40" 4K Vizio V405
+  on the same machine pick different scales without
+  operator override.
+* **mackesd `peer-card --peer <id>`** CLI subcommand wires
+  the existing `peer_join::handle_peer_joined` helper for
+  operator-driven peer-card spawns.
+* **Wizard re-pair card** activates on v2.0.x → v3.0.0
+  first boot when `~/.config/kdeconnect/` exists and
+  `~/.config/mde/connect/identity.pem` doesn't.
+* **`%check` Qt-free dep-closure guard** (KDC2-6.4).
+
+### Worklist closeout
+
+64 KDC2 sub-tasks shipped between 2026-05-19 and
+2026-05-22. The remaining open items in
+`docs/PROJECT_WORKLIST.md` are:
+
+* 10 KDC2 hardware/operator-verification gates (KDC2-4.4
+  Tailscale Transport blocked on infra, KDC2-4.6 Docker
+  3-peer integration test, KDC2-7.1-7.7 acceptance gates).
+* 4 HW-* Hardware Testing epic items (fresh-install
+  bench, upgrade bench, Wayland smoke, Docker peer
+  fan-out).
+* The 26 v2.2 / v2.1+ scope items (CB-1.x retirements,
+  UX-13-23, BR-*, UX-*.a, 0.7, C.11, 12.18) are tracked
+  as post-v3.0 follow-ups with explicit "needs X before
+  it can ship" notes; the v3.0 cut intentionally does not
+  block on them.
+
 ## 2.0.3 — Operator-verification hotfix bundle (2026-05-22)
 
 Hotfix release driven by a fresh v2.0.2 bench install on a
