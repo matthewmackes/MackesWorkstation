@@ -9,8 +9,11 @@
 
 use std::sync::Arc;
 
-use iced::widget::{button, checkbox, column, row, text};
+use iced::widget::{checkbox, column, row, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 use crate::backend::Backend;
 use crate::panels::json_helpers::{encode_bool, parse_bool};
@@ -135,13 +138,13 @@ impl SessionPanel {
 
     pub fn view(&self) -> Element<'_, crate::Message> {
         let save_label = if self.busy { "Saving…" } else { "Save" };
-        let save_btn = {
-            let mut b = button(text(save_label));
-            if !self.busy {
-                b = b.on_press(crate::Message::Session(Message::SaveClicked));
-            }
-            b
-        };
+        // UX-7.a — save routed through the shared button variant.
+        let save_btn = variant_button(
+            save_label,
+            ButtonVariant::Primary,
+            (!self.busy).then(|| crate::Message::Session(Message::SaveClicked)),
+            Palette::dark(),
+        );
 
         column![
             checkbox("Save session on exit", self.save_on_exit)

@@ -7,8 +7,11 @@
 //! `--list-…`; writes via `pkexec firewall-cmd …` for the
 //! state-change paths (permanent + reload).
 
-use iced::widget::{button, checkbox, column, container, pick_list, row, scrollable, text};
+use iced::widget::{checkbox, column, container, pick_list, row, scrollable, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 use tokio::process::Command;
 
 /// Curated list of common firewalld services the panel exposes
@@ -175,13 +178,13 @@ impl FirewallPanel {
             .into();
         }
 
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::Firewall(Message::RefreshClicked));
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::Firewall(Message::RefreshClicked)),
+            Palette::dark(),
+        );
 
         let zone_pick: pick_list::PickList<'_, String, _, _, crate::Message> = pick_list(
             self.zones.clone(),

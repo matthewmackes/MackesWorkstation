@@ -351,6 +351,30 @@ pub struct ResolvedIcon {
 }
 
 impl ResolvedIcon {
+    /// UX-8.a — return the Carbon SVG bytes for this icon when
+    /// they're bundled (`assets/icons/carbon/<carbon_name>.svg`
+    /// included via `include_bytes!`). Returns `None` today
+    /// because the SVG asset bundle isn't shipped yet; consumers
+    /// fall back to [`fallback_glyph`] in the meantime.
+    ///
+    /// When the asset bundle ships, this function becomes a
+    /// `match self.carbon_name { "network--public" =>
+    /// Some(include_bytes!("…")), … }` table. Consumers don't
+    /// need to change — `svg_bytes().or(fallback_glyph())`
+    /// is the durable contract.
+    ///
+    /// [`fallback_glyph`]: Self::fallback_glyph
+    #[must_use]
+    pub fn svg_bytes(&self) -> Option<&'static [u8]> {
+        // Asset bundle ships in UX-8.b. Returning `None` so the
+        // existing fallback_glyph render path stays in use.
+        let _ = self.carbon_name;
+        None
+    }
+
+}
+
+impl ResolvedIcon {
     /// Pixel size — convenience pass-through.
     #[must_use]
     pub const fn size_px(self) -> f32 {
@@ -449,6 +473,15 @@ mod tests {
         assert!(!Icon::Refresh.is_filled());
         assert!(!Icon::Fleet.is_filled());
         assert!(!Icon::WindowMinimize.is_filled());
+    }
+
+    #[test]
+    fn svg_bytes_returns_none_until_bundle_ships() {
+        // UX-8.a — the API surface is in place but the asset
+        // bundle is UX-8.b. Until it ships, every icon returns
+        // None and consumers fall back to fallback_glyph.
+        let r = mde_icon(Icon::Fleet, IconSize::Nav);
+        assert!(r.svg_bytes().is_none());
     }
 
     #[test]

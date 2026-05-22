@@ -15,8 +15,11 @@
 //!   * default picker writes the default queue
 //!     (lpoptions -d <queue>)
 
-use iced::widget::{button, column, pick_list, row, text};
+use iced::widget::{column, pick_list, row, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Default)]
@@ -155,13 +158,13 @@ impl PrintersPanel {
             .into();
         }
 
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::PrintersRefresh);
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button variant.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::PrintersRefresh),
+            Palette::dark(),
+        );
 
         let queues = self.queues.clone();
         let default_pick: pick_list::PickList<'_, String, _, _, crate::Message> = pick_list(

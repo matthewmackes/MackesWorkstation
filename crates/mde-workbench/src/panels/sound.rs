@@ -15,8 +15,11 @@
 //! active sink + changes propagate to PipeWire immediately",
 //! which the pickers alone satisfy.
 
-use iced::widget::{button, checkbox, column, pick_list, row, slider, text};
+use iced::widget::{checkbox, column, pick_list, row, slider, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 use tokio::process::Command;
 
 /// pactl's `list short sinks` / `list short sources` output is
@@ -229,13 +232,15 @@ impl SoundPanel {
             .into();
         }
 
-        let refresh_btn = {
-            let mut b = button(text("Refresh"));
-            if !self.busy {
-                b = b.on_press(crate::Message::SoundRefresh);
-            }
-            b
-        };
+        // UX-7.a — refresh routed through the shared button
+        // variant so busy/disabled state is consistent across
+        // panels.
+        let refresh_btn = variant_button(
+            "Refresh",
+            ButtonVariant::Ghost,
+            (!self.busy).then(|| crate::Message::SoundRefresh),
+            Palette::dark(),
+        );
 
         let sinks = self.sinks.clone();
         let sources = self.sources.clone();

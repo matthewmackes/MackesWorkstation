@@ -10,8 +10,11 @@
 
 use std::sync::Arc;
 
-use iced::widget::{button, checkbox, column, row, text};
+use iced::widget::{checkbox, column, row, text};
 use iced::{Element, Length, Task};
+use mde_theme::Palette;
+
+use crate::controls::{variant_button, ButtonVariant};
 
 use crate::backend::Backend;
 use crate::panels::json_helpers::{encode_bool, parse_bool};
@@ -134,13 +137,14 @@ impl RemovablePanel {
 
     pub fn view(&self) -> Element<'_, crate::Message> {
         let save_label = if self.busy { "Saving…" } else { "Save" };
-        let save_btn = {
-            let mut b = button(text(save_label));
-            if !self.busy {
-                b = b.on_press(crate::Message::Removable(Message::SaveClicked));
-            }
-            b
-        };
+        // UX-7.a — save routed through the shared button variant.
+        // Primary because save is the panel's dominant CTA.
+        let save_btn = variant_button(
+            save_label,
+            ButtonVariant::Primary,
+            (!self.busy).then(|| crate::Message::Removable(Message::SaveClicked)),
+            Palette::dark(),
+        );
 
         column![
             checkbox("Auto-mount on insert", self.on_insert)
