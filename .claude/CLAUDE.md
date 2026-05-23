@@ -124,6 +124,13 @@ Before every commit, when applicable:
 4. **RPM build:** `make rpm` (if `packaging/`, `setup.py`,
    `pyproject.toml`, `data/`, or `mackes/birthright.py` touched).
 5. **CSS lint:** `install-helpers/lint-css.sh` (if `data/css/` touched).
+6. **Voice-and-tone lint** (v4.0.1, added 2026-05-23):
+   `install-helpers/lint-voice.sh` (if any user-visible string
+   touched — typically `crates/mde-*/src/`, `mackes/workbench/`,
+   `mackes/wizard/`, `data/applications/*.desktop`). Enforces the
+   verb-discipline table + forbidden-strings list locked in
+   `docs/design/voice-and-tone.md`. Mirrors the same script the
+   CI runs.
 
 If a pre-commit hook fails, the commit did **not** happen — fix the
 issue, re-stage, and create a **new** commit. Never `--amend` in that

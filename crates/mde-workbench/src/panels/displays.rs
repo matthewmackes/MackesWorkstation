@@ -165,7 +165,7 @@ impl DisplaysPanel {
                     }
                 };
                 self.busy = true;
-                self.status = "Saving…".into();
+                self.status = "Applying…".into();
                 let primary = self.primary.clone();
                 let scale = self.scale;
                 let night_light = self.night_light;
@@ -210,10 +210,10 @@ impl DisplaysPanel {
             .into();
         }
 
-        let save_label = if self.busy { "Saving…" } else { "Save" };
+        let apply_label = if self.busy { "Applying…" } else { "Apply" };
         // UX-7.a — save routed through the shared button variant.
-        let save_btn = variant_button(
-            save_label,
+        let apply_btn = variant_button(
+            apply_label,
             ButtonVariant::Primary,
             (!self.busy).then(|| crate::Message::Displays(Message::SaveClicked)),
             Palette::dark(),
@@ -251,7 +251,7 @@ impl DisplaysPanel {
                     .on_input(|v| crate::Message::Displays(Message::TempInputChanged(v))),
             ]
             .spacing(12),
-            row![save_btn, text(&self.status).size(13)].spacing(12),
+            row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(12)
         .width(Length::Fill)
@@ -507,9 +507,9 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = DisplaysPanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(Message::SaveClicked, backend);
-        assert_eq!(panel.status, "Saving…");
+        assert_eq!(panel.status, "Applying…");
     }
 
     #[tokio::test]

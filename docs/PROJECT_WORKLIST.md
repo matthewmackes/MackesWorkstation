@@ -898,17 +898,19 @@ through them in priority order.
   release workflow as a hard gate before tag push. Acceptance:
   attempting `cut release` with coverage <60% on any of the 4
   modules fails the workflow.
-- [ ] **v4.0.1: mackes-wm Wayland guard (wayland-readiness.md
-  §32)** — `mackes-wm i3|xfwm4` is an X11-only binary; under
-  Wayland sessions it errors loudly or no-ops. Either
-  conditionally autostart it from
-  `~/.config/autostart/mackes-wm.desktop` with
-  `OnlyShowIn=XFCE;` + `NotShowIn=sway;` OR add a
-  `XDG_SESSION_TYPE=x11` guard at the top of the binary that
-  exits 0 on Wayland. The autostart-condition approach is
-  cleaner. Acceptance: sway session never shows mackes-wm
-  errors in the journal; XFCE/X11 session still runs the
-  binary.
+- [✓] **v4.0.1: mackes-wm Wayland guard (wayland-readiness.md
+  §32) — already shipped at 1.0.7 (verified 2026-05-23)** —
+  audit found the gap was a false-positive: `bin/mackes-wm`
+  lines 28-35 already check `XDG_CURRENT_DESKTOP=MDE` /
+  `SWAYSOCK` and exit 0 with a helpful pointer to the sway
+  equivalents (`swaymsg -t get_version`, Workbench keybinds
+  panel, `systemctl --user status mde-session.service`).
+  `bin/mde-wm` is a shim that delegates to `mackes-wm` so it
+  inherits the same guard. No autostart entry references
+  `mackes-wm` either — the binary is CLI-only, invoked by
+  user or by the Workbench → System → Window Manager reset
+  button. Task closes with a `verified` note rather than new
+  code.
 - [ ] **v4.0.1: hotkey portal path for Phase 6.4
   (wayland-readiness.md)** — Phase 6.4 currently implements
   `XGrabKey` which doesn't work under Wayland. Add an
@@ -942,18 +944,54 @@ through them in priority order.
   fontconfig. Acceptance: fresh install of mde renders the
   Workbench in Geologica without a fallback warning in the
   fonts-debug log.
-- [ ] **v4.0.1: voice-and-tone verb CI gate
-  (voice-and-tone.md)** — voice-and-tone.md locks specific
-  verb pairs: "Add" not "New/Create", "Remove" not "Delete"
-  (except in destructive UI), "Apply" not "Save/Confirm".
-  Add a CI gate that greps user-visible strings for the
-  disallowed verbs + fails with a diff hint. Implementation:
-  `install-helpers/lint-voice.sh` calling `grep -rn -E
-  "\b(New|Create|Save|Confirm)\b" data/ mackes/ crates/*/src/`
-  with an allowlist for valid contexts (e.g. "save" in
-  filesystem code is fine; the gate targets user-strings).
-  Acceptance: introducing "Save" in a button label fails the
-  pre-commit hook + CI.
+- [✓] **v4.0.1: voice-and-tone verb CI gate
+  (voice-and-tone.md) — shipped 2026-05-23** —
+  `install-helpers/lint-voice.sh` (~120 LOC) scans for
+  forbidden marketing strings ("Oops/Whoops/Yikes"), lorem
+  ipsum, metasyntactic visible strings (foo/bar/baz/qux),
+  placeholder/test123 in production, plus the verb-discipline
+  table from voice-and-tone.md §Verb discipline:
+  Create/New → Add, Delete → Remove (except destructive UI),
+  Save/Confirm → Apply, Abort → Cancel, Execute/Trigger → Run.
+  Wired into `.github/workflows/ci.yml` as a `continue-on-
+  error: true` soft gate + added to `.claude/CLAUDE.md` §0.7
+  pre-commit gates as item 6. Soft mode lets the v4.0.0-
+  inherited 26-hit backlog (mostly legacy
+  `mackes/workbench/*` Python being retired + valid
+  "Delete" uses in destroy-permanent contexts + "Trigger"
+  used as a noun column header) get triaged before the gate
+  flips to fail-on-violation. v4.0.2 cleanup task below.
+  As a drive-by closed 9 clear violations (8 workbench
+  panels "Save" → "Apply" + `save_label`/`save_btn` →
+  `apply_label`/`apply_btn` variable renames + snapshot
+  panel's "Confirm restore" → "Apply restore"). Also fixed
+  a pre-existing stale test in `patternfly.rs:168` that
+  asserted "12 panels" in the Network group when KDC2-5.8
+  retired the KDE Connect entry leaving 11.
+- [ ] **v4.0.2: voice-and-tone cleanup + flip lint to
+  strict (Tier 3)** — the v4.0.1 ship landed the CI gate at
+  warning level so it could ship without breaking CI on the
+  legacy backlog. v4.0.2 closes out the remaining ~26
+  violations + flips the workflow step's
+  `continue-on-error: true` to `false` so future regressions
+  are blocked. Per-class triage:
+  * 4 `Delete` hits in destroy-permanent contexts
+    (mde-files context menu, snapshots panel, displays.py
+    profile delete dialog) — add `# voice-allow:destroy`
+    annotation OR linter exception for these specific
+    callsites. They're correct per the lock; the lint just
+    flags for human review.
+  * 16 `Save` hits in legacy GTK Python (`mackes/workbench/*`,
+    `mackes/wizard/*`) — these surfaces are being retired in
+    favor of `mde-workbench`; either fix in-place or accept
+    them as legacy-frozen (annotate accordingly).
+  * 1 `Trigger` hit in `run_history.py:178` as a column
+    header (noun usage) — false positive; refine the
+    linter's verb pattern OR add annotation.
+  * 1 `Confirm peer visibility` in `headscale_setup.py` —
+    legitimate wizard-step phrasing; annotate.
+  Acceptance: `install-helpers/lint-voice.sh` exits 0 on
+  the current tree; CI workflow flips to hard gate.
 - [ ] **v4.0.1: scope-clarification — Phase G model migration
   in or out of v4.x?** — multiple v3.0.3 items
   (`mde-files::dbus_backend Backend impl`, the panel-host

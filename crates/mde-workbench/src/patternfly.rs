@@ -164,8 +164,12 @@ mod tests {
 
     #[test]
     fn page_subtitle_counts_panels_for_group_view() {
-        // Network ships 12 panels (CB-1.8 lock).
-        assert_eq!(page_subtitle(View::Group(Group::Network)), "12 panels");
+        // 11, not 12: KDC2-5.8 (v2.1, 2026-05-22) retired the
+        // standalone "KDE Connect" entry. KDC integration now
+        // surfaces through `mde-peer-card` under the Mesh group
+        // + conditional phone sections. See
+        // `crates/mde-workbench/src/model.rs:234` for the lock.
+        assert_eq!(page_subtitle(View::Group(Group::Network)), "11 panels");
     }
 
     #[test]

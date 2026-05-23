@@ -56,6 +56,20 @@ jobs:
         # try/except ImportError feature-detection imports across mesh_*.
         run: ruff check --select F401,F541,F811,F841 mackes/ tests/
 
+      - name: voice-and-tone lint (v4.0.1)
+        # Locked by docs/design/voice-and-tone.md — enforces the verb
+        # discipline table + forbidden-strings list. Catches "Save"
+        # where "Apply" is the lock for config changes, "Create" /
+        # "New" where "Add" is the lock, "Oops"/"Whoops"/"Yikes"
+        # marketing copy, lorem ipsum, etc.
+        #
+        # Soft-gate while the v4.0.0-inherited backlog of ~26
+        # legacy / false-positive hits gets triaged (see worklist
+        # v4.0.2 cleanup task). Flips to a hard gate when the
+        # linter exits 0 on a clean tree.
+        run: install-helpers/lint-voice.sh
+        continue-on-error: true
+
       - name: pytest
         # tests/test_imports.py::test_every_non_gui_module_imports already
         # walks every mackes.* submodule with proper typelib filtering, so

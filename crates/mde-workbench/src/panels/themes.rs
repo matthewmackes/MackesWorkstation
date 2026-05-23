@@ -157,7 +157,7 @@ impl ThemesPanel {
                     return Task::none();
                 }
                 self.busy = true;
-                self.status = "Saving…".to_string();
+                self.status = "Applying…".to_string();
                 let name = self.name.clone();
                 let icon_set = self.icon_set.clone();
                 let accent = self.accent.clone();
@@ -181,10 +181,10 @@ impl ThemesPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let save_label = if self.busy { "Saving…" } else { "Save" };
+        let apply_label = if self.busy { "Applying…" } else { "Apply" };
         // UX-7.a — save routed through the shared button variant.
-        let save_btn = variant_button(
-            save_label,
+        let apply_btn = variant_button(
+            apply_label,
             ButtonVariant::Primary,
             (!self.busy).then(|| crate::Message::Themes(Message::SaveClicked)),
             Palette::dark(),
@@ -205,7 +205,7 @@ impl ThemesPanel {
                 Message::AccentChanged(v)
             )),
             row![text("Mode").width(Length::Fixed(120.0)), mode_pick,].spacing(12),
-            row![save_btn, text(&self.status).size(13)].spacing(12),
+            row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(10)
         .into()
@@ -313,7 +313,7 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = ThemesPanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(
             Message::Loaded {
                 name: String::new(),
@@ -342,12 +342,12 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = ThemesPanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(Message::SaveClicked, backend);
         // Status unchanged — the second click should not
         // restart the save (would clobber the in-flight
         // future's Saved/Error follow-up).
-        assert_eq!(panel.status, "Saving…");
+        assert_eq!(panel.status, "Applying…");
     }
 
     #[test]

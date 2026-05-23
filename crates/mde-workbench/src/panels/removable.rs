@@ -112,7 +112,7 @@ impl RemovablePanel {
                     return Task::none();
                 }
                 self.busy = true;
-                self.status = "Saving…".into();
+                self.status = "Applying…".into();
                 let on_insert = self.on_insert;
                 let open_on_mount = self.open_on_mount;
                 let autorun = self.autorun;
@@ -136,11 +136,11 @@ impl RemovablePanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let save_label = if self.busy { "Saving…" } else { "Save" };
+        let apply_label = if self.busy { "Applying…" } else { "Apply" };
         // UX-7.a — save routed through the shared button variant.
         // Primary because save is the panel's dominant CTA.
-        let save_btn = variant_button(
-            save_label,
+        let apply_btn = variant_button(
+            apply_label,
             ButtonVariant::Primary,
             (!self.busy).then(|| crate::Message::Removable(Message::SaveClicked)),
             Palette::dark(),
@@ -153,7 +153,7 @@ impl RemovablePanel {
                 .on_toggle(|v| crate::Message::Removable(Message::OpenOnMountChanged(v)),),
             checkbox("Honour autorun on inserted media", self.autorun)
                 .on_toggle(|v| { crate::Message::Removable(Message::AutorunChanged(v)) }),
-            row![save_btn, text(&self.status).size(13)].spacing(12),
+            row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(12)
         .width(Length::Fill)
@@ -178,7 +178,7 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = RemovablePanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(
             Message::Loaded {
                 on_insert: true,
@@ -211,9 +211,9 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = RemovablePanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(Message::SaveClicked, backend);
-        assert_eq!(panel.status, "Saving…");
+        assert_eq!(panel.status, "Applying…");
     }
 
     #[tokio::test]

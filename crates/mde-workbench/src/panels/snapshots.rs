@@ -272,7 +272,7 @@ impl SnapshotsPanel {
         // with the rest of the app.
         let palette = Palette::dark();
         let confirm_btn = variant_button(
-            "Confirm restore",
+            "Apply restore",
             ButtonVariant::Primary,
             Some(crate::Message::Snapshots(Message::RestoreConfirmed)),
             palette,

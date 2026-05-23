@@ -170,7 +170,7 @@ impl PowerPanel {
                     }
                 };
                 self.busy = true;
-                self.status = "Saving…".into();
+                self.status = "Applying…".into();
                 let profile = self.profile.clone();
                 let lid_action = self.lid_action.clone();
                 let presentation_mode = self.presentation_mode;
@@ -200,10 +200,10 @@ impl PowerPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let save_label = if self.busy { "Saving…" } else { "Save" };
+        let apply_label = if self.busy { "Applying…" } else { "Apply" };
         // UX-7.a — save routed through the shared button variant.
-        let save_btn = variant_button(
-            save_label,
+        let apply_btn = variant_button(
+            apply_label,
             ButtonVariant::Primary,
             (!self.busy).then(|| crate::Message::Power(Message::SaveClicked)),
             Palette::dark(),
@@ -234,7 +234,7 @@ impl PowerPanel {
             .spacing(12),
             checkbox("Presentation mode (caffeine)", self.presentation_mode)
                 .on_toggle(|v| { crate::Message::Power(Message::PresentationChanged(v)) }),
-            row![save_btn, text(&self.status).size(13)].spacing(12),
+            row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(12)
         .width(Length::Fill)

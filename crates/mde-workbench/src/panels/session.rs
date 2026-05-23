@@ -111,7 +111,7 @@ impl SessionPanel {
                     return Task::none();
                 }
                 self.busy = true;
-                self.status = "Saving…".into();
+                self.status = "Applying…".into();
                 let save_on_exit = self.save_on_exit;
                 let lock_on_suspend = self.lock_on_suspend;
                 let auto_save = self.auto_save;
@@ -137,10 +137,10 @@ impl SessionPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let save_label = if self.busy { "Saving…" } else { "Save" };
+        let apply_label = if self.busy { "Applying…" } else { "Apply" };
         // UX-7.a — save routed through the shared button variant.
-        let save_btn = variant_button(
-            save_label,
+        let apply_btn = variant_button(
+            apply_label,
             ButtonVariant::Primary,
             (!self.busy).then(|| crate::Message::Session(Message::SaveClicked)),
             Palette::dark(),
@@ -153,7 +153,7 @@ impl SessionPanel {
                 .on_toggle(|v| crate::Message::Session(Message::LockOnSuspendChanged(v)),),
             checkbox("Auto-save layout periodically", self.auto_save)
                 .on_toggle(|v| crate::Message::Session(Message::AutoSaveChanged(v)),),
-            row![save_btn, text(&self.status).size(13)].spacing(12),
+            row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(12)
         .width(Length::Fill)
@@ -178,7 +178,7 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = SessionPanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(
             Message::Loaded {
                 save_on_exit: true,
@@ -211,9 +211,9 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = SessionPanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(Message::SaveClicked, backend);
-        assert_eq!(panel.status, "Saving…");
+        assert_eq!(panel.status, "Applying…");
     }
 
     #[tokio::test]

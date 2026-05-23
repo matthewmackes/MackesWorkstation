@@ -134,7 +134,7 @@ impl FontsPanel {
                     return Task::none();
                 }
                 self.busy = true;
-                self.status = "Saving…".into();
+                self.status = "Applying…".into();
                 let name = self.name.clone();
                 let monospace = self.monospace.clone();
                 let hinting = self.hinting.clone();
@@ -158,10 +158,10 @@ impl FontsPanel {
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
-        let save_label = if self.busy { "Saving…" } else { "Save" };
+        let apply_label = if self.busy { "Applying…" } else { "Apply" };
         // UX-7.a — save routed through the shared button variant.
-        let save_btn = variant_button(
-            save_label,
+        let apply_btn = variant_button(
+            apply_label,
             ButtonVariant::Primary,
             (!self.busy).then(|| crate::Message::Fonts(Message::SaveClicked)),
             Palette::dark(),
@@ -188,7 +188,7 @@ impl FontsPanel {
                 antialias_pick,
             ]
             .spacing(12),
-            row![save_btn, text(&self.status).size(13)].spacing(12),
+            row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]
         .spacing(10)
         .into()
@@ -290,9 +290,9 @@ mod tests {
         let backend = Arc::new(DemoBackend::new());
         let mut panel = FontsPanel::new();
         panel.busy = true;
-        panel.status = "Saving…".into();
+        panel.status = "Applying…".into();
         let _ = panel.update(Message::SaveClicked, backend);
-        assert_eq!(panel.status, "Saving…");
+        assert_eq!(panel.status, "Applying…");
     }
 
     #[tokio::test]
