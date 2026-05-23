@@ -1,8 +1,19 @@
 """Mackes runtime state — install status, active preset, drift detection.
 
-A single JSON file at `~/.config/mackes-shell/state.json` is the source of truth
+A single JSON file at `~/.config/mde/state.json` is the source of truth
 for whether Mackes has been provisioned on this machine, which preset is active,
 and when the last apply happened. Everything else is read live from the system.
+
+v4.0.1 (BUG-1): `CONFIG_DIR` was previously `~/.config/mackes-shell/` and
+diverged from the Rust components which write to `~/.config/mde/`. The
+wizard-gate at `mackes/app.py:156` read `state.json` from the empty
+legacy path, defaulted to `provisioned=False`, and re-fired the wizard
+on every launch. The migration below converges Python onto the MDE path
+while preserving any Rust-written fields (`preset`, `mesh_passcode`,
+`legacy_import_opted_in`, `snapshot_created`) the Python dataclass
+doesn't model. DATA_DIR (snapshots + logs) intentionally stays on the
+legacy path for now — the user has 3 weeks of snapshots there, and the
+data-dir migration is captured as a separate worklist task.
 """
 from __future__ import annotations
 
@@ -16,7 +27,10 @@ from pathlib import Path
 from typing import Optional
 
 HOME = Path.home()
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "mackes-shell"
+CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "mde"
+LEGACY_CONFIG_DIR = (
+    Path(os.environ.get("XDG_CONFIG_HOME", HOME / ".config")) / "mackes-shell"
+)
 DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", HOME / ".local/share")) / "mackes-shell"
 STATE_FILE = CONFIG_DIR / "state.json"
 SNAPSHOT_DIR = DATA_DIR / "snapshots"
@@ -33,17 +47,27 @@ class MackesState:
 
     @classmethod
     def load(cls) -> "MackesState":
-        if not STATE_FILE.exists():
+        path = STATE_FILE if STATE_FILE.exists() else LEGACY_CONFIG_DIR / "state.json"
+        if not path.exists():
             return cls()
         try:
-            data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return cls()
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
     def save(self) -> None:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        STATE_FILE.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
+        existing: dict = {}
+        if STATE_FILE.exists():
+            try:
+                existing = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+                if not isinstance(existing, dict):
+                    existing = {}
+            except (OSError, json.JSONDecodeError):
+                existing = {}
+        existing.update(asdict(self))
+        STATE_FILE.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
     def mark_provisioned(self, preset: str) -> None:
         self.provisioned = True
