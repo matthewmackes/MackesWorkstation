@@ -2542,11 +2542,22 @@ integration needed.
   the operator wants any of those specifically. No new code
   this commit; pure worklist hygiene close.
 
-- [ ] **BUG-8.a: Notification Center parity (placeholder)** —
-  if the operator wants any of the v3.0.3 wishlist items
-  (grouped-by-app / dismiss-all / per-app mute / per-app
-  filter), this is the open slot. Closed by default; reopens
-  when a specific gap is named.
+- [✓] **v4.0.1: BUG-8.a (Clear all shipped 2026-05-23)** — the
+  notifications popover gained a "Clear all" button (rendered
+  only when ≥1 notification exists). Click empties the
+  `~/.cache/mde/notifications.json` cache file + exits the
+  popover. Remaining macOS-Notification-Center parity items
+  (grouped-by-app / per-app mute / per-app filter) move to
+  v4.0.1 BUG-8.b open below.
+
+- [ ] **v4.0.1: BUG-8.b Notification Center parity (per-app
+  grouping + mute)** — split from BUG-8.a on 2026-05-23.
+  Captures the remaining wishlist if the operator wants
+  inline per-app controls: grouped-by-app rendering (rows
+  collapse under app header), per-app mute toggle (writes
+  to ~/.config/mde/notification-mutes.toml + the relay
+  worker respects it), per-app filter pill row. Open until
+  operator names a specific gap.
 - [✓] **v4.0.1: BUG-5 "Window Selector" — closed 2026-05-23 as
   superseded by DOCK-1 + WM-3 (which together deliver the
   fix this entry's diagnosis spelled out)**

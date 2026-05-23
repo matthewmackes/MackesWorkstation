@@ -50,6 +50,8 @@ const SURFACE_BG: Color = Color {
 #[derive(Debug, Clone)]
 pub enum Message {
     Exit,
+    /// BUG-8.a (2026-05-23) — clear the cache file then exit.
+    ClearAll,
 }
 
 pub struct App {
@@ -75,6 +77,16 @@ impl iced_layershell::Application for App {
     fn update(&mut self, msg: Message) -> Task<Message> {
         match msg {
             Message::Exit => std::process::exit(0),
+            Message::ClearAll => {
+                // BUG-8.a — empty the cache file (atomic via
+                // write to "") so the next open of any source
+                // re-reads zero notifications. Then exit so
+                // the operator sees the cleared state on next
+                // open.
+                let path = notifications_cache_path();
+                let _ = std::fs::write(&path, "");
+                std::process::exit(0);
+            }
             _ => Task::none(),
         }
     }
@@ -115,11 +127,54 @@ impl iced_layershell::Application for App {
 
         let scroll = scrollable(list).height(Length::Fill);
 
+        // BUG-8.a — "Clear all" button (rendered only when
+        // ≥1 notification exists). Click empties the cache
+        // file + exits.
+        let clear_btn: Element<'_, Message> = if total_rows > 0 {
+            iced::widget::Button::new(text("Clear all").size(11).color(FG_TEXT))
+                .padding(Padding {
+                    top: 3.0,
+                    right: 10.0,
+                    bottom: 3.0,
+                    left: 10.0,
+                })
+                .style(|_t: &Theme, status: iced::widget::button::Status| {
+                    let bg = match status {
+                        iced::widget::button::Status::Hovered => Color {
+                            r: 0.18,
+                            g: 0.18,
+                            b: 0.20,
+                            a: 1.0,
+                        },
+                        _ => Color::TRANSPARENT,
+                    };
+                    iced::widget::button::Style {
+                        background: Some(Background::Color(bg)),
+                        text_color: FG_TEXT,
+                        border: Border {
+                            color: Color {
+                                a: 0.15,
+                                ..Color::WHITE
+                            },
+                            width: 1.0,
+                            radius: 4.0.into(),
+                        },
+                        shadow: Shadow::default(),
+                    }
+                })
+                .on_press(Message::ClearAll)
+                .into()
+        } else {
+            Space::with_width(Length::Fixed(0.0)).into()
+        };
+
         let body = column![
             row![
                 header,
                 Space::with_width(Length::Fill),
                 subhead,
+                Space::with_width(Length::Fixed(8.0)),
+                clear_btn,
                 Space::with_width(Length::Fixed(8.0)),
                 // v3.0.3 — always-visible close button (Esc still
                 // works via subscription below).
@@ -129,7 +184,7 @@ impl iced_layershell::Application for App {
             Space::with_height(Length::Fixed(8.0)),
             scroll,
             Space::with_height(Length::Fixed(4.0)),
-            text("Esc closes · click × to dismiss")
+            text("Esc closes · Clear all empties the cache")
                 .size(10)
                 .color(FG_MUTED),
         ]
