@@ -11,12 +11,11 @@
 #![warn(missing_docs)]
 
 pub mod audit;
-// v2.0.0 Phase 12.1.2 — fleet deploy layer (sits on top of
-// store + service traits). One sub-module per concern: revision
-// push, rollback, Ansible-pull orchestration. Today the directory
-// is a contract; the concrete sub-modules arrive with their
-// matching Phase G items.
-pub mod deploy;
+// v2.0.0 Phase 12.1.2 — fleet deploy layer reservation. When Phase G
+// submodules (push, rollback, ansible_pull orchestration) actually
+// ship with real code, `pub mod deploy;` + `crates/mackesd/src/deploy/`
+// come back together in one commit. The empty-scaffold version was
+// deleted 2026-05-22 per .claude/CLAUDE.md §0.12 (no stubs).
 pub mod enrollment;
 pub mod events;
 pub mod fleet;

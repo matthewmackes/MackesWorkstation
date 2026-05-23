@@ -194,6 +194,73 @@ visual rather than logical) follow this branch protocol:
 This rule supersedes §0.1 for UX-* and visual work; §0.1 continues
 to apply everywhere else.
 
+### 0.12 No stubs, skeletons, or staged work (audit 2026-05-22)
+
+Every commit ships **fully complete** code. No stubs, no skeletons,
+no "data layer now, wiring later" splits, no "phase X-helpers
+shipped, phase X-wiring deferred." Code that lands in `main` must
+be reachable from a runtime entry point and the user-visible
+behavior it implements must work end-to-end.
+
+This rule is the upstream prevention for the failure mode the v3.x
+runtime-integration audit on 2026-05-22 surfaced: 13 of 18 panel
+modules (`crates/mde-panel/src/*.rs`, ~3,057 LOC, 139 tests) had
+been marked `[✓] shipped 2026-05-21` while sitting entirely dead at
+runtime — never referenced from `update()`/`view()`. Live operator
+hit four user-visible bugs as the direct consequence (start menu
+won't close, notifications panel won't close, missing window mgmt
+buttons, right-click M button dead). Full inventory at
+[`docs/V3_RUNTIME_INTEGRATION_AUDIT.md`](../docs/V3_RUNTIME_INTEGRATION_AUDIT.md).
+
+**Concrete refusals:**
+
+- Never write `todo!()`, `unimplemented!()`, or `panic!("not yet")`
+  in committed code.
+- Never write a match arm like `Kind::Network => { tracing::info!
+  ("network popover not yet implemented; exit 0"); Ok(()) }`.
+  Either build the arm or remove the variant until you do. The
+  existing `Kind::Network` stub in `crates/mde-popover/src/main.rs`
+  is grandfathered until the v3.0.3 network-popover task closes —
+  no new instances allowed.
+- Never write a commit body that says "wiring lands in a follow-
+  up," "phase 2 implements," or "scaffolds the X for later."
+- Never commit a `pub mod foo;` declaration unless at least one
+  other file in the workspace references `foo::` or `crate::foo::`.
+  This is the [[worklist-rescue]] runtime-reachability check and
+  should run mentally pre-commit on every module-introducing
+  diff. (Tests within `foo.rs` itself don't count — they reference
+  the module from inside.)
+- Never mark a worklist item `[✓]` until a user gesture or
+  scheduled tick can actually invoke the new code. §0.8 Definition
+  of Done covers this with a proposed 7th gate (v3.0.3 task
+  pending operator authorization).
+
+**Splitting rule:** if a task can't ship complete in one commit,
+split it at write-time into smaller tasks each of which CAN ship
+complete — NOT into "helpers + wiring." Each subtask's acceptance
+criterion must name a bench-observable behavior, not a file that
+landed. If a subsystem the task depends on doesn't exist yet,
+build that subsystem first.
+
+**Trigger phrases to refuse (or surface this rule before
+complying):**
+
+- "Just stub it out for now"
+- "Ship the data layer; we'll wire it later"
+- "Phase A is helpers; Phase B is the runtime"
+- "Add a stub branch that exits 0"
+- "Skeleton the crate; we'll fill it in"
+- "Scaffold the module"
+
+If the user confirms they really do want a scaffold despite the
+rule, do it — but flag the worklist entry as
+`[ ] Open scaffold only — no runtime reachability` so the false-
+done signal never appears.
+
+This rule supersedes "looks done if the tests pass" — passing
+tests on an unreachable module is exactly the failure mode v3.x
+exposed.
+
 ---
 
 ## 1. Worklist Rule

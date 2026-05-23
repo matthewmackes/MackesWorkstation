@@ -407,6 +407,292 @@ neither defect was caught at release time.
   overengineered. Parked as a v3.1 follow-up only if
   real-world telemetry ever shows drops (it won't).
 
+### v3.0.3 panel runtime integration pass (audit 2026-05-22)
+
+Bench audit on a live MDE session — triggered by live operator
+reports ("start menu won't close", "notification panel won't
+close", "missing window management buttons", "right-click on the
+start menu does not work") — surfaced a systemic gap between the
+worklist's `[✓] shipped 2026-05-21` Phase E.x entries and the
+actual runtime. 13 of 18 `crates/mde-panel/src/*.rs` modules are
+declared `pub mod`, fully implemented, fully tested, and **never
+referenced from the panel's `update()` or `view()`**. Each "shipped"
+entry's fine print said the widget/subscription/popover lands when
+"Phase E.2 wires up" or "Phase E.3 wires up"; Phase E.2 shipped at
+v3.0.2 on 2026-05-22 — but no integration sweep followed.
+
+Full inventory + dependency-ordered plan at
+[`docs/V3_RUNTIME_INTEGRATION_AUDIT.md`](V3_RUNTIME_INTEGRATION_AUDIT.md).
+The historical `[✓]` Phase E.x entries below have been re-opened to
+`[>] In Progress` to reflect "data layer shipped, runtime wiring
+deferred." New `[ ] Open` v3.0.3 tasks below close each gap with
+explicit acceptance criteria, ordered by the chosen
+dependency sweep.
+
+- [ ] **v3.0.3: popover dismiss + dedup + zombie reaping (Tier 1A
+  + 1B + 1C)** — single bundle, highest UX impact, independent of
+  every other v3.0.3 item. Touches `crates/mde-panel/src/lib.rs::
+  spawn_popover` (add dedup-by-kind + toggle behavior + child reap
+  via SIGCHLD=SIG_IGN at panel startup OR held-handle reaper on
+  tick) and all four popover modules (`start_menu`, `audio`,
+  `clock`, `notifications`) in `crates/mde-popover/src/`. Add
+  either a visible close button per popover OR a transparent
+  backdrop layer-surface that absorbs outside-clicks and signals
+  dismiss. Bench acceptance: clicking M twice opens then closes
+  the start menu (no stacking); clicking outside any popover
+  dismisses it within ~100 ms; `ps -ef | grep mde-popover` after
+  10 minutes of normal use shows zero defunct entries.
+- [ ] **v3.0.3: toplevels subscription (wlr-foreign-toplevel-
+  management) (Tier 2 E.3 wiring)** — wire the SCTK subscription
+  that emits `ToplevelEvent::{Added,Updated,Removed,Disconnected}`
+  into the panel's `update()`. Either go through `iced_layershell`'s
+  wayland-state hook OR add a direct `wayland-client` subscription
+  alongside the iced runtime. Unblocks hero, window-management
+  buttons, and expose. Acceptance: a new tracing line in panel
+  logs (`toplevel_event(kind=added, app_id="foot")`) fires within
+  ~50 ms of opening a foot terminal; closing it emits Removed.
+- [ ] **v3.0.3: hero widget placement in top_bar (Tier 2 E.4.2
+  wiring + depends on toplevels)** — slot `hero::Hero` into
+  `top_bar::view` between the Start zone and the dock zone, wire
+  its `set_focused()` to the toplevels subscription's focus event.
+  Animation tick already exists in `hero.rs`. Acceptance: focusing
+  a foot terminal shows the foot icon + title in the hero slot;
+  switching focus to firefox slides the new title in over 280 ms
+  per the locked tween.
+- [ ] **v3.0.3: window-management buttons (Tier 1E + depends on
+  toplevels)** — new widget in `top_bar.rs` (rightmost cluster
+  before the clock OR per current design lock at far-right corner).
+  Three buttons (min / max / close) bound to wlr-foreign-toplevel
+  protocol messages targeting the currently-focused toplevel.
+  Grey-out when no toplevel is focused per v8.7 lock. Maximize =
+  toggle floating-fill (not fullscreen) per the same lock.
+  Acceptance: clicking close on a focused foot terminal closes it;
+  clicking min hides it; clicking max toggles its floating-fill
+  state; all three grey out when nothing is focused.
+- [ ] **v3.0.3: watermark widget + Layer::Background surface
+  (Tier 2 E.18 wiring)** — render `WatermarkState::render_line()`
+  into a separate Iced layer-shell surface anchored bottom-right
+  with `Layer::Background` so it sits below normal windows.
+  Subscription polls `dnf check-update --quiet` every 4 hours per
+  the original spec; visibility tied to pending-update count > 0.
+  Acceptance: with at least one DNF update pending, the watermark
+  text shows in the bottom-right; with none, it's invisible.
+- [ ] **v3.0.3: toast render layer + emit sites (Tier 2 E.20
+  wiring)** — render `ToastStack` items as a stacked column above
+  the panel via a layer-shell overlay surface. Tick subscription
+  drives `retain_unexpired()`. Emit sites: clipboard copy event
+  ("copied!"), mesh-send completion ("sent to lab-01"), admin-
+  action failure ("error: sudo prompt cancelled"). Acceptance:
+  selecting copy in a panel context menu surfaces a 2-second
+  toast above the panel; multiple toasts stack with FIFO eviction
+  at STACK_LIMIT=3.
+- [ ] **v3.0.3: admin_menu wiring on Start right-click (Tier 1D
+  + Tier 2 E.13 wiring)** — replace the plain Iced `button` in
+  `top_bar.rs::view` with a custom mouse-area widget (or use
+  `iced::mouse::Event::ButtonPressed` subscription) that
+  distinguishes left and right press. Right-press emits a new
+  `Message::StartRightClicked`; `update()` opens an admin-menu
+  popover (new entry in `crates/mde-popover/` OR an inline Iced
+  overlay) that dispatches into `admin_menu::spawn_action`.
+  Acceptance: right-click on M opens the 9-action menu; clicking
+  "Root Terminal" spawns `foot --hold sh -c 'pkexec bash -l'`
+  (per v2.0.3 pkexec lock — sudo path is forbidden).
+- [ ] **v3.0.3: icon_mapper popover on dock right-click (Tier 2
+  E.19 wiring + depends on dock applet right-click support)** —
+  coordinate with v3.1 dock applet work. When a dock entry is
+  right-clicked, open a small popover listing builtin Carbon
+  glyph candidates for that app's freedesktop Icon= name;
+  selecting one writes `~/.local/share/applications/<name>.
+  desktop` with `X-MDE-Icon=` per the existing `write_override`
+  helper. Acceptance: right-click foot in the dock → glyph
+  picker → select a candidate → foot's dock entry shows the new
+  glyph after a panel re-render.
+- [ ] **v3.0.3: quick-action slider widgets in drawer (Tier 2
+  E.6.1+6.2 wiring)** — drawer (`crates/mde-drawer/`) renders
+  brightness + volume sliders bound to
+  `mde_panel::sliders::{set_brightness_percent,
+  set_volume_percent}`. 7-step snap visualization per the
+  existing helper math. Acceptance: dragging the volume slider
+  in the drawer adjusts the default sink's volume live; mute
+  toggle flips correctly.
+- [ ] **v3.0.3: clipboard subscription + history popover (Tier 2
+  E.5 wiring)** — wire `clipboard::available_mime_types()` and
+  history-cache reads to a clipboard-manager popover. Optional
+  Super+V keybind in sway config. Acceptance: copying text in
+  one window then opening the clipboard popover shows the last
+  N entries; selecting one calls `copy_text(s)` so paste in the
+  next window yields that string.
+- [ ] **v3.0.3: expose F3 overlay (Tier 2 E.4.4 wiring + depends
+  on toplevels)** — full-screen Iced overlay using
+  `expose::cards_from_windows()` against the toplevels model.
+  F3 keybind in sway config invokes `mde-popover expose` (new
+  kind in the popover crate's `Kind` enum). Click a card →
+  `swaymsg [con_id=N] focus` + close overlay. Acceptance: with
+  5 windows open, F3 shows a 5-card grid; clicking a card
+  raises that window.
+- [ ] **v3.0.3: weather popover surface (Tier 2 E.17 follow-up
+  wiring)** — wire `weather::WeatherSnapshot` into a popover
+  (new kind `weather` in `crates/mde-popover/`) anchored above
+  the clock zone. Click the clock → opens. Polls `wttr.in?
+  format=j1` every POLL_INTERVAL_SECS=1800 per the existing
+  helper. Acceptance: clicking the clock shows the locked
+  4-line column (location / temp+condition / high-low / wind)
+  with freshness label.
+- [ ] **v3.0.3: dock_dnd integration with dock applet (Tier 2
+  E.9 wiring + depends on dock applet drag recognition)** —
+  coordinate with v3.1 dock applet work. The applet adds Iced
+  drag-source on tasklist entries + drop-target on pinned strip;
+  drop events call `reorder_dock()`, `pin_app()`, `unpin()`.
+  Acceptance: dragging foot from the tasklist onto an empty
+  pinned slot pins it; dragging a pinned entry to a different
+  slot reorders.
+- [ ] **v3.0.3: retire crates/mde-panel/src/layer_shell.rs
+  (Tier 2 E.2 module is moot)** — `iced_layershell` v0.13.7
+  took over the surface integration at v3.0.2. The module's
+  pure-fn helpers became unreachable at the moment they would
+  have been needed. Either delete the file + module declaration
+  in lib.rs OR keep as a documented reference with a top-of-
+  file note marking it retired. Acceptance: either deletion
+  PR or top-of-file `//! RETIRED 2026-05-22 — superseded by
+  iced_layershell 0.13.7 at v3.0.2` block.
+- [ ] **v3.0.3: root_menu wireability investigation (Tier 2 E.14
+  wiring)** — root_menu was designed for right-click on the
+  desktop wallpaper. In MDE the wallpaper is owned by `swaybg`,
+  which is a separate process with no event hook. Investigate
+  whether (a) sway's `floating_modifier` can route empty-desktop
+  clicks to a designated handler, (b) a transparent layer-shell
+  surface covering empty desktop areas can absorb right-clicks,
+  or (c) the root menu should be retired in favor of a different
+  surface (e.g. Super+Right-Click anywhere). Choose path in a
+  short lock survey if this surfaces real ambiguity. Acceptance:
+  written decision in [[V3_RUNTIME_INTEGRATION_AUDIT]] + either
+  implementation or formal retirement.
+- [ ] **v3.0.3: mackesd worker registration sweep (Tier 3)** —
+  audit each `crates/mackesd/src/workers/*.rs` for intended
+  spawn-vs-helper status. Workers that implement the `Worker`
+  trait (`clipboard`, `mdns`, `fs_sync`, `heartbeat`,
+  `mesh_router`, `notification_relay`) should be registered in
+  `run_serve()` via the existing `Supervisor` type. Helper-only
+  modules (`nats`, `perf`, etc.) should grow a comment marking
+  them as such so future audits don't relitigate the question.
+  Acceptance: `mded serve` startup logs show each registered
+  worker by name; helper modules carry a top-of-file
+  classification comment.
+- [ ] **v3.0.3: extend Definition-of-Done to require runtime
+  reachability (CLAUDE.md §0.8 amendment)** — current §0.8 gates
+  on "all module imports clean." Add a 7th gate: "module is
+  reachable from a runtime entry point — a user gesture or
+  scheduled tick must invoke a public function of the module."
+  Acceptance: §0.8 updated; new tasks (Phase X-helpers vs.
+  Phase X-wiring split) demonstrate compliance.
+
+#### Second-pass rescues (audit-2 2026-05-22 — workspace-wide grep with corrected crate-scoping)
+
+Phase 0.1's grep had a false-negative bug in the first audit pass
+(matched any same-named module in any crate, so admin_menu's mde-panel
+copy looked "wired" via the legacy mackes-panel crate's reference).
+Re-ran with the corrected within-crate scoping; surfaced 10 more dead
+modules across mackesd / mde-files / mde-kdc + one pure-scaffold
+directory (`crates/mackesd/src/deploy/`). All in `[>]` flipped form
+above; integration tasks below in dependency order.
+
+- [✓] **v3.0.3: delete the `mackesd::deploy` scaffold (audit
+  2026-05-22)** — `crates/mackesd/src/deploy/mod.rs` was a 658-byte
+  pure-documentation stub (zero items declared) reserving the
+  directory layout for future Phase G submodules — exactly the
+  pattern §0.12 forbids. Deleted the file + the `pub mod deploy;`
+  declaration in `crates/mackesd/src/lib.rs`. When Phase G actually
+  ships a submodule, the directory + mod declaration come back
+  together with real code in one commit, never separately.
+- [ ] **v3.0.3: 12.1.4 wire structured logging into the daemon
+  (Tier 3 mackesd::logging)** — `mackesd/src/logging.rs` ships
+  `LogContext` but the daemon binary never imports it. Wire
+  `LogContext::fresh()` at the top of every worker tick + at HTTP
+  handler entry; add correlation_id to every `tracing` event field
+  set. Acceptance: `mackesd serve` logs show `correlation_id=<id>`
+  on every line; a worker restart starts a fresh correlation id;
+  grep the JSON output for a single id traces one full tick.
+- [ ] **v3.0.3: 12.17 wire STUN candidate gathering into the
+  transport handshake (Tier 3 mackesd::stun)** — `mackesd/src/stun.rs`
+  ships an RFC 5389/8489 STUN client but nothing in `transport/`
+  or `workers/mesh_router.rs` calls it. Wire `gather_candidates()`
+  into the peer-pair handshake so symmetric-NAT edges get
+  server-reflexive candidates before falling through to DERP.
+  Acceptance: on a symmetric-NAT bench peer, `mackesd serve` logs
+  one STUN binding response per probe; the resulting
+  server-reflexive candidate appears in `peer_path.rs::candidates`
+  before any DERP fallback.
+- [ ] **v3.0.3: 12.18 wire HTTPS-tunneled fallback activation
+  (Tier 3 mackesd::https_fallback)** — `mackesd/src/https_fallback.rs`
+  ships the policy layer (3-failed-cycle activation rule, etc.)
+  but the transport supervisor never consults it. Wire the failure
+  counter to the worker that owns transport-state transitions; on
+  activation, switch the `Transport` enum to `Https` and route
+  packets through the fallback. Acceptance: on a bench peer with
+  UDP fully blocked, after 3 consecutive direct+DERP failures the
+  fallback activates and a `tcpdump -i any port 443` shows
+  outbound HTTPS to the configured fallback host within 1s.
+- [ ] **v3.0.3: 1.8 wire search-results view into mde-files
+  (Tier 2 mde-files::search)** — the pure-fn filter ships; the
+  Iced view never switches from per-view list to results-list
+  when the toolbar search input has text. Wire the view-router
+  to call `search::filter(query, scope)` and render
+  `Layout::SearchResults` when query is non-empty. Acceptance:
+  typing `foo` into the toolbar replaces the file list with the
+  filter results; clearing the input restores the previous view.
+- [ ] **v3.0.3: 1.9 wire grid-view rendering in mde-files
+  (Tier 2 mde-files::grid)** — `grid.rs` ships the tile-layout
+  math; the view never calls it. Wire the Iced widget tree to
+  consume `grid::layout(items, viewport_w)` when
+  `MdeFiles.layout == Layout::Grid`. Acceptance: toggling layout
+  to Grid in the toolbar lays the current scope out as tiles;
+  switching back restores the list layout.
+- [ ] **v3.0.3: 2.3 close DBusBackend deferral by lifting model
+  fields from `&'static str` (Tier 2 mde-files::dbus_backend +
+  Phase G model migration)** — the deferral note explicitly
+  blames `model::{Peer,SelfNode,FileRow}` for using `&'static str`
+  fields that the parsers can't populate from runtime data.
+  Migrate the model to `String` (or `Cow<'static, str>` if static
+  data still benefits) and drop the `impl Backend for DBusBackend`
+  block in via the parsers + connect path that already ship.
+  Acceptance: running mde-files against a live `dev.mackes.MDE.
+  Fleet.Files` bus surfaces the real peer list (not the
+  DemoBackend); send-to + history operations round-trip through
+  D-Bus.
+- [ ] **v3.0.3: 5.3 route every icon-only mde-files button
+  through a11y_labels (Tier 2 mde-files::a11y_labels)** — the
+  label table ships; the Iced view never invokes
+  `Element::accessibility_label`. Route every icon-only button
+  through `a11y_labels::resolve(BtnId)` so Orca screen-reader
+  announces the right English string. Acceptance: launch mde-
+  files under Orca; navigating to the back arrow announces
+  "back arrow"; navigating to the send-to button announces
+  "send to peer."
+- [ ] **v3.0.3: KDC2-3.3 wire the D-Bus host scaffold to
+  concrete methods (Tier 2 mde-kdc::dbus + KDC2-3.4/3.5/3.6/3.9
+  bundle)** — the scaffold acquires
+  `dev.mackes.MDE.Connect` but exposes no methods. Per §0.12 this
+  is itself a stub. Land KDC2-3.4 (`ListDevices` + `GetDevice`),
+  3.5 (`PairDevice` + `UnpairDevice`), 3.6 (`RingDevice` +
+  `SendSms` + `SendFile`), 3.9 signals (`DeviceAdded` / Removed /
+  Updated) in a single coordinated commit so the bus surface is
+  usable end-to-end. Acceptance: `busctl --user call
+  dev.mackes.MDE.Connect /dev/mackes/MDE/Connect
+  dev.mackes.MDE.Connect ListDevices` returns the actual paired
+  device list; signal subscription via `busctl --user monitor`
+  shows DeviceAdded when a phone pairs.
+- [ ] **v3.0.3: KDC2-2.8 wire TLS handshake into KDC host
+  transport (Tier 2 mde-kdc::tls)** — `tls.rs` ships the
+  fingerprint-pinning helper but the KDC host transport never
+  uses it (currently bypasses TLS or uses a different path).
+  Wire `tls::accept_pinned(stream, fingerprint_store)` into the
+  inbound connection handler in `mde-kdc::transport` so peers
+  with mismatched fingerprints get `PairingState::KeyMismatch`
+  surfaced in the UI. Acceptance: pair with a real KDE Connect
+  Android peer, kill `~/.local/share/mde/kdc/pairings.json`, try
+  to reconnect — the peer is rejected with the right error.
+
+
 ### Notification Center (new — Rust Desktop handoff bundle, 2026-05-19)
 
 - [✓] **Notification Center modal + bell tray icon** — Rust port
@@ -1411,8 +1697,9 @@ src/`) and its destination.
   Cargo.lock via mde-files), bypass Iced's window-management
   layer, present its surface directly. ~400 LOC of SCTK glue.
   Both paths scheduled for v2.1.
-- [✓] **Phase E.3 foreign-toplevel listener data model
-  (shipped 2026-05-21)** —
+- [>] **v3.0.3: Phase E.3 foreign-toplevel listener data model
+  (helpers shipped 2026-05-21, runtime subscription deferred —
+  audit 2026-05-22)** —
   `crates/mde-panel/src/toplevels.rs` ships the data model that
   the SCTK `wlr_foreign_toplevel_management_v1` subscription
   populates: `Toplevel { id, title, app_id, state }` +
@@ -1427,7 +1714,12 @@ src/`) and its destination.
   focus_change_events no-op + 2-event flip. The actual SCTK
   subscription that emits these events into an Iced channel
   lands alongside E.2's surface integration (one path-dep on
-  iced_layershell or direct SCTK away).
+  iced_layershell or direct SCTK away). **Re-opened 2026-05-22:**
+  the data model shipped but the actual SCTK subscription that
+  emits events into the panel `update()` was never built; the
+  panel still has zero awareness of foreign toplevels.
+  Integration closes via the v3.0.3 toplevels-subscription task.
+  See [[V3_RUNTIME_INTEGRATION_AUDIT]].
 - [✓] **Phase E.4.1 sway_cluster (shipped 2026-05-21)** —
   closed by the applet-driven Cluster zone. The Cluster pane's
   default binding (`host::default_bindings`) points at
@@ -1457,7 +1749,8 @@ src/`) and its destination.
   walk, tabbed-workspace path. 1.1.0 layout lock preserved.
   Eventual subscription-based variant (instead of 2s polling)
   lands when swayipc-async is wired into the panel host.
-- [✓] **Phase E.4.2 hero (shipped 2026-05-21)** —
+- [>] **v3.0.3: Phase E.4.2 hero (helpers shipped 2026-05-21, widget
+  placement deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/hero.rs` ships `Hero` with
   `current`/`incoming` slide state, `set_focused(title, app_id)`,
   `tick(now)` promotion at the 280ms boundary, `progress_at(now)`
@@ -1469,6 +1762,10 @@ src/`) and its destination.
   `TopBarState`. 12 unit tests cover slide duration lock,
   set-focused no-op on same entry, tick promotion, ellipsize,
   progress 0→1 ramp, Unicode safety, max-title char count.
+  **Re-opened 2026-05-22:** widget is dead code — never placed
+  in `top_bar::view`, no subscription drives `set_focused()`.
+  Integration closes via the v3.0.3 hero-widget-placement task.
+  See [[V3_RUNTIME_INTEGRATION_AUDIT]].
 - [✓] **Phase E.4.3 — superseded by E1.2.11 `mde-applet-app-switcher` (2026-05-20).** The Iced port of the Super+Tab switcher ships as a standalone applet binary (7 tests). Panel-host consumption is gated separately on Phase E.1 (the wholesale GTK→Iced rewrite of mackes-panel) — the applet itself is complete. Original entry: Super+Tab switcher
   popup. Reads candidates from the E.3 foreign-toplevel
   subscription, renders an Iced centered overlay window
@@ -1476,7 +1773,8 @@ src/`) and its destination.
   `swayipc-async::Connection::run_command`. Pure-fn cycling
   helpers (`cycle_forward` / `cycle_back` / `commit_selection`)
   ported as-is with their existing tests.
-- [✓] **Phase E.4.4 expose (shipped 2026-05-21)** —
+- [>] **v3.0.3: Phase E.4.4 expose (layout math shipped 2026-05-21,
+  overlay UI + keybind deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/expose.rs` ships the pure-fn helpers:
   `grid_columns(n)` (ceil-sqrt capped at MAX_COLUMNS=6),
   `card_layout(surface_w, surface_h, n)` (16:9 aspect with
@@ -1486,7 +1784,12 @@ src/`) and its destination.
   fullscreen overlay UI + swaymsg [con_id=N] focus click handler
   land alongside the Phase E.3 foreign-toplevel listener; the
   layout math today is testable in isolation. 11 unit tests.
-- [✓] **Phase E.5 clipboard via wl-clipboard (shipped 2026-05-21)** —
+  **Re-opened 2026-05-22:** the Iced fullscreen overlay UI and
+  F3 sway keybind both still missing. Closes via the v3.0.3
+  expose-F3-overlay task. See [[V3_RUNTIME_INTEGRATION_AUDIT]].
+- [>] **v3.0.3: Phase E.5 clipboard via wl-clipboard (helpers shipped
+  2026-05-21, subscription + history popover deferred — audit
+  2026-05-22)** —
   best-choice deviation from the original "SCTK
   wlr-data-control" lock: `crates/mde-panel/src/clipboard.rs`
   wraps `wl-paste` + `wl-copy` (the canonical command-line
@@ -1500,8 +1803,12 @@ src/`) and its destination.
   history parse round-trips + malformed/empty fallthrough +
   no-panic on absent wl-paste/wl-copy. B.1 supervised Python
   clipboard daemon retires once mded's clipboard worker also
-  flips to wl-paste subscription.
-- [✓] **Phase E.6.1 brightness slider (shipped 2026-05-21)** —
+  flips to wl-paste subscription. **Re-opened 2026-05-22:** the
+  panel-side clipboard subscription + history popover were never
+  built. Closes via v3.0.3 clipboard-subscription task. See
+  [[V3_RUNTIME_INTEGRATION_AUDIT]].
+- [>] **v3.0.3: Phase E.6.1 brightness slider (helpers shipped
+  2026-05-21, drawer widget deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/sliders.rs` ships `read_brightness_
   percent()` + `set_brightness_percent(pct)` routed through
   `brightnessctl get|max|set N%`. The 7-step snap helpers
@@ -1509,8 +1816,12 @@ src/`) and its destination.
   `step_index`) replace the X11 `xrandr --brightness` path
   per the 1.x version's slider math. The drawer (E.8) and start
   menu (E.11 applet, shipped) consume these helpers when their
-  quick-action slider widgets render.
-- [✓] **Phase E.6.2 volume slider (shipped 2026-05-21)** —
+  quick-action slider widgets render. **Re-opened 2026-05-22:**
+  the drawer's slider widgets never landed; helpers are dead.
+  Closes via v3.0.3 drawer-sliders task.
+  See [[V3_RUNTIME_INTEGRATION_AUDIT]].
+- [>] **v3.0.3: Phase E.6.2 volume slider (helpers shipped 2026-05-21,
+  drawer widget deferred — audit 2026-05-22)** —
   best-choice deviation from "pipewire-rs": `crates/mde-panel/
   src/sliders.rs` ships `read_volume_percent()`,
   `set_volume_percent(pct)`, `read_mute()`, `toggle_mute()`
@@ -1522,6 +1833,9 @@ src/`) and its destination.
   step index + pactl parsers + no-panic on absent binary. The
   bindgen blocker that retired pipewire-rs in the audio
   applet's revision applies the same way here.
+  **Re-opened 2026-05-22:** same situation as E.6.1 — drawer
+  widget never landed. Closes via v3.0.3 drawer-sliders task.
+  See [[V3_RUNTIME_INTEGRATION_AUDIT]].
 - [✓] **Phase E.7.1 — superseded by E1.2.5 `mde-applet-notification-bell` (2026-05-20).** Iced badge widget reading the unread count from ~/.cache/mackes/notifications.json (the same source mded would emit via UnreadCount() once B.10 wires the method). 8 tests. Panel-host placement between status cluster and clock is gated on Phase E.1 panel rewrite. Original entry: tray button
   between status cluster and clock. Reads unread count from
   `mded` via `dev.mackes.MDE.Notifications.GetCapabilities`
@@ -1574,7 +1888,8 @@ src/`) and its destination.
     style and lands alongside the rendered widget; placeholder
     body in the bin shows the intent).
   Total drawer tests: 12 (covers all 4 sections' data layer).
-- [✓] **Phase E.9 dock_dnd data model (shipped 2026-05-21)** —
+- [>] **v3.0.3: Phase E.9 dock_dnd data model (helpers shipped
+  2026-05-21, widget integration deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/dock_dnd.rs` ships pure-fn drop
   routing: `PinnedEntry { desktop_id, label }`,
   `reorder_dock(pinned, from, to)`, `pin_app(pinned, new,
@@ -1587,7 +1902,10 @@ src/`) and its destination.
   no-op-when-missing, atom-name v2-namespace lock. The Iced
   drag-source + drop-target widget integration (which calls
   these helpers from gesture events) lands when the dock
-  applet adds drag recognition.
+  applet adds drag recognition. **Re-opened 2026-05-22:** dock
+  applet still has no drag recognition; helpers remain dead.
+  Closes via v3.0.3 dock_dnd-integration task.
+  See [[V3_RUNTIME_INTEGRATION_AUDIT]].
 - [✓] **Phase E.10 — superseded by E1.2.7 `mde-applet-dock` (2026-05-20).** Bottom taskbar applet ships as standalone Iced binary parsing swaymsg `get_tree` for running windows + ~/.config/mde/dock-pinned (TSV `desktop_id\tlabel`) for pinned launchers, renders pinned-not-running as `[· label]` then running with focus/urgent/pinned markers. 9 tests. Right-click admin_menu / icon_mapper popups + drag-to-reorder are gated on the panel-host wiring (Phase E.1) + Phase E.9. Original entry: the actual
   bottom taskbar widget. Reads pinned launchers from
   `~/.config/mde/panel.toml` (via `mackes-config`, will rename
@@ -1613,7 +1931,8 @@ src/`) and its destination.
   + waits on the applet (wired in main.rs). Super+Space sway
   bind invokes `mde-panel --apple-menu` per data/sway/config.d/
   mackes-defaults.conf.
-- [✓] **Phase E.13 admin_menu (shipped 2026-05-21)** — Iced port
+- [>] **v3.0.3: Phase E.13 admin_menu (helpers shipped 2026-05-21,
+  right-click wiring deferred — audit 2026-05-22)** — Iced port
   shipped at `crates/mde-panel/src/admin_menu.rs`. Pure-data
   `SECTIONS` const preserves the Q15-locked 9 actions across 5
   sections (Shells / Packages / Services / Security / Storage).
@@ -1622,8 +1941,14 @@ src/`) and its destination.
   `spawn_action()` does the std::process::Command::spawn. Sudo-
   cached probe carries over from the GTK version. 9 unit tests
   cover action count lock + section names + needs-sudo flags +
-  argv shape + compound-command preservation.
-- [✓] **Phase E.14 root_menu (shipped 2026-05-21)** —
+  argv shape + compound-command preservation. **Re-opened
+  2026-05-22:** module is dead code — the M button's right-click
+  was never wired (Iced's built-in `button` is left-click only,
+  no custom mouse-area widget was added). Operator-reported
+  "right click on the start menu does not work". Closes via
+  v3.0.3 admin_menu-wiring task. See [[V3_RUNTIME_INTEGRATION_AUDIT]].
+- [>] **v3.0.3: Phase E.14 root_menu (helpers shipped 2026-05-21,
+  wireability uncertain — audit 2026-05-22)** —
   `crates/mde-panel/src/root_menu.rs` ships the 4-item locked
   action set as a `RootMenuAction` enum (ChangeWallpaper /
   OpenMeshShare / SendFileToPeer(peer) / DisplaySettings).
@@ -1635,7 +1960,12 @@ src/`) and its destination.
   instead of the X11-only zenity picker the 1.x version used).
   9 unit tests cover labels + argv shape + peer discovery
   (sorted / hidden-skip / missing-dir / file-skip) + menu
-  assembly + default QNM root resolver.
+  assembly + default QNM root resolver. **Re-opened 2026-05-22:**
+  wallpaper is owned by `swaybg` in MDE, which has no event hook
+  for right-click. Closes via v3.0.3 root_menu-wireability task
+  (decision: investigate sway floating_modifier route, transparent
+  layer-shell capture, or formal retirement in favor of another
+  surface). See [[V3_RUNTIME_INTEGRATION_AUDIT]].
 - [✓] **Phase E.15 status_cluster (shipped 2026-05-21)** — closed
   via tray applets. `mde-applet-status-cluster` (E1.2.10,
   shipped 2026-05-20) renders the battery + power-profile pill;
@@ -1664,8 +1994,8 @@ src/`) and its destination.
   with content. `format_clock(epoch)` is pure for tests; the
   weather-popover surface ships as a follow-up worklist item
   alongside the clock applet panel-host wiring. 9 unit tests.
-- [✓] **Phase E.17 follow-up: weather popover (shipped
-  2026-05-21)** — `crates/mde-panel/src/weather.rs` ships
+- [>] **v3.0.3: Phase E.17 follow-up — weather popover (helpers shipped
+  2026-05-21, popover surface deferred — audit 2026-05-22)** — `crates/mde-panel/src/weather.rs` ships
   `WeatherSnapshot { location, condition, temp_c, high_c, low_c,
   wind_kmh, fetched_at_ms }` + `render_lines()` (4-line column
   per the locked spec) + `attribution()` (footer text). Pure
@@ -1678,8 +2008,12 @@ src/`) and its destination.
   matches the v1.x cadence. 14 unit tests cover render shape,
   freshness label bands, wttr.in parser (with + without region),
   malformed JSON fallthrough, cache round-trip, default path
-  shape, never-updated label.
-- [✓] **Phase E.18 watermark (shipped 2026-05-21)** —
+  shape, never-updated label. **Re-opened 2026-05-22:** the
+  layer-shell popover surface that would render this never
+  shipped. Closes via v3.0.3 weather-popover task. See
+  [[V3_RUNTIME_INTEGRATION_AUDIT]].
+- [>] **v3.0.3: Phase E.18 watermark (helpers shipped 2026-05-21,
+  widget surface deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/watermark.rs` ships `WatermarkState`
   (MDE version / Fedora release / build hash / hostname /
   pending-update count) + `render_line()` which formats the
@@ -1691,7 +2025,11 @@ src/`) and its destination.
   ready-to-consume today. 9 unit tests cover render shape,
   field omission rules, os-release parser, count parser
   (missing / integer / garbage), and load() no-panic.
-- [✓] **Phase E.19 icon_mapper (shipped 2026-05-21)** —
+  **Re-opened 2026-05-22:** the Layer::Background surface never
+  shipped — data layer renders nothing on screen. Closes via
+  v3.0.3 watermark-widget task. See [[V3_RUNTIME_INTEGRATION_AUDIT]].
+- [>] **v3.0.3: Phase E.19 icon_mapper (helpers shipped 2026-05-21,
+  popover wiring deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/icon_mapper.rs` ships
   `builtin_map()` (HashMap of ~50 fdo icon-name → Carbon
   glyph entries: browsers / terminals / editors / files /
@@ -1706,8 +2044,12 @@ src/`) and its destination.
   right-click handler — pure-fn data layer ships ready-to-
   consume. 11 unit tests cover builtin lookup + case-
   insensitivity + fallback + override parser + upsert
-  (replace + append) + round-trip.
-- [✓] **Phase E.20 toasts (shipped 2026-05-21)** —
+  (replace + append) + round-trip. **Re-opened 2026-05-22:** the
+  dock right-click handler that surfaces the glyph picker was
+  never built. Closes via v3.0.3 icon_mapper-popover task.
+  See [[V3_RUNTIME_INTEGRATION_AUDIT]].
+- [>] **v3.0.3: Phase E.20 toasts (helpers shipped 2026-05-21, render
+  layer + emit sites deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/toasts.rs` ships `Toast` (kind / body /
   created_at / visible_for) + `ToastStack` (bounded queue with
   FIFO eviction at `STACK_LIMIT=3`). `ToastKind` enum carries
@@ -1717,6 +2059,9 @@ src/`) and its destination.
   reaper. 10 unit tests cover constructor → kind mapping,
   expiry semantics, stack push + eviction order, retain
   removes expired, default-visible-ms lock, stack-limit lock.
+  **Re-opened 2026-05-22:** no render surface mounts the
+  ToastStack and nothing in the panel emits toasts. Closes via
+  v3.0.3 toast-render task. See [[V3_RUNTIME_INTEGRATION_AUDIT]].
 - [✓] **Phase E.21 mesh_module + mesh_sync (shipped 2026-05-21)**
   — closed via tray applets. `mde-applet-mesh-status` (E1.2.4,
   shipped 2026-05-20) is the standalone `mded healthz`-backed
@@ -3287,7 +3632,8 @@ migrate` subcommand. Everything below is pending implementation.
   audit_chain_intact, version). `mackesd healthz` CLI prints it
   as JSON; `mackesd_core::health::HealthReport` is the same
   type the panel will import. 3 unit tests.
-- [✓] **12.1.4 Structured logging** —
+- [>] **v3.0.3: 12.1.4 Structured logging (helpers shipped, daemon never
+  imports them — audit 2026-05-22)** —
   `crates/mackesd/src/logging.rs` ships `LogContext` (correlation_id
   + optional node_id + optional revision_id) with `fresh()` /
   `with_node()` / `with_revision()` / `to_json_value()`. Process-
@@ -3800,7 +4146,9 @@ Locked 25-Q survey 2026-05-19 in
   (which Headscale inherits automatically). 9 unit tests cover
   the unit's gating, flags, lockdown, resource caps, and the
   spec install lines for both files.
-- [✓] **12.17 ICE/STUN augmentation for symmetric-NAT edges** —
+- [>] **v3.0.3: 12.17 ICE/STUN augmentation for symmetric-NAT edges
+  (helpers shipped 2026-05-20, daemon never invokes them —
+  audit 2026-05-22)** —
   shipped 2026-05-20. New module `crates/mackesd/src/stun.rs`
   ships a real RFC 5389/8489 STUN client:
   `encode_binding_request(txid)` returns the 20-byte header,
@@ -3815,7 +4163,9 @@ Locked 25-Q survey 2026-05-19 in
   attribute-padding handling, txid uniqueness, and a timeout
   smoke test. Q8 ≤ 1.5 s gather budget enforced via the
   `timeout` arg.
-- [✓] **12.18 HTTPS-tunneled fallback (policy layer)** — shipped
+- [>] **v3.0.3: 12.18 HTTPS-tunneled fallback (policy layer) (helpers
+  shipped 2026-05-20, fallback activation never wired — audit
+  2026-05-22)** — shipped
   2026-05-20. New module `crates/mackesd/src/https_fallback.rs`
   ships the activation-policy state machine:
   Inactive → Activating → Active → Failing, plus the
@@ -4221,7 +4571,8 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   `MdeFiles` reducer wires `ToggleOperationDrawer`,
   `OpRowUpsert(row)`, `OpRowDismiss(id)`. 8 panel-module + 1
   app-wiring tests.
-- [✓] **1.8 Search-results view** — shipped 2026-05-20. New
+- [>] **v3.0.3: 1.8 Search-results view (filter helpers shipped 2026-05-20,
+  view never consumes them — audit 2026-05-22)** — shipped 2026-05-20. New
   module `crates/mde-files/src/search.rs` ships the pure-fn
   filter primitives: `matches_query(row, query)` (case-
   insensitive substring over filename + origin peer name,
@@ -4233,7 +4584,8 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   paths. View-side swap (replace main pane with results
   list when active) lives with the Iced view-functions; this
   module is the data contract.
-- [✓] **1.9 Grid view** — shipped 2026-05-20. New module
+- [>] **v3.0.3: 1.9 Grid view (layout-math helpers shipped 2026-05-20,
+  Iced widget tree never consumes them — audit 2026-05-22)** — shipped 2026-05-20. New module
   `crates/mde-files/src/grid.rs` ships the locked tile-layout
   math + `TileMetadata` data type. Locked constants:
   `TILE_SIZE_PX = 120`, `TILE_GUTTER_PX = 16`,
@@ -4263,7 +4615,9 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   + tests use it without a live mded connection. 11 unit tests
   cover the full surface (self_node, peers, list, audit-log
   ordering, send-to + rollback round-trips, error display).
-- [✓] **2.3 (mde-files crate) DBusBackend (shipped 2026-05-20) — `crates/mde-files/src/dbus_backend.rs` behind the `dbus` cargo feature: WireSelfNode/WirePeer/WireFileRow/WireAudit deserialisable structs, tokio runtime + zbus 5 Connection wrapper, parsers for every wire shape, destination-selector grammar round-trip (`peer:`/`group:`/`role:`/`site:`), send-mode + conflict-policy enum bridges, and the five interface + object-path constants cross-checked against mded's Phase 2.4 schemas. 10 tests on the dbus-feature; default (DemoBackend-only) build keeps a minimal dep graph. Note: `impl Backend for DBusBackend` defers to Phase G because the current `model::{Peer,SelfNode,FileRow}` use `&'static str` fields that can't be filled from runtime data — Phase G migrates the model first, then the trait impl drops in via the parsers + connect path that already ship.** Original entry: Talks to
+- [>] **v3.0.3: 2.3 (mde-files crate) DBusBackend (parser + struct shipped
+  2026-05-20, `impl Backend for DBusBackend` deferred to Phase G —
+  audit 2026-05-22 confirms the deferral never closed) — `crates/mde-files/src/dbus_backend.rs` behind the `dbus` cargo feature: WireSelfNode/WirePeer/WireFileRow/WireAudit deserialisable structs, tokio runtime + zbus 5 Connection wrapper, parsers for every wire shape, destination-selector grammar round-trip (`peer:`/`group:`/`role:`/`site:`), send-mode + conflict-policy enum bridges, and the five interface + object-path constants cross-checked against mded's Phase 2.4 schemas. 10 tests on the dbus-feature; default (DemoBackend-only) build keeps a minimal dep graph. Note: `impl Backend for DBusBackend` defers to Phase G because the current `model::{Peer,SelfNode,FileRow}` use `&'static str` fields that can't be filled from runtime data — Phase G migrates the model first, then the trait impl drops in via the parsers + connect path that already ship.** Original entry: Talks to
   `dev.mackes.MDE.Fleet.{Peers,Files}` and
   `dev.mackes.MDE.Shell.{Inbox,Outbox,Downloads,FileOperations}`.
   zbus 5 with `tokio` feature (matches the v2.0.0 stack lock).
@@ -4410,7 +4764,8 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   (state.keyboard_active)` is the view-side predicate.
   Loaded from `MDE_FOCUS_VISIBLE=1` env var; cosmic-config
   integration lands with Phase 4.5.
-- [✓] **5.3 Screen-reader labels** — shipped 2026-05-20. New
+- [>] **v3.0.3: 5.3 Screen-reader labels (label table shipped 2026-05-20,
+  Iced view never routes through it — audit 2026-05-22)** — shipped 2026-05-20. New
   module `crates/mde-files/src/a11y_labels.rs` ships the
   `A11yAction` enum (23 locked icon-only-button variants:
   titlebar / toolbar / sidebar / row / op-drawer / details /
@@ -5417,7 +5772,8 @@ fuzzable + reproducible.
   is the device identity. Use `rcgen` to issue the cert with
   device-id CN. `generate_identity_cert(&KeyStore, device_id) ->
   CertChain`. 5 unit tests.
-- [✓] **KDC2-2.8: `crypto` — TLS handshake helper (rustls)** — Pure
+- [>] **KDC2-2.8: `crypto` — TLS handshake helper (rustls) (pure
+  helper shipped, KDC host never invokes it — audit 2026-05-22)** — Pure
   helper that wraps a `tokio_rustls::TlsStream` with the cert
   pinning logic. Verifies remote cert matches the paired-device
   fingerprint stored by the host (KDC2-3.7). 8 unit tests with
@@ -5535,7 +5891,9 @@ service. Hosts the `dev.mackes.MDE.Connect.*` D-Bus interface.
   KDC2-1.2. Routes incoming packets through the protocol
   plugins; exposes outgoing-packet API for the D-Bus methods.
   8 unit tests.
-- [✓] **KDC2-3.3: D-Bus host scaffold (zbus 5)** — Acquire bus
+- [>] **KDC2-3.3: D-Bus host scaffold (zbus 5) (bus acquisition
+  shipped, concrete methods explicitly deferred to KDC2-3.4..3.6/3.9
+  — audit 2026-05-22)** — Acquire bus
   name `dev.mackes.MDE.Connect` on the user session bus.
   `Connect` object at `/dev/mackes/MDE/Connect`. Single-instance
   guard via name-acquired check. 4 unit tests with
