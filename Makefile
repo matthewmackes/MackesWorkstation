@@ -12,7 +12,7 @@ NAME    := mackes-shell
 VERSION := $(shell python3 -c "import mackes; print(mackes.__version__)")
 SDIST   := dist/$(NAME)-$(VERSION).tar.gz
 
-.PHONY: sdist rpm test test-nodeps smoke lint lint-grid verify rust rust-check docs iso clean install-deps install-hooks
+.PHONY: sdist rpm test test-nodeps test-coverage smoke lint lint-grid verify rust rust-check docs iso clean install-deps install-hooks
 
 sdist:
 	@# Prefer PEP 517 build (works on Fedora 40+ without distutils).
@@ -56,6 +56,25 @@ test:
 
 test-nodeps:
 	python3 tests/_run_without_pytest.py
+
+# v4.0.1 (2026-05-23) — EPIC-production-ready-mackes Track 4
+# coverage gate. Runs pytest with coverage limited to the four
+# mesh-critical modules + fails if coverage drops below 60%
+# per the epic lock. Used by the release workflow as a hard
+# gate before `cut release` proceeds.
+#
+# Coverage is intentionally NOT enforced on the whole `mackes/`
+# tree — the legacy GTK panels under `mackes/workbench/*` are
+# being retired in favor of `mde-workbench` and accumulating
+# coverage debt on them would distort the signal.
+test-coverage:
+	python3 -m pytest tests/ \
+		--cov=mackes.mesh_vpn \
+		--cov=mackes.mesh_discovery \
+		--cov=mackes.mesh_mdns \
+		--cov=mackes.birthright \
+		--cov-fail-under=60 \
+		--cov-report=term-missing
 
 # Mirrors .github/workflows/ci.yml's ruff gate exactly so a local
 # pass means ci will pass too. Pre-commit gate — see

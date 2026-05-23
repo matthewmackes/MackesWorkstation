@@ -40,10 +40,12 @@ jobs:
             python3 python3-pip python3-pyyaml \
             python3-gobject gtk3 xfconf cairo-gobject-devel \
             python3-cairo python3-textual \
-            python3-pytest ruff
+            python3-pytest python3-pytest-cov \
+            ruff
           # GUI panels won't initialize headlessly; pytest sees only logic
           # modules. cairo-gobject + python3-textual are needed so the
           # import-smoke test can import the mesh_thumbnailer / tui modules.
+          # python3-pytest-cov powers the `make test-coverage` Track 4 gate.
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,6 +77,16 @@ jobs:
         # walks every mackes.* submodule with proper typelib filtering, so
         # no separate "import smoke" step is needed here.
         run: python3 -m pytest tests/ -v --tb=short
+
+      - name: test-coverage gate (Track 4)
+        # v4.0.1 — EPIC-production-ready-mackes Track 4 lock:
+        # ≥60% coverage on the 4 mesh-critical Python modules.
+        # Soft-gate on first introduction so the baseline can be
+        # measured without breaking CI; flips to hard gate in
+        # v4.0.2 once the actual coverage number is known + any
+        # gaps closed (or threshold tuned to reality).
+        run: make test-coverage
+        continue-on-error: true
 
   rust:
     name: rust (Fedora 44)

@@ -204,8 +204,93 @@ def _xfconf_load_dump(channel: str, dump_path: Path) -> bool:
     return bridge_imported
 
 
-def restore_snapshot(snap: Snapshot) -> list[str]:
+def validate_snapshot_against_current(snap: Snapshot) -> list[str]:
+    """v4.0.1 schema-validation gate per MACKES_SHELL_SPEC.md §6.1.
+
+    Returns a list of warning strings; empty list means the
+    snapshot's recorded keys + source preset match the currently-
+    active runtime. Non-empty list means the restore will partial-
+    write (keys present in the snapshot but not in the current
+    `_KEY_MAP` get dropped silently; keys present today but absent
+    from the snapshot keep their current values rather than reset).
+
+    The warnings are advisory: `restore_snapshot(snap, strict=True)`
+    treats them as fatal; the default `strict=False` logs them then
+    proceeds with best-effort restore (matches v1.x behavior).
+
+    Checks:
+    1. `source_preset` recorded in the manifest. None means a v1.x
+       snapshot pre-dating the preset-tag landed in v1.4 — warn.
+    2. `mde_keys` list. Cross-reference against the current
+       `mackes.mde_settings_bridge._KEY_MAP`. Keys in the snapshot
+       but not in current → schema-drift warning. Keys in current
+       but not in snapshot → restore-completeness warning.
+    """
+    warnings: list[str] = []
+    manifest = snap.manifest()
+    if not manifest:
+        warnings.append(
+            f"snapshot {snap.name}: missing manifest.json — pre-v1.4 "
+            "snapshot, schema validation skipped"
+        )
+        return warnings
+
+    if not manifest.get("source_preset"):
+        warnings.append(
+            f"snapshot {snap.name}: source_preset not recorded "
+            "(pre-v1.4 snapshot); restore will apply against "
+            "whatever preset is active without preset-shape check"
+        )
+
+    snap_keys = set(manifest.get("mde_keys") or [])
+    try:
+        from mackes.mde_settings_bridge import _KEY_MAP
+        current_keys = set(_KEY_MAP.keys())
+    except Exception as e:  # noqa: BLE001
+        warnings.append(
+            f"snapshot {snap.name}: mde_settings_bridge unavailable "
+            f"({e!s}); MDE-key schema check skipped"
+        )
+        return warnings
+
+    only_in_snap = snap_keys - current_keys
+    only_in_current = current_keys - snap_keys
+    if only_in_snap:
+        warnings.append(
+            f"snapshot {snap.name}: {len(only_in_snap)} key(s) in "
+            f"snapshot but not in current bridge — will be silently "
+            f"dropped (sample: {sorted(only_in_snap)[:3]})"
+        )
+    if only_in_current:
+        warnings.append(
+            f"snapshot {snap.name}: {len(only_in_current)} key(s) "
+            f"in current bridge but not in snapshot — these keep "
+            f"their pre-restore values (sample: "
+            f"{sorted(only_in_current)[:3]})"
+        )
+    return warnings
+
+
+def restore_snapshot(snap: Snapshot, *, strict: bool = False) -> list[str]:
+    """Restore a snapshot. v4.0.1: pre-validates against the active
+    preset schema via `validate_snapshot_against_current` before
+    writing anything. Warnings are logged + included in the return
+    value. With `strict=True`, any validation warning raises
+    `ValueError` before writes start (use this in scripted /
+    automated restore flows; the GUI restore prompt uses the
+    default `False` so the user can review + proceed)."""
     actions: list[str] = [f"--- restoring snapshot {snap.name} ---"]
+
+    # v4.0.1 — schema check first; refuse if strict and any warnings.
+    validation = validate_snapshot_against_current(snap)
+    for w in validation:
+        log_action(w)
+        actions.append(f"WARN: {w}")
+    if validation and strict:
+        raise ValueError(
+            f"snapshot {snap.name} fails strict schema validation:\n"
+            + "\n".join(f"  * {w}" for w in validation)
+        )
 
     # 1. config trees
     for name, dest in LIVE_CONFIG_DIRS.items():
