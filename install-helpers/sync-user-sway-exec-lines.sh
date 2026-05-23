@@ -58,13 +58,60 @@ append_if_missing() {
         printf '\n# v4.0.1 BUG-11 sync — appended by sync-user-sway-exec-lines.sh\n'
         printf '%s\n' "$line"
     } >>"$USERCFG"
-    # Reload sway so the line takes effect this session, not just the
-    # next one. `swaymsg reload` re-reads the config + re-runs exec
-    # lines; `|| true` so a missing swaymsg (running outside sway)
-    # doesn't fail the session bring-up.
-    swaymsg reload >/dev/null 2>&1 || true
+    SWAY_NEEDS_RELOAD=1
+}
+
+# v4.0.1 BUG-16 sync — enforce the locked border + title-bar
+# settings. Unlike append_if_missing, these are key=value-shaped:
+# we replace the entire existing line in-place if its key matches,
+# or append if absent. Pre-2026-05-23 user configs had
+# `default_border pixel <N>` + `smart_borders on`; this commit
+# locks `normal 4` + `title_align center` + `smart_borders no`
+# so sway renders the title-bar that hosts the per-window
+# min/max/close cluster.
+ENFORCED_LINES=(
+    "default_border normal 4"
+    "default_floating_border normal 4"
+    "title_align center"
+    "smart_borders no"
+)
+SWAY_NEEDS_RELOAD=0
+
+enforce_setting() {
+    local target="$1"
+    local key
+    key="$(printf '%s' "$target" | awk '{print $1}')"
+    # If the key already exists with the target value, no-op.
+    if grep -qE "^${key}\\b" "$USERCFG"; then
+        local current
+        current="$(grep -E "^${key}\\b" "$USERCFG" | head -1)"
+        if [ "$current" = "$target" ]; then
+            return 0
+        fi
+        # Replace the first occurrence in-place. Use sed with a
+        # delimiter that won't appear in sway config strings.
+        sed -i "0,/^${key}\\b.*/{s||$target|}" "$USERCFG"
+    else
+        # Key absent — append.
+        {
+            printf '\n# v4.0.1 BUG-16 sync — enforced by sync-user-sway-exec-lines.sh\n'
+            printf '%s\n' "$target"
+        } >>"$USERCFG"
+    fi
+    SWAY_NEEDS_RELOAD=1
 }
 
 for line in "${REQUIRED_LINES[@]}"; do
     append_if_missing "$line"
 done
+
+for setting in "${ENFORCED_LINES[@]}"; do
+    enforce_setting "$setting"
+done
+
+if [ "$SWAY_NEEDS_RELOAD" = "1" ]; then
+    # Reload sway so the changes take effect this session, not just
+    # the next one. `|| true` so a missing swaymsg (running outside
+    # sway) doesn't fail the session bring-up.
+    swaymsg reload >/dev/null 2>&1 || true
+fi
