@@ -147,7 +147,36 @@ phase_install() {
             done
         fi
 
-        log "summary: py=$py_changed desktop=$desktop_changed bin=$bin_changed"
+        # 4) sway config.d drop-ins. v4.0.1 WM-6 (2026-05-23) —
+        #    new *.conf files in data/sway/config.d/ need to land
+        #    in every operator's ~/.config/sway/config.d/. The
+        #    mde-shell-migrate-v2 first-boot path seeds only when
+        #    ~/.config/sway/ is empty; for in-place upgrades the
+        #    parity overlay rsyncs the dir on every tick. The user
+        #    home is derived from $SUDO_USER (overlay re-execs
+        #    itself as root for install phase).
+        local sway_changed=0
+        local devhome
+        if [ -n "${SUDO_USER:-}" ]; then
+            devhome="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+        else
+            devhome=""
+        fi
+        if [ -n "$devhome" ] && [ -d "$REPO/data/sway/config.d" ]; then
+            install -d -o "$SUDO_USER" -g "$SUDO_USER" \
+                "$devhome/.config/sway/config.d"
+            for f in "$REPO"/data/sway/config.d/*.conf; do
+                [ -f "$f" ] || continue
+                local dst="$devhome/.config/sway/config.d/$(basename "$f")"
+                if [ ! -f "$dst" ] || [ "$f" -nt "$dst" ]; then
+                    install -m 0644 -o "$SUDO_USER" -g "$SUDO_USER" "$f" "$dst"
+                    log "sway-config.d: $(basename "$f")"
+                    sway_changed=$((sway_changed + 1))
+                fi
+            done
+        fi
+
+        log "summary: py=$py_changed desktop=$desktop_changed bin=$bin_changed sway=$sway_changed"
         log "==== phase=install done ===="
     } 2>&1 | tee -a "$LOG"
 }

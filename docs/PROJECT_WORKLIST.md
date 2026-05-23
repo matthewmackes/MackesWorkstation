@@ -1999,33 +1999,24 @@ integration needed.
     Mod1+Tab exec mde-popover app-switcher` (Mod1 = Alt;
     Super+Tab is reserved for the workspace switcher).
 
-- [ ] **v4.0.1: WM-6 floating window keyboard ops (Tier 2 chrome)**
+- [✓] **v4.0.1: WM-6 floating window keyboard ops (shipped 2026-05-23)**
 
-  **As** an operator,
-  **I want** named keyboard shortcuts in sway config for the
-  common per-window operations the panel doesn't directly
-  expose (move floating, resize precisely, tile to half,
-  send to other monitor),
-  **so that** my power-user keyboard workflow stays cohesive
-  with the panel's mouse workflow.
+  Shipped `data/sway/config.d/mackes-keybinds-wm.conf` —
+  loads alphabetically AFTER `mackes-defaults.conf` so the
+  drop-in extends the defaults without losing them. Bindings:
+  - Super+Ctrl+H/J/K/L → tile focused window to half-screen
+    (left/down/up/right). Picked Super+Ctrl rather than the
+    spec's Super+H to coexist with existing Super+H/J/K/L
+    focus-nav bindings instead of breaking muscle memory.
+  - Super+Ctrl+arrow → move container to neighbour output.
+  - Super+Shift+F → Win11-maximize equivalent (floating fill).
 
-  **Acceptance** (bench-observable):
-  - [ ] Super+H / Super+L bind to "tile focused window left
-        half" / "right half" (in addition to the existing
-        focus-h / focus-l).
-  - [ ] Super+Shift+arrow already bound to "move container";
-        Super+Ctrl+arrow added for "move window between
-        outputs" (`swaymsg move container to output …`).
-  - [ ] Super+Enter opens a terminal in the active output
-        (already exists, verify).
-  - [ ] data/sway/config.d/mackes-keybinds-wm.conf ships
-        these so user customizations in config.d stay
-        intact.
-
-  **Implementation notes:**
-  - **Chrome influence:** GNOME's Settings → Keyboard →
-    Window Management page documents the common idioms.
-  - **Icon source:** N/A (keyboard-only).
+  **In-place propagation:** parity-overlay's install phase now
+  rsyncs `data/sway/config.d/*.conf` into
+  `~/.config/sway/config.d/` on every tick so existing
+  operators pick up new drop-ins without re-running
+  mde-shell-migrate-v2 (which only seeds on first boot when
+  `~/.config/sway/` is empty).
 
 - [✓] **v4.0.1: BUG-16 per-window controls → Win11 standard
   location; panel center → Desktop Layout buttons (Tier 1
