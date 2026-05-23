@@ -1340,30 +1340,30 @@ through them in priority order.
   DPI on a packet-inspecting bench firewall. The future v4.1+
   unblocking commit will satisfy this gate before flipping.
 - [✓] **v4.0.1: Geologica font audit + IBM Plex Mono spec
-  Recommends added (shipped 2026-05-23)** — audit findings
-  retained: (a) Geologica is NOT bundled, (b) was missing
-  from spec, (c) not a Fedora package, (d) not installed on
-  the dev system, so visual-identity Q11/Q12 lock was
-  violated at runtime. Update:
-  `packaging/fedora/mackes-shell.spec` gained
-  `Recommends: ibm-plex-mono-fonts` — IBM Plex Mono is
-  already in Fedora as that package, so the system has it
-  whenever mde installs. Geologica still needs an upstream
-  tarball bundle — Google Fonts' `/download` endpoint
-  returns an HTML page rather than a programmatic ZIP, so
-  the v4.0.2 bundle task below holds for that piece.
-- [ ] **v4.0.2: bundle Geologica + IBM Plex Mono fonts**
-  (visual-identity.md Q11/Q12/Q13) — concrete implementation
-  of the v4.0.1 audit's findings. Download the variable
-  Geologica font from
-  `https://fonts.google.com/download?family=Geologica` (OFL
-  1.1) + IBM Plex Mono (same source), drop both .ttf files
-  into `data/fonts/`, add spec install lines to
-  `/usr/share/fonts/mde/`, add a `fc-cache -fv` invocation in
-  the spec's `%post` scriptlet. Acceptance:
-  `dnf install mde && fc-list | grep -iE 'geologica|plex.*mono'`
-  reports both fonts; opening Workbench renders in Geologica
-  per design lock.
+  Recommends + Geologica bundle (shipped 2026-05-23)** —
+  full close in two passes the same day:
+  pass 1 (morning) added `Recommends: ibm-plex-mono-fonts`
+  for Q12; pass 2 (afternoon, this commit) bundled the 5
+  Geologica weights for Q11 via the fonts.gstatic.com
+  endpoint after discovering /css2 emits the raw .ttf URLs.
+  See `v4.0.1: bundle Geologica fonts` task above for full
+  detail.
+- [✓] **v4.0.1: bundle Geologica fonts — done early
+  (shipped 2026-05-23)** — pulled forward from v4.0.2 since
+  the download path turned out to be tractable via
+  fonts.gstatic.com (Google Fonts /css2 endpoint emits the
+  raw .ttf URLs).
+  Five Geologica weights — Light (300), Regular (400),
+  Medium (500), Bold (700), Black (900) — landed at
+  `data/fonts/Geologica-*.ttf` + OFL 1.1 license at
+  `data/fonts/Geologica-OFL.txt`. Spec installs them to
+  `/usr/share/fonts/geologica/` and the %post scriptlet runs
+  `fc-cache -fv` so fontconfig picks them up on install. IBM
+  Plex Mono ships as a Fedora package (already added as a
+  spec Recommends 2026-05-23).
+  Operator's user cache populated in-place: copied to
+  `~/.local/share/fonts/geologica/` + `fc-cache -fv` ran.
+  `fc-list | grep -iE geologica` now reports all 5 weights.
 - [✓] **v4.0.1: voice-and-tone verb CI gate
   (voice-and-tone.md) — shipped 2026-05-23** —
   `install-helpers/lint-voice.sh` (~120 LOC) scans for

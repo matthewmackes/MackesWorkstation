@@ -751,6 +751,25 @@ install -D -m 0644 data/systemd/mde-derper.service \
     %{buildroot}%{_unitdir}/mde-derper.service
 install -D -m 0644 data/headscale/derp-map.example.json \
     %{buildroot}%{_datadir}/mde/headscale/derp-map.example.json
+
+# v4.0.1 BUG-13 / visual-identity.md Q11: Geologica font family
+# (OFL 1.1, bundled from fonts.gstatic.com 2026-05-23). 5 weights —
+# Light / Regular / Medium / Bold / Black — installed to
+# /usr/share/fonts/geologica/ where fontconfig picks them up via the
+# default font path. fc-cache fires in %post.
+install -D -m 0644 data/fonts/Geologica-Light.ttf \
+    %{buildroot}%{_datadir}/fonts/geologica/Geologica-Light.ttf
+install -D -m 0644 data/fonts/Geologica-Regular.ttf \
+    %{buildroot}%{_datadir}/fonts/geologica/Geologica-Regular.ttf
+install -D -m 0644 data/fonts/Geologica-Medium.ttf \
+    %{buildroot}%{_datadir}/fonts/geologica/Geologica-Medium.ttf
+install -D -m 0644 data/fonts/Geologica-Bold.ttf \
+    %{buildroot}%{_datadir}/fonts/geologica/Geologica-Bold.ttf
+install -D -m 0644 data/fonts/Geologica-Black.ttf \
+    %{buildroot}%{_datadir}/fonts/geologica/Geologica-Black.ttf
+install -D -m 0644 data/fonts/Geologica-OFL.txt \
+    %{buildroot}%{_datadir}/fonts/geologica/OFL.txt
+
 cat > %{buildroot}%{_bindir}/mackes-clipboard <<'EOF'
 #!/usr/bin/env bash
 exec python3 -m mackes.clipboard_app "$@"
@@ -800,6 +819,9 @@ visudo -c -f /etc/sudoers.d/mackes-shell >/dev/null 2>&1 \
 # Rebuild the GTK icon caches for the vendored icon themes
 gtk-update-icon-cache -f -t %{_datadir}/icons/Black-Sun     2>/dev/null || :
 gtk-update-icon-cache -f -t %{_datadir}/icons/Mackes-Carbon 2>/dev/null || :
+# v4.0.1: refresh the fontconfig cache so newly-installed Geologica
+# is visible to fc-list / Iced / GTK at next session start.
+fc-cache -fv %{_datadir}/fonts/geologica 2>/dev/null || :
 # CB-3.4 — register the comps group so `dnf groupinstall
 # mackes-desktop-environment` resolves on this host. Silently no-ops
 # on systems where dnf-plugins-core isn't available.
@@ -843,6 +865,14 @@ fi
 # v4.0.1 BUG-4 — mde-files Artifact Manager.
 %{_bindir}/mde-files
 %{_datadir}/applications/mde-files.desktop
+# v4.0.1 visual-identity.md Q11 — Geologica font family (OFL 1.1).
+%dir %{_datadir}/fonts/geologica
+%{_datadir}/fonts/geologica/Geologica-Light.ttf
+%{_datadir}/fonts/geologica/Geologica-Regular.ttf
+%{_datadir}/fonts/geologica/Geologica-Medium.ttf
+%{_datadir}/fonts/geologica/Geologica-Bold.ttf
+%{_datadir}/fonts/geologica/Geologica-Black.ttf
+%license %{_datadir}/fonts/geologica/OFL.txt
 %{_bindir}/mde-session
 %{_bindir}/mde-logout-dialog
 %{_bindir}/mded
