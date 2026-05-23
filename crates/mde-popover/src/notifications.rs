@@ -120,12 +120,18 @@ impl iced_layershell::Application for App {
                 header,
                 Space::with_width(Length::Fill),
                 subhead,
+                Space::with_width(Length::Fixed(8.0)),
+                // v3.0.3 — always-visible close button (Esc still
+                // works via subscription below).
+                crate::dismiss::close_button(Message::Exit),
             ]
             .align_y(iced::Alignment::Center),
             Space::with_height(Length::Fixed(8.0)),
             scroll,
             Space::with_height(Length::Fixed(4.0)),
-            text("Esc closes").size(10).color(FG_MUTED),
+            text("Esc closes · click × to dismiss")
+                .size(10)
+                .color(FG_MUTED),
         ]
         .padding(Padding {
             top: 14.0,

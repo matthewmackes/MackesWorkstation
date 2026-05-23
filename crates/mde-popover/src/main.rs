@@ -3,8 +3,8 @@
 //! v3.0.2 panel-host wiring: the panel (`mde-panel`) spawns this
 //! binary on every clickable zone press. Each popover is a separate
 //! layer-shell overlay surface that anchors above the panel edge,
-//! dismisses on Esc / outside-click, and exits cleanly when the user
-//! commits or cancels.
+//! dismisses on Esc / outside-click / close-button, and exits cleanly
+//! when the user commits or cancels.
 //!
 //! ```text
 //!   mde-popover start-menu         # M button → app launcher
@@ -14,14 +14,17 @@
 //!   mde-popover network            # network click → connection list
 //! ```
 //!
-//! Only `start-menu` ships today; the rest are stubs that exit 0 so
-//! the panel's click handler doesn't error. Per-kind ports land at
-//! v3.1 (see v3.0.2 hotfix bundle worklist follow-ups).
+//! Per-kind ports: start-menu, audio, clock, notifications all ship
+//! working today with the v3.0.3 close-button + the panel-side
+//! toggle dedup + zombie reap fixes. The network kind is
+//! grandfathered as an exit-0 stub under §0.12 until the v3.0.3
+//! network-popover task closes.
 
 #![forbid(unsafe_code)]
 
 mod audio;
 mod clock;
+mod dismiss;
 mod fonts;
 mod notifications;
 mod start_menu;
@@ -66,9 +69,11 @@ fn main() -> iced_layershell::Result {
         Kind::Notifications => notifications::run(),
         Kind::Clock => clock::run(),
         Kind::Network => {
-            // Network popover is v3.1 follow-up (needs NM D-Bus
-            // surface bindings + a connection-list widget set);
-            // stub branch keeps the panel click from erroring.
+            // Network popover is grandfathered v3.1 follow-up
+            // (needs NM D-Bus surface bindings + a connection-list
+            // widget set); stub branch keeps the panel click from
+            // erroring. Tracked as a v3.0.3 worklist task; closes
+            // by replacing this arm with `network::run()`.
             tracing::info!("network popover not yet implemented; exit 0");
             Ok(())
         }

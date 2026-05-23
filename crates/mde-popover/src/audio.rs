@@ -129,6 +129,10 @@ impl iced_layershell::Application for App {
             text("Output").size(13).color(FG_TEXT),
             Space::with_width(Length::Fill),
             pct_label,
+            Space::with_width(Length::Fixed(8.0)),
+            // v3.0.3 — always-visible close button (Esc still works
+            // via subscription below).
+            crate::dismiss::close_button(Message::Exit),
         ]
         .align_y(iced::Alignment::Center);
 
@@ -136,7 +140,7 @@ impl iced_layershell::Application for App {
             .step(1u32)
             .style(volume_slider_style);
 
-        let footer = text("Esc closes · drag to set")
+        let footer = text("Esc closes · ♫ toggles mute · drag to set")
             .size(10)
             .color(FG_MUTED);
 

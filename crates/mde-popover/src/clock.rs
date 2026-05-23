@@ -100,6 +100,15 @@ impl iced_layershell::Application for App {
         let minute = self.hms.1;
         let weekday_name = WEEKDAY_NAMES[self.weekday_today as usize];
 
+        // v3.0.3 — top-right close button on its own row so it
+        // doesn't crowd the big-time display. Esc still works via
+        // subscription below.
+        let close_row = row![
+            Space::with_width(Length::Fill),
+            crate::dismiss::close_button(Message::Exit),
+        ]
+        .align_y(iced::Alignment::Center);
+
         let big_time = text(format!("{hour:02}:{minute:02}"))
             .size(40)
             .color(FG_TEXT);
@@ -155,13 +164,16 @@ impl iced_layershell::Application for App {
         }
 
         let body = column![
+            close_row,
             big_time,
             Space::with_height(Length::Fixed(2.0)),
             date_line,
             Space::with_height(Length::Fixed(14.0)),
             grid,
             Space::with_height(Length::Fill),
-            text("Esc closes").size(10).color(FG_MUTED),
+            text("Esc closes · click × to dismiss")
+                .size(10)
+                .color(FG_MUTED),
         ]
         .padding(Padding {
             top: 16.0,

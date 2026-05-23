@@ -157,6 +157,13 @@ pub struct App {
     /// Top-bar zone state. Defaults to demo content; real per-port
     /// state writers replace individual fields.
     top_bar: top_bar::TopBarState,
+    /// Running popover children indexed by kind. v3.0.3 fix for
+    /// the dedup + zombie defects: the panel keeps the `Child`
+    /// handle so a second click on the same tray button kills the
+    /// existing popover (toggle behavior) and exited popovers get
+    /// reaped via `try_wait` on every spawn — no SIGCHLD ignore
+    /// and no fire-and-forget zombie pile-up.
+    popovers: std::collections::HashMap<&'static str, std::process::Child>,
 }
 
 impl App {
@@ -167,6 +174,62 @@ impl App {
         Self {
             ticks: 0,
             top_bar: top_bar::TopBarState::demo(),
+            popovers: std::collections::HashMap::new(),
+        }
+    }
+
+    /// Spawn a `mde-popover <kind>` child with dedup + reap. v3.0.3
+    /// fix for three concurrent defects in the previous fire-and-
+    /// forget spawn:
+    ///
+    /// 1. **Toggle dedup:** clicking a tray icon while its popover
+    ///    is already open closes the popover (rather than stacking
+    ///    a second instance on top of the first).
+    /// 2. **Zombie reap:** every spawn first reaps any previously-
+    ///    spawned popover children that have exited (the user
+    ///    pressed Esc, picked an app, etc.). No SIGCHLD=SIG_IGN
+    ///    needed; the held `Child` handle is the reap path.
+    /// 3. **Process count cap:** the HashMap is keyed by kind, so
+    ///    at most one popover per kind can exist at a time.
+    fn toggle_or_spawn_popover(&mut self, kind: &'static str) {
+        // First, reap any popovers that have already exited so the
+        // HashMap reflects current reality (user Esc'd, etc.). We
+        // mutate in two passes because borrow-checker.
+        let dead_kinds: Vec<&'static str> = self
+            .popovers
+            .iter_mut()
+            .filter_map(|(k, child)| match child.try_wait() {
+                Ok(Some(_status)) => Some(*k),
+                Ok(None) | Err(_) => None,
+            })
+            .collect();
+        for k in dead_kinds {
+            self.popovers.remove(k);
+        }
+
+        // Toggle: if this kind is already open, close it.
+        if let Some(mut child) = self.popovers.remove(kind) {
+            let _ = child.kill();
+            let _ = child.wait();
+            tracing::debug!(kind, "popover toggle: closed existing");
+            return;
+        }
+
+        // Open: spawn fresh, hold handle for future reap/toggle.
+        match std::process::Command::new("mde-popover")
+            .arg(kind)
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+        {
+            Ok(child) => {
+                tracing::debug!(kind, pid = child.id(), "popover spawned");
+                self.popovers.insert(kind, child);
+            }
+            Err(e) => {
+                tracing::warn!(kind, error = %e, "popover spawn failed");
+            }
         }
     }
 }
@@ -189,6 +252,7 @@ impl iced_layershell::Application for App {
             Self {
                 ticks: 0,
                 top_bar: top_bar::TopBarState::loading(),
+                popovers: std::collections::HashMap::new(),
             },
             Task::none(),
         )
@@ -214,23 +278,30 @@ impl iced_layershell::Application for App {
                 self.top_bar.set_applet_text(kind, text);
             }
             Message::StartClicked => {
-                // v3.0.2 — spawn the unified `mde-popover` host with
-                // the start-menu kind. Layer-shell overlay opens
-                // above the M button.
-                spawn_popover("start-menu");
+                // v3.0.3 — toggle the start-menu popover. Second
+                // click on M closes the existing instance instead
+                // of stacking a second one on top.
+                self.toggle_or_spawn_popover("start-menu");
             }
             Message::TrayClicked(kind) => {
-                // v3.0.2 — route per-applet clicks through the
-                // unified `mde-popover` host. Only `start-menu` has a
-                // real popover today; the rest dispatch to stub
-                // branches that exit 0 (v3.1 follow-up scope).
+                // v3.0.3 — toggle the popover for the clicked
+                // tray applet. Each kind has its own slot so an
+                // audio popover and a clock popover can both be
+                // open at once; clicking the same icon twice
+                // closes that kind's popover.
                 match kind {
-                    applet_host::AppletKind::Audio => spawn_popover("audio"),
-                    applet_host::AppletKind::Network => spawn_popover("network"),
-                    applet_host::AppletKind::NotificationBell => {
-                        spawn_popover("notifications");
+                    applet_host::AppletKind::Audio => {
+                        self.toggle_or_spawn_popover("audio");
                     }
-                    applet_host::AppletKind::Clock => spawn_popover("clock"),
+                    applet_host::AppletKind::Network => {
+                        self.toggle_or_spawn_popover("network");
+                    }
+                    applet_host::AppletKind::NotificationBell => {
+                        self.toggle_or_spawn_popover("notifications");
+                    }
+                    applet_host::AppletKind::Clock => {
+                        self.toggle_or_spawn_popover("clock");
+                    }
                     _ => {
                         // Sway-cluster / mesh-status / status-cluster /
                         // dock don't have popovers yet — clicking
@@ -264,34 +335,15 @@ impl iced_layershell::Application for App {
     }
 }
 
-/// Spawn a binary detached (stdio devnull, fully owned by the OS
-/// once it exits). Used by `update` to launch popover/overlay
-/// applets in response to clicks; the panel doesn't supervise the
-/// child — it's expected to manage its own lifetime.
-fn spawn_detached(binary: &str) {
-    use std::process::{Command, Stdio};
-    let _ = Command::new(binary)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
-}
-
-/// Spawn `mde-popover <kind>` detached — the unified popover host
-/// binary handles all overlay surfaces (start-menu today, audio /
-/// notifications / clock / network stubs ready for v3.1 ports).
-/// Per-popover dedup is left to the popover process itself (each
-/// uses its own `app_id`); a second click while the popover is open
-/// just spawns a redundant process that the compositor coalesces.
-fn spawn_popover(kind: &str) {
-    use std::process::{Command, Stdio};
-    let _ = Command::new("mde-popover")
-        .arg(kind)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn();
-}
+// v3.0.3 — the previous free-functions `spawn_popover` and
+// `spawn_detached` were both fire-and-forget that dropped the
+// `Child` handle (leaking zombies on every popover exit) and did
+// zero deduplication (every click stacked a new instance). They're
+// replaced by `App::toggle_or_spawn_popover` above, which keeps
+// the handle for reap + implements toggle dedup. The free
+// functions are removed entirely per §0.12 (no dead code); if
+// non-App callers need to spawn detached children in the future,
+// they should hold their own `Child` handle for reap.
 
 /// Load system fallback fonts so the audio / status / mesh glyphs
 /// render instead of tofu boxes. Iced 0.13 + cosmic-text uses these

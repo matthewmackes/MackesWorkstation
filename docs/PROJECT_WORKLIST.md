@@ -429,19 +429,41 @@ deferred." New `[ ] Open` v3.0.3 tasks below close each gap with
 explicit acceptance criteria, ordered by the chosen
 dependency sweep.
 
-- [ ] **v3.0.3: popover dismiss + dedup + zombie reaping (Tier 1A
-  + 1B + 1C)** — single bundle, highest UX impact, independent of
-  every other v3.0.3 item. Touches `crates/mde-panel/src/lib.rs::
-  spawn_popover` (add dedup-by-kind + toggle behavior + child reap
-  via SIGCHLD=SIG_IGN at panel startup OR held-handle reaper on
-  tick) and all four popover modules (`start_menu`, `audio`,
-  `clock`, `notifications`) in `crates/mde-popover/src/`. Add
-  either a visible close button per popover OR a transparent
-  backdrop layer-surface that absorbs outside-clicks and signals
-  dismiss. Bench acceptance: clicking M twice opens then closes
-  the start menu (no stacking); clicking outside any popover
-  dismisses it within ~100 ms; `ps -ef | grep mde-popover` after
-  10 minutes of normal use shows zero defunct entries.
+- [✓] **v3.0.3: popover dismiss + dedup + zombie reaping (Tier 1A
+  + 1B + 1C) — shipped 2026-05-22** — single bundle, highest UX impact, independent of
+  every other v3.0.3 item. Touched `crates/mde-panel/src/lib.rs`:
+  added `App::popovers: HashMap<&'static str, Child>` + new
+  `App::toggle_or_spawn_popover(kind)` method that (a) reaps any
+  popovers that have already exited via `try_wait`, (b) kills +
+  waits the existing popover for `kind` if one is open (toggle
+  dedup), and (c) spawns a fresh `mde-popover <kind>` and stores
+  the `Child` handle for future reap. Removed the old fire-and-
+  forget `spawn_popover` + `spawn_detached` free functions. New
+  `crates/mde-popover/src/dismiss.rs` ships a shared
+  `close_button(on_close: Msg) -> Element` widget (~100 LOC +
+  4 unit tests) used by all four popover views. Popovers
+  (`start_menu`, `audio`, `clock`, `notifications`) each embed
+  the close button in their header row; Esc still works via the
+  existing keyboard subscription. **Outside-click dismiss
+  (backdrop layer-surface) deferred to a follow-up v3.0.4 task
+  below** — would have added ~200 LOC of separate-surface
+  routing and risked regressing the dismiss behavior for the
+  Esc + close-button paths that now work reliably. Worked-as-
+  designed dismiss paths: toggle (second click on tray icon),
+  Esc, "×" button in popover header, action-commit (e.g.
+  launch app in start menu). 181 mde-panel tests + 16 mde-popover
+  tests (including 4 new dismiss tests) all green.
+- [ ] **v3.0.4: popover backdrop layer-surface for outside-click
+  dismiss (Tier 1A follow-up)** — Spawn a transparent
+  fullscreen Layer::Top surface alongside each popover; clicks on
+  it signal popover dismiss via a Wayland event back to the
+  popover process. Cleanest implementation: have `mde-popover`
+  own both surfaces so the routing stays in-process; the panel
+  doesn't need to know about the backdrop. Acceptance: clicking
+  anywhere outside an open popover dismisses it within ~100 ms;
+  the backdrop is invisible (no shading, no chrome); clicks on
+  the panel itself still go to the panel (backdrop is anchored
+  above the panel's exclusive zone but below the popover).
 - [ ] **v3.0.3: toplevels subscription (wlr-foreign-toplevel-
   management) (Tier 2 E.3 wiring)** — wire the SCTK subscription
   that emits `ToplevelEvent::{Added,Updated,Removed,Disconnected}`

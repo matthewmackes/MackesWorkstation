@@ -11,8 +11,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use iced::widget::{button, column, container, scrollable, text, text_input, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Task, Theme};
+use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
+use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -163,21 +163,36 @@ impl iced_layershell::Application for App {
 
         let scroll = scrollable(list).height(Length::Fill);
 
-        let header = container(text("Applications").size(11).color(FG_MUTED))
-            .padding(Padding {
-                top: 8.0,
-                right: 12.0,
-                bottom: 0.0,
-                left: 12.0,
-            });
+        // v3.0.3 — header row with the section label on the left
+        // and a visible close button on the right so the popover
+        // can always be dismissed by mouse (Esc still works via
+        // the subscription handler below). Bug fix: previously
+        // the only close path was Esc, and with OnDemand keyboard
+        // interactivity Esc didn't always reach the surface.
+        let header = container(
+            row![
+                text("Applications").size(11).color(FG_MUTED),
+                Space::with_width(Length::Fill),
+                crate::dismiss::close_button(Message::Exit),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .padding(Padding {
+            top: 8.0,
+            right: 12.0,
+            bottom: 0.0,
+            left: 12.0,
+        });
 
-        let footer = container(text("Press Esc to close").size(10).color(FG_MUTED))
-            .padding(Padding {
-                top: 4.0,
-                right: 12.0,
-                bottom: 8.0,
-                left: 12.0,
-            });
+        let footer = container(
+            text("Esc closes · click outside the M to re-toggle").size(10).color(FG_MUTED),
+        )
+        .padding(Padding {
+            top: 4.0,
+            right: 12.0,
+            bottom: 8.0,
+            left: 12.0,
+        });
 
         let body = column![
             search,
