@@ -1432,9 +1432,18 @@ integration needed.
   Lists incoming-pair-requests from peers that haven't been
   approved yet, with Accept / Reject buttons.
 
-- [ ] **v4.0.1: WB-2.j Network Mesh Services (Tier 2)**
-  Headscale + Caddy + DERP + Tailscale daemon status +
-  start/stop/restart buttons.
+- [✓] **v4.0.1: WB-2.j Network Mesh Services (shipped 2026-05-23)**
+  Built `crates/mde-workbench/src/panels/mesh_services.rs` —
+  curated list of 4 mesh-fabric daemons (`tailscaled`,
+  `headscale`, `caddy`, `mackesd`) with `LoadState` /
+  `ActiveState` / `UnitFileState` probes (so "not installed"
+  reads differently from "inactive") + journalctl tail (last 5
+  lines per unit) + Start / Stop / Restart buttons routed
+  through `pkexec systemctl`. Auto-loads on nav. 7 tests.
+  Original spec mentioned DERP — that's a Tailscale-internal
+  protocol, not a separate daemon, so it folds into
+  `tailscaled`; the curated set is locked at 4 entries with
+  any extension going through worklist (not code-only).
 
 - [ ] **v4.0.1: WB-2.k Network Mesh Topology (Tier 2)**
   Iced canvas widget rendering the mesh as a graph (peers

@@ -25,6 +25,7 @@ pub mod json_helpers;
 pub mod logs;
 pub mod mesh_history;
 pub mod mesh_join;
+pub mod mesh_services;
 pub mod notifications;
 pub mod playbooks;
 pub mod power;

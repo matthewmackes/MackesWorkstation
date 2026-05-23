@@ -28,6 +28,7 @@ use crate::panels::{
     help_index as help_index_panel, home as home_panel, hub as hub_panel,
     inventory as inventory_panel,
     logs as logs_panel, mesh_history as mesh_history_panel, mesh_join as mesh_join_panel,
+    mesh_services as mesh_services_panel,
     notifications as notifications_panel, playbooks as playbooks_panel, power as power_panel,
     printers as printers_panel, removable as removable_panel, repair as repair_panel,
     resources as resources_panel, run_history as run_history_panel, session as session_panel,
@@ -154,6 +155,7 @@ pub enum Message {
     /// CB-1.3 follow-up — Apps → Remove panel sub-message.
     AppsRemove(apps_remove_panel::Message),
     HealthCheck(health_check_panel::Message),
+    MeshServices(mesh_services_panel::Message),
     /// CB-1.8 partial — Network → Firewall panel sub-message.
     Firewall(firewall_panel::Message),
     /// CB-1.8 partial — Network → Wi-Fi panel sub-message.
@@ -222,6 +224,7 @@ pub struct App {
     apps_install: apps_install_panel::AppsInstallPanel,
     apps_remove: apps_remove_panel::AppsRemovePanel,
     health_check: health_check_panel::HealthCheckPanel,
+    mesh_services: mesh_services_panel::MeshServicesPanel,
     firewall: firewall_panel::FirewallPanel,
     wifi: wifi_panel::WifiPanel,
     vpn: vpn_panel::VpnPanel,
@@ -297,6 +300,7 @@ impl App {
             apps_install: apps_install_panel::AppsInstallPanel::new(),
             apps_remove: apps_remove_panel::AppsRemovePanel::new(),
             health_check: health_check_panel::HealthCheckPanel::new(),
+            mesh_services: mesh_services_panel::MeshServicesPanel::new(),
             firewall: firewall_panel::FirewallPanel::new(),
             wifi: wifi_panel::WifiPanel::new(),
             vpn: vpn_panel::VpnPanel::new(),
@@ -638,6 +642,7 @@ impl App {
             Message::AppsInstall(msg) => self.apps_install.update(msg),
             Message::AppsRemove(msg) => self.apps_remove.update(msg),
             Message::HealthCheck(msg) => self.health_check.update(msg),
+            Message::MeshServices(msg) => self.mesh_services.update(msg),
             Message::Firewall(msg) => self.firewall.update(msg),
             Message::Wifi(msg) => self.wifi.update(msg),
             Message::Vpn(msg) => self.vpn.update(msg),
@@ -700,6 +705,8 @@ impl App {
             // v4.0.1 WB-2.f — auto-run probes on first nav so
             // the panel lands populated rather than empty.
             (Group::Maintain, "health_check") => health_check_panel::HealthCheckPanel::load(),
+            // v4.0.1 WB-2.j — same pattern for mesh services.
+            (Group::Network, "mesh_services") => mesh_services_panel::MeshServicesPanel::load(),
             (Group::Apps, "installed") => apps_installed_panel::AppsInstalledPanel::load(),
             (Group::Apps, "sources") => apps_sources_panel::AppsSourcesPanel::load(),
             (Group::Network, "firewall") => firewall_panel::FirewallPanel::load(),
@@ -942,6 +949,14 @@ impl App {
                 group: Group::Maintain,
                 panel: "health_check",
             } => self.health_check.view(),
+            // v4.0.1 WB-2.j (2026-05-23) — Network → Mesh
+            // Services renders systemctl status + start/stop/
+            // restart for the mesh-fabric daemons (tailscaled,
+            // headscale, caddy, mackesd).
+            View::Panel {
+                group: Group::Network,
+                panel: "mesh_services",
+            } => self.mesh_services.view(),
             View::Panel {
                 group: Group::Network,
                 panel: "firewall",
