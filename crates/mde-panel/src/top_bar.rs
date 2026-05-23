@@ -21,7 +21,9 @@
 //!   Red Hat Text 12 px / 500 weight for labels.
 //! - **Microinteraction:** 180 ms ease-out for every state change.
 
-use iced::widget::{button, column, container, mouse_area, row, text, Space};
+use iced::widget::{button, column, container, mouse_area, row, svg, text, Space};
+
+use crate::panel_icons::PanelIcon;
 use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Theme};
 
 use crate::applet_host::AppletKind;
@@ -158,8 +160,19 @@ pub fn view<'a>(
     // inner button; the right-click maps to a new
     // `Message::StartRightClicked` that opens the admin-menu
     // popover.
+    // v4.0.1 BUG-13: Start button now renders the Carbon `menu`
+    // SVG glyph via PanelIcon::Start instead of the "M" letter
+    // stand-in. Keep `state.start_label` in the StatusBarState for
+    // backward-compat — the test set_applet_text_routes_to_correct_field
+    // still flips it; we just don't render the letter anymore.
+    let start_icon = svg(PanelIcon::Start.handle())
+        .width(Length::Fixed(18.0))
+        .height(Length::Fixed(18.0))
+        .style(|_theme: &Theme, _status: svg::Status| svg::Style {
+            color: Some(ACCENT),
+        });
     let start_btn = mouse_area(
-        button(text(state.start_label.clone()).size(16).color(ACCENT))
+        button(start_icon)
             .padding(Padding {
                 top: 4.0,
                 right: 12.0,
@@ -313,11 +326,26 @@ fn hero_view<'a>(hero: &'a Hero) -> Element<'a, Message> {
 /// shape — color shared across the panel + popover surfaces).
 fn window_button_cluster<'a>(enabled: bool) -> Element<'a, Message> {
     row![
-        window_btn("−", enabled.then_some(Message::WindowMinimize), false),
+        window_btn(
+            "−",
+            PanelIcon::WindowMinimize,
+            enabled.then_some(Message::WindowMinimize),
+            false,
+        ),
         Space::with_width(Length::Fixed(4.0)),
-        window_btn("□", enabled.then_some(Message::WindowMaximize), false),
+        window_btn(
+            "□",
+            PanelIcon::WindowMaximize,
+            enabled.then_some(Message::WindowMaximize),
+            false,
+        ),
         Space::with_width(Length::Fixed(4.0)),
-        window_btn("×", enabled.then_some(Message::WindowClose), true),
+        window_btn(
+            "×",
+            PanelIcon::WindowClose,
+            enabled.then_some(Message::WindowClose),
+            true,
+        ),
     ]
     .align_y(iced::Alignment::Center)
     .into()
@@ -325,8 +353,14 @@ fn window_button_cluster<'a>(enabled: bool) -> Element<'a, Message> {
 
 /// One window-management button. `on_press` is `None` to grey-out;
 /// `destructive` flips the hover tint to the destructive accent.
+///
+/// v4.0.1 BUG-13: `glyph` is now ignored in favor of `icon`, kept
+/// in the signature for the test surface that still inspects the
+/// Unicode-fallback string. SVG rendering goes through
+/// [`crate::panel_icons::PanelIcon`].
 fn window_btn<'a>(
-    glyph: &str,
+    _glyph: &str,
+    icon: PanelIcon,
     on_press: Option<Message>,
     destructive: bool,
 ) -> Element<'a, Message> {
@@ -335,7 +369,13 @@ fn window_btn<'a>(
     } else {
         FG_MUTED
     };
-    let mut btn = button(text(glyph.to_string()).size(14).color(color))
+    let icon_widget = svg(icon.handle())
+        .width(Length::Fixed(14.0))
+        .height(Length::Fixed(14.0))
+        .style(move |_theme: &Theme, _status: svg::Status| svg::Style {
+            color: Some(color),
+        });
+    let mut btn = button(icon_widget)
         .padding(Padding {
             top: 4.0,
             right: 8.0,
@@ -383,10 +423,19 @@ fn tray_button(label: &str, kind: AppletKind) -> Element<'_, Message> {
 /// v4.0.1 BUG-7 — static clipboard-history tray icon. Spawns
 /// `mde-popover clipboard` on press (same path as Super+V). Lives
 /// outside the AppletKind enum because there's no applet
-/// subprocess feeding text into it — the glyph is the static
-/// Unicode clipboard codepoint until BUG-13's Carbon SVG wiring.
+/// subprocess feeding text into it.
+///
+/// v4.0.1 BUG-13: now renders the Carbon `copy` glyph SVG via
+/// `PanelIcon::Clipboard` instead of the Unicode U+1F4CB
+/// codepoint that earlier shipped as a placeholder.
 fn clipboard_button<'a>() -> Element<'a, Message> {
-    button(text("\u{1F4CB}".to_string()).size(13).color(FG_TEXT))
+    let icon_widget = svg(PanelIcon::Clipboard.handle())
+        .width(Length::Fixed(16.0))
+        .height(Length::Fixed(16.0))
+        .style(|_theme: &Theme, _status: svg::Status| svg::Style {
+            color: Some(FG_TEXT),
+        });
+    button(icon_widget)
         .padding(Padding {
             top: 6.0,
             right: 8.0,

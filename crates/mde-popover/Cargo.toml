@@ -15,7 +15,9 @@ path = "src/main.rs"
 [dependencies]
 # Same Iced + iced_layershell pair as crates/mde-panel — keeps the
 # workspace dep tree on one resolution.
-iced            = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "tokio", "advanced"] }
+# v4.0.1 BUG-13: `svg` added so start_menu pinned tiles (BUG-12)
+# can render Carbon glyphs instead of label-only buttons.
+iced            = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "svg", "tokio", "advanced"] }
 iced_layershell = "0.13.7"
 
 # Domain logic libs that already ship with the applet binaries.

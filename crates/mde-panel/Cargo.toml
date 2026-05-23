@@ -20,7 +20,11 @@ path = "src/lib.rs"
 # v2.0.0 Phase E lock — same Iced feature set as mde-workbench /
 # mde-files / mde-logout-dialog so the workspace dep tree stays one
 # resolution.
-iced       = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "tokio", "advanced"] }
+# v4.0.1 BUG-13: added `svg` so panel_icons.rs can render Carbon
+# SVG handles via iced::widget::svg. Other crates in the workspace
+# (mde-files, mde-popover) already pull this feature in, so the
+# shared dep tree stays one resolution.
+iced       = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "svg", "tokio", "advanced"] }
 
 # Phase E.2 — wlr-layer-shell-v1 surface anchoring (added when the
 # layer-shell port lands; deferred here so the skeleton compiles

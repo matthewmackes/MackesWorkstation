@@ -11,8 +11,16 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
+use iced::widget::{button, column, container, row, scrollable, svg, text, text_input, Space};
 use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Task, Theme};
+
+/// v4.0.1 BUG-13 — Carbon glyph bytes for the pinned tiles. Baked
+/// here rather than depending on `mde-panel`'s `panel_icons` module
+/// so the popover crate stays free of upstream-binary deps.
+const FILES_SVG: &[u8] =
+    include_bytes!("../../../assets/icons/carbon/files.svg");
+const WORKBENCH_SVG: &[u8] =
+    include_bytes!("../../../assets/icons/carbon/workbench.svg");
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -169,18 +177,27 @@ impl iced_layershell::Application for App {
         // .desktop apps list. Win10 start-menu pattern: the
         // operator's most-used surfaces are one click away without
         // needing to type or scroll.
-        let pinned_tile = |label: &'static str, exec: &'static str| {
+        // v4.0.1 BUG-13: tiles now render the Carbon `folder` and
+        // `tools` glyphs above the label rather than label-only.
+        let pinned_tile = |svg_bytes: &'static [u8], label: &'static str, exec: &'static str| {
+            let glyph = svg(svg::Handle::from_memory(svg_bytes))
+                .width(Length::Fixed(28.0))
+                .height(Length::Fixed(28.0))
+                .style(|_theme: &Theme, _status: svg::Status| svg::Style {
+                    color: Some(FG_TEXT),
+                });
             button(
                 column![
+                    glyph,
                     text(label).size(13).color(FG_TEXT),
                 ]
                 .align_x(Alignment::Center)
                 .spacing(4),
             )
             .padding(Padding {
-                top: 16.0,
+                top: 12.0,
                 right: 12.0,
-                bottom: 16.0,
+                bottom: 12.0,
                 left: 12.0,
             })
             .width(Length::FillPortion(1))
@@ -189,9 +206,9 @@ impl iced_layershell::Application for App {
         };
         let pinned_row = container(
             row![
-                pinned_tile("Files", "mde-files"),
+                pinned_tile(FILES_SVG, "Files", "mde-files"),
                 Space::with_width(Length::Fixed(8.0)),
-                pinned_tile("Workbench", "mde-workbench"),
+                pinned_tile(WORKBENCH_SVG, "Workbench", "mde-workbench"),
             ]
             .align_y(Alignment::Center),
         )

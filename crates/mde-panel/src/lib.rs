@@ -51,6 +51,7 @@ pub mod dock_dnd;
 pub mod hero;
 pub mod host;
 pub mod icon_mapper;
+pub mod panel_icons;
 // v3.0.3 — layer_shell.rs retired. The module was a Phase E.2 set
 // of config helpers (anchor/exclusive-zone constants) for an
 // integration that ended up shipping via `iced_layershell 0.13.7`

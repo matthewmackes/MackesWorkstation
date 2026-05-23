@@ -926,32 +926,48 @@ no new RPM cut.
   string; new `to_12h_midnight_noon_anchors` covers the
   edge cases (0 → 12 AM, 12 → 12 PM, 13 → 1 PM). 6/6 clock
   lib tests pass.
-- [ ] **v4.0.1: BUG-13 Carbon icons missing across most of the
-  interface (Tier 0 — root cause for multiple lower bugs)** —
-  operator reports Carbon icon glyphs are absent across the
-  panel, start menu, applets, and likely workbench. This is
-  almost certainly the upstream cause of BUG-9 ("no icon"
-  in the network applet), the unillustrated start-menu rows,
-  and any other "shows text where an icon should be" symptom.
-  Hypotheses: (a) `data/icons/Mackes-Carbon/` SVGs ship in the
-  RPM but the running binaries reference them via wrong path
-  (e.g. hardcoded `/usr/share/icons/Mackes-Carbon/` vs the
-  actual install location); (b) iced's `svg::Handle::from_path`
-  fails silently on missing files and the widgets render as
-  empty boxes; (c) the icon-set is GTK-icon-theme registered
-  (`gtk-update-icon-cache` ran) but the Iced widgets are
-  hitting the disk path directly and the GTK side is
-  irrelevant; (d) the icon-mapper in `crates/mde-panel/src/
-  icon_mapper.rs` returns the right slug but the loader at
-  the call site doesn't actually pull the SVG bytes. Audit by:
-  (1) `find /usr/share/icons/Mackes-Carbon -name '*.svg' | wc
-  -l` to confirm the assets ship; (2) grep the Rust crates
-  for `include_bytes!`, `svg::Handle::`, `svg(...)` callers
-  + verify each compiles in the icon paths it expects; (3)
-  read mde-panel's icon-loading helper + cross-check that
-  popovers/applets reuse it. Acceptance: every glyph on the
-  panel chips + start-menu rows + applet trays renders with
-  its Carbon SVG; no blank icon slots remain.
+- [>] **v4.0.1: BUG-13 Carbon icons (partial — panel chrome
+  shipped 2026-05-23; workbench still text-fallback)** —
+  shipped 12 baked SVGs under `assets/icons/carbon/`
+  (start/audio/network/mesh/status/clipboard/bell/files/
+  workbench + window-{minimize,maximize,close}) and wired
+  them into the panel via `crates/mde-panel/src/panel_icons.rs`
+  (new `PanelIcon` enum with `include_bytes!` + `handle()`
+  helper). `top_bar.rs` swapped Unicode placeholders → SVG
+  for the Start glyph (was "M" letter), window-management
+  cluster (was − □ ×), and clipboard tray button (was U+1F4CB).
+  `mde-popover/start_menu.rs` pinned tiles (BUG-12) now show
+  `folder` + `tools` glyphs above their labels. Both crates
+  picked up the iced `svg` feature. Tests: new
+  `every_panel_icon_starts_with_svg_header` guards against
+  build-time placeholder swaps. **Outstanding sub-scope:**
+  (a) tray text-chips (network "◯ home-wifi", audio "🔈 50%",
+  mesh "✓ 4", status "⚡ 99%", bell "○") still render leading
+  Unicode glyphs in the applet stdout — separate fix:
+  applet binaries emit just the data text + the panel
+  composes glyph + text; (b) `mde-workbench` and `mde-files`
+  still hit `Icon::fallback_glyph` for their semantic icons
+  (UX-8.a). Both captured as v4.0.2 follow-ups.
+- [ ] **v4.0.2: BUG-13.a swap remaining tray-chip Unicode
+  glyphs (audio/network/mesh/status/bell) for Carbon SVGs
+  (composed alongside the live text)** — applet binaries
+  drop the leading glyph from their stdout (just emit the
+  numeric / SSID / count payload); the panel renders an SVG
+  icon prefix + the text via a row layout in
+  `tray_button(icon, text, kind)`. Acceptance: every tray
+  chip is `[SVG] <live text>`.
+- [ ] **v4.0.2: BUG-13.b wire Carbon SVG bytes into
+  `mde_theme::Icon` (closes UX-8.a)** — `mde_theme`'s
+  semantic Icon enum returns the carbon name + a Unicode
+  fallback today; consumers (mde-workbench, mde-files) use
+  the fallback. Add `Icon::svg_bytes()` returning
+  `Option<&'static [u8]>` from include_bytes! of
+  `assets/icons/carbon/<carbon_name>.svg`. Update
+  workbench/files render sites to prefer SVG when present.
+  Acceptance: workbench panel headers + sidebar nav rows
+  render Carbon line icons; no Unicode fallbacks left
+  except for the variants whose Carbon SVG isn't yet baked.
+
 - [✓] **v4.0.1: BUG-12 pinned Files+Workbench tiles at top of
   start menu (shipped 2026-05-23)** — `crates/mde-popover/src/
   start_menu.rs::view` now inserts a static `pinned_row` of two
