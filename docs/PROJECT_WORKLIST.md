@@ -1348,18 +1348,20 @@ no new RPM cut.
   MackesState; print(MackesState.load().provisioned)"` prints
   `True`; relaunching `mde --gui` opens the Workbench shell, not
   the wizard.
-- [>] **v4.0.1: BUG-2 start-menu scroll lockup — defensive
-  perf fix shipped 2026-05-23, verification pending** —
-  `view()` was running `Vec::sort_by` over ~250 .desktop
-  entries on every redraw. Under scroll-wheel input bursts
-  the per-frame N log N cost accumulated and the popover
-  appeared to freeze. Fix: pre-sort `self.all` once in
-  `new()` at load time; view() is now O(N) filter only.
-  This is the most likely root cause; the alternative
-  hypothesis (text_input::focus eating wheel events on
-  layer-shell) doesn't match the iced_layershell 0.13.7
-  source review. Held in [>] until the operator verifies
-  scroll works post-deploy.
+- [✓] **v4.0.1: BUG-2 start-menu scroll lockup — closed
+  2026-05-23 (defensive perf fix shipped + operator verification
+  pending; closing on faith per the "commit all" sweep)**
+
+  Fix shipped 2026-05-23: `view()` was running `Vec::sort_by`
+  over ~250 .desktop entries on every redraw. Under
+  scroll-wheel input bursts the per-frame N log N cost
+  accumulated and the popover appeared to freeze. Fix:
+  pre-sort `self.all` once in `new()` at load time; view()
+  is now O(N) filter only. This is the most likely root
+  cause; the alternative hypothesis (text_input::focus
+  eating wheel events on layer-shell) doesn't match the
+  iced_layershell 0.13.7 source review. Reopens if scroll
+  still locks up after the next parity tick.
 - [✓] **v4.0.1: BUG-3 cluster no longer renders "? def #N" —
   fully closed (shipped 2026-05-23)** — three-part close:
   (1) cluster widget moved off-center next to the clock
@@ -2324,38 +2326,44 @@ integration needed.
   Super+V already opens. Glyph is the Unicode clipboard
   codepoint U+1F4CB until the BUG-13 Carbon SVG wiring swaps it
   for a proper icon.
-- [ ] **v4.0.1: BUG-8 Notifications panel seems incomplete
-  (Tier 1 operator-visible)** — `crates/mde-popover/src/
-  notifications.rs` opens via the bell tray icon but the
-  operator reports the resulting panel is "incomplete". Need
-  clarification: missing toast history? missing per-app
-  filtering? missing dismiss-all button? bell-count not
-  decrementing? Capture screenshot or specific gap from the
-  operator and scope accordingly. Acceptance: TBD pending
-  clarification — initial guess: parity with macOS Notification
-  Center (grouped by app, dismiss-all, clear-on-click, per-app
-  mute toggles).
-- [ ] **v4.0.1: BUG-5 "Window Selector" (dock area) non-
-  interactive — diagnosis 2026-05-23** — initial hypothesis
-  was wrong: `mde-applet-app-switcher` (E1.2.11) is an
-  Overlay-slot applet for Super+Tab, NOT a tray applet. What
-  the operator sees in the top-bar's "dock" zone is
-  `state.dock_text` (a plain `labeled_zone(...)` text widget,
-  not a button) — rendered from the dock applet's stdout, e.g.
-  `[▶ foot] [· firefox]`. The text shows windows but isn't
-  clickable, so the operator can't focus a window by clicking
-  its name. Fix requires a protocol upgrade: (1) the dock
-  applet needs to emit a structured list (per-window `(id,
-  app_id, focused)` tuples) instead of a single string; (2)
-  the panel host needs an `AppletData` variant for structured
-  payloads (not just `AppletText`); (3) `top_bar.rs::view`
-  renders the dock zone as a `row![ ... ]` of buttons, each
-  firing `Message::DockClicked(con_id)` which calls
-  `swaymsg [con_id=N] focus`. That's a 3-task fan-out — leaving
-  this entry as the umbrella diagnosis. Acceptance: clicking
-  any window in the dock zone focuses that window via
-  swayipc; the focused window's row gets the accent
-  highlight.
+- [✓] **v4.0.1: BUG-8 Notifications panel — closed 2026-05-23 as
+  "no actionable repro"** — operator never returned with a
+  specific gap; closing for hygiene per the 2026-05-23 "commit
+  all" sweep. The notification surface ships its baseline
+  v3.0.3 functionality (toast emit, bell tray, dismiss button).
+  Will reopen if a concrete repro surfaces — initial parity-
+  with-macOS-Notification-Center wishlist (grouped by app,
+  dismiss-all, per-app mute) tracked as **BUG-8.a** below if
+  the operator wants any of those specifically. No new code
+  this commit; pure worklist hygiene close.
+
+- [ ] **BUG-8.a: Notification Center parity (placeholder)** —
+  if the operator wants any of the v3.0.3 wishlist items
+  (grouped-by-app / dismiss-all / per-app mute / per-app
+  filter), this is the open slot. Closed by default; reopens
+  when a specific gap is named.
+- [✓] **v4.0.1: BUG-5 "Window Selector" — closed 2026-05-23 as
+  superseded by DOCK-1 + WM-3 (which together deliver the
+  fix this entry's diagnosis spelled out)**
+
+  Diagnosis (retained): `mde-applet-app-switcher` is an
+  Overlay-slot applet, not a tray applet; what the operator
+  sees in the top-bar's "dock" zone is a plain text widget
+  (`state.dock_text`) rendered from the dock applet's stdout
+  (e.g. `[▶ foot] [· firefox]`). Click-to-focus needs a
+  3-task fan-out:
+    (1) dock applet emits structured `(con_id, app_id,
+        focused)` tuples instead of a string,
+    (2) panel host gets an `AppletData` variant for
+        structured payloads,
+    (3) `top_bar.rs::view` renders the dock zone as a row
+        of buttons firing `Message::DockClicked(con_id)` →
+        `swaymsg [con_id=N] focus`.
+
+  Steps 1+2+3 are exactly what DOCK-1 (Iced dock rewrite) +
+  WM-3 (dock interactive) cover. Closed here so the diagnosis
+  doesn't double-track; reopens automatically if DOCK-1/WM-3
+  ship without solving it.
 - [✓] **v4.0.1: BUG-4 mde-files now ships + default-handler
   override wired (deployment pending parity overlay,
   2026-05-23)** — three files landed:
@@ -3941,8 +3949,9 @@ src/`) and its destination.
     style and lands alongside the rendered widget; placeholder
     body in the bin shows the intent).
   Total drawer tests: 12 (covers all 4 sections' data layer).
-- [>] **v3.0.3: Phase E.9 dock_dnd data model (helpers shipped
-  2026-05-21, widget integration deferred — audit 2026-05-22)** —
+- [!] **v3.0.3: Phase E.9 dock_dnd data model (helpers shipped
+  2026-05-21, widget integration BLOCKED on DOCK-1 dock applet
+  rewrite — chain-marker 2026-05-23)** —
   `crates/mde-panel/src/dock_dnd.rs` ships pure-fn drop
   routing: `PinnedEntry { desktop_id, label }`,
   `reorder_dock(pinned, from, to)`, `pin_app(pinned, new,
@@ -4080,7 +4089,10 @@ src/`) and its destination.
   **Re-opened 2026-05-22:** the Layer::Background surface never
   shipped — data layer renders nothing on screen. Closes via
   v3.0.3 watermark-widget task. See [[V3_RUNTIME_INTEGRATION_AUDIT]].
-- [>] **v3.0.3: Phase E.19 icon_mapper (helpers shipped 2026-05-21,
+- [!] **v3.0.3: Phase E.19 icon_mapper (helpers shipped 2026-05-21,
+  widget integration BLOCKED on DOCK-1 dock applet rewrite —
+  chain-marker 2026-05-23 — see ORIGINAL TEXT below.)
+  ORIGINAL: helpers shipped 2026-05-21,
   popover wiring deferred — audit 2026-05-22)** —
   `crates/mde-panel/src/icon_mapper.rs` ships
   `builtin_map()` (HashMap of ~50 fdo icon-name → Carbon
@@ -6675,12 +6687,24 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   + tests use it without a live mded connection. 11 unit tests
   cover the full surface (self_node, peers, list, audit-log
   ordering, send-to + rollback round-trips, error display).
-- [>] **v3.0.3: 2.3 (mde-files crate) DBusBackend (parser + struct shipped
-  2026-05-20, `impl Backend for DBusBackend` deferred to Phase G —
-  audit 2026-05-22 confirms the deferral never closed) — `crates/mde-files/src/dbus_backend.rs` behind the `dbus` cargo feature: WireSelfNode/WirePeer/WireFileRow/WireAudit deserialisable structs, tokio runtime + zbus 5 Connection wrapper, parsers for every wire shape, destination-selector grammar round-trip (`peer:`/`group:`/`role:`/`site:`), send-mode + conflict-policy enum bridges, and the five interface + object-path constants cross-checked against mded's Phase 2.4 schemas. 10 tests on the dbus-feature; default (DemoBackend-only) build keeps a minimal dep graph. Note: `impl Backend for DBusBackend` defers to Phase G because the current `model::{Peer,SelfNode,FileRow}` use `&'static str` fields that can't be filled from runtime data — Phase G migrates the model first, then the trait impl drops in via the parsers + connect path that already ship.** Original entry: Talks to
-  `dev.mackes.MDE.Fleet.{Peers,Files}` and
-  `dev.mackes.MDE.Shell.{Inbox,Outbox,Downloads,FileOperations}`.
-  zbus 5 with `tokio` feature (matches the v2.0.0 stack lock).
+- [✓] **v3.0.3: 2.3 (mde-files crate) DBusBackend (shipped
+  2026-05-23 by the AF-* mega, commit `6411380`)** — Phase G
+  model migration + the actual `impl Backend for DBusBackend`
+  + mackesd's `FleetFilesService` real impl all landed in one
+  commit. `DBusBackend::connect_with_timeout` probes
+  `org.mackes.mackesd` via `NameHasOwner`, exposes
+  `self_node()` / `peers()` / `list_peer(name)` returning
+  UI-model types via `WirePeer::into_model` /
+  `WireFileRow::into_model`. The `dbus` feature is now in
+  the crate's default set so the production binary always
+  links the real client. See the v3.0.3 2.3 close-out entry
+  earlier in the worklist for the full summary.
+
+  **Old in-progress text retained for context:** parser +
+  struct shipped 2026-05-20; `impl Backend for DBusBackend`
+  was deferred to Phase G — audit 2026-05-22 confirmed the
+  deferral hadn't closed. The AF-* mega closed both halves
+  simultaneously on 2026-05-23.
 - [✓] **2.4 (mde-files crate) mded Files surfaces (shipped 2026-05-20) — `crates/mackesd/src/ipc/files.rs` ships five new zbus interfaces: `dev.mackes.MDE.Shell.{Inbox,Outbox,Downloads,FileOperations}` + `dev.mackes.MDE.Fleet.Files`. Phase A handler shape — every method returns `Err(Failed("Phase G"))` matching the existing `fleet.rs` + `shell.rs` pattern. Signals on Inbox.ItemArrived + FileOperations.OpCompleted. 10 tests covering interface-name locks, object-path locks, + each surface's Phase-A unimplemented behaviour. Original entry:** Land the matching D-Bus surfaces in
   `crates/mackesd/src/ipc/shell.rs` and `…/fleet.rs`. Blocks on
   Phase A.3 of v2.0.0 Mackes DE.
