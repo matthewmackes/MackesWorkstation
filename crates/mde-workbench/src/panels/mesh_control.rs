@@ -1,0 +1,648 @@
+//! v4.0.1 WB-2.h — Network → Mesh Control panel.
+//!
+//! Surfaces the mackesd cluster state the operator needs at
+//! "what's wrong with my mesh?" debugging time:
+//!   * Am I the cluster leader? (read the
+//!     `~/QNM-Shared/.mackesd-leader.lock` file)
+//!   * When did the leader last renew its lease?
+//!   * What epoch are we on (bumps every force-takeover)?
+//!   * `mackesd healthz` JSON output rendered as a status pill
+//!     with the raw fields underneath.
+//!   * Force-takeover button (shells out to `mackesd
+//!     take-leadership --force`).
+//!   * Refresh button — re-reads everything.
+//!
+//! Chrome influence (per iteration skill Phase 0.8): Win11
+//! Server Manager landing — single hero card + per-property
+//! list + action button row.
+
+use std::path::PathBuf;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use iced::widget::{button, column, container, row, scrollable, text, Space};
+use iced::{Background, Border, Color, Element, Length, Padding, Task, Theme};
+use mde_theme::{mde_icon, FontSize, Icon, IconSize, Palette, TypeRole};
+
+#[derive(Debug, Clone, Default)]
+pub struct MeshControlSnapshot {
+    /// Decoded lease — `None` when the lock file is missing or
+    /// malformed (= no leader elected yet, or QNM-Shared isn't
+    /// mounted).
+    pub lease: Option<LeaseInfo>,
+    /// Whether the local node owns the lease.
+    pub self_is_leader: bool,
+    /// Local node id (`peer:<hostname>` by convention).
+    pub self_node_id: String,
+    /// Raw `mackesd healthz` JSON output; empty string when the
+    /// CLI binary isn't installed or returned non-zero.
+    pub healthz_raw: String,
+    /// One-line summary parsed out of `healthz_raw`.
+    pub healthz_summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LeaseInfo {
+    pub node_id: String,
+    pub renewed_at_s: u64,
+    pub epoch: u64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct MeshControlPanel {
+    pub snapshot: MeshControlSnapshot,
+    pub busy: bool,
+    pub last_op: String,
+    pub last_run_at: Option<SystemTime>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    Loaded(MeshControlSnapshot),
+    RefreshClicked,
+    ForceTakeoverClicked,
+    OpFinished { op: String, success: bool, output: String },
+}
+
+impl MeshControlPanel {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn load() -> Task<crate::Message> {
+        Task::perform(async { probe_cluster() }, |snap| {
+            crate::Message::MeshControl(Message::Loaded(snap))
+        })
+    }
+
+    pub fn update(&mut self, msg: Message) -> Task<crate::Message> {
+        match msg {
+            Message::Loaded(snap) => {
+                self.snapshot = snap;
+                self.busy = false;
+                self.last_run_at = Some(SystemTime::now());
+                Task::none()
+            }
+            Message::RefreshClicked => {
+                self.busy = true;
+                self.last_op = "refreshing…".into();
+                Self::load()
+            }
+            Message::ForceTakeoverClicked => {
+                self.busy = true;
+                self.last_op = "force-take-leadership…".into();
+                Task::perform(
+                    async {
+                        let (ok, output) = run_take_leadership_force().await;
+                        ("take-leadership --force".to_string(), ok, output)
+                    },
+                    |(op, success, output)| {
+                        crate::Message::MeshControl(Message::OpFinished {
+                            op,
+                            success,
+                            output,
+                        })
+                    },
+                )
+            }
+            Message::OpFinished { op, success, output } => {
+                self.last_op = if success {
+                    format!("{op}: ok")
+                } else {
+                    let snippet = output.lines().next().unwrap_or("").trim();
+                    if snippet.is_empty() {
+                        format!("{op}: FAILED")
+                    } else {
+                        format!("{op}: FAILED — {snippet}")
+                    }
+                };
+                self.busy = false;
+                Self::load()
+            }
+        }
+    }
+
+    pub fn view(&self) -> Element<'_, crate::Message> {
+        let palette = Palette::dark();
+        let sizes = FontSize::defaults();
+
+        let title = text("Mesh Control")
+            .size(TypeRole::Display.size_in(sizes))
+            .color(palette.text.into_iced_color());
+
+        let subtitle_text = if !self.last_op.is_empty() {
+            self.last_op.clone()
+        } else if let Some(t) = self.last_run_at {
+            format!("last refresh {}", fmt_age(t))
+        } else {
+            "click Refresh to probe".into()
+        };
+        let subtitle = text(subtitle_text)
+            .size(TypeRole::Body.size_in(sizes))
+            .color(palette.text_muted.into_iced_color());
+
+        let refresh_btn = button(
+            text(if self.busy { "Working…" } else { "Refresh" })
+                .size(13)
+                .color(Color::WHITE),
+        )
+        .padding(Padding::from([6u16, 14u16]))
+        .style({
+            let accent = palette.accent.into_iced_color();
+            move |_t: &Theme, status: iced::widget::button::Status| {
+                let bg = match status {
+                    iced::widget::button::Status::Hovered => Color {
+                        r: accent.r * 1.10,
+                        g: accent.g * 1.10,
+                        b: accent.b * 1.10,
+                        a: accent.a,
+                    },
+                    _ => accent,
+                };
+                iced::widget::button::Style {
+                    background: Some(Background::Color(bg)),
+                    text_color: Color::WHITE,
+                    border: Border {
+                        color: Color::TRANSPARENT,
+                        width: 0.0,
+                        radius: 6.0.into(),
+                    },
+                    shadow: iced::Shadow::default(),
+                }
+            }
+        })
+        .on_press(crate::Message::MeshControl(Message::RefreshClicked));
+
+        let header = row![
+            column![title, subtitle].spacing(2),
+            Space::with_width(Length::Fill),
+            refresh_btn,
+        ]
+        .align_y(iced::alignment::Vertical::Center);
+
+        let leader_card = leader_card_view(&self.snapshot, palette);
+        let healthz_card = healthz_card_view(&self.snapshot, palette);
+
+        let force_btn = button(text("Force takeover").size(12).color(palette.text.into_iced_color()))
+            .padding(Padding::from([5u16, 14u16]))
+            .style({
+                let border = palette.border.into_iced_color();
+                let text_main = palette.text.into_iced_color();
+                move |_t: &Theme, status: iced::widget::button::Status| {
+                    let bg = match status {
+                        iced::widget::button::Status::Hovered => Color {
+                            r: 0.20,
+                            g: 0.20,
+                            b: 0.22,
+                            a: 1.0,
+                        },
+                        _ => Color::TRANSPARENT,
+                    };
+                    iced::widget::button::Style {
+                        background: Some(Background::Color(bg)),
+                        text_color: text_main,
+                        border: Border {
+                            color: border,
+                            width: 1.0,
+                            radius: 5.0.into(),
+                        },
+                        shadow: iced::Shadow::default(),
+                    }
+                }
+            })
+            .on_press(crate::Message::MeshControl(Message::ForceTakeoverClicked));
+
+        let action_row = row![
+            text("Actions:").size(11).color(palette.text_muted.into_iced_color()),
+            force_btn,
+        ]
+        .spacing(8)
+        .align_y(iced::alignment::Vertical::Center);
+
+        container(
+            column![
+                header,
+                Space::with_height(Length::Fixed(20.0)),
+                scrollable(
+                    column![leader_card, Space::with_height(Length::Fixed(12.0)), healthz_card]
+                        .spacing(2),
+                )
+                .height(Length::FillPortion(1)),
+                Space::with_height(Length::Fixed(12.0)),
+                action_row,
+            ]
+            .spacing(2),
+        )
+        .padding(Padding::from([24u16, 32u16]))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+    }
+}
+
+fn leader_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Element<'a, crate::Message> {
+    let (status_icon, status_color, status_label, summary) = match &snap.lease {
+        Some(lease) if snap.self_is_leader => (
+            Icon::StatusOk,
+            Color::from_rgb(0.20, 0.80, 0.40),
+            "LEADER",
+            format!("you ({}) own the cluster lease", lease.node_id),
+        ),
+        Some(lease) => (
+            Icon::Peer,
+            palette.accent.into_iced_color(),
+            "FOLLOWER",
+            format!("{} owns the cluster lease", lease.node_id),
+        ),
+        None => (
+            Icon::StatusWarning,
+            Color::from_rgb(0.95, 0.70, 0.20),
+            "NO LEADER",
+            "no .mackesd-leader.lock found — QNM-Shared not mounted, or no node has taken leadership".into(),
+        ),
+    };
+    let resolved = mde_icon(status_icon, IconSize::PanelHeader);
+    let icon_widget: Element<'a, crate::Message> = if let Some(svg_bytes) = resolved.svg_bytes() {
+        use iced::widget::svg as widget_svg;
+        widget_svg(widget_svg::Handle::from_memory(svg_bytes))
+            .width(Length::Fixed(28.0))
+            .height(Length::Fixed(28.0))
+            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                color: Some(status_color),
+            })
+            .into()
+    } else {
+        text(resolved.fallback_glyph).size(28.0).color(status_color).into()
+    };
+    let mut details_col = column![
+        row![
+            icon_widget,
+            column![
+                row![
+                    text("Leader status").size(13).color(palette.text.into_iced_color()),
+                    text(status_label).size(11).color(status_color),
+                ]
+                .spacing(10)
+                .align_y(iced::alignment::Vertical::Center),
+                text(summary).size(12).color(palette.text_muted.into_iced_color()),
+            ]
+            .spacing(4),
+        ]
+        .spacing(12)
+        .align_y(iced::alignment::Vertical::Center),
+    ]
+    .spacing(8);
+    if let Some(lease) = &snap.lease {
+        details_col = details_col.push(
+            row![
+                kv_pill(
+                    "renewed",
+                    fmt_unix_age(lease.renewed_at_s),
+                    palette,
+                ),
+                kv_pill("epoch", lease.epoch.to_string(), palette),
+                kv_pill(
+                    "owner",
+                    lease.node_id.clone(),
+                    palette,
+                ),
+                kv_pill(
+                    "your id",
+                    snap.self_node_id.clone(),
+                    palette,
+                ),
+            ]
+            .spacing(6),
+        );
+    }
+
+    let bg = palette.raised.into_iced_color();
+    let border = palette.border.into_iced_color();
+    container(details_col)
+        .padding(Padding::from([14u16, 18u16]))
+        .width(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(Background::Color(bg)),
+            border: Border {
+                color: border,
+                width: 1.0,
+                radius: 6.0.into(),
+            },
+            ..container::Style::default()
+        })
+        .into()
+}
+
+fn healthz_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Element<'a, crate::Message> {
+    let header = row![
+        text("mackesd healthz").size(13).color(palette.text.into_iced_color()),
+        Space::with_width(Length::Fill),
+        text(snap.healthz_summary.clone())
+            .size(11)
+            .color(palette.text_muted.into_iced_color()),
+    ]
+    .align_y(iced::alignment::Vertical::Center);
+
+    let body_text = if snap.healthz_raw.trim().is_empty() {
+        "mackesd healthz not reachable — is the daemon installed?".to_string()
+    } else {
+        snap.healthz_raw.clone()
+    };
+
+    let bg = palette.raised.into_iced_color();
+    let border = palette.border.into_iced_color();
+    let raw_box_bg = Color {
+        r: 0.06,
+        g: 0.06,
+        b: 0.07,
+        a: 1.0,
+    };
+    container(
+        column![
+            header,
+            container(
+                text(body_text)
+                    .size(11)
+                    .color(palette.text_muted.into_iced_color()),
+            )
+            .padding(Padding::from([10u16, 14u16]))
+            .width(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(Background::Color(raw_box_bg)),
+                border: Border {
+                    color: border,
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..container::Style::default()
+            }),
+        ]
+        .spacing(10),
+    )
+    .padding(Padding::from([14u16, 18u16]))
+    .width(Length::Fill)
+    .style(move |_| container::Style {
+        background: Some(Background::Color(bg)),
+        border: Border {
+            color: border,
+            width: 1.0,
+            radius: 6.0.into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
+}
+
+fn kv_pill<'a>(key: &'a str, value: String, palette: Palette) -> Element<'a, crate::Message> {
+    let bg = Color {
+        r: 0.10,
+        g: 0.10,
+        b: 0.12,
+        a: 1.0,
+    };
+    container(
+        row![
+            text(key).size(10).color(palette.text_muted.into_iced_color()),
+            text(value).size(11).color(palette.text.into_iced_color()),
+        ]
+        .spacing(6),
+    )
+    .padding(Padding::from([3u16, 8u16]))
+    .style(move |_| container::Style {
+        background: Some(Background::Color(bg)),
+        border: Border {
+            color: palette.border.into_iced_color(),
+            width: 1.0,
+            radius: 4.0.into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
+}
+
+// ---- I/O ------------------------------------------------------
+
+#[must_use]
+pub fn probe_cluster() -> MeshControlSnapshot {
+    let self_node_id = read_self_node_id();
+    let lease = read_leader_lock();
+    let self_is_leader = lease
+        .as_ref()
+        .map(|l| l.node_id == self_node_id)
+        .unwrap_or(false);
+    let healthz_raw = run_mackesd_healthz();
+    let healthz_summary = summarise_healthz(&healthz_raw);
+    MeshControlSnapshot {
+        lease,
+        self_is_leader,
+        self_node_id,
+        healthz_raw,
+        healthz_summary,
+    }
+}
+
+fn read_self_node_id() -> String {
+    let host = std::fs::read_to_string("/etc/hostname")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".to_string());
+    format!("peer:{host}")
+}
+
+fn leader_lock_paths() -> Vec<PathBuf> {
+    let home = std::env::var("HOME")
+        .ok()
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/"));
+    vec![
+        home.join("QNM-Shared/.mackesd-leader.lock"),
+        // mackesd_core::default_qnm_shared_root() landing —
+        // covers the case where QNM_SHARED_ROOT env-var pointed
+        // elsewhere at the daemon's launch.
+        PathBuf::from("/var/lib/mackesd/qnm-shared/.mackesd-leader.lock"),
+    ]
+}
+
+fn read_leader_lock() -> Option<LeaseInfo> {
+    for path in leader_lock_paths() {
+        if let Ok(raw) = std::fs::read_to_string(&path) {
+            if let Some(info) = parse_lease(&raw) {
+                return Some(info);
+            }
+        }
+    }
+    None
+}
+
+/// Pure parser for the lease file format
+/// (`node_id\trenewed_at_s\tepoch\n`).
+#[must_use]
+pub fn parse_lease(raw: &str) -> Option<LeaseInfo> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let parts: Vec<&str> = trimmed.split('\t').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    Some(LeaseInfo {
+        node_id: parts[0].to_string(),
+        renewed_at_s: parts[1].parse().ok()?,
+        epoch: parts[2].parse().ok()?,
+    })
+}
+
+fn run_mackesd_healthz() -> String {
+    let out = std::process::Command::new("mackesd")
+        .arg("healthz")
+        .output();
+    let Ok(out) = out else {
+        return String::new();
+    };
+    if !out.status.success() {
+        return String::new();
+    }
+    String::from_utf8_lossy(&out.stdout).trim().to_string()
+}
+
+#[must_use]
+pub fn summarise_healthz(raw: &str) -> String {
+    if raw.trim().is_empty() {
+        return String::new();
+    }
+    // The healthz output is a single-line JSON object. Pull the
+    // `node_id` + `ok` fields if present; otherwise just report
+    // the byte count.
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(raw) {
+        let node = json
+            .get("node_id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("<no node_id>");
+        let ok = json
+            .get("ok")
+            .and_then(|v| v.as_bool())
+            .map(|b| if b { "ok" } else { "fail" })
+            .unwrap_or("unknown");
+        return format!("{node} · {ok}");
+    }
+    format!("{} bytes", raw.len())
+}
+
+pub async fn run_take_leadership_force() -> (bool, String) {
+    use tokio::process::Command;
+    let out = Command::new("mackesd")
+        .args(["take-leadership", "--force"])
+        .output()
+        .await;
+    match out {
+        Ok(o) => (
+            o.status.success(),
+            String::from_utf8_lossy(&o.stderr).into_owned(),
+        ),
+        Err(e) => (false, format!("exec failed: {e}")),
+    }
+}
+
+fn fmt_age(t: SystemTime) -> String {
+    let Ok(elapsed) = t.elapsed() else {
+        return "—".into();
+    };
+    fmt_duration(elapsed)
+}
+
+fn fmt_unix_age(epoch_s: u64) -> String {
+    let now_s = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    if epoch_s > now_s {
+        return "in the future".into();
+    }
+    fmt_duration(Duration::from_secs(now_s - epoch_s))
+}
+
+fn fmt_duration(d: Duration) -> String {
+    let secs = d.as_secs();
+    if secs < 60 {
+        format!("{secs} s ago")
+    } else if secs < 3600 {
+        format!("{} min ago", secs / 60)
+    } else if secs < 86_400 {
+        format!("{} h ago", secs / 3600)
+    } else {
+        format!("{} d ago", secs / 86_400)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_lease_decodes_canonical_shape() {
+        let raw = "peer:anvil\t1715000000\t7\n";
+        let lease = parse_lease(raw).expect("decoded");
+        assert_eq!(lease.node_id, "peer:anvil");
+        assert_eq!(lease.renewed_at_s, 1_715_000_000);
+        assert_eq!(lease.epoch, 7);
+    }
+
+    #[test]
+    fn parse_lease_returns_none_for_garbage() {
+        assert!(parse_lease("").is_none());
+        assert!(parse_lease("just one field").is_none());
+        assert!(parse_lease("a\tb\tc\textra").is_none());
+        assert!(parse_lease("a\tnot-a-number\t7").is_none());
+    }
+
+    #[test]
+    fn summarise_healthz_returns_empty_for_empty_input() {
+        assert_eq!(summarise_healthz(""), "");
+        assert_eq!(summarise_healthz("   "), "");
+    }
+
+    #[test]
+    fn summarise_healthz_handles_known_json_shape() {
+        let raw = r#"{"node_id":"peer:anvil","ok":true,"version":"4.0.0"}"#;
+        let s = summarise_healthz(raw);
+        assert!(s.contains("peer:anvil"));
+        assert!(s.contains("ok"));
+    }
+
+    #[test]
+    fn summarise_healthz_falls_back_to_byte_count_for_non_json() {
+        let raw = "not a json doc";
+        let s = summarise_healthz(raw);
+        assert!(s.contains("bytes"));
+    }
+
+    #[test]
+    fn read_self_node_id_starts_with_peer_prefix() {
+        assert!(read_self_node_id().starts_with("peer:"));
+    }
+
+    #[test]
+    fn view_renders_empty_state_without_panic() {
+        let p = MeshControlPanel::new();
+        let _ = p.view();
+    }
+
+    #[test]
+    fn view_renders_with_snapshot_without_panic() {
+        let mut p = MeshControlPanel::new();
+        p.snapshot = MeshControlSnapshot {
+            lease: Some(LeaseInfo {
+                node_id: "peer:anvil".into(),
+                renewed_at_s: 1_715_000_000,
+                epoch: 1,
+            }),
+            self_is_leader: true,
+            self_node_id: "peer:anvil".into(),
+            healthz_raw: r#"{"node_id":"peer:anvil","ok":true}"#.into(),
+            healthz_summary: "peer:anvil · ok".into(),
+        };
+        let _ = p.view();
+    }
+}

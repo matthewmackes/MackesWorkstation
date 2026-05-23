@@ -27,7 +27,8 @@ use crate::panels::{
     health_check as health_check_panel,
     help_index as help_index_panel, home as home_panel, hub as hub_panel,
     inventory as inventory_panel,
-    logs as logs_panel, mesh_history as mesh_history_panel, mesh_join as mesh_join_panel,
+    logs as logs_panel, mesh_control as mesh_control_panel,
+    mesh_history as mesh_history_panel, mesh_join as mesh_join_panel,
     mesh_services as mesh_services_panel,
     notifications as notifications_panel, playbooks as playbooks_panel, power as power_panel,
     printers as printers_panel, remote_desktop as remote_desktop_panel,
@@ -156,6 +157,7 @@ pub enum Message {
     /// CB-1.3 follow-up — Apps → Remove panel sub-message.
     AppsRemove(apps_remove_panel::Message),
     HealthCheck(health_check_panel::Message),
+    MeshControl(mesh_control_panel::Message),
     MeshServices(mesh_services_panel::Message),
     RemoteDesktop(remote_desktop_panel::Message),
     /// CB-1.8 partial — Network → Firewall panel sub-message.
@@ -226,6 +228,7 @@ pub struct App {
     apps_install: apps_install_panel::AppsInstallPanel,
     apps_remove: apps_remove_panel::AppsRemovePanel,
     health_check: health_check_panel::HealthCheckPanel,
+    mesh_control: mesh_control_panel::MeshControlPanel,
     mesh_services: mesh_services_panel::MeshServicesPanel,
     remote_desktop: remote_desktop_panel::RemoteDesktopPanel,
     firewall: firewall_panel::FirewallPanel,
@@ -303,6 +306,7 @@ impl App {
             apps_install: apps_install_panel::AppsInstallPanel::new(),
             apps_remove: apps_remove_panel::AppsRemovePanel::new(),
             health_check: health_check_panel::HealthCheckPanel::new(),
+            mesh_control: mesh_control_panel::MeshControlPanel::new(),
             mesh_services: mesh_services_panel::MeshServicesPanel::new(),
             remote_desktop: remote_desktop_panel::RemoteDesktopPanel::new(),
             firewall: firewall_panel::FirewallPanel::new(),
@@ -646,6 +650,7 @@ impl App {
             Message::AppsInstall(msg) => self.apps_install.update(msg),
             Message::AppsRemove(msg) => self.apps_remove.update(msg),
             Message::HealthCheck(msg) => self.health_check.update(msg),
+            Message::MeshControl(msg) => self.mesh_control.update(msg),
             Message::MeshServices(msg) => self.mesh_services.update(msg),
             Message::RemoteDesktop(msg) => self.remote_desktop.update(msg),
             Message::Firewall(msg) => self.firewall.update(msg),
@@ -710,6 +715,8 @@ impl App {
             // v4.0.1 WB-2.f — auto-run probes on first nav so
             // the panel lands populated rather than empty.
             (Group::Maintain, "health_check") => health_check_panel::HealthCheckPanel::load(),
+            // v4.0.1 WB-2.h — leader lock + healthz probe.
+            (Group::Network, "mesh_control") => mesh_control_panel::MeshControlPanel::load(),
             // v4.0.1 WB-2.j — same pattern for mesh services.
             (Group::Network, "mesh_services") => mesh_services_panel::MeshServicesPanel::load(),
             // v4.0.1 WB-2.l — load cached peer-macs.json on
@@ -957,6 +964,12 @@ impl App {
                 group: Group::Maintain,
                 panel: "health_check",
             } => self.health_check.view(),
+            // v4.0.1 WB-2.h (2026-05-23) — Network → Mesh
+            // Control renders the leader-lease state + healthz.
+            View::Panel {
+                group: Group::Network,
+                panel: "mesh_control",
+            } => self.mesh_control.view(),
             // v4.0.1 WB-2.j (2026-05-23) — Network → Mesh
             // Services renders systemctl status + start/stop/
             // restart for the mesh-fabric daemons (tailscaled,

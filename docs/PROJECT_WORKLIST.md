@@ -1785,10 +1785,20 @@ integration needed.
   divergences between the locked TOML config and the live
   state.
 
-- [ ] **v4.0.1: WB-2.h Network Mesh Control (Tier 2)**
-  Shows: am-I-leader? when did the leader-election last
-  fire? what version of the config TOML are we synced to?
-  Lets the operator force a re-election or a re-sync.
+- [✓] **v4.0.1: WB-2.h Network Mesh Control (shipped 2026-05-23)**
+  Built `crates/mde-workbench/src/panels/mesh_control.rs` —
+  reads `~/QNM-Shared/.mackesd-leader.lock` (with fallback to
+  `/var/lib/mackesd/qnm-shared/`) + parses the lease's
+  `node_id / renewed_at_s / epoch` tab-separated triple. Shows
+  a status card (LEADER / FOLLOWER / NO LEADER tinted with
+  Carbon `StatusOk` / `Peer` / `StatusWarning`), key-value
+  pills for renewed-age + epoch + owner + self-id, and a
+  separate card with `mackesd healthz` JSON output (parsed
+  summary + raw body). Force-takeover button shells out to
+  `mackesd take-leadership --force`. Auto-loads on nav.
+  8 tests covering parser shape lock, garbage rejection,
+  healthz summarisation, empty-state + populated-state view
+  renders.
 
 - [ ] **v4.0.1: WB-2.i Network Mesh Pending (Tier 2)**
   Lists incoming-pair-requests from peers that haven't been
