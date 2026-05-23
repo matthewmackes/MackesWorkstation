@@ -237,6 +237,15 @@ Recommends:     wofi
 Recommends:     redhat-display-fonts
 Recommends:     redhat-text-fonts
 Recommends:     redhat-mono-fonts
+# v4.0.1 Geologica audit follow-up: visual-identity.md Q12 locks
+# IBM Plex Mono for terminal + tabular surfaces. Fedora ships it
+# as `ibm-plex-mono-fonts`; Recommends keeps the install graceful
+# on systems where the operator deliberately strips fonts. The
+# Geologica side of the lock (Q11) needs an upstream tarball
+# bundle that's deferred to v4.0.2 because Google Fonts'
+# /download endpoint doesn't return a programmatically-fetchable
+# ZIP today.
+Recommends:     ibm-plex-mono-fonts
 
 # QNM is detected at runtime; soft dep so users without QNM still get
 # Network → QNM panel with an install prompt (C2/Q38 lock).

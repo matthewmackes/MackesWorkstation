@@ -1305,22 +1305,19 @@ through them in priority order.
   validated against system trust store + survival against
   DPI on a packet-inspecting bench firewall. The future v4.1+
   unblocking commit will satisfy this gate before flipping.
-- [>] **v4.0.1: Geologica font license + RPM bundle audit
-  (visual-identity.md) — partial 2026-05-23** — audit
-  findings: (a) Geologica is **NOT bundled** under
-  `data/fonts/` anywhere, (b) **NOT declared** as Requires /
-  Recommends in `packaging/fedora/mackes-shell.spec` (the
-  spec only Recommends redhat-display/text/mono-fonts), (c)
-  **NOT available** as a Fedora package (`dnf search
-  geologica` returns no matches), (d) **NOT installed** on
-  the dev system (`fc-list | grep -i geologica` empty), so
-  the visual-identity Q11/Q12 lock is currently violated at
-  runtime — Iced falls through to the system default. License
-  verified: Geologica ships under OFL 1.1 per its Google Fonts
-  page, so bundling is redistributable. **v4.0.2 task** below
-  ships the actual bundle (the binary asset needs network
-  access to download from fonts.google.com; deferred from
-  this iteration's offline session).
+- [✓] **v4.0.1: Geologica font audit + IBM Plex Mono spec
+  Recommends added (shipped 2026-05-23)** — audit findings
+  retained: (a) Geologica is NOT bundled, (b) was missing
+  from spec, (c) not a Fedora package, (d) not installed on
+  the dev system, so visual-identity Q11/Q12 lock was
+  violated at runtime. Update:
+  `packaging/fedora/mackes-shell.spec` gained
+  `Recommends: ibm-plex-mono-fonts` — IBM Plex Mono is
+  already in Fedora as that package, so the system has it
+  whenever mde installs. Geologica still needs an upstream
+  tarball bundle — Google Fonts' `/download` endpoint
+  returns an HTML page rather than a programmatic ZIP, so
+  the v4.0.2 bundle task below holds for that piece.
 - [ ] **v4.0.2: bundle Geologica + IBM Plex Mono fonts**
   (visual-identity.md Q11/Q12/Q13) — concrete implementation
   of the v4.0.1 audit's findings. Download the variable
