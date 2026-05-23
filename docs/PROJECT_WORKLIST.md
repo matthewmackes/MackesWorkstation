@@ -952,18 +952,19 @@ no new RPM cut.
   popovers/applets reuse it. Acceptance: every glyph on the
   panel chips + start-menu rows + applet trays renders with
   its Carbon SVG; no blank icon slots remain.
-- [ ] **v4.0.1: BUG-12 Pin Files + Workbench at top of start
-  menu (Tier 1 operator-visible feature gap)** — operator
-  requested static, non-scrolling Files (mde-files) and
-  Workbench (mde-workbench) icons at the top of the start
-  menu, above the scrollable .desktop apps list. Add a fixed
-  "Pinned" row to `crates/mde-popover/src/start_menu.rs::view`
-  between the search input + "Applications" header and the
-  `scrollable(list)`. Two pinned tiles (icon + label), each
-  launching the respective binary via `launch_exec()`.
-  Acceptance: opening the start menu shows two large tiles
-  for Files + Workbench above the search results that stay
-  put while the apps list scrolls.
+- [✓] **v4.0.1: BUG-12 pinned Files+Workbench tiles at top of
+  start menu (shipped 2026-05-23)** — `crates/mde-popover/src/
+  start_menu.rs::view` now inserts a static `pinned_row` of two
+  tiles (Files → `mde-files`, Workbench → `mde-workbench`)
+  between the search input and the "Applications" header — i.e.
+  ABOVE the `scrollable(list)`, so they don't scroll with the
+  apps list. Both tiles use `Message::Launch(exec.into())`
+  which routes through the existing `launch_exec()` path
+  (shell-exec with XDG field-code stripping). Tiles use
+  `width(FillPortion(1))` so they split the popover width
+  evenly. Real Carbon SVG icons are a v4.0.1 BUG-13 follow-up
+  (the broader icon-loading audit); text-only labels work
+  today and survive the eventual icon swap.
 - [✓] **v4.0.1: BUG-10 thicker window borders (shipped
   2026-05-23, commit pending)** — `data/sway/config:25-30` now
   has `default_border pixel 4`, `default_floating_border pixel

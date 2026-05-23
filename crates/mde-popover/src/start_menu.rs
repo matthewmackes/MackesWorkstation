@@ -163,6 +163,45 @@ impl iced_layershell::Application for App {
 
         let scroll = scrollable(list).height(Length::Fill);
 
+        // v4.0.1 BUG-12 — pinned tiles row. Static (non-scrolling)
+        // shortcuts for the file manager (mde-files) and the
+        // workbench (mde-workbench), shown above the scrollable
+        // .desktop apps list. Win10 start-menu pattern: the
+        // operator's most-used surfaces are one click away without
+        // needing to type or scroll.
+        let pinned_tile = |label: &'static str, exec: &'static str| {
+            button(
+                column![
+                    text(label).size(13).color(FG_TEXT),
+                ]
+                .align_x(Alignment::Center)
+                .spacing(4),
+            )
+            .padding(Padding {
+                top: 16.0,
+                right: 12.0,
+                bottom: 16.0,
+                left: 12.0,
+            })
+            .width(Length::FillPortion(1))
+            .style(row_button_style)
+            .on_press(Message::Launch(exec.into()))
+        };
+        let pinned_row = container(
+            row![
+                pinned_tile("Files", "mde-files"),
+                Space::with_width(Length::Fixed(8.0)),
+                pinned_tile("Workbench", "mde-workbench"),
+            ]
+            .align_y(Alignment::Center),
+        )
+        .padding(Padding {
+            top: 4.0,
+            right: 12.0,
+            bottom: 8.0,
+            left: 12.0,
+        });
+
         // v3.0.3 — header row with the section label on the left
         // and a visible close button on the right so the popover
         // can always be dismissed by mouse (Esc still works via
@@ -197,6 +236,7 @@ impl iced_layershell::Application for App {
         let body = column![
             search,
             Space::with_height(Length::Fixed(4.0)),
+            pinned_row,
             header,
             scroll,
             footer,
