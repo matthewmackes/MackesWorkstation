@@ -1425,6 +1425,28 @@ fn run_serve(
             }
         }
 
+        // v4.0.1 KDC2-3.3 wire-up (2026-05-23) — spawn the KDC host
+        // worker. Owns the pairing store at $XDG_CONFIG_HOME/mde/
+        // connect (default ~/.config/mde/connect), the shared
+        // DiscoveryRegistry, the outbound packet queue, and the
+        // dev.mackes.MDE.Connect D-Bus surface. Graceful-degrade
+        // on D-Bus failure — the worker keeps the host alive so
+        // the mesh-router can still dispatch through KDC, even if
+        // the operator-facing UI methods aren't reachable.
+        let kdc_config_dir = {
+            let xdg = std::env::var_os("XDG_CONFIG_HOME").map(std::path::PathBuf::from);
+            let home_default = std::env::var_os("HOME")
+                .map(std::path::PathBuf::from)
+                .map(|h| h.join(".config"));
+            xdg.or(home_default)
+                .map(|p| p.join("mde").join("connect"))
+                .unwrap_or_else(|| std::path::PathBuf::from("/var/lib/mde/connect"))
+        };
+        sup.spawn(Spawn::new(
+            mackesd_core::workers::kdc_host::KdcHostWorker::new(kdc_config_dir),
+            RestartPolicy::OnFailure,
+        ));
+
         // The reconcile worker runs on its own OS thread (kept on
         // std::thread so its sync rusqlite calls don't block the
         // tokio scheduler).

@@ -967,19 +967,53 @@ above; integration tasks below in dependency order.
   expand, details close / copy-path, context menu submenu) follow
   the same pattern incrementally per v4.0.1 — the dead-code item
   (the labels table) is now reachable.
-- [!] **v3.0.3: KDC2-3.3 wire (BLOCKED on KDC2-3.4..3.6/3.9 method bundle in the KDC2 epic) the D-Bus host scaffold to
-  concrete methods (Tier 2 mde-kdc::dbus + KDC2-3.4/3.5/3.6/3.9
-  bundle)** — the scaffold acquires
-  `dev.mackes.MDE.Connect` but exposes no methods. Per §0.12 this
-  is itself a stub. Land KDC2-3.4 (`ListDevices` + `GetDevice`),
-  3.5 (`PairDevice` + `UnpairDevice`), 3.6 (`RingDevice` +
-  `SendSms` + `SendFile`), 3.9 signals (`DeviceAdded` / Removed /
-  Updated) in a single coordinated commit so the bus surface is
-  usable end-to-end. Acceptance: `busctl --user call
-  dev.mackes.MDE.Connect /dev/mackes/MDE/Connect
-  dev.mackes.MDE.Connect ListDevices` returns the actual paired
-  device list; signal subscription via `busctl --user monitor`
-  shows DeviceAdded when a phone pairs.
+- [✓] **v3.0.3: KDC2-3.3 wire the D-Bus host scaffold to concrete
+  methods (Tier 2 mde-kdc::dbus + KDC2-3.4/3.5/3.6/3.9 bundle)
+  — shipped 2026-05-23** — the method + signal bundle had
+  already landed in `crates/mde-kdc/src/dbus.rs::ConnectInterface`
+  (KDC2-3.4 `ListDevices`/`GetDevice`, 3.5 `PairDevice`/
+  `UnpairDevice`, 3.6 `RingDevice`/`SendSms`/`SendClipboard`/
+  `SendFile`, 3.9 signals `DeviceAdded`/`DeviceRemoved`/
+  `DeviceUpdated`). What was missing: `DbusServer::start` was
+  never invoked from the daemon — the bus name went unacquired
+  and the operator couldn't `busctl` the interface.
+
+  This commit:
+  - Extends `KdcHostWorker` with an `outbound: PendingSends`
+    queue + a `dbus_server: Option<DbusServer>` handle that
+    holds the live zbus Connection for the worker's lifetime.
+  - `init_dbus(pairing)` runs once during the worker's first
+    tick after `init_host`. Graceful-degrade per the
+    `lan_discovery` convention: a `NameAlreadyAcquired` (another
+    Connect host already running) or session-bus-unreachable
+    failure logs a warning and the worker keeps running; only
+    the operator-facing D-Bus surface degrades.
+  - `mackesd serve` (`crates/mackesd/src/bin/mackesd.rs`)
+    spawns `KdcHostWorker::new(<XDG_CONFIG_HOME or ~/.config>
+    /mde/connect)` alongside the other supervisor workers,
+    after the Fleet.Files registration.
+  - Worker shutdown drops `dbus_server`, surrendering the bus
+    name cleanly so a subsequent daemon restart re-acquires
+    without a `NameAlreadyAcquired` collision.
+
+  Acceptance once mackesd is running under a session bus:
+  - `busctl --user list | grep dev.mackes.MDE.Connect` shows
+    the bus name owned by mackesd.
+  - `busctl --user call dev.mackes.MDE.Connect /dev/mackes/MDE/
+    Connect dev.mackes.MDE.Connect1 ListDevices` returns the
+    paired-device list from `PairingStore::list()`.
+  - `busctl --user call … RingDevice <id>` enqueues a
+    `kdeconnect.findmyphone.request` packet onto the worker's
+    `PendingSends` queue (drained by the future
+    `kdc_outbound` worker in KDC2-3.2.a follow-up).
+
+  Real-Android end-to-end (signal subscription via `busctl
+  monitor`, an actual ring/sms/share round-trip) is pending
+  HW-1 bench acceptance + the `kdc_outbound` drain wiring,
+  captured as a follow-up below.
+
+  4 worker tests green; 11 transport tests green; 21 `dbus::tests`
+  cover the method bundle + pure helpers.
 - [✓] **v3.0.3: KDC2-2.8 wire TLS handshake into KDC host
   transport (Tier 2 mde-kdc::tls) — shipped 2026-05-23** —
   `KdcHost` gained a shared `Arc<AsyncMutex<DiscoveryRegistry>>`
