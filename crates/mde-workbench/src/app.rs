@@ -23,7 +23,9 @@ use crate::panels::{
     connect as connect_panel, datetime as datetime_panel,
     default_apps as default_apps_panel, displays as displays_panel,
     firewall as firewall_panel, fleet_revisions as fleet_revisions_panel,
-    fleet_settings as fleet_settings_panel, fonts as fonts_panel, inventory as inventory_panel,
+    fleet_settings as fleet_settings_panel, fonts as fonts_panel,
+    help_index as help_index_panel, home as home_panel, hub as hub_panel,
+    inventory as inventory_panel,
     logs as logs_panel, mesh_history as mesh_history_panel, mesh_join as mesh_join_panel,
     notifications as notifications_panel, playbooks as playbooks_panel, power as power_panel,
     printers as printers_panel, removable as removable_panel, repair as repair_panel,
@@ -104,6 +106,11 @@ pub enum Message {
     Displays(displays_panel::Message),
     /// CB-1.4.b — Devices sound panel sub-message.
     Sound(sound_panel::Message),
+    /// v4.0.1 WB-2.a — Dashboard `home` landing-page messages.
+    Home(home_panel::Message),
+    /// v4.0.1 WB-2.c — Help index opened a topic; the path is
+    /// dispatched to `xdg-open`.
+    HelpTopicOpened(std::path::PathBuf),
     /// CB-1.4.b — Devices sound panel Refresh button. Re-runs
     /// the panel's Load so a freshly-plugged speaker shows up
     /// in the picker without the user having to navigate
@@ -191,6 +198,12 @@ pub struct App {
     /// v4.0.1 WB-1 — Connected Devices panel state. Hosts the
     /// paired-peer list + per-row action handlers.
     connect: connect_panel::ConnectPanel,
+    /// v4.0.1 WB-2.a — Dashboard landing page state.
+    home: home_panel::HomePanel,
+    /// v4.0.1 WB-2.b — Maintain group root grid state.
+    hub: hub_panel::HubPanel,
+    /// v4.0.1 WB-2.c — Help group root topics list.
+    help: help_index_panel::HelpIndexPanel,
     inventory: inventory_panel::InventoryPanel,
     playbooks: playbooks_panel::PlaybooksPanel,
     run_history: run_history_panel::RunHistoryPanel,
@@ -262,6 +275,9 @@ impl App {
             sound: sound_panel::SoundPanel::new(),
             printers: printers_panel::PrintersPanel::new(),
             connect: connect_panel::ConnectPanel::new(),
+            home: home_panel::HomePanel::new(),
+            hub: hub_panel::HubPanel::new(),
+            help: help_index_panel::HelpIndexPanel::new(),
             inventory: inventory_panel::InventoryPanel::new(),
             playbooks: playbooks_panel::PlaybooksPanel::new(),
             run_history: run_history_panel::RunHistoryPanel::new(),
@@ -595,6 +611,11 @@ impl App {
             Message::Displays(msg) => self.displays.update(msg, self.backend()),
             Message::Sound(msg) => self.sound.update(msg),
             Message::SoundRefresh => sound_panel::SoundPanel::load(),
+            Message::Home(msg) => self.home.update(msg),
+            Message::HelpTopicOpened(path) => {
+                help_index_panel::spawn_xdg_open(&path);
+                Task::none()
+            }
             Message::Printers(msg) => self.printers.update(msg),
             Message::PrintersRefresh => printers_panel::PrintersPanel::load(),
             Message::Inventory(msg) => self.inventory.update(msg),
@@ -781,6 +802,15 @@ impl App {
     /// Per-View body — panel views land here as they ship.
     fn panel_body(&self) -> Element<'_, Message> {
         match self.view {
+            // v4.0.1 WB-2.a/b/c — group-root landing pages. These
+            // fire when the operator clicks the group header in
+            // the sidebar (View::Group rather than View::Panel).
+            // Before this commit every group root rendered the
+            // catch-all placeholder "Panel view lands in a later
+            // CB-1.x substep."
+            View::Group(Group::Dashboard) => self.home.view(),
+            View::Group(Group::Maintain) => self.hub.view(),
+            View::Group(Group::Help) => self.help.view(),
             View::Panel {
                 group: Group::LookAndFeel,
                 panel: "themes",

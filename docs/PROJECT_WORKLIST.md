@@ -1212,6 +1212,174 @@ move per the iteration loop's step 2.
     that the empty-stack render path renders a transparent
     container.
 
+### v4.0.1 WB-2 12 unwired Workbench panels (audit 2026-05-23)
+
+Operator: "many panels in the workbench are incomplete." Audit of
+`nav_model()` vs `panel_body()` view arms surfaced 12 nav-listed
+slugs that fall through to the catch-all branch and render literally
+`text("Panel view lands in a later CB-1.x substep.").size(14)`.
+Clicking any of these from the sidebar lands on the placeholder
+string + no other chrome.
+
+Missing panels (catch-all targets):
+
+  Group::Dashboard → home              — landing page
+  Group::Apps      → panel             — Panel Apps grid
+  Group::Maintain  → hub               — Maintain root
+  Group::Maintain  → debloat           — apt-get autoremove equivalent
+  Group::Maintain  → health_check      — system probe
+  Group::Maintain  → drift             — config-drift report
+  Group::Network   → mesh_control      — leader/peer state
+  Group::Network   → mesh_pending      — pending-pairing list
+  Group::Network   → mesh_services     — Caddy/headscale/derper
+  Group::Network   → mesh_topology     — Cairo / iced topology
+  Group::Network   → remote_desktop    — RDP/VNC management
+  Group::Help      → index             — help topics
+
+Each below stands alone as a story. The simpler landing-pages
+(home + hub + index) ship in the same commit as this epic capture
+since they're literal one-screen Iced views with no backend
+integration needed.
+
+- [✓] **v4.0.1: WB-2.a Dashboard `home` landing page (shipped
+  2026-05-23)**
+
+  **As** an operator,
+  **I want** the Workbench to open on a Dashboard landing page
+  showing my MDE version + Fedora release + hostname + 4 quick-
+  stat cards (mesh peers / pending updates / snapshots / drift
+  count) that link to the matching panel,
+  **so that** the first thing I see when I open Workbench is a
+  health snapshot, not the "Panel view lands in a later CB-1.x
+  substep" placeholder.
+
+  **Acceptance** (bench-observable):
+  - [x] Workbench's default view (no `--focus` arg) shows the
+        Dashboard with version + hostname + 4 quick-stat cards.
+  - [x] Each card carries a Carbon glyph (peer / update / save
+        / drift) and links to its matching panel via
+        Message::SelectGroup / Message::SelectPanel.
+  - [x] Empty / unknown stats fall back to "—" so the panel
+        doesn't lie about state it doesn't know yet.
+
+  **Implementation notes:**
+  - Chrome influence: Win11 Settings → Home dashboard tile
+    layout.
+  - Icon source: Carbon Icon Set — `peer` for mesh, `update`
+    for updates, `save` for snapshots, `repair` for drift.
+  - Backend stays simple: read the static identity line
+    from `WatermarkState::identity_line()` (already in
+    mde-popover) — actually no, that's the wrong crate;
+    inline the os-release + hostname read in panels/home.rs
+    rather than depend across crate lines.
+  - Counts: peers/snapshots/drift = 0 until backends ship
+    (honest "—" until known); updates count reads
+    `~/.cache/mde/dnf-updates.count` from the BUG-11 daemon.
+
+- [✓] **v4.0.1: WB-2.b Maintain `hub` root grid (shipped
+  2026-05-23)**
+
+  **As** an operator,
+  **I want** the Maintain group's root view to be a 2×3 grid
+  of clickable tiles (Snapshots / Debloat / Health Check /
+  Repair / Drift / Logs), each with its Carbon glyph + short
+  description,
+  **so that** I can find the right Maintain tool without
+  reading a flat sidebar list.
+
+  **Acceptance** (bench-observable):
+  - [x] Maintain's group view (group-only `View::Group` shape,
+        no panel slug) shows 6 tiles in a 2-column grid.
+  - [x] Each tile is clickable; click navigates to the matching
+        panel via Message::SelectPanel.
+  - [x] Tile order matches the nav_model panel order
+        (Snapshots, Debloat, Health Check, Repair, Drift, plus
+        Logs at the end for the existing logs panel — Hub
+        itself doesn't list).
+
+  **Implementation notes:**
+  - Chrome influence: Win11 Settings landing grid (square
+    tiles, single accent per zone, 12 px gap).
+  - Icon source: Carbon — `save` (snapshots), `clean`
+    (debloat), `checkmark--filled` (health), `repair` /
+    `tools` (repair), `analytics` (drift), `list` (logs).
+
+- [✓] **v4.0.1: WB-2.c Help `index` topics list (shipped
+  2026-05-23)**
+
+  **As** an operator,
+  **I want** the Help group's root view to list the help
+  topics that ship in `docs/help/*.md`,
+  **so that** I can find documentation from inside the
+  Workbench instead of grepping the filesystem.
+
+  **Acceptance** (bench-observable):
+  - [x] Help group view shows a vertical list of topics read
+        from `docs/help/*.md` filenames (or a hardcoded set
+        if the dir isn't installed).
+  - [x] Each topic row is clickable + opens the .md file in
+        the system viewer via `xdg-open`.
+
+  **Implementation notes:**
+  - Chrome influence: Win11 Settings → Help & Support topic
+    list.
+  - Icon source: Carbon `help` + per-topic glyphs from
+    `mde_theme::Icon`.
+
+- [ ] **v4.0.1: WB-2.d Apps Panel Apps grid (Tier 2 chrome)**
+
+  **As** an operator,
+  **I want** an "Apps → Panel Apps" view that lists which
+  applets are currently in the panel's tray + lets me toggle
+  each one's visibility,
+  **so that** I can hide the clipboard or bell chip without
+  editing a TOML by hand.
+
+  **Acceptance:** TBD until the panel-config schema lands
+  (currently the tray applets are hard-coded in top_bar.rs).
+  Blocked on a `panel.toml` schema for per-applet enables.
+
+- [ ] **v4.0.1: WB-2.e Maintain Debloat (Tier 2)**
+  Reads `~/.config/mde/removed-by-mackes.json` (already
+  populated by `mackes/app_mgmt.py::REMOVED_BY_MACKES_FILE`)
+  + lets the operator remove additional packages from a
+  curated list of "safe to remove on a fresh Fedora install"
+  apps (gnome-tour, gnome-help, gnome-maps, etc.).
+
+- [ ] **v4.0.1: WB-2.f Maintain Health Check (Tier 2)**
+  Runs `mackesd healthz` + parses the JSON into a list of
+  named probes with status (ok / warn / fail) and a short
+  remediation hint per failure.
+
+- [ ] **v4.0.1: WB-2.g Maintain Drift (Tier 2)**
+  Reads mackesd's drift events stream (per
+  `reconciler_hook.rs::drift_events`) and renders a list of
+  divergences between the locked TOML config and the live
+  state.
+
+- [ ] **v4.0.1: WB-2.h Network Mesh Control (Tier 2)**
+  Shows: am-I-leader? when did the leader-election last
+  fire? what version of the config TOML are we synced to?
+  Lets the operator force a re-election or a re-sync.
+
+- [ ] **v4.0.1: WB-2.i Network Mesh Pending (Tier 2)**
+  Lists incoming-pair-requests from peers that haven't been
+  approved yet, with Accept / Reject buttons.
+
+- [ ] **v4.0.1: WB-2.j Network Mesh Services (Tier 2)**
+  Headscale + Caddy + DERP + Tailscale daemon status +
+  start/stop/restart buttons.
+
+- [ ] **v4.0.1: WB-2.k Network Mesh Topology (Tier 2)**
+  Iced canvas widget rendering the mesh as a graph (peers
+  = nodes, latencies = edge weights). Substantial; chains
+  on a `cairo`/`iced::canvas` decision.
+
+- [ ] **v4.0.1: WB-2.l Network Remote Desktop (Tier 2)**
+  Per-peer RDP/VNC launch surface; reads paired peers from
+  `~/.config/mde/peer-macs.json` + shells out to Remmina
+  or wlroot's VNC client.
+
 - [✓] **v4.0.1: WB-1 wire Connected Devices panel into Workbench
   nav (Phase 0.7 rescue — operator-reported missing modal)
   (Tier 1 chrome) — shipped 2026-05-23**
