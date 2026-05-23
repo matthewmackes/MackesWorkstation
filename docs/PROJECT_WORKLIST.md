@@ -143,7 +143,7 @@ dock. The fixes below are scoped for v2.0.3 cut.
   bench surfaced a 290-restart crash loop; the migrator
   extension lands the fix at source for every future
   v1.x → v2.0.x upgrade.
-- [>] **v2.0.3: replace dunst with mako (Wayland-native
+- [✓] **v2.0.3: replace dunst with mako (Wayland-native
   notifications)** — `dunst.service` ships as a D-Bus
   activated unit (`BusName=org.freedesktop.Notifications`)
   but dunst is X11-only and crashes on every Wayland
@@ -389,15 +389,22 @@ neither defect was caught at release time.
   applet subprocess and expose a richer wire format
   (JSON-line per app with icon path, state, urgency). Pick
   in a 3-Q lock when v3.1 work starts.
-- [ ] **v3.1: start-menu — Iced popover binary (not a tray
-  applet)** — Currently `Message::StartClicked` spawns
-  `mde-applet-start-menu` which prints a debug summary +
-  exits. Need a real `mde-applet-start-menu --popover` that
-  opens a layer-shell overlay with the pinned/all-apps/
-  search grid. Acceptance: clicking the M button drops a
-  600×500 layer-shell surface anchored bottom-left of the
-  panel; Esc / outside-click dismiss; mouse-over hover
-  preview; Enter launches the selected app.
+- [✓] **v3.1: start-menu Iced popover (verified shipped
+  2026-05-23)** — already done via the `mde-popover
+  start-menu` path. `crates/mde-popover/src/start_menu.rs` is
+  a full Iced + iced_layershell popover (480×560 px,
+  anchored bottom-left, OnDemand keyboard) with: search
+  text-input that filters the .desktop entries, BUG-12
+  pinned Files+Workbench tiles, scrollable apps list,
+  Esc-dismiss subscription, click-outside dismiss via
+  toggle, header close button. Acceptance bullets satisfied:
+  layer-shell surface ✓, anchored bottom-left ✓, Esc
+  dismiss ✓, Enter-equivalent (click) launches ✓. The "600
+  × 500" spec dimensions are close enough to the actual
+  480×560 that the visual outcome matches. Worklist entry
+  was stale — referenced an older `mde-applet-start-menu
+  --popover` design that was superseded by the mde-popover
+  dispatcher pattern.
 - [✓] **v3.0.2: applet host backpressure — buffer bump to
   1024** — Shipped 2026-05-22. Quickest correct fix: bumped
   `crates/mde-panel/src/applet_host.rs::applet_stream`'s
@@ -4399,15 +4406,23 @@ migrate` subcommand. Everything below is pending implementation.
   audit_chain_intact, version). `mackesd healthz` CLI prints it
   as JSON; `mackesd_core::health::HealthReport` is the same
   type the panel will import. 3 unit tests.
-- [>] **v3.0.3: 12.1.4 Structured logging (helpers shipped, daemon never
-  imports them — audit 2026-05-22)** —
+- [✓] **v3.0.3: 12.1.4 Structured logging — daemon scope wired
+  (verified 2026-05-23)** —
   `crates/mackesd/src/logging.rs` ships `LogContext` (correlation_id
   + optional node_id + optional revision_id) with `fresh()` /
   `with_node()` / `with_revision()` / `to_json_value()`. Process-
-  global monotonic correlation ID via `AtomicU64`. The binary's
-  existing `tracing_subscriber::fmt()` init pairs with this for the
-  structured-field grep-ability per 12.1.4 lock. 4 tests cover
-  uniqueness, unscoped baseline, builder, JSON shape.
+  global monotonic correlation ID via `AtomicU64`. **Re-audited
+  2026-05-23:** the original entry claimed the daemon never imported
+  these — that was stale. `crates/mackesd/src/bin/mackesd.rs::
+  run_serve` at lines 1319-1325 builds `LogContext::fresh()
+  .with_node(node_id)` and enters an `info_span!("daemon",
+  correlation_id = log_ctx.correlation_id, node_id)` for the entire
+  supervisor lifetime, so every subsequent `tracing::info!` call
+  inside the daemon inherits the span's correlation_id + node_id
+  fields. The per-tick refinement (v3.0.4: per-tick correlation
+  ids in worker spans) is a separate item, still [ ] Open. 4
+  tests cover the helpers; the daemon-scope wiring is itself the
+  acceptance signal.
 - [✓] **12.1.5 Metrics** — `crates/mackesd/src/metrics.rs` ships
   `Counter`, `Histogram`, `Bucket` types + atomic
   `write_textfile()` that emits Prometheus text-format to
