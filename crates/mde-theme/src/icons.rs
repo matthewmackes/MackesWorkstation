@@ -366,10 +366,34 @@ impl ResolvedIcon {
     /// [`fallback_glyph`]: Self::fallback_glyph
     #[must_use]
     pub fn svg_bytes(&self) -> Option<&'static [u8]> {
-        // Asset bundle ships in UX-8.b. Returning `None` so the
-        // existing fallback_glyph render path stays in use.
-        let _ = self.carbon_name;
-        None
+        // v4.0.1 BUG-13.b — starter batch. Each arm matches a
+        // `carbon_name` exactly (so the icons.rs name table is
+        // authoritative) and returns the bytes of the SVG copied
+        // from /usr/share/icons/Mackes-Carbon/scalable/apps/. New
+        // variants land by dropping the SVG into
+        // assets/icons/carbon/ + adding one arm here. Any
+        // unmapped icon still falls through to `None` so the
+        // consumer's `fallback_glyph` path keeps working — the
+        // contract is "Some when wired, None to fall back".
+        match self.carbon_name {
+            "dashboard" => Some(include_bytes!("../../../assets/icons/carbon/dashboard.svg")),
+            "application" => Some(include_bytes!("../../../assets/icons/carbon/application.svg")),
+            "network--3" => Some(include_bytes!("../../../assets/icons/carbon/network--3.svg")),
+            "devices" => Some(include_bytes!("../../../assets/icons/carbon/devices.svg")),
+            "color-palette" => Some(include_bytes!("../../../assets/icons/carbon/color-palette.svg")),
+            "settings" => Some(include_bytes!("../../../assets/icons/carbon/settings.svg")),
+            "tools" => Some(include_bytes!("../../../assets/icons/carbon/tools.svg")),
+            "network--public" => Some(include_bytes!("../../../assets/icons/carbon/network--public.svg")),
+            "help" => Some(include_bytes!("../../../assets/icons/carbon/help.svg")),
+            "chevron--right" => Some(include_bytes!("../../../assets/icons/carbon/chevron--right.svg")),
+            "chevron--down" => Some(include_bytes!("../../../assets/icons/carbon/chevron--down.svg")),
+            "search" => Some(include_bytes!("../../../assets/icons/carbon/search.svg")),
+            "add" => Some(include_bytes!("../../../assets/icons/carbon/add.svg")),
+            "close" => Some(include_bytes!("../../../assets/icons/carbon/close.svg")),
+            "time" => Some(include_bytes!("../../../assets/icons/carbon/time.svg")),
+            "notification--filled" => Some(include_bytes!("../../../assets/icons/carbon/notification--filled.svg")),
+            _ => None,
+        }
     }
 }
 
@@ -475,12 +499,37 @@ mod tests {
     }
 
     #[test]
-    fn svg_bytes_returns_none_until_bundle_ships() {
-        // UX-8.a — the API surface is in place but the asset
-        // bundle is UX-8.b. Until it ships, every icon returns
-        // None and consumers fall back to fallback_glyph.
-        let r = mde_icon(Icon::Fleet, IconSize::Nav);
-        assert!(r.svg_bytes().is_none());
+    fn svg_bytes_wired_for_nav_surfaces() {
+        // v4.0.1 BUG-13.b — UX-8.a / UX-8.b partial close. Each
+        // of the 9 navigation surfaces + a few common icons ships
+        // baked SVG bytes; the rest still fall through to the
+        // fallback_glyph path.
+        for nav in [
+            Icon::Dashboard, Icon::Apps, Icon::Network, Icon::Devices,
+            Icon::LookAndFeel, Icon::System, Icon::Maintain,
+            Icon::Fleet, Icon::Help,
+        ] {
+            let r = mde_icon(nav, IconSize::Nav);
+            let bytes = r.svg_bytes();
+            assert!(
+                bytes.is_some(),
+                "{:?} carbon_name={} should have SVG bytes baked in",
+                nav, r.carbon_name,
+            );
+            let payload = bytes.unwrap();
+            assert!(payload.len() > 32, "{:?} payload too small", nav);
+        }
+    }
+
+    #[test]
+    fn svg_bytes_returns_none_for_unwired_variants() {
+        // Variants whose Carbon name isn't yet in the starter
+        // batch fall back to None so the consumer's fallback_glyph
+        // path keeps working.
+        for unwired in [Icon::Snapshot, Icon::Wallpaper, Icon::Fonts] {
+            let r = mde_icon(unwired, IconSize::Nav);
+            assert!(r.svg_bytes().is_none(), "{unwired:?} should still be None");
+        }
     }
 
     #[test]

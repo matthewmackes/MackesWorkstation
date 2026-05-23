@@ -959,17 +959,38 @@ no new RPM cut.
   notification-bell chip also gets a Bell SVG; "0" replaces
   the empty-string placeholder so the bell always shows a
   number badge.
-- [ ] **v4.0.2: BUG-13.b wire Carbon SVG bytes into
-  `mde_theme::Icon` (closes UX-8.a)** — `mde_theme`'s
-  semantic Icon enum returns the carbon name + a Unicode
-  fallback today; consumers (mde-workbench, mde-files) use
-  the fallback. Add `Icon::svg_bytes()` returning
-  `Option<&'static [u8]>` from include_bytes! of
-  `assets/icons/carbon/<carbon_name>.svg`. Update
-  workbench/files render sites to prefer SVG when present.
-  Acceptance: workbench panel headers + sidebar nav rows
-  render Carbon line icons; no Unicode fallbacks left
-  except for the variants whose Carbon SVG isn't yet baked.
+- [>] **v4.0.1: BUG-13.b mde_theme::Icon ⇒ Some(SVG bytes)
+  starter batch (shipped 2026-05-23; consumer swap pending)** —
+  `ResolvedIcon::svg_bytes()` is no longer a hard-coded `None`
+  stub. The 9 navigation-surface icons (Dashboard, Apps,
+  Network, Devices, LookAndFeel, System, Maintain, Fleet, Help)
+  plus 7 common-action icons (chevron-right, chevron-down,
+  search, add, close, time, notification--filled) now return
+  `Some(include_bytes!(...))` from
+  `assets/icons/carbon/<carbon_name>.svg`. Unmapped variants
+  still fall through to `None` (and the consumer's
+  `fallback_glyph` path). Closes UX-8.a's API surface; the
+  consumer-side render swap (workbench + mde-files swapping
+  their `text(icon.fallback_glyph)` calls for
+  `iced::widget::svg::Svg::new(...)` when `svg_bytes()` is
+  Some) is the remaining UX-8.b half.
+  Two regression tests guard the new behavior:
+  `svg_bytes_wired_for_nav_surfaces` (every nav icon must be
+  Some) + `svg_bytes_returns_none_for_unwired_variants`
+  (Snapshot/Wallpaper/Fonts still fall through).
+- [ ] **v4.0.2: BUG-13.c bake the remaining Carbon SVGs for
+  the unwired Icon variants + add iced `svg` feature to
+  mde-workbench / consumer swap** — Snapshot, Peer, Logs,
+  Update, Repair, Sound, Display, Printer, Power, Removable,
+  Clock, Wallpaper, Fonts, Themes, Session, Wifi, Vpn,
+  Firewall, Playbook, History, Inventory, plus the four
+  Status* dots, Window* glyphs, and the action affordances
+  (Refresh, Delete, Edit, Confirm, Cancel). Then add the
+  `svg` feature to `crates/mde-workbench/Cargo.toml`, update
+  workbench render sites to prefer `svg_bytes()` over
+  `fallback_glyph()`. Acceptance: every workbench panel
+  header + sidebar nav row + status dot renders a Carbon SVG
+  with no Unicode fallback visible.
 
 - [✓] **v4.0.1: BUG-12 pinned Files+Workbench tiles at top of
   start menu (shipped 2026-05-23)** — `crates/mde-popover/src/
