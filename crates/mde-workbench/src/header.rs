@@ -14,14 +14,25 @@
 //!
 //! Acceptance fields per the worklist UX-4 entry:
 //!   (a) 48 px height, surface background, 1 px divider border ✓
-//!   (b) "MDE" wordmark, 14 sp medium, left-aligned ✓
+//!   (b) "MDE Workbench" wordmark (Carbon icon + 14 sp medium
+//!       text), left-aligned ✓
 //!   (c) min/max/close with accent-tinted hover ✓
 //!   (d) SHADOW_2 elevation — applied to the header surface as
 //!       the visible elevation under sway tiling (window frame
 //!       itself is borderless under sway by default).
+//!
+//! v4.0.1 BUG-20 (2026-05-23) — brand-strip parity with the sway
+//! titlebar / start-menu Workbench tile: prepended the Carbon
+//! `Workbench` glyph + expanded the wordmark from "MDE" to "MDE
+//! Workbench" so the in-app header reads the same as the WM-drawn
+//! title above it and the start-menu's pinned tile that launched
+//! the window. Operator photo evidence: screenshots from
+//! 2026-05-23 showed two sibling surfaces drifting (sway title:
+//! "MDE Workbench" + icon, iced header: bare "MDE"). User
+//! directive: "Copy the branding from one interface to another."
 
 use iced::widget::button::{self, Status as ButtonStatus};
-use iced::widget::{container, row, text, Space};
+use iced::widget::{container, row, svg as widget_svg, text, Space};
 use iced::{alignment, Background, Border, Color, Element, Length, Shadow, Vector};
 
 use mde_theme::{
@@ -36,10 +47,20 @@ pub const HEADER_HEIGHT: f32 = 48.0;
 /// occupy 120 px on the right edge.
 const CONTROL_WIDTH: f32 = 40.0;
 
-/// MDE wordmark text. The full product name lives in the window
-/// `title()` (D-Bus / taskbar consumers see that one); the header
-/// keeps the short logotype for visual density.
-pub const WORDMARK: &str = "MDE";
+/// MDE Workbench wordmark text. Mirrors the WM-drawn window title
+/// (`app.title()` → "MDE Workbench — <page>"), the start-menu
+/// pinned tile label, and the .desktop entry's `Name=` so all
+/// surfaces that announce "this is the workbench" stay in sync.
+/// The window `title()` carries the longer per-page suffix; this
+/// stays compact so the 48 px stripe doesn't compete with the
+/// page heading below it.
+pub const WORDMARK: &str = "MDE Workbench";
+
+/// Carbon Workbench glyph rendered to the left of the wordmark.
+/// Matches the icon the start-menu pinned-tile row uses for the
+/// Workbench shortcut so the brand reads consistently across
+/// chrome surfaces.
+const BRAND_ICON_SIZE: f32 = 18.0;
 
 // UX-8 landed — window-control glyphs now route through the
 // semantic Icon enum. The actual character rendered is still the
@@ -77,6 +98,35 @@ pub fn view<'a, Message: Clone + 'a>(
         })
         .color(palette.text.into_iced_color());
 
+    // v4.0.1 BUG-20 — Carbon Workbench glyph to the left of the
+    // wordmark. Mirrors the icon the start-menu pinned-tile row
+    // shows for the Workbench shortcut so the brand reads the
+    // same across chrome surfaces.
+    let brand_icon_resolved = mde_icon(Icon::Workbench, IconSize::Inline);
+    let brand_icon: Element<'a, Message> =
+        if let Some(svg_bytes) = brand_icon_resolved.svg_bytes() {
+            let icon_tint = palette.text.into_iced_color();
+            widget_svg(widget_svg::Handle::from_memory(svg_bytes))
+                .width(Length::Fixed(BRAND_ICON_SIZE))
+                .height(Length::Fixed(BRAND_ICON_SIZE))
+                .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_tint),
+                })
+                .into()
+        } else {
+            text(brand_icon_resolved.fallback_glyph)
+                .size(BRAND_ICON_SIZE)
+                .color(palette.text.into_iced_color())
+                .into()
+        };
+
+    let brand_strip = row![
+        brand_icon,
+        Space::with_width(Length::Fixed(8.0)),
+        wordmark,
+    ]
+    .align_y(alignment::Vertical::Center);
+
     let close_action = on_action(HeaderAction::Close);
     let max_action = on_action(HeaderAction::ToggleMaximize);
     let min_action = on_action(HeaderAction::Minimize);
@@ -94,7 +144,7 @@ pub fn view<'a, Message: Clone + 'a>(
     .spacing(0);
 
     let bar = row![
-        container(wordmark)
+        container(brand_strip)
             .padding([0u16, 16u16])
             .height(Length::Fixed(HEADER_HEIGHT))
             .align_y(alignment::Vertical::Center),
@@ -228,11 +278,32 @@ mod tests {
     }
 
     #[test]
-    fn wordmark_uses_short_logotype() {
-        // Long product name lives in the window title — the bar
-        // shows the compact logotype so the 48 px stripe stays
-        // readable without competing with the page heading.
-        assert_eq!(WORDMARK, "MDE");
+    fn wordmark_matches_brand_chrome_surfaces() {
+        // v4.0.1 BUG-20: the in-app header bar, the sway-drawn
+        // window title, the start-menu's Workbench pinned-tile
+        // label, and the .desktop file's Name= field all show
+        // the same product string. Drift across these surfaces
+        // confuses the operator (sway shows "MDE Workbench",
+        // the in-app bar used to show bare "MDE"). The window
+        // `title()` still carries the longer "MDE Workbench —
+        // <page>" form; the header keeps the compact form
+        // without the per-page suffix.
+        assert_eq!(WORDMARK, "MDE Workbench");
+    }
+
+    #[test]
+    fn brand_icon_is_carbon_workbench_glyph() {
+        // The Icon::Workbench variant must resolve to baked
+        // SVG bytes — same source the start-menu pinned-tile
+        // row uses. If the Carbon catalog ever drops the
+        // glyph this test fails loudly instead of the header
+        // silently falling back to the text glyph and drifting
+        // away from the start-menu tile.
+        let resolved = mde_icon(Icon::Workbench, IconSize::Inline);
+        assert!(
+            resolved.svg_bytes().is_some(),
+            "Icon::Workbench must ship as a baked Carbon SVG so the\n             header brand-strip matches the start-menu tile"
+        );
     }
 
     #[test]

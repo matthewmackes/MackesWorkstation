@@ -268,6 +268,29 @@ pub fn nav_model() -> Vec<NavEntry> {
     ]
 }
 
+/// Resolve `(group, panel_slug)` into the matching panel's
+/// curated display label per the [`nav_model`]. Returns `None`
+/// when the slug doesn't match any panel in that group — callers
+/// fall back to a title-cased slug or a generic group label.
+///
+/// Added v4.0.1 BUG-19 (2026-05-23) so the "panel under
+/// construction" catch-all can render the curated label
+/// ("Mesh Topology", "Wi-Fi") instead of the raw slug
+/// ("mesh_topology", "wifi") when a panel view is requested
+/// before its reducer ships.
+#[must_use]
+pub fn resolve_panel_label(group: Group, panel_slug: &str) -> Option<&'static str> {
+    nav_model()
+        .into_iter()
+        .find(|e| e.group == group)
+        .and_then(|e| {
+            e.panels
+                .iter()
+                .find(|p| p.slug() == panel_slug)
+                .map(|p| p.label())
+        })
+}
+
 /// Resolve a deep-link slug into the matching [`View`]. Accepts
 /// `<group>` or `<group>.<panel>` forms (e.g. `network` or
 /// `network.mesh_ssh`). Unknown slugs return `None`.

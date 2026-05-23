@@ -149,6 +149,17 @@ pub enum Icon {
     Settings,
     /// Inventory / list.
     Inventory,
+    /// Workbench brand-strip glyph (matches the start-menu's
+    /// pinned-tile icon for the `mde-workbench` launcher; used in
+    /// the in-app header bar to keep brand-chrome surfaces in
+    /// sync). Added v4.0.1 BUG-20 (2026-05-23).
+    Workbench,
+    /// Files manager brand-strip glyph (matches the start-menu's
+    /// pinned-tile icon for the `mde-files` launcher). Added
+    /// v4.0.1 BUG-20 (2026-05-23) so the same surface story —
+    /// in-app header bar mirrors the WM titlebar + start-menu
+    /// tile — can extend to mde-files when its header lands.
+    Files,
 
     // --- Window controls (UX-4 swap-in target) ---
     /// Minimize window.
@@ -230,6 +241,8 @@ impl Icon {
             Icon::History => "recently-viewed",
             Icon::Settings => "settings",
             Icon::Inventory => "list-boxes",
+            Icon::Workbench => "workbench",
+            Icon::Files => "files",
 
             Icon::WindowMinimize => "subtract",
             Icon::WindowMaximize => "maximize",
@@ -292,6 +305,8 @@ impl Icon {
             Icon::History => "\u{231B}",       // ⌛
             Icon::Settings => "\u{2699}",      // ⚙
             Icon::Inventory => "\u{2261}",     // ≡
+            Icon::Workbench => "\u{25A6}",     // ▦ (matches Apps stylistically)
+            Icon::Files => "\u{1F4C1}",        // 📁
 
             Icon::WindowMinimize => "\u{2212}", // −
             Icon::WindowMaximize => "\u{25A1}", // □
@@ -412,6 +427,10 @@ impl ResolvedIcon {
             "play-filled" => Some(include_bytes!("../../../assets/icons/carbon/play-filled.svg")),
             "recently-viewed" => Some(include_bytes!("../../../assets/icons/carbon/recently-viewed.svg")),
             "list-boxes" => Some(include_bytes!("../../../assets/icons/carbon/list-boxes.svg")),
+
+            // Brand-strip glyphs (header.rs + start-menu pinned tiles).
+            "workbench" => Some(include_bytes!("../../../assets/icons/carbon/workbench.svg")),
+            "files" => Some(include_bytes!("../../../assets/icons/carbon/files.svg")),
 
             // Window controls.
             "subtract" => Some(include_bytes!("../../../assets/icons/carbon/subtract.svg")),

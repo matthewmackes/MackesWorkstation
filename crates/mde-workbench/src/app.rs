@@ -16,7 +16,7 @@ use crate::backend::{Backend, DemoBackend};
 use crate::dbus::PendingFocus;
 use crate::header::HeaderAction;
 use crate::keyboard::{KeyAction, Pane};
-use crate::model::{view_from_focus_slug, Group, View};
+use crate::model::{resolve_panel_label, view_from_focus_slug, Group, View};
 use crate::panels::{
     apps_install as apps_install_panel, apps_installed as apps_installed_panel,
     apps_remove as apps_remove_panel, apps_sources as apps_sources_panel,
@@ -943,16 +943,55 @@ impl App {
                 group: Group::Fleet,
                 panel: "revisions",
             } => self.fleet_revisions.view(),
-            _ => {
-                // Placeholder body for views without a wired
-                // panel — keeps the chrome readable while the
-                // remaining CB-1.x ports land.
-                text("Panel view lands in a later CB-1.x substep.")
-                    .size(14)
-                    .into()
-            }
+            other => panel_under_construction(other),
         }
     }
+}
+
+/// v4.0.1 BUG-19 (2026-05-23) — friendly "panel not ready yet"
+/// surface for sidebar entries whose reducer hasn't shipped. The
+/// previous catch-all rendered a raw internal-jargon line that
+/// leaked the CB-1.x substep id to the operator — the Phase 0.7
+/// audit grep that the iteration skill added on 2026-05-23
+/// promoted it from passive marker to actionable finding. This
+/// renderer uses the standard UX-6 EmptyState (Carbon tools icon
+/// + curated panel label + Back-to-group CTA wired through
+/// `Message::SelectGroup`).
+fn panel_under_construction(view: View) -> Element<'static, Message> {
+    let palette = mde_theme::Palette::dark();
+    let group = view.group();
+    let (heading, body): (String, String) = match view {
+        View::Group(g) => (
+            format!("{} isn't ready yet", g.label()),
+            format!(
+                "The {} group landing page is part of the next workbench rollout. Pick a specific item from the sidebar to keep working.",
+                g.label()
+            ),
+        ),
+        View::Panel { group: g, panel } => {
+            let panel_label = resolve_panel_label(g, panel).unwrap_or(panel);
+            (
+                format!("{panel_label} isn't ready yet"),
+                format!(
+                    "The {panel_label} panel is part of the next workbench rollout. Other panels in {group} stay available from the sidebar.",
+                    group = g.label(),
+                ),
+            )
+        }
+    };
+    let group_label = group.label();
+    let state = mde_theme::EmptyState::with_cta(heading, body, format!("Back to {group_label}"))
+        .with_icon(mde_theme::Icon::Maintain);
+    let inner = crate::panel_chrome::empty_state(state, palette, move || {
+        Message::SelectGroup(group)
+    });
+    iced::widget::container(inner)
+        .padding(crate::panel_chrome::outer_padding(
+            mde_theme::Density::Comfortable,
+        ))
+        .width(iced::Length::Fill)
+        .height(iced::Length::Fill)
+        .into()
 }
 
 #[cfg(test)]
