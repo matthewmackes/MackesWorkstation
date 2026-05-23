@@ -27,6 +27,38 @@ authoritative. **No item is silently deferred** — everything in
 directive contradicts an earlier design-doc lock, the newer one
 wins silently — the worklist tracks only the live policy.
 
+**Story format (locked 2026-05-23).** Every NEW worklist item
+lands as a user story, not a one-line summary. The shape:
+
+> `- [ ] **<release>: <ID> <title> (Tier <N>)**` <br>
+> `**As** an <role>,` <br>
+> `**I want** <change in user-visible behavior>,` <br>
+> `**so that** <user value>.` <br>
+> `**Acceptance** (each bullet bench-observable):` <br>
+> &nbsp;&nbsp;`- [ ] criterion 1` <br>
+> &nbsp;&nbsp;`- [ ] criterion 2` <br>
+> `**Implementation notes:**` <br>
+> &nbsp;&nbsp;`- influence reference (Win11 chrome / Ableton content)` <br>
+> &nbsp;&nbsp;`- Carbon glyph name(s) per the iconography lock` <br>
+> &nbsp;&nbsp;`- stacked blockers, design-doc cross-references`
+
+Pre-2026-05-23 one-line tasks are grandfathered. The full
+shape + rationale lives in the `iteration` skill (local at
+`.claude/skills/iteration/SKILL.md`) under "Story format for
+new worklist items".
+
+**Iconography lock (locked 2026-05-23).** Every production
+icon ships from the **Carbon Icon Set** — bake assets into
+`assets/icons/carbon/<carbon_name>.svg`, add the matching arm
+to `mde_theme::ResolvedIcon::svg_bytes()`, render via
+`iced::widget::svg(svg::Handle::from_memory(bytes))`. Lucide /
+Phosphor / Material / Font Awesome / hicolor / Black-Sun /
+Orchis icons in production code are an audit finding (Phase
+0.8). Unicode fallback glyphs are tolerated only as the
+`svg_bytes() → None` safety net per BUG-13. When a worklist
+story names an icon slot, the Implementation notes MUST cite
+the Carbon glyph by name.
+
 **Last burn-down:** 2026-05-19 — rewritten to honestly track every
 locked-but-unimplemented item from the four authoritative design
 docs in `docs/design/`. Shipped work moves to **History**; design-
@@ -1089,49 +1121,67 @@ no new RPM cut.
   palette's focused/unfocused color contrast becomes visibly
   distinct. Operator can request 6 px (or back to 2) if 4 ends
   up too heavy at desk distance.
-- [ ] **v4.0.1: BUG-16 reverse BUG-6 — restore per-window controls
-  to MS Windows standard location (top-right of each window),
-  free the panel center for Desktop Layout buttons (Tier 1
-  operator-visible)** — operator reversed the BUG-6 decision
-  after living with the centered min/max/close cluster: the
-  Windows 11 standard (per-window title-bar controls, top-right
-  corner) is what most users have muscle memory for, and
-  centralizing window chrome on the panel conflicts with sway's
-  multi-window-per-workspace model. New layout:
-  (a) Per-window controls move OUT of the panel center back to
-      the title bar of each managed window. Sway needs
-      `default_border normal <px>` instead of `pixel` so the
-      title bar renders, with min/max/close glyphs drawn via
-      sway's per-window button area. Alternative if sway native
-      title bars don't compose well with the rest of the
-      design: keep `default_border pixel 4` (per BUG-10) but
-      add an `mde-window-controls` layer-shell overlay that
-      pins three buttons to the top-right of the focused
-      window, tracking the toplevels subscription.
-  (b) Panel center gets `mde-applet-desktop-layout` — a small
-      cluster of buttons that select a tile layout for the
-      current workspace. Win11-inspired Snap Layouts:
-      single (1 fullscreen), vertical-split (2 side-by-side),
-      grid-4 (2×2), main+sidebar (60/40), tabbed. Click a
-      button → swayipc applies the layout to the current
-      workspace's windows. Glyphs are Carbon SVG icons mirroring
-      Snap Layouts' visual vocabulary.
-  Per the iteration skill's design-criteria pass (Phase 0.8
-  added 2026-05-23), the visual treatment should incorporate
-  the Win11 + Ableton influence locks:
-  - Rounded 6-8 px button corners (Win11 Fluent 2.0).
-  - Single accent color across the cluster (Q2 indigo from
-    visual-identity.md).
-  - Compact dense layout (Ableton-style: minimal whitespace,
-    parameter-display feel).
-  - Hover micro-animations (140 ms ease per UX-9).
-  Acceptance:
-  - Min/max/close buttons render at top-right of every managed
-    window (not on the panel).
-  - Panel center shows ≥3 Desktop Layout buttons; clicking one
-    re-tiles the focused workspace.
-  - Visual treatment matches the locked Win11/Ableton hybrid
-    chrome described above.
+- [ ] **v4.0.1: BUG-16 per-window controls → Win11 standard
+  location; panel center → Desktop Layout buttons (Tier 1
+  chrome)**
+
+  **As** an operator,
+  **I want** the minimize / maximize / close buttons to live at
+  the top-right of each managed window (and the panel center
+  to host a Snap-Layouts-style cluster instead of window
+  controls),
+  **so that** my Windows 11 / macOS muscle memory transfers
+  directly to MDE and the panel center carries a feature that
+  applies to the whole workspace rather than a single window.
+
+  **Acceptance** (every bullet bench-observable on the live
+  panel):
+  - [ ] Minimum 3, maximum 5 Desktop Layout buttons render in
+        the panel's center zone — single (1 fullscreen),
+        vsplit (2 side-by-side), grid-4 (2×2), main+sidebar
+        (60/40), tabbed — clicking one applies the layout to
+        the current workspace's windows via swayipc.
+  - [ ] No window-management glyphs (min/max/close) appear in
+        the panel center any more; they render at the top-right
+        of each managed window's title bar instead.
+  - [ ] Each Desktop Layout button paints its Carbon glyph in
+        Q2 indigo (#5b6af5) at the hover state, FG_MUTED at
+        rest; 140 ms ease-out hover transition per UX-9.
+  - [ ] Buttons share a single accent across the cluster (not
+        per-button accents) per the Ableton single-accent-per-
+        zone rule.
+
+  **Implementation notes:**
+  - **Chrome influence:** Microsoft Windows 11 Snap Layouts
+    (per the iteration skill's Phase 0.8 design influence
+    section). Treat each button as a miniature template
+    visualization, matching Win11's hover-over-maximize
+    preview.
+  - **Icon source:** Carbon Icon Set per the iconography
+    lock. Glyph candidates (verify against `/usr/share/icons/
+    Mackes-Carbon/scalable/apps/`): `maximize` for single,
+    `column` / `split-screen` for vsplit, `grid` for grid-4,
+    `panel-expansion` for main+sidebar, `tabbed` /
+    `category` for tabbed. Bake into `assets/icons/carbon/
+    layout-*.svg` and add arms to `mde_theme::ResolvedIcon::
+    svg_bytes()` before consuming.
+  - **Per-window controls path:** two options at implement
+    time. **(a)** Native sway title bars via `default_border
+    normal <px>`. **(b)** `mde-window-controls` layer-shell
+    overlay tracking the toplevels subscription, pinning a
+    3-button row to the top-right of the focused window's
+    geometry. Pick (b) if the native sway title bar typography
+    can't be themed to match Geologica/IBM Plex Mono.
+  - **Layout-button mechanism:** new crate
+    `crates/mde-applets/desktop-layout/` (per the BUG-13.a
+    panel-host applet pattern); emits a JSON-line per click
+    that the panel routes to `swaymsg layout <kind>` +
+    `swaymsg [workspace=N] layout cycle` / move ops.
+  - **Reversal note:** supersedes the BUG-6 commit (43183ba)
+    in part — window_button_cluster() drops from the panel's
+    center row; cluster (sway-IPC chips) stays where BUG-3
+    moved it. The "newer-wins-silently" rule
+    ([[mackes-worklist-management]] §1) applies.
 
 - [✓] **v4.0.1: BUG-15 minimize button sends windows into the
   scratchpad with no recovery path (captured 2026-05-23)** —
