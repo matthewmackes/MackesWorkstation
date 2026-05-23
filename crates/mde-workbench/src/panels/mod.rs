@@ -12,6 +12,7 @@ pub mod connect;
 pub mod datetime;
 pub mod default_apps;
 pub mod displays;
+pub mod drift;
 pub mod firewall;
 pub mod fleet_revisions;
 pub mod fleet_settings;

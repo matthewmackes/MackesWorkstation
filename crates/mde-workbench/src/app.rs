@@ -22,7 +22,7 @@ use crate::panels::{
     apps_remove as apps_remove_panel, apps_sources as apps_sources_panel,
     connect as connect_panel, datetime as datetime_panel,
     default_apps as default_apps_panel, displays as displays_panel,
-    firewall as firewall_panel, fleet_revisions as fleet_revisions_panel,
+    drift as drift_panel, firewall as firewall_panel, fleet_revisions as fleet_revisions_panel,
     fleet_settings as fleet_settings_panel, fonts as fonts_panel,
     health_check as health_check_panel,
     help_index as help_index_panel, home as home_panel, hub as hub_panel,
@@ -158,6 +158,7 @@ pub enum Message {
     /// CB-1.3 follow-up — Apps → Remove panel sub-message.
     AppsRemove(apps_remove_panel::Message),
     HealthCheck(health_check_panel::Message),
+    Drift(drift_panel::Message),
     MeshControl(mesh_control_panel::Message),
     MeshPending(mesh_pending_panel::Message),
     MeshServices(mesh_services_panel::Message),
@@ -230,6 +231,7 @@ pub struct App {
     apps_install: apps_install_panel::AppsInstallPanel,
     apps_remove: apps_remove_panel::AppsRemovePanel,
     health_check: health_check_panel::HealthCheckPanel,
+    drift: drift_panel::DriftPanel,
     mesh_control: mesh_control_panel::MeshControlPanel,
     mesh_pending: mesh_pending_panel::MeshPendingPanel,
     mesh_services: mesh_services_panel::MeshServicesPanel,
@@ -309,6 +311,7 @@ impl App {
             apps_install: apps_install_panel::AppsInstallPanel::new(),
             apps_remove: apps_remove_panel::AppsRemovePanel::new(),
             health_check: health_check_panel::HealthCheckPanel::new(),
+            drift: drift_panel::DriftPanel::new(),
             mesh_control: mesh_control_panel::MeshControlPanel::new(),
             mesh_pending: mesh_pending_panel::MeshPendingPanel::new(),
             mesh_services: mesh_services_panel::MeshServicesPanel::new(),
@@ -654,6 +657,7 @@ impl App {
             Message::AppsInstall(msg) => self.apps_install.update(msg),
             Message::AppsRemove(msg) => self.apps_remove.update(msg),
             Message::HealthCheck(msg) => self.health_check.update(msg),
+            Message::Drift(msg) => self.drift.update(msg),
             Message::MeshControl(msg) => self.mesh_control.update(msg),
             Message::MeshPending(msg) => self.mesh_pending.update(msg),
             Message::MeshServices(msg) => self.mesh_services.update(msg),
@@ -720,6 +724,8 @@ impl App {
             // v4.0.1 WB-2.f — auto-run probes on first nav so
             // the panel lands populated rather than empty.
             (Group::Maintain, "health_check") => health_check_panel::HealthCheckPanel::load(),
+            // v4.0.1 WB-2.g — mackesd events list --json scan.
+            (Group::Maintain, "drift") => drift_panel::DriftPanel::load(),
             // v4.0.1 WB-2.h — leader lock + healthz probe.
             (Group::Network, "mesh_control") => mesh_control_panel::MeshControlPanel::load(),
             // v4.0.1 WB-2.i — scan probe.json cache for pending peers.
@@ -971,6 +977,13 @@ impl App {
                 group: Group::Maintain,
                 panel: "health_check",
             } => self.health_check.view(),
+            // v4.0.1 WB-2.g (2026-05-23) — Maintain → Drift
+            // renders mackesd events list --json output filtered
+            // for drift-flavoured rows.
+            View::Panel {
+                group: Group::Maintain,
+                panel: "drift",
+            } => self.drift.view(),
             // v4.0.1 WB-2.h (2026-05-23) — Network → Mesh
             // Control renders the leader-lease state + healthz.
             View::Panel {

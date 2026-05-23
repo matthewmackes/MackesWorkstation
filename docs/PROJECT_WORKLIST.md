@@ -1779,11 +1779,18 @@ integration needed.
   without the mackesd daemon running. Auto-loads on nav.
   7 tests + clean integration.
 
-- [ ] **v4.0.1: WB-2.g Maintain Drift (Tier 2)**
-  Reads mackesd's drift events stream (per
-  `reconciler_hook.rs::drift_events`) and renders a list of
-  divergences between the locked TOML config and the live
-  state.
+- [✓] **v4.0.1: WB-2.g Maintain Drift (shipped 2026-05-23)**
+  Built `crates/mde-workbench/src/panels/drift.rs` — shells
+  out to `mackesd events list --json`, parses the JSON array,
+  filters for drift-flavoured payloads (heuristic: `kind`
+  contains "drift" OR a `severity` field is set), surfaces
+  each row as severity icon + INFO/WARN/ERROR pill + event-id
+  + peer + relative timestamp + multi-line message body.
+  Empty-state card distinguishes "no drift detected" (info
+  green) from "mackesd unreachable" (error red with the
+  spawn error message). Auto-loads on nav. 7 tests including
+  severity round-trip, garbage rejection, drift-kind
+  extraction, and severity-only extraction.
 
 - [✓] **v4.0.1: WB-2.h Network Mesh Control (shipped 2026-05-23)**
   Built `crates/mde-workbench/src/panels/mesh_control.rs` —
