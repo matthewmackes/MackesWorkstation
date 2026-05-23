@@ -29,6 +29,7 @@ mod clock;
 mod dismiss;
 mod expose;
 mod fonts;
+mod minimized;
 mod network;
 mod notifications;
 mod start_menu;
@@ -78,6 +79,10 @@ enum Kind {
     /// up to STACK_LIMIT=3 toasts above the panel. Spawned at
     /// session start via data/sway/config.
     Toast,
+    /// v4.0.1 WM-2 — minimized-windows popover. Lists sway
+    /// scratchpad windows + click-to-restore via swaymsg. Bind
+    /// with `bindsym $mod+Shift+s exec mde-popover minimized`.
+    Minimized,
 }
 
 fn main() -> iced_layershell::Result {
@@ -103,5 +108,6 @@ fn main() -> iced_layershell::Result {
         Kind::Clipboard => clipboard::run(),
         Kind::Toast => toasts::run(),
         Kind::Network => network::run(),
+        Kind::Minimized => minimized::run(),
     }
 }

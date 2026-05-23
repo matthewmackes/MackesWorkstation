@@ -2018,8 +2018,38 @@ integration needed.
     `dock` and the leading `Space::with_width(Length::Fill)`
     so chips sit close to the start button on the left.
 
-- [ ] **v4.0.1: WM-2 minimized-windows tray + popover (Tier 1
-  chrome / closes BUG-15's stretch goal)**
+- [✓] **v4.0.1: WM-2 minimized-windows popover (popover half
+  shipped 2026-05-23; tray-button half tracked as WM-2.a) —
+  Tier 1 chrome**
+
+  Built `crates/mde-popover/src/minimized.rs` + the
+  `Kind::Minimized` variant in main.rs. Walks `swaymsg -t
+  get_tree`, finds the `__i3_scratch` workspace, collects
+  every leaf in its `nodes` + `floating_nodes` arrays.
+  Renders one row per scratchpad window with app_id + title;
+  click fires `swaymsg [con_id=N] scratchpad show` to
+  restore + closes the popover. XWayland windows that don't
+  have `app_id` fall back to `window_properties.class`. Esc
+  closes; empty state hints at the binding.
+
+  **Operator one-liner (or add to sway config):**
+  `mde-popover minimized`
+
+  5 unit tests cover garbage rejection + native-Wayland
+  scratchpad walk + XWayland class fallback + nested-
+  container descent + non-scratch-workspace filtering.
+
+- [ ] **v4.0.1: WM-2.a minimized-windows panel tray button + badge
+  count** — the popover ships; the panel-side tray icon
+  with the count badge (Carbon `view--off` glyph) is a
+  separate piece. Touches `crates/mde-panel/src/top_bar.rs`
+  to add the tray button + the 2s-poll subscription that
+  watches scratchpad count. Closes when the visible badge
+  reflects live scratchpad cardinality.
+
+  **Original WM-2 umbrella spec retained below for context**
+  — the split-out 2026-05-23 ships the popover today + tracks
+  the tray half here. Original spec:
 
   **As** an operator,
   **I want** a panel tray icon (Carbon `view--off`) with a
