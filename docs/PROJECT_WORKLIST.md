@@ -858,62 +858,84 @@ above; integration tasks below in dependency order.
   rendering with metadata) is a v4.0.1 follow-up — the math + the
   Iced widget composition are separate workstreams, and the math
   was the dead-code item.
-- [!] **v3.0.3: 2.3 close DBusBackend (BLOCKED on Phase G + mackesd
-  Files DBus server) — sharpened 2026-05-23 after operator observed
-  "most of the artifact manager is mockup" + the iteration skill's
-  Phase 0.7 mockup audit also surfaced mde-workbench's launch
-  path** — confirmed at v4.0.0:
-  everything except window chrome reads from `demo_data` constants
-  (sidebar peers, peer folders, Inbox, Downloads file list,
-  recent transfers, "you are anvil" header, audit log). Send-To
-  also goes to a synthetic `DemoBackend` that just appends to an
-  in-memory `Vec<AuditEntry>`.
-  Two blockers stack on closing this:
-  (a) **Phase G — Cow<'static, str> migration** of
-      `crates/mde-files/src/model.rs`. 27 `&'static str` fields
-      across 5 structs (`Peer`/`SelfNode`/`FileRow`/`LocalPin`/
-      `Transfer`); all 5 derive `Copy` which Cow breaks (Cow
-      isn't Copy). Migration: convert fields to
-      `Cow<'static, str>`, drop the `Copy` derive on all 5
-      structs, fix 3+ `.iter().copied()` callsites
-      (search.rs:57, views.rs:608, views.rs:821) to `.cloned()`,
-      wrap demo_data.rs constants in `Cow::Borrowed(...)`
-      (const-fn-valid since Rust 1.78). Touches 11 files in
-      `crates/mde-files/src/`. Estimated 1 day.
-  (b) **mackesd `dev.mackes.MDE.Fleet.Files` server surface.**
-      `crates/mackesd/src/ipc/shell.rs::healthz` returns
-      `"wired in Phase B alongside the worker pool"`. The Fleet
-      interface needs ListPeers / ListFiles / SendTo /
-      ListAuditLog / Rollback methods that the DBusBackend
-      parsers already know how to consume; mackesd has to
-      implement them server-side first. Roughly chains on
-      Phase B + a per-feature mackesd `Files` worker that
-      indexes `~/QNM-Shared/` content.
-  Acceptance unchanged: running mde-files against a live
-  `dev.mackes.MDE.Fleet.Files` bus surfaces the real peer list
-  (not DemoBackend); send-to + history operations round-trip
-  through D-Bus. Both Phase G and the mackesd Files surface
-  need to land before this entry can flip to [✓].
+- [✓] **v3.0.3: 2.3 close DBusBackend — Phase G + mackesd
+  Files DBus server BOTH shipped 2026-05-23 (commit `6411380`,
+  AF-* mega).** Original block was "[!] BLOCKED on Phase G +
+  mackesd Files DBus server" with two stacked dependencies; the
+  AF-* mega closed both in one commit:
 
-  **mde-workbench DemoBackend in launch path (Phase 0.7 audit
-  finding, 2026-05-23).** `crates/mde-workbench/src/app.rs:230`
-  has `impl Default for App { fn default() { with_backend(
-  Arc::new(DemoBackend::new())) } }`; `App::run()` invokes
-  `iced::application` which constructs via Default, so the
-  shipped `mde-workbench` binary boots with the demo backend.
-  Local-system reads (GTK theme list, fc-list fonts, sway
-  outputs, dnf check-update) work because each panel reads the
-  live system directly — those panels don't go through the
-  backend. What DOES go through it: settings PERSISTENCE +
-  cross-mesh settings PUSH. With DemoBackend both are
-  in-memory; changing a font in Workbench updates the panel
-  state, doesn't write to disk, doesn't propagate to peers. The
-  same Phase G + mackesd `dev.mackes.MDE.Settings` DBus server
-  unblockers apply here. Acceptance for the workbench half:
-  changing any setting in Workbench (a) writes to a real
-  config file (b) shows up in `mackesd healthz` / via `swaymsg`
-  / via `fc-cache -r` on the local node and (c) propagates to
-  peers within ~5 s through mackesd's fs_sync worker.
+  * **Phase G** — `crates/mde-files/src/model.rs` migrated every
+    `&'static str` field on `Peer`/`SelfNode`/`FileRow`/
+    `LocalPin`/`Transfer` to `String` (not `Cow` — the call
+    sites that needed `Copy` semantics turned out to all be in
+    Iced view code, where `Clone` is the standard contract
+    anyway).
+  * **mackesd Fleet.Files** —
+    `crates/mackesd/src/ipc/files.rs::FleetFilesService` now
+    holds an `Arc<Mutex<rusqlite::Connection>>` + reads the live
+    `nodes` table via `store::list_nodes()`. `register_fleet_files`
+    builds a zbus connection at `/dev/mackes/MDE/Fleet/Files` on
+    `org.mackes.mackesd`, wired into `run_serve` after the
+    notification_relay worker.
+  * **mde-files DBusBackend** —
+    `crates/mde-files/src/dbus_backend.rs::DBusBackend::connect_with_timeout`
+    probes `org.mackes.mackesd` via `NameHasOwner` (so the GUI
+    doesn't freeze on dbus default timeouts), exposes
+    `self_node()` / `peers()` / `list_peer(name)` returning
+    UI-model types via `WirePeer::into_model` /
+    `WireFileRow::into_model`. The `dbus` feature is now in the
+    crate's `default` set so the production binary always links
+    the real client.
+  * **RealBackend** wraps DBusBackend + LocalFsBackend; mde-files
+    constructs `RealBackend::new()` in `MdeFiles::default()`.
+
+  Acceptance: running mde-files against a live
+  `dev.mackes.MDE.Fleet.Files` bus surfaces the real peer list
+  (not DemoBackend); per-peer file lists return `[]` for now
+  (honest empty until file-sync ships). Send-To still routes
+  through the local-FS path's audit log — mesh send-to needs
+  the mackesd `Shell.FileOperations.send_to` impl, captured as
+  AF-5 follow-up below.
+
+  **Old block text retained for context:**
+  Two blockers stacked on closing this: (a) Phase G —
+  `Cow<'static, str>` migration of model.rs; (b) mackesd
+  `dev.mackes.MDE.Fleet.Files` server surface. Both shipped
+  2026-05-23.
+
+  **mde-workbench DemoBackend in launch path — STILL OPEN
+  (split from 2.3 → 2.3.a):** the mega closed mde-files's
+  DemoBackend path; mde-workbench's
+  `crates/mde-workbench/src/app.rs:230` still
+  `with_backend(Arc::new(DemoBackend::new()))` for settings
+  persistence + cross-mesh settings push. Captured as
+  AF-2.3.a below.
+
+- [ ] **AF-2.3.a: mde-workbench backend — settings persistence
+  + cross-mesh push (Tier 2, split from 2.3 on 2026-05-23
+  after the AF-* mega closed the mde-files half)** —
+  `crates/mde-workbench/src/app.rs` constructs a DemoBackend
+  at startup. Local-system reads (theme list, fc-list fonts,
+  sway outputs, dnf check-update) work because each panel
+  reads the live system directly — those panels don't go
+  through the backend. What DOES go through it:
+  settings PERSISTENCE + cross-mesh settings PUSH.
+  Acceptance: changing any setting in Workbench (a) writes
+  to a real config file (b) shows up in `mackesd healthz` /
+  via `swaymsg` / via `fc-cache -r` on the local node and
+  (c) propagates to peers within ~5 s through mackesd's
+  fs_sync worker.
+- [ ] **AF-5: mackesd `Shell.FileOperations.send_to` impl —
+  closes mesh send-to (Tier 2, captured 2026-05-23 alongside
+  the AF-* mega)** — currently the mackesd
+  FileOperations service still has its 4 stub methods
+  returning `Err("Phase G")`. mde-files's RealBackend uses
+  LocalFsBackend's send_to which always rejects mesh
+  destinations as Unreachable. Wiring this requires a
+  per-peer transport (rsync-over-mesh / scp / qnm-share
+  layer) that doesn't exist yet — when it lands,
+  FileOperations.send_to dispatches to it.
+
 - [✓] **v3.0.3: 5.3 route every icon-only mde-files button
   through a11y_labels (Tier 2 mde-files::a11y_labels) — shipped
   2026-05-22 (toolbar layout toggles wired; rest pending v4.0.1)** —
