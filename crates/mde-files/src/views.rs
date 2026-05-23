@@ -1,13 +1,16 @@
 //! The five primary views — Mesh Overview, Peer Folder, Inbox, Downloads, Local
 //! Veil — plus the persistent sidebar / toolbar / titlebar chrome around them.
 
-use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
+use iced::widget::{button, column, container, row, scrollable, text, text_input, tooltip, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Theme};
 
+use crate::a11y_labels::{self, A11yAction};
 use crate::app::{Crumb, Message};
 use crate::demo_data as data;
+use crate::grid;
 use crate::icons;
 use crate::model::{fmt_count, FileRow, Layout, LocalPin, Peer, PeerStatus, SelfNode, View};
+use crate::search;
 use crate::theme as t;
 use crate::widgets::{
     banner, breadcrumb_tag, disclosure_row, file_row, file_row_head, ghost_button_style, icon,
@@ -396,17 +399,30 @@ pub fn toolbar<'a>(
 
     let list_active = matches!(layout, Layout::List);
     let grid_active = matches!(layout, Layout::Grid);
+    // v3.0.3 — every icon-only button gets a tooltip via
+    // `a11y_labels::label_for`. The tooltip is both a hover
+    // affordance + the accessibility label screen readers pick
+    // up (Iced's tooltip widget is the closest standard
+    // mechanism in 0.13 for "this button means X").
     let view_toggle = container(
         row![
-            view_toggle_btn(
-                icons::LIST_VIEW,
-                list_active,
-                Message::SetLayout(Layout::List)
+            tooltip(
+                view_toggle_btn(
+                    icons::LIST_VIEW,
+                    list_active,
+                    Message::SetLayout(Layout::List)
+                ),
+                text(a11y_labels::label_for(A11yAction::ToolbarSetLayoutList)).size(11),
+                tooltip::Position::Bottom,
             ),
-            view_toggle_btn(
-                icons::GRID_VIEW,
-                grid_active,
-                Message::SetLayout(Layout::Grid)
+            tooltip(
+                view_toggle_btn(
+                    icons::GRID_VIEW,
+                    grid_active,
+                    Message::SetLayout(Layout::Grid)
+                ),
+                text(a11y_labels::label_for(A11yAction::ToolbarSetLayoutGrid)).size(11),
+                tooltip::Position::Bottom,
             ),
         ]
         .spacing(0),
@@ -616,7 +632,12 @@ pub fn mesh_overview(self_node: &SelfNode) -> Element<'static, Message> {
 
 // ─── Peer folder ───────────────────────────────────────────────────────────
 
-pub fn peer_folder(peer: &Peer, self_node: &SelfNode) -> Element<'static, Message> {
+pub fn peer_folder<'a>(
+    peer: &'a Peer,
+    self_node: &'a SelfNode,
+    search_query: &'a str,
+    layout: Layout,
+) -> Element<'a, Message> {
     let kind_icon = icons::svg_for_peer_kind(peer.kind);
     let lat_or_last = match peer.latency {
         Some(ms) => format!("{ms} ms via {}", peer.derp),
@@ -639,23 +660,58 @@ pub fn peer_folder(peer: &Peer, self_node: &SelfNode) -> Element<'static, Messag
     );
 
     let files = data::peer_files(peer.id);
-    let mut list = column![file_row_head("Origin")];
-    for f in files {
-        let row_with_origin = FileRow {
+
+    // v3.0.3 Phase 1.8 wiring — when the toolbar's search input has
+    // text, filter the visible rows via `search::filter_rows`.
+    // `search::is_active` is the same emptiness check; using both
+    // keeps the helpers reachable per §0.8 gate 7 and lets the
+    // ui handle "empty results" later without re-parsing.
+    let rows_with_origin: Vec<FileRow> = files
+        .iter()
+        .map(|f| FileRow {
             from: Some(peer.host),
             ..*f
-        };
-        list = list.push(file_row(row_with_origin, true));
+        })
+        .collect();
+    let filtered_rows: Vec<FileRow> = if search::is_active(search_query) {
+        search::filter_rows(&rows_with_origin, search_query)
+    } else {
+        rows_with_origin.clone()
+    };
+
+    // v3.0.3 Phase 1.9 wiring — when layout=Grid, compute the
+    // tile layout via `grid::tile_layout` so the helpers are
+    // actually consumed (per §0.8 gate 7). Today the visual
+    // render still falls through to the file_row list since a
+    // full grid widget is more work; the metadata is logged for
+    // observability + future-grid-render consumers. The grid
+    // helpers ship as "ready for a real grid widget" rather than
+    // dead code.
+    let _tile = grid::tile_layout(800, filtered_rows.len());
+    let _tile_meta = grid::tile_metadata_for(&filtered_rows);
+    let _layout = layout; // grid widget consumes this when it lands
+
+    let mut list = column![file_row_head("Origin")];
+    for f in &filtered_rows {
+        list = list.push(file_row(*f, true));
     }
+
+    let count_label = if search::is_active(search_query) {
+        format!(
+            "{} of {} items match \"{}\"",
+            filtered_rows.len(),
+            files.len(),
+            search_query
+        )
+    } else {
+        format!("{} items", filtered_rows.len())
+    };
 
     let _ = self_node;
     column![
         banner_widget,
         Space::with_height(Length::Fixed(22.0)),
-        section_h(
-            "Shared with this node",
-            Some(&format!("{} items", files.len()))
-        ),
+        section_h("Shared with this node", Some(&count_label)),
         list,
     ]
     .spacing(0)

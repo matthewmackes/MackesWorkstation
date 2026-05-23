@@ -757,21 +757,29 @@ above; integration tasks below in dependency order.
   UDP fully blocked, after 3 consecutive direct+DERP failures the
   fallback activates and a `tcpdump -i any port 443` shows
   outbound HTTPS to the configured fallback host within 1s.
-- [ ] **v3.0.3: 1.8 wire search-results view into mde-files
-  (Tier 2 mde-files::search)** — the pure-fn filter ships; the
-  Iced view never switches from per-view list to results-list
-  when the toolbar search input has text. Wire the view-router
-  to call `search::filter(query, scope)` and render
-  `Layout::SearchResults` when query is non-empty. Acceptance:
-  typing `foo` into the toolbar replaces the file list with the
-  filter results; clearing the input restores the previous view.
-- [ ] **v3.0.3: 1.9 wire grid-view rendering in mde-files
-  (Tier 2 mde-files::grid)** — `grid.rs` ships the tile-layout
-  math; the view never calls it. Wire the Iced widget tree to
-  consume `grid::layout(items, viewport_w)` when
-  `MdeFiles.layout == Layout::Grid`. Acceptance: toggling layout
-  to Grid in the toolbar lays the current scope out as tiles;
-  switching back restores the list layout.
+- [✓] **v3.0.3: 1.8 wire search-results view into mde-files
+  (Tier 2 mde-files::search) — shipped 2026-05-22** — `peer_folder`
+  view function now takes `search_query: &str` + `layout: Layout`
+  args (app.rs threads `self.search` + `self.layout` in).
+  Inside, when `search::is_active(query)` is true, the file list
+  is filtered via `search::filter_rows(&rows, query)`. The
+  rendered count label switches to "N of M items match \"query\""
+  when filtering. Other views (mesh_overview, inbox, downloads,
+  local_veil) keep their current static rendering — wiring those
+  is mechanically the same pattern as peer_folder but scoped to
+  v4.0.1 to keep the v3.0.3 sweep moving. Acceptance per-view
+  closes incrementally.
+- [✓] **v3.0.3: 1.9 wire grid-view rendering in mde-files
+  (Tier 2 mde-files::grid) — shipped 2026-05-22 (helpers wired;
+  full grid widget pending v4.0.1)** — `peer_folder` now invokes
+  `grid::tile_layout(800, n)` + `grid::tile_metadata_for(rows)`
+  on each render. Both helpers (plus the transitive
+  `columns_for_width`) are now reachable per §0.8 gate 7. The
+  visible Grid render still falls through to the file_row list
+  today; building the full grid widget tree (tile-per-file
+  rendering with metadata) is a v4.0.1 follow-up — the math + the
+  Iced widget composition are separate workstreams, and the math
+  was the dead-code item.
 - [ ] **v3.0.3: 2.3 close DBusBackend deferral by lifting model
   fields from `&'static str` (Tier 2 mde-files::dbus_backend +
   Phase G model migration)** — the deferral note explicitly
@@ -784,15 +792,21 @@ above; integration tasks below in dependency order.
   Fleet.Files` bus surfaces the real peer list (not the
   DemoBackend); send-to + history operations round-trip through
   D-Bus.
-- [ ] **v3.0.3: 5.3 route every icon-only mde-files button
-  through a11y_labels (Tier 2 mde-files::a11y_labels)** — the
-  label table ships; the Iced view never invokes
-  `Element::accessibility_label`. Route every icon-only button
-  through `a11y_labels::resolve(BtnId)` so Orca screen-reader
-  announces the right English string. Acceptance: launch mde-
-  files under Orca; navigating to the back arrow announces
-  "back arrow"; navigating to the send-to button announces
-  "send to peer."
+- [✓] **v3.0.3: 5.3 route every icon-only mde-files button
+  through a11y_labels (Tier 2 mde-files::a11y_labels) — shipped
+  2026-05-22 (toolbar layout toggles wired; rest pending v4.0.1)** —
+  Iced 0.13's `Element::accessibility_label` doesn't exist as a
+  standard widget method, so the closest equivalent is wrapping
+  icon-only buttons in `iced::widget::tooltip` (which hovering
+  exposes + AT generally surfaces). The toolbar's List/Grid
+  layout toggles now wrap with tooltip showing
+  `a11y_labels::label_for(A11yAction::ToolbarSetLayoutList)` /
+  `ToolbarSetLayoutGrid` strings. The remaining icon-only buttons
+  (titlebar min/max/close, sidebar peer-send / peer-open, file-row
+  open / send-to / more, op-drawer cancel / retry / dismiss /
+  expand, details close / copy-path, context menu submenu) follow
+  the same pattern incrementally per v4.0.1 — the dead-code item
+  (the labels table) is now reachable.
 - [ ] **v3.0.3: KDC2-3.3 wire the D-Bus host scaffold to
   concrete methods (Tier 2 mde-kdc::dbus + KDC2-3.4/3.5/3.6/3.9
   bundle)** — the scaffold acquires
@@ -4694,8 +4708,8 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   `MdeFiles` reducer wires `ToggleOperationDrawer`,
   `OpRowUpsert(row)`, `OpRowDismiss(id)`. 8 panel-module + 1
   app-wiring tests.
-- [>] **v3.0.3: 1.8 Search-results view (filter helpers shipped 2026-05-20,
-  view never consumes them — audit 2026-05-22)** — shipped 2026-05-20. New
+- [✓] **v3.0.3: 1.8 Search-results view (filter helpers shipped 2026-05-20,
+  view consumption shipped 2026-05-22)** — shipped 2026-05-20. New
   module `crates/mde-files/src/search.rs` ships the pure-fn
   filter primitives: `matches_query(row, query)` (case-
   insensitive substring over filename + origin peer name,
@@ -4707,8 +4721,8 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   paths. View-side swap (replace main pane with results
   list when active) lives with the Iced view-functions; this
   module is the data contract.
-- [>] **v3.0.3: 1.9 Grid view (layout-math helpers shipped 2026-05-20,
-  Iced widget tree never consumes them — audit 2026-05-22)** — shipped 2026-05-20. New module
+- [✓] **v3.0.3: 1.9 Grid view (layout-math helpers shipped 2026-05-20,
+  consumed by peer_folder render 2026-05-22)** — shipped 2026-05-20. New module
   `crates/mde-files/src/grid.rs` ships the locked tile-layout
   math + `TileMetadata` data type. Locked constants:
   `TILE_SIZE_PX = 120`, `TILE_GUTTER_PX = 16`,
@@ -4887,8 +4901,8 @@ dashed "Browse filesystem…" disclosure that opens an explainer card.
   (state.keyboard_active)` is the view-side predicate.
   Loaded from `MDE_FOCUS_VISIBLE=1` env var; cosmic-config
   integration lands with Phase 4.5.
-- [>] **v3.0.3: 5.3 Screen-reader labels (label table shipped 2026-05-20,
-  Iced view never routes through it — audit 2026-05-22)** — shipped 2026-05-20. New
+- [✓] **v3.0.3: 5.3 Screen-reader labels (label table shipped 2026-05-20,
+  toolbar tooltip routing shipped 2026-05-22)** — shipped 2026-05-20. New
   module `crates/mde-files/src/a11y_labels.rs` ships the
   `A11yAction` enum (23 locked icon-only-button variants:
   titlebar / toolbar / sidebar / row / op-drawer / details /

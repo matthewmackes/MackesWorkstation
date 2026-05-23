@@ -343,7 +343,11 @@ impl MdeFiles {
             View::Inbox => views::inbox(&data::SELF_NODE),
             View::Peer(id) => {
                 if let Some(peer) = data::PEERS.iter().find(|p| p.id == id) {
-                    views::peer_folder(peer, &data::SELF_NODE)
+                    // v3.0.3 — pass the toolbar's search query +
+                    // current layout into the view so search
+                    // filtering + grid-tile metadata happen at
+                    // render time.
+                    views::peer_folder(peer, &data::SELF_NODE, &self.search, self.layout)
                 } else {
                     empty_state("no peer").into()
                 }
