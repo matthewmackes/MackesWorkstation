@@ -15,6 +15,7 @@
 use std::path::PathBuf;
 
 use mde_applet_api::{AppletId, AppletSlot, HostMessage};
+use mde_theme::Icon;
 use serde::Deserialize;
 
 #[must_use]
@@ -175,6 +176,47 @@ pub fn handle_host(msg: &HostMessage) -> bool {
     !matches!(msg, HostMessage::Shutdown)
 }
 
+/// DOCK-1 (v4.0.1, 2026-05-23) — map a sway `app_id` to a
+/// `mde_theme::Icon` variant whose `carbon_name()` →
+/// `svg_bytes()` is baked into the binary. Unknown app_ids fall
+/// back to `Icon::Apps` per the DOCK-1 acceptance criterion
+/// ("fallback Icon::Application for unknown app_ids"). The
+/// mapping is intentionally conservative — adding a new app_id
+/// here costs nothing if the matching Icon variant already has
+/// SVG bytes; if it doesn't, the consumer's
+/// `svg_bytes().or(fallback_glyph())` contract still keeps the
+/// dock rendering.
+#[must_use]
+pub fn icon_for_app_id(app_id: &str) -> Icon {
+    let lc = app_id.to_lowercase();
+    let bare = lc
+        .rsplit_once('.')
+        .map(|(left, _)| left)
+        .unwrap_or(lc.as_str());
+    match bare {
+        // MDE first-party launchers — these have real Workbench /
+        // Files Carbon SVGs baked into mde-theme.
+        "mde-workbench" | "mackes-shell" | "mde" => Icon::Workbench,
+        "mde-files" => Icon::Files,
+        // Browsers — no globe glyph in the asset bundle yet; the
+        // fallback Icon::Apps is the contracted choice. Adding
+        // globe.svg + an Icon::Browser variant in a future v4.0.x
+        // tightens this without touching the dock.
+        // Terminals — same story; we lean on Icon::Apps for now.
+        // Network / wifi-related app_ids that DO have icons:
+        "nm-connection-editor" => Icon::Network,
+        // Settings / system surfaces:
+        "gnome-control-center" | "systemsettings" => Icon::Settings,
+        // Notifications viewer:
+        "notification-daemon" => Icon::Notification,
+        // Everything else: fall back to the generic application
+        // glyph. svg_bytes() returns the baked Carbon
+        // `application.svg` so the dock never renders empty
+        // cells.
+        _ => Icon::Apps,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -287,5 +329,35 @@ mod tests {
     #[test]
     fn handle_host_short_circuits_shutdown() {
         assert!(!handle_host(&HostMessage::Shutdown));
+    }
+
+    #[test]
+    fn icon_for_app_id_maps_first_party_launchers() {
+        assert_eq!(icon_for_app_id("mde-workbench"), Icon::Workbench);
+        assert_eq!(icon_for_app_id("MDE-Workbench"), Icon::Workbench);
+        assert_eq!(icon_for_app_id("mde-files"), Icon::Files);
+        // .desktop suffix tolerated — the dock receives raw
+        // app_ids from sway but consumer code occasionally
+        // includes the suffix.
+        assert_eq!(icon_for_app_id("mde-workbench.desktop"), Icon::Workbench);
+    }
+
+    #[test]
+    fn icon_for_app_id_unknown_falls_back_to_apps() {
+        assert_eq!(icon_for_app_id("firefox"), Icon::Apps);
+        assert_eq!(icon_for_app_id("foot"), Icon::Apps);
+        assert_eq!(icon_for_app_id(""), Icon::Apps);
+    }
+
+    #[test]
+    fn icon_for_app_id_maps_well_known_system_surfaces() {
+        assert_eq!(
+            icon_for_app_id("nm-connection-editor"),
+            Icon::Network
+        );
+        assert_eq!(
+            icon_for_app_id("gnome-control-center"),
+            Icon::Settings
+        );
     }
 }

@@ -1409,9 +1409,44 @@ standing constraint). Standing authorizations active for this
 section: commit, push to origin + mde-x, best-choice decisions,
 no new RPM cut.
 
-- [ ] **v4.0.1: DOCK-1 rebuild dock-applet as real Iced
-  layer-shell UI (Tier 2 chrome) — prereq for unblocking the
-  v3.0.3 icon_mapper + dock_dnd entries (2026-05-23)**
+- [✓] **v4.0.1: DOCK-1 rebuild dock-applet as real Iced
+  layer-shell UI (shipped 2026-05-23)** — Cycle G. Replaced the
+  text-renderer that shipped through Phase E1.2.7 with a full
+  Iced 0.13 + `iced_layershell` 0.13.7 surface anchored to the
+  bottom of every output, reserving HEIGHT (48 px) exclusive
+  zone. One cell per running sway window + one cell per
+  pinned `.desktop` that isn't running. Per-cell rendering:
+  Carbon-mapped icon via `mde_theme::Icon` → `svg_bytes()` (24
+  px), label below, focus indigo accent underline, urgent
+  orange-tinted border + bg. Interactions on `mouse_area`:
+  left-click → `swaymsg [con_id=N] focus` (or `gtk-launch
+  <bare>` for pinned-only); right-click → spawn `mde-popover
+  icon-mapper <app_id>`; middle-click → toggle pin/unpin via
+  `mackes_config::{pin_app,unpin_app}` + write `panel.toml`.
+  1 s `iced::time::every` tick re-runs `swaymsg -t get_tree`
+  + rereads pinned. Legacy text-renderer entry points
+  (`--manifest`, `--now`, stdin loop) preserved behind
+  `--text` for the applet-host supervisor.
+
+  Best-choice deviation from the spec: middle-click pin/unpin
+  replaces the drag-to-pin DnD bullet (Iced 0.13's mouse_area
+  doesn't surface a full DnD pipeline; the resulting
+  middle-click interaction is fully wired, hits the same
+  `mackes_config` helpers the DnD bullet would have hit).
+  Documented in the commit body.
+
+  `cells_from(pinned, windows)` pure helper composes the cell
+  list — pinned-only first, then running, with running-pinned
+  dedupe. 7 new unit tests cover the layout invariants
+  (pinned-only first, dedupe single cell, empty dock, empty
+  app_id → `?`, urgent flag wired, panel.toml path). Library
+  gained `icon_for_app_id` + 3 tests for first-party / unknown
+  / system-surface mapping. 12 lib + 7 main tests green
+  (was 9 lib).
+
+  Unblocks the v3.0.3 icon_mapper popover (now reachable via
+  right-click on every dock cell) and provides the runtime
+  entry point for any future dock_dnd reorder work.
 
   **As** an operator,
   **I want** the bottom-bar dock to be a real Iced applet (not

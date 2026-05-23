@@ -3456,9 +3456,15 @@ dependencies = [
 name = "mde-applet-dock"
 version = "0.0.0"
 dependencies = [
+ "iced",
+ "iced_layershell",
+ "mackes-config",
  "mde-applet-api",
+ "mde-theme",
  "serde",
  "serde_json",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
