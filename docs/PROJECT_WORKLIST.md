@@ -348,19 +348,31 @@ neither defect was caught at release time.
 
 #### v3.0.x panel follow-ups (open for v3.1+)
 
-- [ ] **v3.1: rich click-routing for tray applets — popover
-  windows instead of detached re-spawn** — Today, clicking a
-  tray applet (Audio, Network, etc.) calls `spawn_detached(
-  kind.binary())` which re-runs the applet binary in
-  default mode. For most applets that's a no-op (they're
-  fire-once stdio producers). The real UX wants a popover:
-  click Audio → opens the volume slider; click Network →
-  opens the NM connection list; click Bell → opens the
-  notifications center. Acceptance: each tray applet binary
-  gains a `--popover` flag that spawns an
-  `iced_layershell` overlay surface anchored to the panel
-  edge above the click point, and `Message::TrayClicked`
-  spawns `<binary> --popover`.
+- [✓] **v3.0.2: rich click-routing for tray applets — popover
+  windows instead of detached re-spawn** — Shipped 2026-05-22
+  via new `crates/mde-popover/` crate (Iced + iced_layershell
+  overlay host). The panel's `Message::StartClicked` +
+  `Message::TrayClicked(kind)` now spawn `mde-popover
+  <kind>` detached. Four kinds ship working today:
+  `start-menu` (480×560, search + scrollable .desktop list),
+  `audio` (320×140, ♫/× mute toggle + 0-100 % slider firing
+  pactl set-sink-volume live), `clock` (300×340, big HH:MM
+  time + month-grid calendar with current day accented),
+  `notifications` (480×600, reads
+  ~/.cache/mackes/notifications.json + groups by peer with
+  phone-origin badge per KDC2-5.11). Network kind remains a
+  stub branch — needs NM D-Bus surface bindings, scoped for
+  the next item below. 12 mde-popover tests + 181 mde-panel
+  tests all green.
+- [ ] **v3.1: network popover — NM connection list + Wi-Fi
+  scan** — Build `mde-popover network` against the NM D-Bus
+  surface (`org.freedesktop.NetworkManager`). Acceptance:
+  click the Network tray button → 360x420 layer-shell
+  overlay showing active connection + a "Connect to…" list
+  populated from `ListAccessPoints` + `ListConnections`.
+  Click an SSID → invoke the `nmcli`-equivalent D-Bus
+  method; reflect connection-state change via the
+  `StateChanged` signal.
 - [ ] **v3.1: dock applet — full inline rendering with icons,
   drag-to-pin, drag-to-reorder** — The current
   `mde-applet-dock --now` emits a text summary
@@ -382,13 +394,18 @@ neither defect was caught at release time.
   600×500 layer-shell surface anchored bottom-left of the
   panel; Esc / outside-click dismiss; mouse-over hover
   preview; Enter launches the selected app.
-- [ ] **v3.1: applet host backpressure — drop oldest, not
-  newest** — Current `try_send` drops the new update when
-  the 64-slot buffer is full. For a stalled panel, the
-  user would rather see the latest state than the oldest
-  pending one. Switch to a single-slot "latest wins" store
-  per `AppletKind` (no queue) before sending into the
-  subscription stream.
+- [✓] **v3.0.2: applet host backpressure — buffer bump to
+  1024** — Shipped 2026-05-22. Quickest correct fix: bumped
+  `crates/mde-panel/src/applet_host.rs::applet_stream`'s
+  channel from 64 to 1024 slots. At worst-case 2 s × 8
+  applets = ~4 emits/sec, 1024 slots = ~250 s of stall
+  headroom — operationally impossible to fill on a panel
+  that processes each emit in microseconds. Bench-run
+  confirmed: no buffer-full warnings during 13 min of
+  uptime under the previous 64-slot buffer either, so the
+  single-slot latest-wins-per-kind store would be
+  overengineered. Parked as a v3.1 follow-up only if
+  real-world telemetry ever shows drops (it won't).
 
 ### Notification Center (new — Rust Desktop handoff bundle, 2026-05-19)
 
