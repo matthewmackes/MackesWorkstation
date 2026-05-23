@@ -22,12 +22,16 @@ font pango:Red Hat Text 11
 # ---------------------------------------------------------------------------
 # Look & feel — borders, gaps, colors (Mackes Carbon palette, unchanged)
 # ---------------------------------------------------------------------------
-default_border pixel 1
-default_floating_border pixel 1
+# BUG-10 (2026-05-23): operator asked for thicker, always-visible
+# window borders. Was `pixel 1` + `smart_borders on` (hides border on
+# single-window workspaces). Bumped to 4 px + smart_borders off so the
+# focused-window highlight reads at 4K-TV viewing distance.
+default_border pixel 4
+default_floating_border pixel 4
 gaps inner 4
 gaps outer 0
 smart_gaps on
-smart_borders on
+smart_borders no
 
 #                       border       bg       text      indicator child_border
 client.focused          #2b9af3      #2b9af3  #f4f4f4   #4589ff   #2b9af3

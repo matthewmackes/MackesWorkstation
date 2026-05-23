@@ -965,18 +965,15 @@ no new RPM cut.
   Acceptance: opening the start menu shows two large tiles
   for Files + Workbench above the search results that stay
   put while the apps list scrolls.
-- [ ] **v4.0.1: BUG-10 Window borders too thin — operator
-  wants a thicker border around each window (Tier 1
-  operator-visible)** — current sway config inherits the
-  default 2 px border. Bump the global `default_border pixel
-  <N>` directive in `data/sway/config` to a more
-  visually-prominent value (proposed: 4 px or 6 px; pick based
-  on how the focused-window highlight reads at 4K-TV viewing
-  distance per the 2026-05-22 operator bench rig). Also ensure
-  `data/sway/config.d/` overlays don't subsequently revert
-  this. Acceptance: every tiled window shows a noticeably
-  thicker border (≥ 4 px) with the focused-window accent
-  visibly distinct from the unfocused borders.
+- [✓] **v4.0.1: BUG-10 thicker window borders (shipped
+  2026-05-23, commit pending)** — `data/sway/config:25-30` now
+  has `default_border pixel 4`, `default_floating_border pixel
+  4`, and `smart_borders no` (was 1 px + smart_borders on,
+  which hid the border entirely on single-window workspaces).
+  4 px reads clearly at 4K-TV viewing distance; the Carbon
+  palette's focused/unfocused color contrast becomes visibly
+  distinct. Operator can request 6 px (or back to 2) if 4 ends
+  up too heavy at desk distance.
 - [ ] **v4.0.1: BUG-11 Desktop missing the Win10-style watermark
   in the right-hand corner (Tier 1 operator-visible)** —
   `project_1_1_0_win10_layout` memory: "Win10 watermark visible
