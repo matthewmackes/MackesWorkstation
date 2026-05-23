@@ -12,7 +12,7 @@ NAME    := mackes-shell
 VERSION := $(shell python3 -c "import mackes; print(mackes.__version__)")
 SDIST   := dist/$(NAME)-$(VERSION).tar.gz
 
-.PHONY: sdist rpm test test-nodeps test-coverage smoke lint lint-grid verify rust rust-check docs iso clean install-deps install-hooks
+.PHONY: sdist rpm test test-nodeps test-coverage smoke lint lint-grid verify rust rust-check docs iso clean install-deps install-hooks deploy deploy-rebuild deploy-status
 
 sdist:
 	@# Prefer PEP 517 build (works on Fedora 40+ without distutils).
@@ -190,3 +190,35 @@ clean:
 	rm -rf build dist rpmbuild target *.egg-info
 	find . -name __pycache__ -type d -exec rm -rf {} +
 	find . -name "*.pyc" -delete
+
+# v4.0.1 parity-infra entry points. `make deploy` is the "just push
+# my repo into the running RPM" button — it idempotently refreshes
+# the overlay script + sudoers + systemd-user units, then runs the
+# overlay once. One sudo prompt, everything happens. After the first
+# `make deploy`, every `git commit` on main auto-deploys via the
+# systemd-user path-watch — no manual rebuilds.
+#
+# `make deploy-rebuild` reruns the overlay on demand (e.g. for an
+# uncommitted edit). Falls back to a full `make deploy` if the
+# overlay script isn't installed yet.
+#
+# `make deploy-status` shows whether the watch is alive + the last
+# log lines.
+deploy:
+	@echo "==> sudo install-helpers/install-parity-infra.sh"
+	@sudo install-helpers/install-parity-infra.sh
+
+deploy-rebuild:
+	@if [ -x /usr/local/bin/mde-parity-overlay ]; then \
+		/usr/local/bin/mde-parity-overlay; \
+	else \
+		echo "==> overlay not installed yet — running 'make deploy' first"; \
+		sudo install-helpers/install-parity-infra.sh; \
+	fi
+
+deploy-status:
+	@systemctl --user status mde-parity.path --no-pager 2>&1 | head -10
+	@echo "----------------------------------------"
+	@echo "==> last 20 log lines (sudo may prompt)"
+	@sudo tail -20 /var/log/mde-parity.log 2>/dev/null \
+		|| echo "(no log yet — overlay never ran)"

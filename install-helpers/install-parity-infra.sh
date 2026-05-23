@@ -52,21 +52,35 @@ sudo -u "$DEVUSER" XDG_RUNTIME_DIR="/run/user/$(id -u "$DEVUSER")" \
     systemctl --user enable --now mde-parity.path
 
 echo
-echo "Parity infra installed. Status:"
+echo "==> parity infra installed. running initial overlay now..."
+echo "    (cargo build first run takes ~2-3 minutes; subsequent runs"
+echo "    are seconds because cargo's incremental cache warms up.)"
+echo
+# Run the overlay as the developer user. The no-args path runs the
+# build phase (as $DEVUSER, with their cargo cache) then re-execs
+# itself via sudo -n for the install phase — the sudoers drop-in we
+# just installed makes that passwordless. Skip with NO_INITIAL_OVERLAY=1
+# if the operator only wants the watch set up.
+if [ "${NO_INITIAL_OVERLAY:-0}" != "1" ]; then
+    sudo -u "$DEVUSER" -H XDG_RUNTIME_DIR="/run/user/$(id -u "$DEVUSER")" \
+        /usr/local/bin/mde-parity-overlay
+fi
+
+echo
+echo "==> done. status:"
 sudo -u "$DEVUSER" XDG_RUNTIME_DIR="/run/user/$(id -u "$DEVUSER")" \
     systemctl --user status mde-parity.path --no-pager || true
 
 cat <<'POSTINSTALL'
 
-Next steps:
-  * Trigger an initial overlay now (rebuild + install all delta vs the
-    RPM):
-        /usr/local/bin/mde-parity-overlay
-    or, equivalently, make any commit on main and the path-watch will
-    fire automatically.
-  * Watch the log:
-        tail -f /var/log/mde-parity.log
-  * To disable the auto-deploy:
-        systemctl --user disable --now mde-parity.path
+Auto-deploy active. Every `git commit` on main from now on
+triggers the overlay within ~2s. To watch deploys land:
+    tail -f /var/log/mde-parity.log
+
+To disable the auto-deploy:
+    systemctl --user disable --now mde-parity.path
+
+To re-run the overlay manually:
+    /usr/local/bin/mde-parity-overlay
 
 POSTINSTALL
