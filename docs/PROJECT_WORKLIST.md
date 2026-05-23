@@ -2451,15 +2451,30 @@ integration needed.
   XWayland class fallback + garbage rejection + Next/Prev
   wrap-around + truncate-helper bounds.
 
-- [ ] **v4.0.1: WM-5.a app-switcher screenshot thumbnails** —
-  the v4.0.1 ship shows text-only cards. The full v4 spec
-  also called for `grim`-captured per-window thumbnails.
-  Adding them needs a per-window grim invocation +
-  iced::widget::image to paint the PNG bytes; the
-  invocation is straightforward but pre-render captures
-  may stall the surface visibility, so wire as a deferred
-  Task after first paint. Closed when the cards have
-  thumbnails.
+- [✓] **v4.0.1: WM-5.a app-switcher screenshot thumbnails
+  (shipped 2026-05-23)** — Cycle K. `WindowCard` gained
+  `rect: WindowRect` + `thumbnail: Option<Vec<u8>>` fields.
+  `parse_tree` now extracts the sway `rect` per node;
+  `parse_rect` is a pure helper with default-to-zero
+  semantics. App::new dispatches one deferred
+  `Task::perform(async move { capture_thumbnail(rect) },
+  |bytes| Message::ThumbnailLoaded(con_id, bytes))` per
+  card so the popover paints text-only on first frame and
+  thumbnails slot in as `grim -g "X,Y WxH" -` returns. New
+  `Message::ThumbnailLoaded(u64, Vec<u8>)` reducer finds
+  the card by con_id and updates `thumbnail`. `card_view`
+  renders the PNG via `iced::widget::image` when present
+  (size locked to `CARD_H - 38` px); falls back to a
+  Space::with_height of the same dimension when None so
+  the layout doesn't shift mid-animation. Empty-Vec
+  capture results (grim missing, rect zero-sized, sway
+  refused) stay text-only — defensive guards short-circuit
+  before invoking grim on a zero-area rect. iced `image`
+  feature added to mde-popover's Cargo.toml. 4 new tests
+  (parse_rect extracts all four / defaults missing /
+  parse_tree-now-extracts-rect / capture_thumbnail
+  zero-size returns empty). 120 popover tests green (was
+  116).
 
   **As** an operator,
   **I want** pressing Super+Tab to show a centered overlay

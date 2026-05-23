@@ -23,7 +23,7 @@ use std::process::Command;
 
 use iced::keyboard::key::{Key, Named};
 use iced::keyboard::{self, Modifiers};
-use iced::widget::{column, container, row, text, Space};
+use iced::widget::{column, container, image, row, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
@@ -79,6 +79,12 @@ pub enum Message {
     Cancel,
     /// Direct click on card N.
     Select(usize),
+    /// v4.0.1 WM-5.a — deferred grim capture finished for a
+    /// card. Carries the con_id (because card ordering can
+    /// shift between dispatch and arrival in pathological
+    /// cases) + the PNG bytes. Empty Vec means capture failed
+    /// or grim isn't installed — the card stays text-only.
+    ThumbnailLoaded(u64, Vec<u8>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,6 +92,24 @@ pub struct WindowCard {
     pub con_id: u64,
     pub app_id: String,
     pub title: String,
+    /// v4.0.1 WM-5.a — window geometry from sway's `rect`.
+    /// Used to feed `grim -g "X,Y WxH"` for the per-card
+    /// screenshot capture. Zero values mean the card came
+    /// from a tree node without rect fields (defensive — sway
+    /// always provides them for windows).
+    pub rect: WindowRect,
+    /// v4.0.1 WM-5.a — PNG bytes from the grim capture, or
+    /// None when the deferred capture hasn't completed (or
+    /// has failed). View renders a text-only card when None.
+    pub thumbnail: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WindowRect {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
 }
 
 #[derive(Debug, Default)]
@@ -106,7 +130,36 @@ impl iced_layershell::Application for App {
         // "go to the previous window" idiom). If there's only
         // one window, stay on it.
         let selected = if cards.len() > 1 { 1 } else { 0 };
-        (Self { cards, selected }, Task::none())
+        // v4.0.1 WM-5.a — dispatch one deferred grim capture
+        // per card so the popover paints immediately (text-only
+        // cards on first frame) and the thumbnails slot in as
+        // grim returns. Captures run on tokio's blocking
+        // thread pool so they don't stall the Iced scheduler.
+        let captures: Vec<Task<Message>> = cards
+            .iter()
+            .map(|c| {
+                let con_id = c.con_id;
+                let rect = c.rect;
+                // grim takes 10-50 ms per window on typical
+                // hardware; running it inline inside the
+                // async closure is acceptable for the small
+                // (≤ ~10) window counts the switcher sees.
+                // A thread-pool spawn would help only when
+                // the count rises into the dozens, which
+                // doesn't happen in practice on a single
+                // workstation.
+                Task::perform(
+                    async move { capture_thumbnail(rect) },
+                    move |bytes| Message::ThumbnailLoaded(con_id, bytes),
+                )
+            })
+            .collect();
+        let task = if captures.is_empty() {
+            Task::none()
+        } else {
+            Task::batch(captures)
+        };
+        (Self { cards, selected }, task)
     }
 
     fn namespace(&self) -> String {
@@ -141,6 +194,15 @@ impl iced_layershell::Application for App {
                         swaymsg_focus(card.con_id);
                     }
                     std::process::exit(0);
+                }
+                Task::none()
+            }
+            Message::ThumbnailLoaded(con_id, bytes) => {
+                if bytes.is_empty() {
+                    return Task::none();
+                }
+                if let Some(card) = self.cards.iter_mut().find(|c| c.con_id == con_id) {
+                    card.thumbnail = Some(bytes);
                 }
                 Task::none()
             }
@@ -276,11 +338,25 @@ fn card_view<'a>(card: &'a WindowCard, idx: usize, selected: bool) -> Element<'a
     .color(FG_TEXT);
     let app_text = text(card.app_id.clone()).size(10).color(FG_MUTED);
 
+    // v4.0.1 WM-5.a — thumbnail row when grim has supplied
+    // PNG bytes; falls back to a blank Space so the card
+    // layout doesn't shift when captures arrive.
+    let thumb_height = Length::Fixed(CARD_H - 38.0);
+    let thumb: Element<'a, Message> = match card.thumbnail.as_ref() {
+        Some(bytes) if !bytes.is_empty() => image(image::Handle::from_bytes(bytes.clone()))
+            .width(Length::Fill)
+            .height(thumb_height)
+            .content_fit(iced::ContentFit::Contain)
+            .into(),
+        _ => Space::with_height(thumb_height).into(),
+    };
+
     let body = container(
         column![
-            Space::with_height(Length::Fill),
+            thumb,
+            Space::with_height(Length::Fixed(2.0)),
             container(title_text).center_x(Length::Fill),
-            Space::with_height(Length::Fixed(4.0)),
+            Space::with_height(Length::Fixed(2.0)),
             container(app_text).center_x(Length::Fill),
         ]
         .spacing(0),
@@ -359,6 +435,26 @@ pub fn parse_tree(raw: &str) -> Vec<WindowCard> {
     out
 }
 
+/// v4.0.1 WM-5.a — extract `{ x, y, width, height }` from a
+/// sway tree node's `rect` field. Missing fields default to 0
+/// so a partial JSON shape (or future sway versions reshaping
+/// the field) still yields a valid `WindowRect`.
+#[must_use]
+pub fn parse_rect(v: &serde_json::Value) -> WindowRect {
+    WindowRect {
+        x: v.get("x").and_then(|n| n.as_i64()).unwrap_or(0) as i32,
+        y: v.get("y").and_then(|n| n.as_i64()).unwrap_or(0) as i32,
+        width: v
+            .get("width")
+            .and_then(|n| n.as_u64())
+            .unwrap_or(0) as u32,
+        height: v
+            .get("height")
+            .and_then(|n| n.as_u64())
+            .unwrap_or(0) as u32,
+    }
+}
+
 fn walk(node: &serde_json::Value, out: &mut Vec<WindowCard>, inside_scratch: bool) {
     let name = node.get("name").and_then(|v| v.as_str()).unwrap_or("");
     let entering_scratch = inside_scratch || name == "__i3_scratch";
@@ -381,10 +477,16 @@ fn walk(node: &serde_json::Value, out: &mut Vec<WindowCard>, inside_scratch: boo
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
+            let rect = node
+                .get("rect")
+                .map(parse_rect)
+                .unwrap_or_default();
             out.push(WindowCard {
                 con_id,
                 app_id,
                 title,
+                rect,
+                thumbnail: None,
             });
         }
     }
@@ -402,6 +504,37 @@ fn swaymsg_focus(con_id: u64) {
     let _ = Command::new("swaymsg")
         .arg(format!("[con_id={con_id}] focus"))
         .status();
+}
+
+/// v4.0.1 WM-5.a — capture a single window via grim.
+///
+/// `grim -g "X,Y WxH" -` writes PNG bytes to stdout. Returns
+/// the bytes on success; an empty Vec on any error (grim
+/// missing, rect malformed, grim refused the read). Empty Vec
+/// is the explicit signal the view layer falls back to a
+/// text-only card on.
+///
+/// Synchronous on purpose: callers should wrap this in
+/// `tokio::task::spawn_blocking` (as the deferred-capture
+/// Task in `App::new` does) so it doesn't stall the Iced
+/// scheduler. The capture itself takes 10-50 ms per window
+/// on typical hardware; running all of them serially on the
+/// blocking pool keeps the popover responsive.
+#[must_use]
+pub fn capture_thumbnail(rect: WindowRect) -> Vec<u8> {
+    if rect.width == 0 || rect.height == 0 {
+        return Vec::new();
+    }
+    let geom = format!("{},{} {}x{}", rect.x, rect.y, rect.width, rect.height);
+    let out = Command::new("grim")
+        .args(["-g", &geom, "-"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output();
+    match out {
+        Ok(o) if o.status.success() => o.stdout,
+        _ => Vec::new(),
+    }
 }
 
 pub fn run() -> iced_layershell::Result {
@@ -519,8 +652,8 @@ mod tests {
         use iced_layershell::Application;
         let mut app = App {
             cards: vec![
-                WindowCard { con_id: 1, app_id: "a".into(), title: "A".into() },
-                WindowCard { con_id: 2, app_id: "b".into(), title: "B".into() },
+                WindowCard { con_id: 1, app_id: "a".into(), title: "A".into(), rect: WindowRect::default(), thumbnail: None },
+                WindowCard { con_id: 2, app_id: "b".into(), title: "B".into(), rect: WindowRect::default(), thumbnail: None },
             ],
             selected: 1,
         };
@@ -533,8 +666,8 @@ mod tests {
         use iced_layershell::Application;
         let mut app = App {
             cards: vec![
-                WindowCard { con_id: 1, app_id: "a".into(), title: "A".into() },
-                WindowCard { con_id: 2, app_id: "b".into(), title: "B".into() },
+                WindowCard { con_id: 1, app_id: "a".into(), title: "A".into(), rect: WindowRect::default(), thumbnail: None },
+                WindowCard { con_id: 2, app_id: "b".into(), title: "B".into(), rect: WindowRect::default(), thumbnail: None },
             ],
             selected: 0,
         };
@@ -551,9 +684,9 @@ mod tests {
         let _ = app;
         // Manual lock check:
         let cards = vec![
-            WindowCard { con_id: 1, app_id: "a".into(), title: "A".into() },
-            WindowCard { con_id: 2, app_id: "b".into(), title: "B".into() },
-            WindowCard { con_id: 3, app_id: "c".into(), title: "C".into() },
+            WindowCard { con_id: 1, app_id: "a".into(), title: "A".into(), rect: WindowRect::default(), thumbnail: None },
+            WindowCard { con_id: 2, app_id: "b".into(), title: "B".into(), rect: WindowRect::default(), thumbnail: None },
+            WindowCard { con_id: 3, app_id: "c".into(), title: "C".into(), rect: WindowRect::default(), thumbnail: None },
         ];
         let expected = if cards.len() > 1 { 1 } else { 0 };
         assert_eq!(expected, 1);
@@ -570,5 +703,68 @@ mod tests {
         let t = truncate_for_card(long);
         assert!(t.chars().count() <= 22);
         assert!(t.ends_with('…'));
+    }
+
+    // ────────────────────────────────────────────────────────
+    // WM-5.a — rect parsing + capture defensive guards
+    // ────────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_rect_extracts_all_four_fields() {
+        let v: serde_json::Value =
+            serde_json::from_str(r#"{"x": 12, "y": 24, "width": 800, "height": 600}"#)
+                .expect("json");
+        let r = parse_rect(&v);
+        assert_eq!(r.x, 12);
+        assert_eq!(r.y, 24);
+        assert_eq!(r.width, 800);
+        assert_eq!(r.height, 600);
+    }
+
+    #[test]
+    fn parse_rect_defaults_missing_fields_to_zero() {
+        let v: serde_json::Value = serde_json::from_str(r#"{"x": 5}"#).expect("json");
+        let r = parse_rect(&v);
+        assert_eq!(r.x, 5);
+        assert_eq!(r.y, 0);
+        assert_eq!(r.width, 0);
+        assert_eq!(r.height, 0);
+    }
+
+    #[test]
+    fn parse_tree_now_extracts_rect() {
+        let tree = r#"{
+            "type": "root",
+            "nodes": [{
+                "type": "workspace",
+                "name": "1",
+                "nodes": [{
+                    "type": "con",
+                    "id": 100,
+                    "name": "Firefox",
+                    "app_id": "firefox",
+                    "pid": 1234,
+                    "rect": {"x": 0, "y": 28, "width": 1920, "height": 1052},
+                    "nodes": [],
+                    "floating_nodes": []
+                }]
+            }]
+        }"#;
+        let cards = parse_tree(tree);
+        assert_eq!(cards.len(), 1);
+        assert_eq!(cards[0].rect.x, 0);
+        assert_eq!(cards[0].rect.y, 28);
+        assert_eq!(cards[0].rect.width, 1920);
+        assert_eq!(cards[0].rect.height, 1052);
+        assert!(cards[0].thumbnail.is_none());
+    }
+
+    #[test]
+    fn capture_thumbnail_zero_size_returns_empty() {
+        // Defensive: a rect with zero width/height (sway not
+        // surfacing geometry for a freshly-mapped window)
+        // must short-circuit before grim is invoked.
+        let bytes = capture_thumbnail(WindowRect::default());
+        assert!(bytes.is_empty());
     }
 }

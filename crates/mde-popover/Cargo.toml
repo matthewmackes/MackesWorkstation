@@ -17,7 +17,9 @@ path = "src/main.rs"
 # workspace dep tree on one resolution.
 # v4.0.1 BUG-13: `svg` added so start_menu pinned tiles (BUG-12)
 # can render Carbon glyphs instead of label-only buttons.
-iced            = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "svg", "tokio", "advanced"] }
+# v4.0.1 WM-5.a: `image` added so app_switcher cards can paint
+# per-window PNG thumbnails captured via grim.
+iced            = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "svg", "image", "tokio", "advanced"] }
 iced_layershell = "0.13.7"
 # v4.0.1 BUG-8.b — notification mute state persisted to
 # `~/.config/mde/notification-mutes.toml`.
