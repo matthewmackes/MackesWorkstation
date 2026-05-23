@@ -579,14 +579,20 @@ dependency sweep.
   helper. Acceptance: right-click foot in the dock → glyph
   picker → select a candidate → foot's dock entry shows the new
   glyph after a panel re-render.
-- [ ] **v3.0.3: quick-action slider widgets in drawer (Tier 2
-  E.6.1+6.2 wiring)** — drawer (`crates/mde-drawer/`) renders
-  brightness + volume sliders bound to
+- [✓] **v3.0.3: quick-action slider widgets in drawer (Tier 2
+  E.6.1+6.2 wiring) — shipped 2026-05-22** — `crates/mde-drawer/
+  src/main.rs` gained real Iced sliders bound to
   `mde_panel::sliders::{set_brightness_percent,
-  set_volume_percent}`. 7-step snap visualization per the
-  existing helper math. Acceptance: dragging the volume slider
-  in the drawer adjusts the default sink's volume live; mute
-  toggle flips correctly.
+  set_volume_percent, toggle_mute}`. `DrawerApp` now holds
+  `brightness: u8 / volume: u8 / muted: bool` snapshots seeded
+  from `read_brightness_percent` / `read_volume_percent` /
+  `read_mute` on construction. Sliders are 0..=100 with step=1;
+  brightness `on_change` calls `snap_to_step` per the 7-step
+  helper math. Mute toggle is a button bound to
+  `Message::MuteToggled` → `toggle_mute()`. Quick-action
+  toggles also wired up: each variant fires `QuickToggle::set`
+  on its flag-file under `$XDG_CACHE_HOME/mde/`. 12 mde-drawer
+  tests still green.
 - [✓] **v3.0.3: clipboard subscription + history popover (Tier 2
   E.5 wiring) — shipped 2026-05-22** — moved `clipboard.rs` from
   mde-panel to mde-popover and added an Iced layer-shell popover
@@ -655,18 +661,25 @@ dependency sweep.
   at v3.0.2 superseded the module). Per §0.12: no point keeping
   unreachable helpers around as a "documented reference" when
   git log preserves the same record.
-- [ ] **v3.0.3: root_menu wireability investigation (Tier 2 E.14
-  wiring)** — root_menu was designed for right-click on the
-  desktop wallpaper. In MDE the wallpaper is owned by `swaybg`,
-  which is a separate process with no event hook. Investigate
-  whether (a) sway's `floating_modifier` can route empty-desktop
-  clicks to a designated handler, (b) a transparent layer-shell
-  surface covering empty desktop areas can absorb right-clicks,
-  or (c) the root menu should be retired in favor of a different
-  surface (e.g. Super+Right-Click anywhere). Choose path in a
-  short lock survey if this surfaces real ambiguity. Acceptance:
-  written decision in [[V3_RUNTIME_INTEGRATION_AUDIT]] + either
-  implementation or formal retirement.
+- [✓] **v3.0.3: root_menu wireability investigation (Tier 2 E.14
+  wiring) — retired 2026-05-22** — investigation outcome: each
+  approach has a fatal flaw. (a) sway has no `floating_modifier`
+  variant that selectively routes empty-desktop button events to
+  a custom handler. (b) A transparent fullscreen layer-shell
+  surface covering empty desktop areas would also absorb
+  legitimate clicks on apps that have transparent regions
+  (regression). (c) sway's `bindsym button3` is global — it
+  fires for right-clicks ANYWHERE including over apps (regression
+  for any app with a real right-click menu). None of these is
+  acceptable.
+  Best-choice retirement: each of the 4 root_menu actions is
+  already exposed via another path — Change wallpaper via
+  Workbench > Look & Feel; Open mesh share via `xdg-open
+  ~/QNM-Shared`; Send file to peer via mde-files per-peer view;
+  Display settings via Workbench > Devices. Deleted
+  `crates/mde-panel/src/root_menu.rs` + removed the `pub mod`
+  declaration. Phase E.14 entry above flipped to [✓] with
+  "retired" qualifier. See git history for the original module.
 - [✓] **v3.0.3: mackesd worker registration sweep (Tier 3) —
   shipped 2026-05-22** — `run_serve()` now constructs the
   full Supervisor and spawns all 6 Phase B workers
@@ -1944,8 +1957,8 @@ src/`) and its destination.
   panel-side clipboard subscription + history popover were never
   built. Closes via v3.0.3 clipboard-subscription task. See
   [[V3_RUNTIME_INTEGRATION_AUDIT]].
-- [>] **v3.0.3: Phase E.6.1 brightness slider (helpers shipped
-  2026-05-21, drawer widget deferred — audit 2026-05-22)** —
+- [✓] **v3.0.3: Phase E.6.1 brightness slider (helpers shipped
+  2026-05-21, drawer widget shipped 2026-05-22)** —
   `crates/mde-panel/src/sliders.rs` ships `read_brightness_
   percent()` + `set_brightness_percent(pct)` routed through
   `brightnessctl get|max|set N%`. The 7-step snap helpers
@@ -1957,8 +1970,8 @@ src/`) and its destination.
   the drawer's slider widgets never landed; helpers are dead.
   Closes via v3.0.3 drawer-sliders task.
   See [[V3_RUNTIME_INTEGRATION_AUDIT]].
-- [>] **v3.0.3: Phase E.6.2 volume slider (helpers shipped 2026-05-21,
-  drawer widget deferred — audit 2026-05-22)** —
+- [✓] **v3.0.3: Phase E.6.2 volume slider (helpers shipped 2026-05-21,
+  drawer widget shipped 2026-05-22)** —
   best-choice deviation from "pipewire-rs": `crates/mde-panel/
   src/sliders.rs` ships `read_volume_percent()`,
   `set_volume_percent(pct)`, `read_mute()`, `toggle_mute()`
@@ -2084,8 +2097,7 @@ src/`) and its destination.
   no custom mouse-area widget was added). Operator-reported
   "right click on the start menu does not work". Closes via
   v3.0.3 admin_menu-wiring task. See [[V3_RUNTIME_INTEGRATION_AUDIT]].
-- [>] **v3.0.3: Phase E.14 root_menu (helpers shipped 2026-05-21,
-  wireability uncertain — audit 2026-05-22)** —
+- [✓] **v3.0.3: Phase E.14 root_menu (retired 2026-05-22)** —
   `crates/mde-panel/src/root_menu.rs` ships the 4-item locked
   action set as a `RootMenuAction` enum (ChangeWallpaper /
   OpenMeshShare / SendFileToPeer(peer) / DisplaySettings).

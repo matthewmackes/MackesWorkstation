@@ -57,7 +57,17 @@ pub mod icon_mapper;
 // at v3.0.2 instead. The helpers became unreachable at the moment
 // they would have been used; deleted 2026-05-22 per §0.12.
 pub mod recover;
-pub mod root_menu;
+// v3.0.3 — root_menu.rs retired. The original design was a
+// right-click-on-wallpaper menu (Change wallpaper / Open mesh
+// share / Send file to peer / Display settings). In MDE the
+// wallpaper is owned by swaybg, which has no event hook for
+// right-click; sway's `bindsym button3` is global (fires on
+// every right-click anywhere including over apps) and not
+// suitable. Each of the 4 actions is already exposed elsewhere:
+// Change wallpaper → Workbench > Look & Feel; Open mesh share →
+// xdg-open ~/QNM-Shared via shell; Send file to peer → mde-files
+// per-peer view; Display settings → Workbench > Devices.
+// Retired 2026-05-22 per §0.12.
 pub mod sliders;
 pub mod theme;
 // v3.0.3 — toasts.rs moved to crates/mde-popover/src/toasts.rs
