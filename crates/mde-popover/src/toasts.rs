@@ -330,9 +330,28 @@ impl iced_layershell::Application for App {
             Err(_) => Vec::new(),
         };
         if snapshot.is_empty() {
+            // v4.0.1 BUG-17 fix (2026-05-23) — return a Length::Fill
+            // container with a TRANSPARENT background so the
+            // layer-shell surface stays the locked 360×200 (no
+            // wlr-layer-shell stretch-to-screen fallback) but its
+            // pixels show the wallpaper through, matching Win11's
+            // toast surface "zero compositor real-estate when
+            // idle" idiom. The previous 1×1 widget left the
+            // outer surface rendering iced's default theme dark
+            // fill = a permanent grey rectangle above the panel.
             return container(text(""))
-                .width(Length::Fixed(1.0))
-                .height(Length::Fixed(1.0))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(Color::TRANSPARENT)),
+                    border: Border {
+                        color: Color::TRANSPARENT,
+                        width: 0.0,
+                        radius: 0.0.into(),
+                    },
+                    shadow: Shadow::default(),
+                    text_color: None,
+                })
                 .into();
         }
         let mut col = column![].spacing(8);
@@ -351,7 +370,29 @@ impl iced_layershell::Application for App {
     }
 
     fn theme(&self) -> Theme {
-        Theme::Dark
+        // v4.0.1 BUG-17 (2026-05-23) — return a custom theme
+        // whose Palette background is fully transparent. Iced's
+        // built-in `Theme::Dark` paints its surface dark-slate
+        // even when every inner widget is transparent, which
+        // left a permanent grey 360×200 rectangle floating above
+        // the panel when the toast stack was empty. wlr-layer-
+        // shell respects alpha so the operator sees the
+        // wallpaper through the surface in that idle state.
+        Theme::custom(
+            "mde-popover-toasts".into(),
+            iced::theme::Palette {
+                background: Color::TRANSPARENT,
+                text: FG_TEXT,
+                primary: Color {
+                    r: 0.36,
+                    g: 0.42,
+                    b: 0.96,
+                    a: 1.0,
+                },
+                success: Color::from_rgb(0.20, 0.80, 0.40),
+                danger: Color::from_rgb(0.92, 0.32, 0.30),
+            },
+        )
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
@@ -545,5 +586,36 @@ mod tests {
     #[test]
     fn stack_limit_is_3() {
         assert_eq!(STACK_LIMIT, 3);
+    }
+
+    #[test]
+    fn idle_app_theme_background_is_fully_transparent() {
+        // v4.0.1 BUG-17 — the BUG-16-era `size: Some((360, 200))`
+        // fix bounded the layer-shell surface to a permanent
+        // rectangle which iced's default Theme::Dark painted
+        // dark-slate even when the inner stack was empty. The
+        // fix returns a custom theme whose background alpha is
+        // 0 so the surface stays the locked 360×200 but its
+        // pixels show the compositor's wallpaper through.
+        let (app, _) = <App as iced_layershell::Application>::new(());
+        let theme = iced_layershell::Application::theme(&app);
+        let palette = theme.palette();
+        assert!(
+            (palette.background.a).abs() < f32::EPSILON,
+            "BUG-17 fix invariant: toast app theme palette background \
+             must have alpha=0 so the surface is invisible when the \
+             toast stack is empty. Got a={}.",
+            palette.background.a
+        );
+    }
+
+    #[test]
+    fn empty_stack_view_renders_without_panic() {
+        // BUG-17 — the empty-state render path returns a
+        // Fill/Fill transparent container instead of the prior
+        // 1×1 dummy. Smoke test that the render path doesn't
+        // panic + returns something an Iced runtime can paint.
+        let (app, _) = <App as iced_layershell::Application>::new(());
+        let _ = iced_layershell::Application::view(&app);
     }
 }

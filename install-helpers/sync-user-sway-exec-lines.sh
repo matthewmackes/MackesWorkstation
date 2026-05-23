@@ -43,14 +43,16 @@ USERCFG="${HOME}/.config/sway/config"
 # minimized windows from sway's scratchpad — the panel's centered
 # minimize button (BUG-6) has no native sway equivalent so the
 # `move scratchpad` + `scratchpad show` pair is the closest UX.
-# v4.0.1 BUG-17 (2026-05-23): `exec mde-popover toast` removed from
-# REQUIRED_LINES until BUG-17 fixes the empty-stack grey-box
-# surface. Users who already have the line in their config don't
-# need it stripped here — they can manually remove it or it'll
-# linger as a comment; the operator killed the running toast
-# process in the same session so the visible bug is gone.
+# v4.0.1 BUG-17 (2026-05-23): `exec mde-popover toast` was removed
+# from REQUIRED_LINES while the empty-stack grey-box bug was open.
+# Restored 2026-05-23 after the fix landed (Theme::custom with
+# transparent palette background — `toasts.rs::theme()`). The
+# surface still bounds itself to 360×200 (BUG-16-era fix) but
+# now paints fully transparent when the stack is empty, so the
+# autostart is safe.
 REQUIRED_LINES=(
     "exec mde-popover watermark"
+    "exec mde-popover toast"
     "bindsym \$mod+Shift+m exec swaymsg scratchpad show"
 )
 

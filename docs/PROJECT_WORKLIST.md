@@ -1511,10 +1511,25 @@ move per the iteration loop's step 2.
   the influence locks; removing it resolves the hybrid
   forbidden by Phase 0.8.
 
-- [>] **v4.0.1: BUG-17 toast popover renders a permanent grey
-  box when idle (Tier 1 chrome) — autostart disabled
-  2026-05-23 as defense-in-depth, transparent-empty fix
-  pending**
+- [✓] **v4.0.1: BUG-17 toast popover renders a permanent grey
+  box when idle (shipped 2026-05-23) — Tier 1 chrome**
+
+  Root cause + fix per the worklist analysis. Shipped:
+  * `crates/mde-popover/src/toasts.rs::theme()` returns a
+    `Theme::custom` whose `Palette::background` has alpha=0
+    (was `Theme::Dark` with opaque dark-slate fill). wlr-
+    layer-shell respects alpha so the surface stays the
+    locked 360×200 but pixels show the wallpaper through.
+  * The empty-stack `view()` branch returns a Fill/Fill
+    transparent container instead of the prior 1×1 dummy.
+  * Test `idle_app_theme_background_is_fully_transparent`
+    asserts `palette.background.a == 0` — CI catches any
+    regression.
+  * `install-helpers/sync-user-sway-exec-lines.sh` restores
+    `exec mde-popover toast` to REQUIRED_LINES so autostart
+    works again on the next operator login + every reload.
+
+  **Original block text retained for context:**
 
   **As** an operator,
   **I want** the toast notification surface to be invisible
