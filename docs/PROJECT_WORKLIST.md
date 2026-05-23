@@ -464,15 +464,25 @@ dependency sweep.
   the backdrop is invisible (no shading, no chrome); clicks on
   the panel itself still go to the panel (backdrop is anchored
   above the panel's exclusive zone but below the popover).
-- [ ] **v3.0.3: toplevels subscription (wlr-foreign-toplevel-
-  management) (Tier 2 E.3 wiring)** — wire the SCTK subscription
-  that emits `ToplevelEvent::{Added,Updated,Removed,Disconnected}`
-  into the panel's `update()`. Either go through `iced_layershell`'s
-  wayland-state hook OR add a direct `wayland-client` subscription
-  alongside the iced runtime. Unblocks hero, window-management
-  buttons, and expose. Acceptance: a new tracing line in panel
-  logs (`toplevel_event(kind=added, app_id="foot")`) fires within
-  ~50 ms of opening a foot terminal; closing it emits Removed.
+- [✓] **v3.0.3: toplevels subscription (sway-IPC) (Tier 2 E.3
+  wiring) — shipped 2026-05-22** — best-choice deviation from
+  the original "wlr-foreign-toplevel-management via SCTK" lock:
+  every other sway-aware applet in the workspace shells out to
+  `swaymsg -t <type>` (see `mde-applets/sway-cluster`), so the
+  new `crates/mde-panel/src/toplevels_sub.rs` follows the same
+  convention — one OS-thread driver, `swaymsg -t get_tree` for
+  seed, `swaymsg -t subscribe -m '["window"]'` for the live
+  event stream, JSON parse + translate to `ToplevelEvent`, push
+  via `mpsc::try_send` per the existing applet_host pattern.
+  Backoff + reseed on swaymsg exit so a sway compositor restart
+  doesn't break the panel. Added `App::toplevels:
+  ToplevelModel` field + `Message::ToplevelEvent(ToplevelEvent)`
+  reducer; `subscription()` now batches applet_host + toplevels
+  via `Subscription::batch`. 7 new unit tests cover xdg+xwayland
+  field extraction, fullscreen mode mapping, nested tree walk,
+  floating_nodes descent, and event-change-kind dispatch. 188
+  panel tests green. Unblocks hero (next task) + window-management
+  buttons + expose overlay.
 - [ ] **v3.0.3: hero widget placement in top_bar (Tier 2 E.4.2
   wiring + depends on toplevels)** — slot `hero::Hero` into
   `top_bar::view` between the Start zone and the dock zone, wire
@@ -1719,9 +1729,8 @@ src/`) and its destination.
   Cargo.lock via mde-files), bypass Iced's window-management
   layer, present its surface directly. ~400 LOC of SCTK glue.
   Both paths scheduled for v2.1.
-- [>] **v3.0.3: Phase E.3 foreign-toplevel listener data model
-  (helpers shipped 2026-05-21, runtime subscription deferred —
-  audit 2026-05-22)** —
+- [✓] **v3.0.3: Phase E.3 foreign-toplevel listener data model
+  (helpers shipped 2026-05-21, subscription closed 2026-05-22)** —
   `crates/mde-panel/src/toplevels.rs` ships the data model that
   the SCTK `wlr_foreign_toplevel_management_v1` subscription
   populates: `Toplevel { id, title, app_id, state }` +

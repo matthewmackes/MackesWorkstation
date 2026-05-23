@@ -53,6 +53,7 @@ pub mod theme;
 pub mod toasts;
 pub mod top_bar;
 pub mod toplevels;
+pub mod toplevels_sub;
 pub mod watermark;
 pub mod weather;
 
@@ -138,6 +139,10 @@ pub enum Message {
     /// Tray-applet click — launches the popover/quick-action bound to
     /// the given applet kind.
     TrayClicked(applet_host::AppletKind),
+    /// v3.0.3 Phase E.3 wiring — one event from the sway-IPC
+    /// toplevels subscription. Drives the panel's hero widget,
+    /// window-management buttons, and any future tasklist render.
+    ToplevelEvent(toplevels::ToplevelEvent),
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -164,6 +169,11 @@ pub struct App {
     /// reaped via `try_wait` on every spawn — no SIGCHLD ignore
     /// and no fire-and-forget zombie pile-up.
     popovers: std::collections::HashMap<&'static str, std::process::Child>,
+    /// Live model of every sway top-level window. v3.0.3 Phase E.3
+    /// wiring — fed by the `toplevels_sub` subscription. The hero
+    /// widget reads `focused()` for its label; the window-management
+    /// buttons read `focused()` for their target id.
+    toplevels: toplevels::ToplevelModel,
 }
 
 impl App {
@@ -175,6 +185,7 @@ impl App {
             ticks: 0,
             top_bar: top_bar::TopBarState::demo(),
             popovers: std::collections::HashMap::new(),
+            toplevels: toplevels::ToplevelModel::new(),
         }
     }
 
@@ -253,6 +264,7 @@ impl iced_layershell::Application for App {
                 ticks: 0,
                 top_bar: top_bar::TopBarState::loading(),
                 popovers: std::collections::HashMap::new(),
+                toplevels: toplevels::ToplevelModel::new(),
             },
             Task::none(),
         )
@@ -282,6 +294,18 @@ impl iced_layershell::Application for App {
                 // click on M closes the existing instance instead
                 // of stacking a second one on top.
                 self.toggle_or_spawn_popover("start-menu");
+            }
+            Message::ToplevelEvent(ev) => {
+                // v3.0.3 Phase E.3 wiring — apply the event to the
+                // in-memory model. Hero + window-management buttons
+                // read from `self.toplevels` on their next view().
+                let changed = self.toplevels.apply(ev);
+                if changed {
+                    tracing::debug!(
+                        live_count = self.toplevels.len(),
+                        "toplevels model updated"
+                    );
+                }
             }
             Message::TrayClicked(kind) => {
                 // v3.0.3 — toggle the popover for the clicked
@@ -325,7 +349,14 @@ impl iced_layershell::Application for App {
     }
 
     fn subscription(&self) -> iced::Subscription<Message> {
-        applet_host::subscription(|t| Message::AppletText(t.kind, t.text))
+        // v3.0.3 — batch the applet-host stream + the toplevels
+        // subscription so both flow into App::update. Adding more
+        // subscriptions later (clipboard, foreign-toplevel via
+        // wlr protocol, etc.) extends the batch.
+        iced::Subscription::batch([
+            applet_host::subscription(|t| Message::AppletText(t.kind, t.text)),
+            toplevels_sub::subscription(Message::ToplevelEvent),
+        ])
     }
 
     fn theme(&self) -> Theme {
