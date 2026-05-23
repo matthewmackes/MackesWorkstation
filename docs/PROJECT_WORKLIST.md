@@ -752,15 +752,25 @@ above; integration tasks below in dependency order.
   fresh-correlation-on-restart works at the daemon level (each
   `mackesd serve` startup gets a new id); per-tick / per-worker
   correlation ids tracked as a new v3.0.4 task below.
-- [ ] **v3.0.4: per-tick correlation ids in worker spans
-  (Tier 3 mackesd::logging follow-up)** — each Worker::run
-  body should open a fresh `LogContext::fresh()` at the top of
-  every tick + enter a per-tick span so a single
-  correlation_id traces one tick's events end-to-end. Requires
-  touching every `Worker::run` impl (~6 files); deferred from
-  v3.0.3 to keep the runtime-wiring sweep moving. Acceptance:
-  grep mackesd journal for a single correlation_id yields all
-  log lines from one full tick + nothing from other ticks.
+- [✓] **v3.0.4: per-tick correlation ids — architecturally
+  moot (audit 2026-05-23)** — original task assumed workers
+  have explicit tick loops where per-tick spans would
+  apply. Re-audit: none of the 10 mackesd workers
+  (ansible_pull, clipboard, derp, fs_sync, heartbeat,
+  kdc_host, lan_discovery, mdns, media_sync, mesh_router)
+  has a polling tick loop in its `Worker::run` impl. Most
+  are subprocess supervisors (`Command::spawn` + `child.wait`
+  in `tokio::select!`); heartbeat delegates to a sync thread
+  via `spawn_blocking`. The daemon-scope span at
+  `bin/mackesd.rs:1319` already wraps every `tracing::info!`
+  call inside `run_serve` with `correlation_id + node_id`
+  fields (per 12.1.4). Adding per-worker-lifetime spans on
+  top would carry essentially the same correlation_id since
+  workers don't tick — they run once for the daemon's
+  lifetime. If a future worker grows a real polling loop,
+  that's where a fresh `LogContext::fresh()` per iteration
+  belongs; landing it preemptively against subprocess
+  supervisors is no-op cosmetics.
 - [!] **v3.0.3: 12.17 wire STUN (BLOCKED on TransportRegistry having concrete Transport impls) candidate gathering into the
   transport handshake (Tier 3 mackesd::stun)** — `mackesd/src/stun.rs`
   ships an RFC 5389/8489 STUN client but nothing in `transport/`
@@ -1300,14 +1310,19 @@ through them in priority order.
   user or by the Workbench → System → Window Manager reset
   button. Task closes with a `verified` note rather than new
   code.
-- [ ] **v4.0.1: hotkey portal path for Phase 6.4
-  (wayland-readiness.md)** — Phase 6.4 currently implements
-  `XGrabKey` which doesn't work under Wayland. Add an
-  `org.freedesktop.portal.GlobalShortcuts` D-Bus client as
-  the Wayland path; fall through to XGrabKey on X11. Both
-  paths are portable across compositors. Acceptance: on sway,
-  the user's locked global hotkeys (Super+M, etc.) fire via
-  the portal; on XFCE/X11 they keep firing via XGrabKey.
+- [✓] **v4.0.1: hotkey portal — moot under sway (audit
+  2026-05-23)** — original task assumed XGrabKey was the
+  active path; audit found `grep -rn XGrabKey crates/ mackes/`
+  returns zero hits. The v2.0.0+ MDE locks sway as the only
+  compositor (project_v8_8_i3_only memory), and sway routes
+  global hotkeys via its native `bindsym` directives in
+  `data/sway/config` (Super+V → mde-popover clipboard, F3 →
+  mde-popover expose, etc.). The
+  `org.freedesktop.portal.GlobalShortcuts` portal is only
+  necessary for Wayland compositors that don't have native
+  bindsym; MDE doesn't currently target any. Task retired —
+  if MDE ever ships under a non-sway compositor, the portal
+  path lands then.
 - [✓] **v4.0.1: 12.17 STUN ≤1.5s acceptance criterion
   (v12-connectivity-scope.md Q8) — shipped 2026-05-23** —
   amended the `[!] Blocked` v3.0.3 12.17 entry above with a
