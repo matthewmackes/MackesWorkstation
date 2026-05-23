@@ -44,7 +44,8 @@ pub const APP_ID: &str = "shell.mackes.Panel";
 pub mod applet_host;
 pub mod clipboard;
 pub mod dock_dnd;
-pub mod expose;
+// v3.0.3 — expose.rs moved to crates/mde-popover/src/expose.rs
+// (the F3 exposé grid is a popover surface, not panel chrome).
 pub mod hero;
 pub mod host;
 pub mod icon_mapper;

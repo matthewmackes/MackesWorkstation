@@ -585,14 +585,28 @@ dependency sweep.
   one window then opening the clipboard popover shows the last
   N entries; selecting one calls `copy_text(s)` so paste in the
   next window yields that string.
-- [ ] **v3.0.3: expose F3 overlay (Tier 2 E.4.4 wiring + depends
-  on toplevels)** — full-screen Iced overlay using
-  `expose::cards_from_windows()` against the toplevels model.
-  F3 keybind in sway config invokes `mde-popover expose` (new
-  kind in the popover crate's `Kind` enum). Click a card →
-  `swaymsg [con_id=N] focus` + close overlay. Acceptance: with
-  5 windows open, F3 shows a 5-card grid; clicking a card
-  raises that window.
+- [✓] **v3.0.3: expose F3 overlay (Tier 2 E.4.4 wiring) — shipped
+  2026-05-22** — best-choice deviation from the "depends on
+  toplevels" lock: rather than wiring through the panel's
+  ToplevelModel (which would couple the popover process to the
+  panel state), the expose popover does its own
+  `swaymsg -t get_tree` walk to enumerate windows. Self-
+  contained, restarts of the popover are cheap, panel stays
+  uncoupled.
+  Moved `crates/mde-panel/src/expose.rs` → `crates/mde-popover/
+  src/expose.rs`; added an Iced `App` + `run()` mounting a
+  fullscreen `Layer::Overlay` surface (Anchor::Top | Bottom |
+  Left | Right, `exclusive_zone: -1` to ignore the panel's
+  zone). `walk_tree_for_cards` parses the JSON tree (handles
+  xdg + xwayland windows, descends into floating_nodes). Card
+  grid uses `grid_columns(n)` (ceil-sqrt capped at 6) for
+  consistent layout. Click a card → `swaymsg [con_id=N] focus`
+  + exit. KeyboardInteractivity::Exclusive so Esc + F3 reliably
+  dismiss. F3 keybind added to `data/sway/config`: `bindsym F3
+  exec mde-popover expose`. The deprecated `cards_from_windows`
+  + `SwayWindow` mock helpers (test-only, dead per §0.12) were
+  removed; 3 new `walk_tree_for_cards` tests replace them
+  using realistic sway-IPC JSON shapes.
 - [✓] **v3.0.3: weather popover surface (Tier 2 E.17 follow-up
   wiring) — shipped 2026-05-22** — best-choice deviation from
   the spec: rather than a separate `Kind::Weather` triggered by
@@ -1847,8 +1861,8 @@ src/`) and its destination.
   `swayipc-async::Connection::run_command`. Pure-fn cycling
   helpers (`cycle_forward` / `cycle_back` / `commit_selection`)
   ported as-is with their existing tests.
-- [>] **v3.0.3: Phase E.4.4 expose (layout math shipped 2026-05-21,
-  overlay UI + keybind deferred — audit 2026-05-22)** —
+- [✓] **v3.0.3: Phase E.4.4 expose (layout math shipped 2026-05-21,
+  overlay UI + F3 keybind shipped 2026-05-22)** —
   `crates/mde-panel/src/expose.rs` ships the pure-fn helpers:
   `grid_columns(n)` (ceil-sqrt capped at MAX_COLUMNS=6),
   `card_layout(surface_w, surface_h, n)` (16:9 aspect with

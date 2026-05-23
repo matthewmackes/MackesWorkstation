@@ -90,6 +90,9 @@ bindsym $mod+Shift+space focus mode_toggle
 # the v2.0.0 cut (Phase H.1).
 bindsym $mod+Return exec foot
 bindsym $mod+d exec bemenu-run -fn "Red Hat Text 11" -nb "#262626" -nf "#f4f4f4" -sb "#2b9af3" -sf "#f4f4f4"
+# v3.0.3 — F3 opens the exposé grid (fullscreen overlay rendering
+# one card per top-level window; click focuses + dismisses).
+bindsym F3 exec mde-popover expose
 
 # Resize mode — Super+r enters resize mode, escape leaves.
 mode "resize" {

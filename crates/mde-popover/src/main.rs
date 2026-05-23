@@ -26,6 +26,7 @@ mod admin_menu;
 mod audio;
 mod clock;
 mod dismiss;
+mod expose;
 mod fonts;
 mod notifications;
 mod start_menu;
@@ -60,6 +61,10 @@ enum Kind {
     /// click invokes `pkexec dnf upgrade`. Spawned at session
     /// start via data/sway/config rather than from the panel.
     Watermark,
+    /// v3.0.3 — F3 exposé grid. Fullscreen overlay rendering one
+    /// card per sway top-level; click focuses + dismisses.
+    /// Bound to F3 in data/sway/config.
+    Expose,
 }
 
 fn main() -> iced_layershell::Result {
@@ -81,6 +86,7 @@ fn main() -> iced_layershell::Result {
         Kind::Clock => clock::run(),
         Kind::AdminMenu => admin_menu::run(),
         Kind::Watermark => watermark::run(),
+        Kind::Expose => expose::run(),
         Kind::Network => {
             // Network popover is grandfathered v3.1 follow-up
             // (needs NM D-Bus surface bindings + a connection-list
