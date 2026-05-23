@@ -571,17 +571,36 @@ dependency sweep.
   Esc, "×" button in popover header, action-commit (e.g.
   launch app in start menu). 181 mde-panel tests + 16 mde-popover
   tests (including 4 new dismiss tests) all green.
-- [ ] **v3.0.4: popover backdrop layer-surface for outside-click
-  dismiss (Tier 1A follow-up)** — Spawn a transparent
-  fullscreen Layer::Top surface alongside each popover; clicks on
-  it signal popover dismiss via a Wayland event back to the
-  popover process. Cleanest implementation: have `mde-popover`
-  own both surfaces so the routing stays in-process; the panel
-  doesn't need to know about the backdrop. Acceptance: clicking
-  anywhere outside an open popover dismisses it within ~100 ms;
-  the backdrop is invisible (no shading, no chrome); clicks on
-  the panel itself still go to the panel (backdrop is anchored
-  above the panel's exclusive zone but below the popover).
+- [✓] **v3.0.4: popover backdrop layer-surface for outside-click
+  dismiss (shipped 2026-05-23 for `minimized` + `network`;
+  app_switcher already had Keyboard::Exclusive + Esc; remaining
+  popovers tracked as v3.0.4.a below)**
+
+  Pattern landed: each popover's layer-shell anchor switches to
+  fullscreen (`Top | Bottom | Left | Right` + `size: None` +
+  `exclusive_zone: -1`); the view tree pins the visible card to
+  its previous corner via `column / row` of `Space::Fill`
+  regions wrapped in `iced::widget::mouse_area::on_press →
+  Esc`. The outer container paints transparent so the wallpaper
+  + running windows show through; only the visible card has
+  the SURFACE_BG fill. Clicks on buttons inside the card route
+  to their handlers (button consumes the event); clicks
+  anywhere else dismiss within one redraw.
+
+  **Shipped this commit:**
+  * `crates/mde-popover/src/minimized.rs` (top-right card)
+  * `crates/mde-popover/src/network.rs` (top-right card)
+
+  app_switcher already uses `KeyboardInteractivity::Exclusive`
+  + Esc dismiss + the popover IS centered/modal-shaped so
+  outside-click-dismiss isn't critical there.
+
+- [ ] **v3.0.4: extend backdrop dismiss to start_menu / audio /
+  clock / clipboard / admin_menu / notifications** — same
+  pattern (fullscreen layer-shell + corner-pinned card +
+  mouse_area surround). start_menu is the highest-impact
+  remaining (frequent click-outside-by-accident). Per-popover
+  lift (~30 LOC each).
 - [✓] **v3.0.3: toplevels subscription (sway-IPC) (Tier 2 E.3
   wiring) — shipped 2026-05-22** — best-choice deviation from
   the original "wlr-foreign-toplevel-management via SCTK" lock:

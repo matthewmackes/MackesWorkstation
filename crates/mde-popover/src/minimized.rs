@@ -19,7 +19,7 @@
 
 use std::process::Command;
 
-use iced::widget::{button, column, container, row, scrollable, text, Space};
+use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
@@ -153,11 +153,14 @@ impl iced_layershell::Application for App {
             rows_col = rows_col.push(empty_card());
         }
 
-        let footer = text("Esc closes · click a row to restore")
+        let footer = text("Esc / click outside closes · click a row to restore")
             .size(10)
             .color(FG_FAINT);
 
-        container(
+        // The visible content card. Identical layout to before;
+        // wrapped in a fixed-size container so the surrounding
+        // backdrop pixels stay click-receptive.
+        let card: Element<'_, Message> = container(
             column![
                 header,
                 Space::with_height(Length::Fixed(12.0)),
@@ -168,8 +171,8 @@ impl iced_layershell::Application for App {
             .spacing(2),
         )
         .padding(Padding::from([16u16, 18u16]))
-        .width(Length::Fill)
-        .height(Length::Fill)
+        .width(Length::Fixed(WIDTH as f32))
+        .height(Length::Fixed(HEIGHT as f32))
         .style(|_| container::Style {
             background: Some(Background::Color(SURFACE_BG)),
             border: Border {
@@ -182,6 +185,50 @@ impl iced_layershell::Application for App {
             },
             shadow: Shadow::default(),
             text_color: Some(FG_TEXT),
+        })
+        .into();
+
+        // v3.0.4 (2026-05-23) — backdrop: fullscreen surface,
+        // card pinned to top-right, every other pixel is a
+        // mouse_area that fires Esc on click. Outer container
+        // paints transparent so the wallpaper / running windows
+        // show through.
+        let dismiss = || {
+            mouse_area(
+                container(Space::with_width(Length::Fill))
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+            )
+            .on_press(Message::Esc)
+        };
+        let top_strip = row![
+            dismiss(),
+            container(card)
+                .padding(Padding {
+                    top: 44.0,
+                    right: 14.0,
+                    bottom: 0.0,
+                    left: 0.0,
+                }),
+        ]
+        .height(Length::Fixed((HEIGHT + 44) as f32));
+        container(
+            column![
+                top_strip,
+                dismiss(),
+            ],
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(Color::TRANSPARENT)),
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
+            shadow: Shadow::default(),
+            text_color: None,
         })
         .into()
     }
@@ -390,12 +437,19 @@ pub fn run() -> iced_layershell::Result {
         id: Some("mde-popover-minimized".into()),
         fonts: crate::fonts::load_fallback_fonts(),
         layer_settings: LayerShellSettings {
+            // v3.0.4 (2026-05-23) — fullscreen surface so the
+            // outer mouse_area covering the rest of the screen
+            // can catch click-outside-to-dismiss events. The
+            // visible card stays at its previous 360×420 size,
+            // positioned in the top-right corner by the view's
+            // layout. The non-card pixels paint transparent so
+            // the wallpaper / running windows show through.
             layer: Layer::Top,
-            anchor: Anchor::Top | Anchor::Right,
-            margin: (44, 14, 0, 0),
+            anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+            margin: (0, 0, 0, 0),
             keyboard_interactivity: KeyboardInteractivity::OnDemand,
-            exclusive_zone: 0,
-            size: Some((WIDTH, HEIGHT)),
+            exclusive_zone: -1,
+            size: None,
             ..Default::default()
         },
         ..Default::default()
