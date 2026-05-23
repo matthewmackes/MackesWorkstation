@@ -964,16 +964,56 @@ above; integration tasks below in dependency order.
   dev.mackes.MDE.Connect ListDevices` returns the actual paired
   device list; signal subscription via `busctl --user monitor`
   shows DeviceAdded when a phone pairs.
-- [!] **v3.0.3: KDC2-2.8 wire (BLOCKED on KDC host transport refactor in the KDC2 epic) TLS handshake into KDC host
-  transport (Tier 2 mde-kdc::tls)** — `tls.rs` ships the
-  fingerprint-pinning helper but the KDC host transport never
-  uses it (currently bypasses TLS or uses a different path).
-  Wire `tls::accept_pinned(stream, fingerprint_store)` into the
+- [✓] **v3.0.3: KDC2-2.8 wire TLS handshake into KDC host
+  transport (Tier 2 mde-kdc::tls) — shipped 2026-05-23** —
+  `KdcHost` gained a shared `Arc<AsyncMutex<DiscoveryRegistry>>`
+  alongside its pairing store and now performs the real
+  TLS-pinned handshake in `open()`:
+
+  1. Pairing lookup → fingerprint (`PairedDevice::fingerprint`).
+  2. Discovery lookup → source `SocketAddr` from the most-recent
+     UDP/1716 announce (`DiscoveryRegistry::source_addr_for`).
+  3. TCP-connect to `(addr.ip(), KDC_TLS_PORT=1716)` then wrap
+     with `tls::connect_pinned_tls(addr, &device.id,
+     Some(fingerprint))` (which builds a `rustls::ClientConfig`
+     with `PinnedFingerprintVerifier`).
+  4. Successful handshake → `KdcTlsConnection { id:
+     "kdc-tls:{peer_id}", stream:
+     AsyncMutex<TlsStream<TcpStream>> }`.
+
+  Error mapping:
+  - Not in pairing store → `TransportError::Unreachable {
+    code: "not_paired" }`.
+  - Paired but no discovery entry → `Unreachable {
+    code: "not_discovered" }`.
+  - TCP refused → `Unreachable { code: "tcp_refused" }`.
+  - TLS handshake fails (fingerprint mismatch / bad cert) →
+    `HandshakeFailed { code: "fingerprint_mismatch" }` —
+    consumed by the UI as `PairingState::KeyMismatch`.
+
+  `KdcHostWorker` was extended to own the discovery registry +
+  share its `Arc` with the host so the future
+  `kdc_discovery` worker can inject real announces. 11
+  `transport::tests` cover the matrix: correct + wrong
+  fingerprint loopback TLS handshake, refused-addr,
+  not-discovered, not-paired, object-safety, capability shape.
+  `mde-kdc::tls` is no longer dead (Phase 0.1 grep returns
+  one reference, in `transport.rs`).
+
+  Real-Android bench acceptance still pending HW-1 (operator
+  pairs a phone, kills `pairings.json`, observes the rejected
+  reconnect). The code-side gates are closed.
+
+  **Original blocker text:** `tls.rs` ships the fingerprint-
+  pinning helper but the KDC host transport never uses it
+  (currently bypasses TLS or uses a different path). Wire
+  `tls::accept_pinned(stream, fingerprint_store)` into the
   inbound connection handler in `mde-kdc::transport` so peers
   with mismatched fingerprints get `PairingState::KeyMismatch`
   surfaced in the UI. Acceptance: pair with a real KDE Connect
-  Android peer, kill `~/.local/share/mde/kdc/pairings.json`, try
-  to reconnect — the peer is rejected with the right error.
+  Android peer, kill `~/.local/share/mde/kdc/pairings.json`,
+  try to reconnect — the peer is rejected with the right
+  error.
 
 ### v4.0.1 operator round 2 + parity infra (2026-05-23)
 

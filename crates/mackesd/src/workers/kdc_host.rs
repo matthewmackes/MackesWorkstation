@@ -21,6 +21,8 @@ use std::time::Duration;
 
 use mde_kdc::pairing::{PairingError, PairingStore};
 use mde_kdc::transport::KdcHost;
+use mde_kdc_proto::discovery::DiscoveryRegistry;
+use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, error, info};
 
 use super::{ShutdownToken, Worker};
@@ -33,6 +35,12 @@ const TICK: Duration = Duration::from_secs(30);
 pub struct KdcHostWorker {
     config_dir: PathBuf,
     host: Option<Arc<KdcHost>>,
+    /// Shared discovery registry. The future `kdc_discovery`
+    /// worker (KDC2-2.9.a wire-up) writes to this via the
+    /// host's `discovery()` handle; `KdcHost::open` reads from
+    /// it. Held on the worker so a daemon restart re-uses the
+    /// same registry across host re-init.
+    discovery: Arc<AsyncMutex<DiscoveryRegistry>>,
 }
 
 impl KdcHostWorker {
@@ -46,6 +54,7 @@ impl KdcHostWorker {
         Self {
             config_dir,
             host: None,
+            discovery: Arc::new(AsyncMutex::new(DiscoveryRegistry::new())),
         }
     }
 
@@ -54,7 +63,10 @@ impl KdcHostWorker {
     fn init_host(&mut self) -> Result<(), PairingError> {
         let store = PairingStore::open_or_init(&self.config_dir)?;
         let store_arc = Arc::new(store);
-        self.host = Some(Arc::new(KdcHost::new(store_arc)));
+        self.host = Some(Arc::new(KdcHost::new(
+            store_arc,
+            Arc::clone(&self.discovery),
+        )));
         Ok(())
     }
 
@@ -65,6 +77,16 @@ impl KdcHostWorker {
     #[must_use]
     pub fn host(&self) -> Option<&Arc<KdcHost>> {
         self.host.as_ref()
+    }
+
+    /// Borrow the shared discovery registry. The future
+    /// `kdc_discovery` worker (which owns the UDP/1716 socket +
+    /// the mDNS browser) consumes this handle to inject real
+    /// announces — the same `Arc` the host's `open()` reads
+    /// from.
+    #[must_use]
+    pub fn discovery(&self) -> Arc<AsyncMutex<DiscoveryRegistry>> {
+        Arc::clone(&self.discovery)
     }
 }
 
