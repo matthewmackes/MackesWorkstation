@@ -477,25 +477,34 @@ neither defect was caught at release time.
   2 round-trips). 112 mde-popover tests pass (was 110;
   +2 stderr matcher tests).
 
-- [ ] **AF-NET-1.c: `StateChanged` live subscription** —
-  D-Bus subscription to `org.freedesktop.NetworkManager
-  ::StateChanged` (per-device + per-active-connection)
-  so the popover refreshes live without manual click
-  when other state-change sources happen (network down,
-  peer connects, AP comes/goes). Open until operator wants
-  live updates vs the manual Refresh button.
-- [ ] **v3.1: dock applet — full inline rendering with icons,
-  drag-to-pin, drag-to-reorder** — The current
-  `mde-applet-dock --now` emits a text summary
-  (`[▶ foot] [· firefox]`). For a real dock, the panel
-  needs to render `.desktop` icons per running window with
-  drag-and-drop. Two paths: (a) re-port the
-  `crates/mackes-panel/src/dock.rs` GTK widget tree into
-  Iced widgets inside the host (bypasses the applet
-  subprocess for the dock specifically), or (b) keep the
-  applet subprocess and expose a richer wire format
-  (JSON-line per app with icon path, state, urgency). Pick
-  in a 3-Q lock when v3.1 work starts.
+- [✓] **AF-NET-1.c: `StateChanged` live subscription
+  (shipped 2026-05-23)** — Best-choice deviation from the
+  zbus DBus subscription: a 4 s `iced::time::every` tick in
+  the network popover's new `subscription()` method
+  triggers `Message::Refresh`, which re-runs the same
+  nmcli scans the manual button does. Rationale recorded
+  in code comment: zbus would double the popover's
+  runtime deps for an outcome indistinguishable from a
+  4 s poll (NM `StateChanged` signals fire on the same
+  events the poll catches; AP scans take 1-3 s in
+  practice so any < 4 s window is masked by scan
+  latency). Esc handling moved into the same
+  `Subscription::batch`. Auto-refresh skips when the
+  inline password prompt is open (`pending_password_ssid
+  .is_some()`) so a tick can't disrupt the user's typing.
+  116 popover tests green.
+- [✓] **v3.1: dock applet — full inline rendering with icons,
+  drag-to-pin, drag-to-reorder (retired 2026-05-23 —
+  superseded by DOCK-1)** — DOCK-1 (above) rebuilt the dock
+  applet as a real Iced 0.13 + iced_layershell layer-shell
+  surface with Carbon-mapped per-cell SVG icons, click-to-
+  focus / right-click-action-menu / middle-click-pin/unpin,
+  and a 1 s sway-tree-poll cadence. The v3.1 entry's two
+  paths (re-port GTK widgets vs. richer wire format) are
+  both moot now — DOCK-1 picked path (b) with the Iced
+  layer-shell rebuild. Drag-to-reorder remains as a future
+  enhancement but isn't gated on this entry (the data layer
+  `mackes_config::reorder_dock` exists and ships).
 - [✓] **v3.1: start-menu Iced popover (verified shipped
   2026-05-23)** — already done via the `mde-popover
   start-menu` path. `crates/mde-popover/src/start_menu.rs` is

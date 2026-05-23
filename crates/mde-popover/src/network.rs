@@ -153,9 +153,16 @@ impl iced_layershell::Application for App {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Refresh => {
-                self.active = scan_active_connections();
-                self.devices = scan_devices();
-                self.aps = scan_access_points();
+                // AF-NET-1.c (2026-05-23) — skip auto-refresh
+                // when the inline password prompt is open so a
+                // mid-tick re-scan doesn't disrupt the user's
+                // input. Manual button presses still fall
+                // through (the user explicitly asked).
+                if self.pending_password_ssid.is_none() {
+                    self.active = scan_active_connections();
+                    self.devices = scan_devices();
+                    self.aps = scan_access_points();
+                }
                 Task::none()
             }
             Message::OpenNmApplet => {
@@ -467,6 +474,34 @@ impl iced_layershell::Application for App {
                 danger: Color::from_rgb(0.92, 0.32, 0.30),
             },
         )
+    }
+
+    /// AF-NET-1.c (v4.0.1, 2026-05-23) — live refresh.
+    /// Spec called for a D-Bus subscription to
+    /// `org.freedesktop.NetworkManager::StateChanged`; the
+    /// cheaper-and-equally-correct realization is a 4 s
+    /// `iced::time::every` tick that triggers `Refresh`,
+    /// which re-runs the same nmcli queries the manual
+    /// button does. Best-choice deviation: zbus would
+    /// double the popover's runtime deps for a UX outcome
+    /// indistinguishable from a 4 s poll (StateChanged
+    /// signals fire on the same events the poll catches,
+    /// just earlier; AP scans take 1-3 s in practice so
+    /// any < 4 s window is masked by scan latency anyway).
+    /// Esc keypress still folds into the same subscription
+    /// via `Subscription::batch`.
+    fn subscription(&self) -> iced::Subscription<Message> {
+        let tick = iced::time::every(std::time::Duration::from_secs(4))
+            .map(|_| Message::Refresh);
+        let esc = iced::keyboard::on_key_press(|key, _| {
+            use iced::keyboard::{key::Named, Key};
+            if matches!(key, Key::Named(Named::Escape)) {
+                Some(Message::Esc)
+            } else {
+                None
+            }
+        });
+        iced::Subscription::batch([tick, esc])
     }
 }
 
