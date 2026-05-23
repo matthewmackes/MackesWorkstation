@@ -1140,16 +1140,35 @@ above; integration tasks below in dependency order.
   via `swaymsg` / via `fc-cache -r` on the local node and
   (c) propagates to peers within ~5 s through mackesd's
   fs_sync worker.
-- [ ] **AF-5: mackesd `Shell.FileOperations.send_to` impl —
-  closes mesh send-to (Tier 2, captured 2026-05-23 alongside
-  the AF-* mega)** — currently the mackesd
-  FileOperations service still has its 4 stub methods
-  returning `Err("Phase G")`. mde-files's RealBackend uses
-  LocalFsBackend's send_to which always rejects mesh
-  destinations as Unreachable. Wiring this requires a
-  per-peer transport (rsync-over-mesh / scp / qnm-share
-  layer) that doesn't exist yet — when it lands,
-  FileOperations.send_to dispatches to it.
+- [✓] **AF-5: mackesd `Shell.{Inbox,Outbox,Downloads,FileOperations}`
+  honest-empty pass (shipped 2026-05-23) — closes the §0.12
+  Phase-G-jargon leak** — every "wired in Phase G" stub Err
+  in `crates/mackesd/src/ipc/files.rs` got replaced with the
+  honest empty-state response that mde-files's UI can render
+  cleanly:
+    * `Inbox.list / Outbox.list / Downloads.list / FileOperations.audit_log`
+      → return `"[]"` (true empty until the transport produces
+      anything).
+    * `Inbox.mark_opened / Outbox.cancel / Downloads.reveal`
+      → return human-readable errors describing what's
+      missing ("no inbox entries to mark — AF-5 wires the
+      producer side"), not the internal "Phase G" jargon.
+    * `FileOperations.send_to / rollback`
+      → return `"mesh send not configured — no transport
+      (rsync / scp / qnm-share) is wired yet"` so mde-files's
+      Send-To toast surfaces the actual cause.
+  Existing 4 Phase-G tests rewritten to lock the new shape
+  + a negative assertion that "Phase G" doesn't leak through.
+
+  **Open follow-up: AF-5.a — real transport-layer impl** —
+  when a per-peer file transport ships (rsync-over-mesh /
+  scp / qnm-share / whatever), `send_to / rollback` dispatch
+  to it from here; the audit log starts producing rows; the
+  Inbox / Outbox / Downloads lists go from `[]` to real
+  data. AF-5.a is the umbrella for that work. The honest-
+  empty shape above is forward-compatible (the contract
+  becomes "real data when populated, [] when empty"; that
+  was the only blocker).
 
 - [✓] **AF-6: per-user mackesd systemd unit (shipped 2026-05-23)**
   The AF-* mega registered `org.mackes.mackesd` on the *session*

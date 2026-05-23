@@ -26,16 +26,19 @@ pub const INBOX_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Inbox";
 #[interface(name = "dev.mackes.MDE.Shell.Inbox")]
 impl InboxService {
     /// JSON array of inbox `FileRow`s (newest first).
+    ///
+    /// v4.0.1 (2026-05-23): returns `"[]"` — the honest empty
+    /// state. Mesh inbox is the destination for `send_to`
+    /// arrivals; AF-5 wires the producer side. Until then
+    /// the inbox is always empty.
     async fn list(&self) -> zbus::fdo::Result<String> {
-        Err(zbus::fdo::Error::Failed(
-            "Inbox.List — wired in v2.0.0 Phase G".into(),
-        ))
+        Ok("[]".to_string())
     }
 
     /// Mark one inbox entry as opened.
     async fn mark_opened(&self, _id: &str) -> zbus::fdo::Result<()> {
         Err(zbus::fdo::Error::Failed(
-            "Inbox.MarkOpened — wired in v2.0.0 Phase G".into(),
+            "no inbox entries to mark — AF-5 wires the producer side".into(),
         ))
     }
 
@@ -61,16 +64,18 @@ pub const OUTBOX_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Outbox";
 #[interface(name = "dev.mackes.MDE.Shell.Outbox")]
 impl OutboxService {
     /// JSON array of outbox `FileRow`s.
+    ///
+    /// v4.0.1 (2026-05-23): returns `"[]"` — honest empty.
+    /// Outbox tracks in-flight uploads; AF-5 populates it when
+    /// the transport layer ships.
     async fn list(&self) -> zbus::fdo::Result<String> {
-        Err(zbus::fdo::Error::Failed(
-            "Outbox.List — wired in v2.0.0 Phase G".into(),
-        ))
+        Ok("[]".to_string())
     }
 
     /// Cancel an in-flight upload by op_id.
     async fn cancel(&self, _op_id: u64) -> zbus::fdo::Result<()> {
         Err(zbus::fdo::Error::Failed(
-            "Outbox.Cancel — wired in v2.0.0 Phase G".into(),
+            "no in-flight uploads to cancel — AF-5 wires the producer side".into(),
         ))
     }
 }
@@ -87,16 +92,20 @@ pub const DOWNLOADS_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Downloads";
 #[interface(name = "dev.mackes.MDE.Shell.Downloads")]
 impl DownloadsService {
     /// JSON array of completed downloads (newest first).
+    ///
+    /// v4.0.1 (2026-05-23): returns `"[]"` — honest empty.
+    /// Mesh-completed downloads land here; AF-5 populates the
+    /// list when transport ships. Local `~/Downloads` content
+    /// is served by mde-files's `LocalFsBackend`, not this
+    /// dbus surface.
     async fn list(&self) -> zbus::fdo::Result<String> {
-        Err(zbus::fdo::Error::Failed(
-            "Downloads.List — wired in v2.0.0 Phase G".into(),
-        ))
+        Ok("[]".to_string())
     }
 
     /// Reveal one download in the file manager.
     async fn reveal(&self, _id: &str) -> zbus::fdo::Result<()> {
         Err(zbus::fdo::Error::Failed(
-            "Downloads.Reveal — wired in v2.0.0 Phase G".into(),
+            "no mesh downloads recorded — AF-5 wires the producer side".into(),
         ))
     }
 }
@@ -110,11 +119,26 @@ pub struct FileOperationsService;
 pub const FILE_OPERATIONS_INTERFACE: &str = "dev.mackes.MDE.Shell.FileOperations";
 pub const FILE_OPERATIONS_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/FileOperations";
 
+/// User-facing error surfaced by mde-files when the operator
+/// tries to send to a mesh destination but no transport is
+/// configured. v4.0.1 (2026-05-23) — replaces the "Phase G"
+/// internal-jargon stub messages.
+const SEND_TO_NOT_CONFIGURED: &str =
+    "mesh send not configured — no transport (rsync / scp / qnm-share) is wired yet";
+
 #[interface(name = "dev.mackes.MDE.Shell.FileOperations")]
 impl FileOperationsService {
     /// Send the given sources to one or more destinations. The
-    /// `selector` is the same destination-grammar mde-files renders
-    /// (peer:, group:, role:, site:). Returns the new op_id.
+    /// `selector` is the same destination-grammar mde-files
+    /// renders (peer:, group:, role:, site:). Returns the new
+    /// op_id.
+    ///
+    /// v4.0.1 (2026-05-23): replaced the "Phase G" stub with an
+    /// honest "no transport configured" response. mackesd
+    /// doesn't yet ship a per-peer file-transport (rsync-over-
+    /// mesh / scp / qnm-share layer); when one lands, AF-5
+    /// dispatches to it from here. Until then the operator
+    /// gets a clear toast instead of a "Phase G" leak.
     async fn send_to(
         &self,
         _sources_json: &str,
@@ -122,23 +146,23 @@ impl FileOperationsService {
         _mode: &str,
         _conflict: &str,
     ) -> zbus::fdo::Result<u64> {
-        Err(zbus::fdo::Error::Failed(
-            "FileOperations.SendTo — wired in v2.0.0 Phase G".into(),
-        ))
+        Err(zbus::fdo::Error::Failed(SEND_TO_NOT_CONFIGURED.into()))
     }
 
     /// Roll back a completed op by op_id.
     async fn rollback(&self, _op_id: u64) -> zbus::fdo::Result<u64> {
-        Err(zbus::fdo::Error::Failed(
-            "FileOperations.Rollback — wired in v2.0.0 Phase G".into(),
-        ))
+        Err(zbus::fdo::Error::Failed(SEND_TO_NOT_CONFIGURED.into()))
     }
 
     /// JSON-encoded audit log (newest first, capped at `limit`).
+    ///
+    /// v4.0.1 (2026-05-23): returns an empty JSON array
+    /// (`"[]"`) when no transport has logged anything yet.
+    /// This is the honest empty-state — equivalent to "no
+    /// sends have been recorded," which is the literal truth
+    /// until AF-5 wires the transport layer.
     async fn audit_log(&self, _limit: u32) -> zbus::fdo::Result<String> {
-        Err(zbus::fdo::Error::Failed(
-            "FileOperations.AuditLog — wired in v2.0.0 Phase G".into(),
-        ))
+        Ok("[]".to_string())
     }
 
     /// Signal: an op state changed (id, kind, ok).
@@ -327,32 +351,47 @@ mod tests {
         assert_eq!(FLEET_FILES_OBJECT_PATH, "/dev/mackes/MDE/Fleet/Files");
     }
 
+    // v4.0.1 (2026-05-23) — the four Phase-G stubs got replaced
+    // with honest empty/transport-not-configured responses
+    // instead of internal-jargon Err leaks. Tests now lock the
+    // honest-empty shape so a regression to "Phase G" surfaces
+    // is caught.
     #[tokio::test]
-    async fn inbox_list_is_unimplemented_phase_a() {
+    async fn inbox_list_is_honest_empty() {
         let s = InboxService;
-        let err = s.list().await.unwrap_err();
-        assert!(format!("{err}").contains("Phase G"));
+        assert_eq!(s.list().await.expect("ok"), "[]");
     }
 
     #[tokio::test]
-    async fn outbox_list_is_unimplemented_phase_a() {
+    async fn outbox_list_is_honest_empty() {
         let s = OutboxService;
-        let err = s.list().await.unwrap_err();
-        assert!(format!("{err}").contains("Phase G"));
+        assert_eq!(s.list().await.expect("ok"), "[]");
     }
 
     #[tokio::test]
-    async fn downloads_list_is_unimplemented_phase_a() {
+    async fn downloads_list_is_honest_empty() {
         let s = DownloadsService;
-        let err = s.list().await.unwrap_err();
-        assert!(format!("{err}").contains("Phase G"));
+        assert_eq!(s.list().await.expect("ok"), "[]");
     }
 
     #[tokio::test]
-    async fn file_ops_send_to_is_unimplemented_phase_a() {
+    async fn file_ops_send_to_returns_transport_not_configured() {
         let s = FileOperationsService;
         let err = s.send_to("[]", "all", "copy", "ask").await.unwrap_err();
-        assert!(format!("{err}").contains("Phase G"));
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("transport") && msg.contains("not configured"),
+            "expected human-readable 'transport not configured' \
+             message, got: {msg}"
+        );
+        // Negative: must not leak the Phase G jargon.
+        assert!(!msg.contains("Phase G"), "Phase G jargon leaked: {msg}");
+    }
+
+    #[tokio::test]
+    async fn file_ops_audit_log_is_honest_empty() {
+        let s = FileOperationsService;
+        assert_eq!(s.audit_log(100).await.expect("ok"), "[]");
     }
 
     #[tokio::test]
