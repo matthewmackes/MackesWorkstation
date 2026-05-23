@@ -1051,22 +1051,27 @@ no new RPM cut.
   clarification — initial guess: parity with macOS Notification
   Center (grouped by app, dismiss-all, clear-on-click, per-app
   mute toggles).
-- [ ] **v4.0.1: BUG-5 Window Selector applet on the panel is
-  non-interactive (Tier 1 operator-visible)** — the app-
-  switcher applet (`mde-applet-app-switcher`, E1.2.11) renders
-  in the top-bar Tray zone but clicking it does nothing. Two
-  likely causes: (a) the `button(...).on_press(...)` wrap is
-  missing in the panel-host's tray slot for this applet kind,
-  so the surface exists but no message fires; (b) the applet
-  emits an `AppletKind::AppSwitcher` text stream but the
-  panel's host.rs / top_bar.rs never threads a click → focus-
-  cycle action. Investigate `crates/mde-panel/src/host.rs` +
-  `top_bar.rs::view_top_bar`'s tray-zone construction for
-  the app-switcher slot and wire the Super+Tab fallback (or
-  click-to-cycle) via `swayipc` `focus next` on the focused
-  workspace. Acceptance: clicking the app-switcher applet
-  cycles focus to the next window in the current workspace
-  (or surfaces an overview dialog).
+- [ ] **v4.0.1: BUG-5 "Window Selector" (dock area) non-
+  interactive — diagnosis 2026-05-23** — initial hypothesis
+  was wrong: `mde-applet-app-switcher` (E1.2.11) is an
+  Overlay-slot applet for Super+Tab, NOT a tray applet. What
+  the operator sees in the top-bar's "dock" zone is
+  `state.dock_text` (a plain `labeled_zone(...)` text widget,
+  not a button) — rendered from the dock applet's stdout, e.g.
+  `[▶ foot] [· firefox]`. The text shows windows but isn't
+  clickable, so the operator can't focus a window by clicking
+  its name. Fix requires a protocol upgrade: (1) the dock
+  applet needs to emit a structured list (per-window `(id,
+  app_id, focused)` tuples) instead of a single string; (2)
+  the panel host needs an `AppletData` variant for structured
+  payloads (not just `AppletText`); (3) `top_bar.rs::view`
+  renders the dock zone as a `row![ ... ]` of buttons, each
+  firing `Message::DockClicked(con_id)` which calls
+  `swaymsg [con_id=N] focus`. That's a 3-task fan-out — leaving
+  this entry as the umbrella diagnosis. Acceptance: clicking
+  any window in the dock zone focuses that window via
+  swayipc; the focused window's row gets the accent
+  highlight.
 - [>] **v4.0.1: BUG-4 mde-files now ships + default-handler
   override wired (deployment pending parity overlay,
   2026-05-23)** — three files landed:
