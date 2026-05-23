@@ -673,6 +673,16 @@ install -D -m 0755 target/release/mde-panel \
 install -D -m 0755 target/release/mde-popover \
     %{buildroot}%{_bindir}/mde-popover
 
+# v4.0.1 BUG-4 — mde-files (Iced mesh-first Artifact Manager,
+# crates/mde-files/, forked from pop-os/cosmic-files). Replaces
+# cosmic-files as the default inode/directory handler; the .desktop
+# entry's MimeType= + mde-enforce-session's `xdg-mime default` make
+# the swap sticky at every login.
+install -D -m 0755 target/release/mde-files \
+    %{buildroot}%{_bindir}/mde-files
+install -D -m 0644 data/applications/mde-files.desktop \
+    %{buildroot}%{_datadir}/applications/mde-files.desktop
+
 # v2.0.0 Phase D.1 — mde-session Wayland session orchestrator.
 install -D -m 0755 target/release/mde-session \
     %{buildroot}%{_bindir}/mde-session
@@ -820,6 +830,9 @@ fi
 # drawer applet + CB-1.10 wizard + 16 applet binaries.
 %{_bindir}/mde-panel
 %{_bindir}/mde-popover
+# v4.0.1 BUG-4 — mde-files Artifact Manager.
+%{_bindir}/mde-files
+%{_datadir}/applications/mde-files.desktop
 %{_bindir}/mde-session
 %{_bindir}/mde-logout-dialog
 %{_bindir}/mded

@@ -1056,25 +1056,25 @@ no new RPM cut.
   workspace. Acceptance: clicking the app-switcher applet
   cycles focus to the next window in the current workspace
   (or surfaces an overview dialog).
-- [ ] **v4.0.1: BUG-4 File manager looks stock cosmic-files
-  (Tier 2 packaging gap + Tier 1 default-handler bug)** —
-  `/usr/bin/mde-files` is NOT in the v4.0.0 RPM
-  (`rpm -ql mde | grep files` returns only icons + the
-  cosmic-files icon). `xdg-mime query default inode/directory`
-  returns `com.system76.CosmicFiles.desktop`, so every "Open
-  folder" gesture lands in stock cosmic-files. The custom code
-  ships in source (`crates/mde-files/src/views.rs` — Artifact
-  Manager titlebar, mesh-first sidebar, Downloads-primary
-  variant, Local-pinned disclosure) but the binary never
-  reaches the user. Fix: (1) add `data/applications/
-  mde-files.desktop` (currently missing — only mde / mde-panel
-  / mde-workbench / mde-clipboard / mde-mesh-uri-handler ship
-  desktop files); (2) add spec install lines for the binary +
-  desktop file; (3) set `xdg-mime default
-  dev.mackes.MDE.Files.desktop inode/directory` in
-  `mackes-enforce-session` so every login normalizes the
-  default handler. Acceptance: clicking a folder anywhere
-  opens mde-files with the Mesh-Overview sidebar visible.
+- [>] **v4.0.1: BUG-4 mde-files now ships + default-handler
+  override wired (deployment pending parity overlay,
+  2026-05-23)** — three files landed:
+  (1) `data/applications/mde-files.desktop` (new) declares the
+      `MimeType=inode/directory;` so xdg picks it as a folder
+      handler candidate;
+  (2) `packaging/fedora/mackes-shell.spec` install + %files
+      lines for the binary + .desktop;
+  (3) `data/systemd/mde-session.service` ExecStartPost runs
+      `xdg-mime default mde-files.desktop inode/directory` on
+      every login (idempotent, non-fatal if either side is
+      missing — the `-` prefix swallows errors).
+  Not yet shipped to the running v4.0.0 RPM — needs the parity
+  overlay to install the new binary + .desktop + reload the
+  systemd-user unit (`systemctl --user daemon-reload &&
+  systemctl --user restart mde-session.service` or re-login).
+  Acceptance (post-overlay): clicking a folder opens mde-files
+  with the Mesh-Overview sidebar; `xdg-mime query default
+  inode/directory` returns `mde-files.desktop`.
 - [>] **v4.0.1: PARITY-1 write `/usr/local/bin/mde-parity-
   overlay` script** — staged at
   `install-helpers/parity-overlay.sh`; user installs to

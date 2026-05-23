@@ -24,6 +24,10 @@ Type=notify
 # session bring-up.
 NotifyAccess=main
 ExecStart=/usr/bin/mde-session
+# v4.0.1 BUG-4 — replace cosmic-files as the default folder handler.
+# xdg-mime is idempotent; the `-` prefix makes a missing binary or a
+# missing .desktop file non-fatal so the session still comes up.
+ExecStartPost=-/usr/bin/sh -c '/usr/bin/xdg-mime default mde-files.desktop inode/directory'
 Restart=on-failure
 RestartSec=5
 # Hardening (lighter than mded.service since this owns the user
