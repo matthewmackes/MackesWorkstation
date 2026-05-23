@@ -48,7 +48,11 @@ pub mod expose;
 pub mod hero;
 pub mod host;
 pub mod icon_mapper;
-pub mod layer_shell;
+// v3.0.3 — layer_shell.rs retired. The module was a Phase E.2 set
+// of config helpers (anchor/exclusive-zone constants) for an
+// integration that ended up shipping via `iced_layershell 0.13.7`
+// at v3.0.2 instead. The helpers became unreachable at the moment
+// they would have been used; deleted 2026-05-22 per §0.12.
 pub mod recover;
 pub mod root_menu;
 pub mod sliders;

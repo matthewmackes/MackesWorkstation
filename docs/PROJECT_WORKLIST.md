@@ -596,15 +596,13 @@ dependency sweep.
   Acceptance: dragging foot from the tasklist onto an empty
   pinned slot pins it; dragging a pinned entry to a different
   slot reorders.
-- [ ] **v3.0.3: retire crates/mde-panel/src/layer_shell.rs
-  (Tier 2 E.2 module is moot)** — `iced_layershell` v0.13.7
-  took over the surface integration at v3.0.2. The module's
-  pure-fn helpers became unreachable at the moment they would
-  have been needed. Either delete the file + module declaration
-  in lib.rs OR keep as a documented reference with a top-of-
-  file note marking it retired. Acceptance: either deletion
-  PR or top-of-file `//! RETIRED 2026-05-22 — superseded by
-  iced_layershell 0.13.7 at v3.0.2` block.
+- [✓] **v3.0.3: retire crates/mde-panel/src/layer_shell.rs
+  (Tier 2 E.2 module is moot) — shipped 2026-05-22** — deleted
+  the 174-LOC file + the `pub mod layer_shell;` declaration in
+  lib.rs (replaced with a comment noting `iced_layershell 0.13.7`
+  at v3.0.2 superseded the module). Per §0.12: no point keeping
+  unreachable helpers around as a "documented reference" when
+  git log preserves the same record.
 - [ ] **v3.0.3: root_menu wireability investigation (Tier 2 E.14
   wiring)** — root_menu was designed for right-click on the
   desktop wallpaper. In MDE the wallpaper is owned by `swaybg`,
