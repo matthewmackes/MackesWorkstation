@@ -1,0 +1,19 @@
+[Unit]
+Description=Watch mackes-shell repo for committed updates (v4.0.1 PARITY-3)
+Documentation=https://github.com/matthewmackes/MAP2-RELEASES/blob/main/install-helpers/parity-overlay.sh
+
+[Path]
+# Watch the file that holds main's HEAD SHA. It rewrites on every
+# successful `git commit` and every `git fetch` that advances main.
+# Per the 2026-05-23 operator choice the trigger is commit, not save —
+# so half-edits never deploy. Switch to PathModified=<source dirs> if
+# the operator opts into save-trigger later.
+PathChanged=%h/Desktop/files/mackes-shell/.git/refs/heads/main
+
+# Small settle window so back-to-back commits coalesce into one
+# overlay run rather than queueing two.
+TriggerLimitIntervalSec=10s
+TriggerLimitBurst=2
+
+[Install]
+WantedBy=default.target

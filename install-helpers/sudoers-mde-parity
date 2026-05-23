@@ -1,0 +1,22 @@
+# /etc/sudoers.d/mde-parity — v4.0.1 PARITY-2
+#
+# Grants the developer user passwordless exec of EXACTLY
+# /usr/local/bin/mde-parity-overlay (the v4.0.1 parity-infra script).
+# The script accepts --build / --install / no-args; --install is the
+# privileged phase that copies newer Python modules, .desktop files,
+# and cargo-built binaries into /usr/lib/python*/site-packages/,
+# /usr/share/applications/, and /usr/bin/.
+#
+# Scope:
+#   * Only the named user can invoke the entry.
+#   * NOPASSWD applies only to this one script path.
+#   * No other command — install, cp, dd, sh, etc. — is unlocked.
+#
+# Audit trail:
+#   * /var/log/mde-parity.log records every install phase + which
+#     files changed.
+#   * The wrapping systemd --user unit logs to `journalctl --user
+#     -u mde-parity.service`.
+
+mm ALL=(root) NOPASSWD: /usr/local/bin/mde-parity-overlay
+mm ALL=(root) NOPASSWD: /usr/local/bin/mde-parity-overlay --install
