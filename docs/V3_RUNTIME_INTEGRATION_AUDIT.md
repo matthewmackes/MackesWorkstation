@@ -262,6 +262,34 @@ refs=$(grep -rln "${mod}::\|crate::${mod}\b\|self::${mod}\b" \
 
 This fix is now in `.claude/skills/iteration/SKILL.md` Phase 0.1.
 
+## Tier 6 — Phase 0 second-pass results (post-integration sweep)
+
+Ran the Phase 0 detection pipeline again after 11 integration
+commits closed the v3.0.3 sweep substantially. Goal: catch any
+new dead modules the integration work introduced (defense-in-
+depth against §0.12 violations).
+
+Findings:
+
+| Crate :: Module | Status | Notes |
+|---|---|---|
+| `mackesd::service/mod.rs` | **Deleted** | Another 892-byte pure-doc scaffold reserving directory layout for not-yet-written Phase F.x / G.x facade traits. Same pattern as the earlier `deploy/`. Deleted 2026-05-22 per §0.12; comes back with real submodules in one commit. |
+| `mackesd::stun` / `https_fallback` | Still dead | Re-cued [>] from audit-2; waits on TransportRegistry populated with concrete Transport impls before wiring becomes reachable. Re-scoped to a new Transport-Architecture epic. |
+| `mde-panel::{clipboard, dock_dnd, icon_mapper, root_menu, sliders, toasts}` | Still dead | Re-cued [>] from audit-1; the v3.0.3 follow-up tasks cover each. Some require sister-component refactors (dock applet right-click for icon_mapper; drawer scaffold for sliders); those move to their owning epics. |
+| `mde-files::{a11y_labels, dbus_backend, grid, search}` | Still dead | Re-cued [>] from audit-2; doable independently in this iteration except dbus_backend which needs Phase G model migration. |
+| `mde-kdc::{dbus, tls}` | Still dead | Re-cued [>] from audit-2; covered by KDC2-2.8 + KDC2-3.4..3.9 in the KDC2 epic. Wiring naturally happens when those tasks close. |
+
+Net new since audit-2: 1 scaffold (deleted). No new misleading
+`[✓]` entries — the integration commits themselves all pass the
+§0.8 gate 7 reachability check.
+
+False-positive recap: the within-crate grep correctly finds dead
+modules inside a single crate but doesn't see cross-crate uses.
+`mackes-transport::{conformance, scorer}`, `mde-kdc::dispatch`,
+and `mackes-panel::mesh_sync` all show as candidates but are
+either consumed by other crates or live in the retired legacy
+panel and are out of scope for the new audit.
+
 ## Tier 4 — Popover crate
 
 | Popover | Status | Notes |

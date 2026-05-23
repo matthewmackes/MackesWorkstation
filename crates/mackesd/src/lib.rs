@@ -52,11 +52,13 @@ pub mod reconcile;
 pub mod reconciler_hook;
 pub mod revisions;
 pub mod secrets;
-// v2.0.0 Phase 12.1.2 — service-layer facade traits. Cross-cutting
-// surfaces that combine policy + store + topology + telemetry +
-// reconcile + audit. New traits go here (one file per public
-// surface); existing flat modules above keep their concrete impls.
-pub mod service;
+// v2.0.0 Phase 12.1.2 — service-layer facade traits reservation.
+// When concrete cross-cutting trait surfaces actually ship (Phase F.x
+// panel reads, Phase G.x fleet writes, Phase 2.x Send-To pipeline),
+// `pub mod service;` + `crates/mackesd/src/service/` come back in
+// one commit with real code. The empty-scaffold version was deleted
+// 2026-05-22 per .claude/CLAUDE.md §0.12 (no stubs), matching the
+// same-day deploy/ scaffold deletion.
 pub mod settings;
 pub mod store;
 // v2.0.0 Phase 12.17 — STUN client for ICE candidate gathering. Gated
