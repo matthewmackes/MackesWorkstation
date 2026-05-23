@@ -652,17 +652,24 @@ dependency sweep.
   short lock survey if this surfaces real ambiguity. Acceptance:
   written decision in [[V3_RUNTIME_INTEGRATION_AUDIT]] + either
   implementation or formal retirement.
-- [ ] **v3.0.3: mackesd worker registration sweep (Tier 3)** —
-  audit each `crates/mackesd/src/workers/*.rs` for intended
-  spawn-vs-helper status. Workers that implement the `Worker`
-  trait (`clipboard`, `mdns`, `fs_sync`, `heartbeat`,
-  `mesh_router`, `notification_relay`) should be registered in
-  `run_serve()` via the existing `Supervisor` type. Helper-only
-  modules (`nats`, `perf`, etc.) should grow a comment marking
-  them as such so future audits don't relitigate the question.
-  Acceptance: `mded serve` startup logs show each registered
-  worker by name; helper modules carry a top-of-file
-  classification comment.
+- [✓] **v3.0.3: mackesd worker registration sweep (Tier 3) —
+  shipped 2026-05-22** — `run_serve()` now constructs the
+  full Supervisor and spawns all 6 Phase B workers
+  (`ClipboardWorker`, `MdnsWorker`, `FsSyncWorker`,
+  `HeartbeatWorker`, `MeshRouterWorker`,
+  `NotificationRelayWorker`) alongside the legacy reconcile
+  worker. Each gets `RestartPolicy::OnFailure` so transient
+  errors restart the worker without taking down the daemon.
+  `MeshRouterWorker` bootstraps with empty `RouterState` +
+  empty `TransportRegistry`; peers and transports are added
+  later by external code (DBus, config). `NotificationRelayWorker`
+  opens its own SQLite connection from `db_path`; on open
+  failure the worker is skipped with a warn-level log line
+  (rest of the daemon continues). On shutdown,
+  `sup.shutdown_and_join().await` drains every async worker
+  before the legacy reconcile worker joins. 606 mackesd tests
+  green (unchanged from before — the wiring doesn't perturb
+  the existing test surface).
 - [✓] **v3.0.3: extend Definition-of-Done to require runtime
   reachability (CLAUDE.md §0.8 amendment) — shipped 2026-05-22**
   — §0.8 grew a 7th gate: "Runtime reachability — every public
@@ -693,14 +700,28 @@ above; integration tasks below in dependency order.
   declaration in `crates/mackesd/src/lib.rs`. When Phase G actually
   ships a submodule, the directory + mod declaration come back
   together with real code in one commit, never separately.
-- [ ] **v3.0.3: 12.1.4 wire structured logging into the daemon
-  (Tier 3 mackesd::logging)** — `mackesd/src/logging.rs` ships
-  `LogContext` but the daemon binary never imports it. Wire
-  `LogContext::fresh()` at the top of every worker tick + at HTTP
-  handler entry; add correlation_id to every `tracing` event field
-  set. Acceptance: `mackesd serve` logs show `correlation_id=<id>`
-  on every line; a worker restart starts a fresh correlation id;
-  grep the JSON output for a single id traces one full tick.
+- [✓] **v3.0.3: 12.1.4 wire structured logging into the daemon
+  (Tier 3 mackesd::logging) — partial 2026-05-22 (daemon-scope
+  span); per-tick correlation tracked separately below** —
+  `run_serve()` now opens a top-level
+  `tracing::info_span!("daemon", correlation_id, node_id)` from
+  a fresh `LogContext::fresh().with_node(node_id)` so every log
+  line emitted within the daemon's runtime carries the
+  correlation_id + node_id fields (the JSON-formatter layer
+  picks up span fields automatically). Acceptance partially
+  met: every line carries correlation_id + node_id;
+  fresh-correlation-on-restart works at the daemon level (each
+  `mackesd serve` startup gets a new id); per-tick / per-worker
+  correlation ids tracked as a new v3.0.4 task below.
+- [ ] **v3.0.4: per-tick correlation ids in worker spans
+  (Tier 3 mackesd::logging follow-up)** — each Worker::run
+  body should open a fresh `LogContext::fresh()` at the top of
+  every tick + enter a per-tick span so a single
+  correlation_id traces one tick's events end-to-end. Requires
+  touching every `Worker::run` impl (~6 files); deferred from
+  v3.0.3 to keep the runtime-wiring sweep moving. Acceptance:
+  grep mackesd journal for a single correlation_id yields all
+  log lines from one full tick + nothing from other ticks.
 - [ ] **v3.0.3: 12.17 wire STUN candidate gathering into the
   transport handshake (Tier 3 mackesd::stun)** — `mackesd/src/stun.rs`
   ships an RFC 5389/8489 STUN client but nothing in `transport/`

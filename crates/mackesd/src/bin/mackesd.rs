@@ -1281,16 +1281,48 @@ fn print_revisions_table(rows: &[serde_json::Value]) {
 /// `mackesd serve` runtime. Pulls in tokio + the async supervisor
 /// only when the `async-services` feature is active so the default
 /// build stays sync.
+///
+/// v3.0.3 — wires the 6 Phase B workers (clipboard, mdns, fs_sync,
+/// heartbeat, mesh_router, notification_relay) into the
+/// `Supervisor` alongside the legacy reconcile worker. Audit-2
+/// caught all 6 as dead code: `impl Worker for X` shipped, no
+/// spawn. Each worker gets a `RestartPolicy::OnFailure` so a
+/// transient error (sqlite contention, mdns socket flake)
+/// restarts the worker after the supervisor's 250ms back-off
+/// without taking down the whole daemon.
+///
+/// Also wires `mackesd_core::logging::LogContext` (Tier 3 — Phase 12.1.4):
+/// every log line inside `run_serve` inherits the daemon's
+/// correlation_id + node_id via a top-level tracing span.
 #[cfg(feature = "async-services")]
 fn run_serve(
     qnm_root: Option<PathBuf>,
     node_id: Option<String>,
     db_path: PathBuf,
 ) -> anyhow::Result<()> {
+    use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+    use tokio::sync::RwLock;
+    use mackesd_core::workers::{
+        clipboard::ClipboardWorker, fs_sync::FsSyncWorker, heartbeat::HeartbeatWorker,
+        mdns::MdnsWorker, mesh_router::MeshRouterWorker,
+        notification_relay::NotificationRelayWorker, RestartPolicy, Spawn, Supervisor,
+    };
     let qnm_root = qnm_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
     let node_id = node_id.unwrap_or_else(default_node_id);
+
+    // v3.0.3 — daemon-scope tracing span so every log line below
+    // carries correlation_id + node_id. The JSON formatter
+    // (initialized in main.rs's tracing-subscriber setup) picks up
+    // span fields automatically.
+    let log_ctx = mackesd_core::logging::LogContext::fresh().with_node(node_id.clone());
+    let _daemon_span = tracing::info_span!(
+        "daemon",
+        correlation_id = log_ctx.correlation_id,
+        node_id = %log_ctx.node_id.as_deref().unwrap_or("")
+    )
+    .entered();
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -1301,10 +1333,55 @@ fn run_serve(
         let shutdown = Arc::new(AtomicBool::new(false));
         install_signal_handlers(Arc::clone(&shutdown)).context("installing signal handlers")?;
 
+        // v3.0.3 — async supervisor for Phase B workers. The
+        // legacy reconcile worker stays on its own std::thread
+        // because its sync rusqlite calls would block the tokio
+        // scheduler if hosted here; both supervisors coexist.
+        let mut sup = Supervisor::new();
+        sup.spawn(Spawn::new(
+            ClipboardWorker::new(),
+            RestartPolicy::OnFailure,
+        ));
+        sup.spawn(Spawn::new(MdnsWorker::new(), RestartPolicy::OnFailure));
+        sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
+        sup.spawn(Spawn::new(
+            HeartbeatWorker::new(qnm_root.clone(), node_id.clone()),
+            RestartPolicy::OnFailure,
+        ));
+        // mesh_router bootstraps with empty state + empty
+        // transport registry; peers + transports are added later
+        // by external code (DBus, config). With no peers it just
+        // ticks over nothing every 10s.
+        let router_state: mackesd_core::workers::mesh_router::RouterState =
+            Arc::new(RwLock::new(HashMap::new()));
+        let router_registry: mackesd_core::workers::mesh_router::TransportRegistry =
+            Arc::new(Vec::new());
+        sup.spawn(Spawn::new(
+            MeshRouterWorker::new(router_state, router_registry),
+            RestartPolicy::OnFailure,
+        ));
+        // notification_relay needs its own SQLite connection
+        // (the legacy reconcile worker holds its own; we mint a
+        // second handle so the two run independently).
+        match rusqlite::Connection::open(&db_path) {
+            Ok(conn) => {
+                sup.spawn(Spawn::new(
+                    NotificationRelayWorker::new(qnm_root.clone(), conn),
+                    RestartPolicy::OnFailure,
+                ));
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    db_path = %db_path.display(),
+                    "notification_relay: sqlite open failed; worker skipped"
+                );
+            }
+        }
+
         // The reconcile worker runs on its own OS thread (kept on
         // std::thread so its sync rusqlite calls don't block the
-        // tokio scheduler). Future Phase B workers slot in alongside
-        // it via the async supervisor.
+        // tokio scheduler).
         let reconcile = mackesd_core::worker::spawn_reconcile_worker(
             qnm_root,
             node_id,
@@ -1314,7 +1391,10 @@ fn run_serve(
 
         // Watch loop: wake every 250 ms to check the shutdown flag.
         // When it flips, drop out so reconcile.join() can wait for
-        // the worker to finish its current tick.
+        // the worker to finish its current tick. The async
+        // supervisor's workers see shutdown via the SIGTERM signal
+        // handler installed above (mackesd_core::workers::ShutdownToken
+        // wraps the same broadcast channel).
         while !shutdown.load(Ordering::Relaxed) {
             tokio::time::sleep(std::time::Duration::from_millis(250)).await;
             if reconcile.is_finished() {
@@ -1327,6 +1407,14 @@ fn run_serve(
             }
         }
         tracing::info!("mackesd serve: shutdown requested; joining workers");
+        // Tell every async worker to stop, then drain their joins.
+        let outcomes = sup.shutdown_and_join().await?;
+        for (name, outcome) in &outcomes {
+            match outcome {
+                Ok(()) => tracing::info!(worker = %name, "joined clean"),
+                Err(e) => tracing::warn!(worker = %name, error = ?e, "joined with error"),
+            }
+        }
         if let Err(e) = reconcile.join() {
             tracing::error!("reconcile worker panicked: {e:?}");
             return Err(anyhow::anyhow!("reconcile worker panicked"));
