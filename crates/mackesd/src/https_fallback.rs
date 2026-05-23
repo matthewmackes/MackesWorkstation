@@ -219,6 +219,58 @@ pub fn transition(
     }
 }
 
+// ----- mackes-transport bridge ---------------------------------------
+//
+// The `mackes-transport` crate sits below mackesd in the dep
+// graph and re-publishes a `HttpsFallbackState` mirror on
+// `PeerPath` for serde + readers (panels, healthz) that want
+// the state without dragging in mackesd's full transport
+// supervisor. These helpers convert between the two enums + run
+// one transition step directly against a `PeerPath`.
+
+impl From<HttpsFallbackState> for mackes_transport::peer_path::HttpsFallbackState {
+    fn from(s: HttpsFallbackState) -> Self {
+        match s {
+            HttpsFallbackState::Inactive => Self::Inactive,
+            HttpsFallbackState::Activating => Self::Activating,
+            HttpsFallbackState::Active => Self::Active,
+            HttpsFallbackState::Failing => Self::Failing,
+        }
+    }
+}
+
+impl From<mackes_transport::peer_path::HttpsFallbackState> for HttpsFallbackState {
+    fn from(s: mackes_transport::peer_path::HttpsFallbackState) -> Self {
+        match s {
+            mackes_transport::peer_path::HttpsFallbackState::Inactive => Self::Inactive,
+            mackes_transport::peer_path::HttpsFallbackState::Activating => Self::Activating,
+            mackes_transport::peer_path::HttpsFallbackState::Active => Self::Active,
+            mackes_transport::peer_path::HttpsFallbackState::Failing => Self::Failing,
+        }
+    }
+}
+
+/// 12.18 wire — apply one probe-pair outcome (or handshake /
+/// tunnel signal) to a peer's HTTPS-fallback state. Updates
+/// `peer_path.consecutive_udp_failures` + `peer_path.https_state`
+/// in place. The caller is the mesh-router worker, which
+/// observes UDP probe outcomes per tick + drives this for each
+/// peer it tracks.
+///
+/// Returns the new state for convenient logging / audit-emit.
+pub fn observe_peer(
+    peer_path: &mut mackes_transport::peer_path::PeerPath,
+    input: TransitionInput,
+) -> HttpsFallbackState {
+    let mut window = FailureWindow {
+        consecutive_failures: peer_path.consecutive_udp_failures,
+    };
+    let new_state = transition(peer_path.https_state.into(), &mut window, input);
+    peer_path.consecutive_udp_failures = window.consecutive_failures;
+    peer_path.https_state = new_state.into();
+    new_state
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -454,5 +506,73 @@ mod tests {
         // Handshake succeeds this time.
         state = transition(state, &mut fw, TransitionInput::HandshakeOk);
         assert_eq!(state, HttpsFallbackState::Active);
+    }
+
+    // --- mackes-transport bridge (12.18 wire) ---------------------------
+
+    use mackes_transport::peer_path::PeerPath as MtPath;
+    use mackes_transport::TransportKind;
+
+    #[test]
+    fn observe_peer_advances_window_then_activates() {
+        let mut peer = MtPath::initial("alice".into(), TransportKind::DirectUdp);
+        let bad = TransitionInput::Probe(ProbePairOutcome::BothUdpFailed);
+        // Two failures: still Inactive, counter = 2.
+        assert_eq!(observe_peer(&mut peer, bad), HttpsFallbackState::Inactive);
+        assert_eq!(peer.consecutive_udp_failures, 1);
+        assert_eq!(observe_peer(&mut peer, bad), HttpsFallbackState::Inactive);
+        assert_eq!(peer.consecutive_udp_failures, 2);
+        // Third failure trips Activating; counter resets to 0
+        // per the transition() rules.
+        assert_eq!(
+            observe_peer(&mut peer, bad),
+            HttpsFallbackState::Activating,
+        );
+        assert_eq!(peer.consecutive_udp_failures, 0);
+        assert_eq!(
+            peer.https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Activating,
+        );
+    }
+
+    #[test]
+    fn observe_peer_resets_on_recovery() {
+        let mut peer = MtPath::initial("alice".into(), TransportKind::DirectUdp);
+        let bad = TransitionInput::Probe(ProbePairOutcome::BothUdpFailed);
+        let good = TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded);
+        observe_peer(&mut peer, bad);
+        observe_peer(&mut peer, bad);
+        assert_eq!(peer.consecutive_udp_failures, 2);
+        // Recovery snaps the counter back to 0.
+        assert_eq!(observe_peer(&mut peer, good), HttpsFallbackState::Inactive);
+        assert_eq!(peer.consecutive_udp_failures, 0);
+    }
+
+    #[test]
+    fn observe_peer_walks_activation_to_active() {
+        let mut peer = MtPath::initial("alice".into(), TransportKind::DirectUdp);
+        let bad = TransitionInput::Probe(ProbePairOutcome::BothUdpFailed);
+        observe_peer(&mut peer, bad);
+        observe_peer(&mut peer, bad);
+        observe_peer(&mut peer, bad);
+        assert_eq!(
+            peer.https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Activating,
+        );
+        // TLS handshake succeeds → Active.
+        observe_peer(&mut peer, TransitionInput::HandshakeOk);
+        assert_eq!(
+            peer.https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Active,
+        );
+        // Recovery → Inactive.
+        observe_peer(
+            &mut peer,
+            TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded),
+        );
+        assert_eq!(
+            peer.https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Inactive,
+        );
     }
 }

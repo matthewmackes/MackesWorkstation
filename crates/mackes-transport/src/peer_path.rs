@@ -15,6 +15,52 @@ use serde::{Deserialize, Serialize};
 
 use crate::{MessageClass, TransportKind};
 
+/// Phase 12.18 — per-peer HTTPS-tunnel activation state.
+/// The mesh-router observes probe outcomes per peer + feeds them
+/// into a per-peer `FailureWindow` (re-exported from
+/// `mackesd::https_fallback`). When the failure window meets the
+/// 3-cycle threshold, this state advances from `Inactive` to
+/// `Activating`; once the Https443 transport reports a successful
+/// TLS handshake, to `Active`. A fresh direct-UDP-or-DERP success
+/// snaps it back to `Inactive`.
+///
+/// Mirrors `mackesd::https_fallback::HttpsFallbackState` 1:1 so
+/// callers don't have to thread the mackesd type through the
+/// `mackes-transport` crate (which sits one level lower in the
+/// dep graph). The transition rules live in
+/// `mackesd::https_fallback::transition`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HttpsFallbackState {
+    /// Default — direct-UDP / DERP-UDP paths are healthy.
+    #[default]
+    Inactive,
+    /// Failure threshold met; TLS handshake to the configured
+    /// fallback host in flight.
+    Activating,
+    /// Tunnel up + carrying traffic.
+    Active,
+    /// Active tunnel's TLS or TCP layer broke; revert to
+    /// failure-window evaluation.
+    Failing,
+}
+
+impl HttpsFallbackState {
+    /// `true` when the routing layer should treat the HTTPS
+    /// tunnel as the active path.
+    #[must_use]
+    pub fn is_active(self) -> bool {
+        matches!(self, Self::Active)
+    }
+
+    /// `true` when the UI should surface the "connecting via
+    /// HTTPS…" toast.
+    #[must_use]
+    pub fn is_activating(self) -> bool {
+        matches!(self, Self::Activating)
+    }
+}
+
 /// One ICE-style candidate sourced from STUN (Phase 12.17) for a
 /// peer. Tailscale's WireGuard endpoint set is seeded with the
 /// `reflexive` address ahead of its own NAT-traversal probe so
@@ -127,6 +173,20 @@ pub struct PeerPath {
     /// see no behavior change.
     #[serde(default)]
     pub candidates: Vec<StunCandidate>,
+    /// Phase 12.18 — per-peer consecutive UDP-failure count.
+    /// The mesh-router increments this on each tick when both
+    /// direct-UDP and DERP-UDP probes fail; resets to 0 when
+    /// either succeeds. Crossing the 3-cycle threshold flips
+    /// `https_state` to `Activating`. Plain u32 (instead of the
+    /// richer `FailureWindow`) so the field is serde-friendly +
+    /// the transition logic remains in the mackesd crate.
+    #[serde(default)]
+    pub consecutive_udp_failures: u32,
+    /// Phase 12.18 — current HTTPS-tunnel activation state.
+    /// Advanced by the mesh-router via the
+    /// `mackesd::https_fallback::transition` table.
+    #[serde(default)]
+    pub https_state: HttpsFallbackState,
 }
 
 impl PeerPath {
@@ -143,6 +203,8 @@ impl PeerPath {
             health_score: 1.0,
             message_class_overrides: BTreeMap::new(),
             candidates: Vec::new(),
+            consecutive_udp_failures: 0,
+            https_state: HttpsFallbackState::Inactive,
         }
     }
 

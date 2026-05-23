@@ -209,6 +209,50 @@ impl MeshRouterWorker {
             now_ms,
         ))
     }
+
+    /// Phase 12.18 wire — feed one probe-pair outcome into the
+    /// per-peer HTTPS-fallback transition machine. Updates
+    /// `PeerPath::consecutive_udp_failures` +
+    /// `PeerPath::https_state` for `peer_id`. Returns the new
+    /// state so the caller can audit-log the transition.
+    ///
+    /// The future scorer integration (KDC2-1.9 follow-up) will
+    /// call this from `tick_once` after observing each peer's
+    /// direct-UDP + DERP-UDP probe outcomes; operator smokes +
+    /// integration tests call it directly. `None` when the peer
+    /// isn't in the state map yet.
+    pub async fn observe_probe_outcome(
+        &self,
+        peer_id: &str,
+        outcome: crate::https_fallback::ProbePairOutcome,
+    ) -> Option<crate::https_fallback::HttpsFallbackState> {
+        let mut state = self.state.write().await;
+        let path = state.get_mut(peer_id)?;
+        let new_state = crate::https_fallback::observe_peer(
+            path,
+            crate::https_fallback::TransitionInput::Probe(outcome),
+        );
+        Some(new_state)
+    }
+
+    /// Phase 12.18 wire — feed a TLS-handshake-completion signal
+    /// into the per-peer HTTPS-fallback machine. The Https443
+    /// transport's open() result wires here once the v3.0.3
+    /// 12.18 closure ships the transport (D.2 follow-up).
+    pub async fn observe_handshake_outcome(
+        &self,
+        peer_id: &str,
+        ok: bool,
+    ) -> Option<crate::https_fallback::HttpsFallbackState> {
+        let mut state = self.state.write().await;
+        let path = state.get_mut(peer_id)?;
+        let input = if ok {
+            crate::https_fallback::TransitionInput::HandshakeOk
+        } else {
+            crate::https_fallback::TransitionInput::HandshakeFailed
+        };
+        Some(crate::https_fallback::observe_peer(path, input))
+    }
 }
 
 #[cfg(test)]
@@ -344,5 +388,82 @@ mod tests {
         tx.send(true).expect("shutdown channel intact");
         let result = handle.await.expect("worker join");
         assert!(result.is_ok(), "worker must exit Ok on shutdown");
+    }
+
+    // --- Phase 12.18 wire — observe_probe_outcome / handshake ----------
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn observe_probe_outcome_walks_per_peer_state() {
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            g.insert(
+                "alice".into(),
+                PeerPath::initial("alice".into(), TransportKind::DirectUdp),
+            );
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), new_registry());
+        use crate::https_fallback::{HttpsFallbackState, ProbePairOutcome};
+        // 3 consecutive failures → Activating + counter reset to 0.
+        for _ in 0..3 {
+            assert!(w
+                .observe_probe_outcome("alice", ProbePairOutcome::BothUdpFailed)
+                .await
+                .is_some());
+        }
+        let g = state.read().await;
+        let path = g.get("alice").unwrap();
+        assert_eq!(
+            path.https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Activating,
+        );
+        assert_eq!(path.consecutive_udp_failures, 0);
+        // The returned state matches.
+        drop(g);
+        let s = w
+            .observe_probe_outcome("alice", ProbePairOutcome::AnyUdpSucceeded)
+            .await
+            .unwrap();
+        assert_eq!(s, HttpsFallbackState::Activating);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn observe_probe_outcome_unknown_peer_returns_none() {
+        let w = MeshRouterWorker::new(new_state(), new_registry());
+        let s = w
+            .observe_probe_outcome(
+                "ghost",
+                crate::https_fallback::ProbePairOutcome::BothUdpFailed,
+            )
+            .await;
+        assert!(s.is_none());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn observe_handshake_outcome_walks_active_or_failing() {
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            g.insert(
+                "alice".into(),
+                PeerPath::initial("alice".into(), TransportKind::DirectUdp),
+            );
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), new_registry());
+        // First push to Activating.
+        use crate::https_fallback::{HttpsFallbackState, ProbePairOutcome};
+        for _ in 0..3 {
+            w.observe_probe_outcome("alice", ProbePairOutcome::BothUdpFailed)
+                .await;
+        }
+        // HandshakeOk → Active.
+        let s = w.observe_handshake_outcome("alice", true).await.unwrap();
+        assert_eq!(s, HttpsFallbackState::Active);
+        // Subsequent fail → Failing.
+        let s = w.observe_handshake_outcome("alice", false).await.unwrap();
+        // From Active, handshake outcomes are no-ops per the
+        // transition table — only TunnelLost/Probe transitions
+        // out of Active. So the state stays Active.
+        assert_eq!(s, HttpsFallbackState::Active);
     }
 }

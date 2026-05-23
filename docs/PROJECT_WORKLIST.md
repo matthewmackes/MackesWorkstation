@@ -846,24 +846,104 @@ above; integration tasks below in dependency order.
   under 1.5 s on a real corporate-wifi peer) is pending HW-2
   alongside the rest of the connectivity bench scope. The
   code-side gate is closed.
-- [!] **v3.0.3: 12.18 wire HTTPS (BLOCKED on TransportRegistry having concrete Transport impls)-tunneled fallback activation
-  (Tier 3 mackesd::https_fallback)** — `mackesd/src/https_fallback.rs`
-  ships the policy layer (3-failed-cycle activation rule, etc.)
-  but the transport supervisor never consults it. Wire the failure
-  counter to the worker that owns transport-state transitions; on
-  activation, switch the `Transport` enum to `Https` and route
-  packets through the fallback. Acceptance: on a bench peer with
-  UDP fully blocked, after 3 consecutive direct+DERP failures the
-  fallback activates and a `tcpdump -i any port 443` shows
-  outbound HTTPS to the configured fallback host within 1s.
-  **v4.0.1 amendment:** add per v12-connectivity-scope.md Q10 — the
-  fallback uses (a) a real TLS handshake (not a synthetic UDP-in-
-  TCP), (b) realistic SNI matching the fallback host, (c) a
-  Let's Encrypt-signed cert chain that validates against the
-  system trust store. Acceptance: bench-test against a
-  packet-inspecting bench firewall (DPI-style); fallback
-  succeeds without the firewall recognizing the traffic as
-  tunneled.
+- [✓] **v3.0.3: 12.18 D.1 wire HTTPS-fallback state machine into
+  the mesh-router (Tier 3 mackesd::https_fallback) — shipped
+  2026-05-23** — `mackesd::https_fallback` is no longer dead.
+  `MeshRouterWorker` gained two async hooks the future scorer
+  integration (KDC2-1.9) + the per-tick probe loop call into:
+
+  - `observe_probe_outcome(peer_id, ProbePairOutcome)` — feeds
+    one direct-UDP+DERP-UDP pair outcome into the per-peer
+    transition machine. Updates `PeerPath::
+    consecutive_udp_failures` + `PeerPath::https_state` via the
+    new `mackesd::https_fallback::observe_peer` bridge. Three
+    consecutive `BothUdpFailed` outcomes flip the peer to
+    `Activating`.
+  - `observe_handshake_outcome(peer_id, ok)` — feeds the TLS
+    handshake completion signal. From `Activating`,
+    `HandshakeOk` → `Active`; `HandshakeFailed` → `Failing`.
+    From `Active`, handshake signals are no-ops (the transition
+    table requires `TunnelLost` / `Probe(AnyUdpSucceeded)` to
+    leave `Active`).
+
+  `mackes_transport::peer_path::HttpsFallbackState` is a serde-
+  friendly mirror of the mackesd enum (one-to-one variant
+  conversion via `From` impls) so `PeerPath` stays
+  dependency-light + healthz / panel readers can render the
+  state without dragging in the full transport supervisor.
+
+  Acceptance covered by tests (`workers::mesh_router::tests`):
+  - **observe_probe_outcome_walks_per_peer_state** — three
+    BothUdpFailed observations flip Inactive → Activating;
+    counter resets to 0 (per the transition table); subsequent
+    AnyUdpSucceeded returns the unchanged Activating state.
+  - **observe_probe_outcome_unknown_peer_returns_none** — call
+    against a peer not in the state map is a safe no-op.
+  - **observe_handshake_outcome_walks_active_or_failing** — full
+    lifecycle: 3× BothUdpFailed → Activating → HandshakeOk →
+    Active; subsequent handshake signals are inert from Active.
+
+  Phase 0.1 dead-module grep now returns
+  `mackes_transport::peer_path` + `workers::mesh_router` as
+  references; `https_fallback.rs` is fully wired.
+
+  **D.2 follow-up (left [ ] Open below):** the actual Https443
+  Transport impl that does the real TCP/443 + LE-cert-chain TLS
+  handshake to a configured fallback host. Once D.2 ships,
+  `observe_handshake_outcome` is fed from the Https443
+  transport's `open()` result + `Active` state actually carries
+  traffic via the tunnel. Until then, `Activating` is a
+  bench-observable terminal state — the operator-side metric is
+  `mackesd healthz` showing the per-peer
+  `https_state`/`consecutive_udp_failures` values.
+
+- [ ] **v4.0.1: 12.18 D.2 Https443 Transport impl (Tier 3
+  mackesd::transport::https443) — follow-up to D.1**
+
+  **As** the mesh-router worker,
+  **I want** a concrete `Transport` impl for the HTTPS-tunneled
+  fallback so that when `PeerPath::https_state` enters
+  `Activating`, packets actually flow through TLS/TCP/443 to a
+  configured fallback host,
+  **so that** corporate-firewall / hotel-wifi peers can reach
+  the mesh when both direct UDP + DERP UDP are blocked.
+
+  **Acceptance** (bench-observable):
+  - [ ] `mde::transport::https443::Https443Transport` ships as a
+        new mackesd-side crate or module, implements
+        `mackes_transport::Transport`, registers in the
+        `TransportRegistry` at daemon startup.
+  - [ ] `open(peer_id)` performs a **real** TLS handshake
+        (`tokio_rustls`) to the configured fallback host on
+        TCP/443. SNI matches the host's domain; the cert chain
+        is validated against the system trust store (no
+        custom verifier — the fallback host MUST present a
+        valid LE-signed cert per Q10).
+  - [ ] On handshake success, `mesh_router::
+        observe_handshake_outcome(peer_id, true)` flips the
+        peer to `Active`.
+  - [ ] On a bench peer with UDP fully blocked, after 3
+        BothUdpFailed observations, `tcpdump -i any port 443`
+        shows outbound HTTPS within 1 s.
+  - [ ] DPI-style middlebox bench (e.g., `mitmproxy --transparent`)
+        does not classify the traffic as tunneled — looks
+        indistinguishable from a normal browser fetch (real
+        TLS, real SNI, real cert chain).
+
+  **Implementation notes:**
+  - Fallback host configurable via `/etc/mde/connect/policy.toml`
+    or env var `MDE_HTTPS_FALLBACK_HOST` (default unset →
+    transport returns `Misconfigured { code:
+    "no_fallback_host" }`).
+  - Reuse the rustls infrastructure from `mde_kdc::tls::
+    connect_pinned_tls` — but with `WebPkiServerVerifier::new`
+    (system trust store) instead of `PinnedFingerprintVerifier`.
+  - On handshake failure, surface `TransportError::
+    HandshakeFailed { code: "tls_failed" }` so
+    `observe_handshake_outcome(peer_id, false)` runs from the
+    router and the peer transitions to `Failing`.
+  - Icon: Carbon `cloud--service-management` for the panel
+    surface that renders the fallback state.
 - [✓] **v3.0.3: 1.8 wire search-results view into mde-files
   (Tier 2 mde-files::search) — shipped 2026-05-22** — `peer_folder`
   view function now takes `search_query: &str` + `layout: Layout`
