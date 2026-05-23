@@ -828,7 +828,9 @@ above; integration tasks below in dependency order.
   was the dead-code item.
 - [!] **v3.0.3: 2.3 close DBusBackend (BLOCKED on Phase G + mackesd
   Files DBus server) — sharpened 2026-05-23 after operator observed
-  "most of the artifact manager is mockup"** — confirmed at v4.0.0:
+  "most of the artifact manager is mockup" + the iteration skill's
+  Phase 0.7 mockup audit also surfaced mde-workbench's launch
+  path** — confirmed at v4.0.0:
   everything except window chrome reads from `demo_data` constants
   (sidebar peers, peer folders, Inbox, Downloads file list,
   recent transfers, "you are anvil" header, audit log). Send-To
@@ -860,6 +862,26 @@ above; integration tasks below in dependency order.
   (not DemoBackend); send-to + history operations round-trip
   through D-Bus. Both Phase G and the mackesd Files surface
   need to land before this entry can flip to [✓].
+
+  **mde-workbench DemoBackend in launch path (Phase 0.7 audit
+  finding, 2026-05-23).** `crates/mde-workbench/src/app.rs:230`
+  has `impl Default for App { fn default() { with_backend(
+  Arc::new(DemoBackend::new())) } }`; `App::run()` invokes
+  `iced::application` which constructs via Default, so the
+  shipped `mde-workbench` binary boots with the demo backend.
+  Local-system reads (GTK theme list, fc-list fonts, sway
+  outputs, dnf check-update) work because each panel reads the
+  live system directly — those panels don't go through the
+  backend. What DOES go through it: settings PERSISTENCE +
+  cross-mesh settings PUSH. With DemoBackend both are
+  in-memory; changing a font in Workbench updates the panel
+  state, doesn't write to disk, doesn't propagate to peers. The
+  same Phase G + mackesd `dev.mackes.MDE.Settings` DBus server
+  unblockers apply here. Acceptance for the workbench half:
+  changing any setting in Workbench (a) writes to a real
+  config file (b) shows up in `mackesd healthz` / via `swaymsg`
+  / via `fc-cache -r` on the local node and (c) propagates to
+  peers within ~5 s through mackesd's fs_sync worker.
 - [✓] **v3.0.3: 5.3 route every icon-only mde-files button
   through a11y_labels (Tier 2 mde-files::a11y_labels) — shipped
   2026-05-22 (toolbar layout toggles wired; rest pending v4.0.1)** —
