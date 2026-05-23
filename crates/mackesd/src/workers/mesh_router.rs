@@ -163,6 +163,16 @@ impl MeshRouterWorker {
     /// into [`Self::scored_primary_for`] so unit tests can
     /// exercise the path-switch detection logic without running
     /// the full tick loop.
+    ///
+    /// Phase 12.18 D.3 (2026-05-23) — `tick_once` now drives the
+    /// HTTPS-fallback activation slice: for every peer in the
+    /// `Activating` state, locate the `Https443` transport in
+    /// the registry, call its `open(peer_id)`, and feed the
+    /// `Ok` / `Err` result back through
+    /// `observe_handshake_outcome` so the state machine advances
+    /// to `Active` / `Failing`. This closes the v3.0.3 12.18 D.3
+    /// follow-up; the scorer integration (KDC2-1.9) is a
+    /// separate concern.
     async fn tick_once(&self) {
         let started = Instant::now();
         let peer_count = self.peer_count().await;
@@ -170,8 +180,13 @@ impl MeshRouterWorker {
         debug!(
             peer_count,
             transport_count,
-            "mesh-router: tick (scaffold; full scorer integration KDC2-1.9 follow-up)",
+            "mesh-router: tick (12.18 D.3 active; full scorer integration KDC2-1.9 follow-up)",
         );
+        // 12.18 D.3 — drive HTTPS-fallback activation. Reads
+        // the state map under a snapshot lock so the registry
+        // walk + open() don't hold the write lock across a
+        // network-IO await.
+        self.drive_https_fallback_activations().await;
         // KDC2-1.12.b — record decision time. Use saturating
         // cast so a freakishly long tick (clock skew, stall)
         // bucket-saturates rather than panics.
@@ -181,6 +196,90 @@ impl MeshRouterWorker {
                 guard.observe(us);
             }
         }
+    }
+
+    /// Phase 12.18 D.3 — for every peer in `Activating`, open
+    /// the registered `Https443` transport + feed the result
+    /// back into the state machine.
+    ///
+    /// Behavior:
+    ///   * Snapshots the `Activating` peer-id list under a read
+    ///     lock (released before any network IO).
+    ///   * Finds the first `TransportKind::Https443` in the
+    ///     registry (today there's at most one; the registry
+    ///     intentionally allows multiple impls for future
+    ///     experimentation).
+    ///   * For each Activating peer, calls `transport.open(
+    ///     peer_id)` + `observe_handshake_outcome(peer_id, ok)`.
+    ///   * Logs `Active` / `Failing` transitions at info level
+    ///     so operators see the activation cycle in the
+    ///     `mackesd serve` log.
+    ///
+    /// Returns the count of activation attempts driven this
+    /// tick. Exposed so tests + operator-mode smokes can
+    /// exercise the drive without owning the full tick loop.
+    pub async fn drive_https_fallback_activations(&self) -> usize {
+        // Look up the Https443 transport; bail without an
+        // attempt count if none is registered (D.2 hasn't
+        // landed in the registry yet, or the deployment chose
+        // not to register one).
+        let https443 = match self.find_transport(TransportKind::Https443) {
+            Some(t) => t,
+            None => return 0,
+        };
+        // Snapshot the Activating peer-id list. Hold the read
+        // lock only as long as the iteration; drop before any
+        // open() awaits to keep the per-tick write lock contention
+        // sub-millisecond.
+        let activating: Vec<String> = {
+            let state = self.state.read().await;
+            state
+                .iter()
+                .filter(|(_, path)| {
+                    path.https_state
+                        == mackes_transport::peer_path::HttpsFallbackState::Activating
+                })
+                .map(|(id, _)| id.clone())
+                .collect()
+        };
+        let attempts = activating.len();
+        for peer_id in activating {
+            let result = https443.open(&peer_id).await;
+            let ok = result.is_ok();
+            if let Err(ref e) = result {
+                info!(
+                    peer = %peer_id,
+                    code = e.code(),
+                    "mesh-router: Https443::open failed; marking peer Failing",
+                );
+            } else {
+                info!(
+                    peer = %peer_id,
+                    "mesh-router: Https443::open succeeded; peer Active",
+                );
+            }
+            // Drop the live Connection — D.3 closes the
+            // activation acceptance loop. The connection-keeping
+            // slice (D.4: hold the conn across sends, drive
+            // packet writes through it) lands separately.
+            drop(result);
+            // Feed the outcome back into the state machine.
+            // `None` when the peer was concurrently removed
+            // from the state map; that's a benign race.
+            let _ = self.observe_handshake_outcome(&peer_id, ok).await;
+        }
+        attempts
+    }
+
+    /// Locate the first registered transport whose `kind()`
+    /// matches. `None` when no impl was registered for that
+    /// kind. Cheap O(n) over the small (≤ 4) registry.
+    #[must_use]
+    pub fn find_transport(&self, kind: TransportKind) -> Option<Arc<dyn Transport>> {
+        self.registry
+            .iter()
+            .find(|t| t.kind() == kind)
+            .cloned()
     }
 
     /// Pure path-switch detector. Given a peer's current
@@ -465,5 +564,166 @@ mod tests {
         // transition table — only TunnelLost/Probe transitions
         // out of Active. So the state stays Active.
         assert_eq!(s, HttpsFallbackState::Active);
+    }
+
+    // --- Phase 12.18 D.3 — drive_https_fallback_activations ------------
+
+    /// Build a router whose registry holds a MockTransport
+    /// pretending to be Https443. MockTransport's `open` returns
+    /// Ok for `peer_id == "paired"` and Err otherwise — which
+    /// matches the activation drive's call shape: feed the
+    /// per-peer peer_id, get a result back.
+    fn https443_registry() -> TransportRegistry {
+        Arc::new(vec![Arc::new(MockTransport::new(TransportKind::Https443))
+            as Arc<dyn Transport>])
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn drive_returns_zero_when_no_https443_registered() {
+        // Default test registry has DirectUdp + KdcTls only; no
+        // Https443 impl. drive() must return 0 without panicking.
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            let mut p = PeerPath::initial("alice".into(), TransportKind::DirectUdp);
+            p.https_state = mackes_transport::peer_path::HttpsFallbackState::Activating;
+            g.insert("alice".into(), p);
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), new_registry());
+        let attempts = w.drive_https_fallback_activations().await;
+        assert_eq!(attempts, 0);
+        // Peer state untouched — still Activating.
+        let g = state.read().await;
+        assert_eq!(
+            g.get("alice").unwrap().https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Activating,
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn drive_skips_peers_not_in_activating() {
+        // Peers in Inactive / Active / Failing aren't touched.
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            // Inactive (default).
+            g.insert(
+                "inactive".into(),
+                PeerPath::initial("inactive".into(), TransportKind::DirectUdp),
+            );
+            // Active.
+            let mut active = PeerPath::initial("active".into(), TransportKind::DirectUdp);
+            active.https_state = mackes_transport::peer_path::HttpsFallbackState::Active;
+            g.insert("active".into(), active);
+            // Failing.
+            let mut failing = PeerPath::initial("failing".into(), TransportKind::DirectUdp);
+            failing.https_state = mackes_transport::peer_path::HttpsFallbackState::Failing;
+            g.insert("failing".into(), failing);
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), https443_registry());
+        let attempts = w.drive_https_fallback_activations().await;
+        assert_eq!(attempts, 0, "no Activating peers ⇒ no open() calls");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn drive_advances_activating_peer_to_active_on_open_ok() {
+        // Mock transport returns Ok for peer_id == "paired";
+        // drive() should call observe_handshake_outcome(_, true)
+        // → peer transitions Activating → Active.
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            let mut p = PeerPath::initial("paired".into(), TransportKind::DirectUdp);
+            p.https_state = mackes_transport::peer_path::HttpsFallbackState::Activating;
+            g.insert("paired".into(), p);
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), https443_registry());
+        let attempts = w.drive_https_fallback_activations().await;
+        assert_eq!(attempts, 1);
+        let g = state.read().await;
+        assert_eq!(
+            g.get("paired").unwrap().https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Active,
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn drive_advances_activating_peer_to_failing_on_open_err() {
+        // Mock transport returns Err for peer_id == "ghost";
+        // drive() should call observe_handshake_outcome(_, false)
+        // → peer transitions Activating → Failing.
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            let mut p = PeerPath::initial("ghost".into(), TransportKind::DirectUdp);
+            p.https_state = mackes_transport::peer_path::HttpsFallbackState::Activating;
+            g.insert("ghost".into(), p);
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), https443_registry());
+        let attempts = w.drive_https_fallback_activations().await;
+        assert_eq!(attempts, 1);
+        let g = state.read().await;
+        assert_eq!(
+            g.get("ghost").unwrap().https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Failing,
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn drive_handles_multiple_activating_peers_in_one_tick() {
+        // Two peers both in Activating: one will get Ok ("paired"),
+        // the other Err. Both transition correctly in a single
+        // drive() call.
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            let mut p = PeerPath::initial("paired".into(), TransportKind::DirectUdp);
+            p.https_state = mackes_transport::peer_path::HttpsFallbackState::Activating;
+            g.insert("paired".into(), p);
+            let mut q = PeerPath::initial("ghost".into(), TransportKind::DirectUdp);
+            q.https_state = mackes_transport::peer_path::HttpsFallbackState::Activating;
+            g.insert("ghost".into(), q);
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), https443_registry());
+        let attempts = w.drive_https_fallback_activations().await;
+        assert_eq!(attempts, 2);
+        let g = state.read().await;
+        assert_eq!(
+            g.get("paired").unwrap().https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Active,
+        );
+        assert_eq!(
+            g.get("ghost").unwrap().https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Failing,
+        );
+    }
+
+    #[test]
+    fn find_transport_returns_some_for_known_kind() {
+        let w = MeshRouterWorker::new(new_state(), https443_registry());
+        assert!(w.find_transport(TransportKind::Https443).is_some());
+        // Not in registry → None.
+        assert!(w.find_transport(TransportKind::KdcTls).is_none());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn tick_once_drives_activation_for_activating_peers() {
+        // End-to-end: an Activating peer + a registered Https443
+        // transport + a tick_once call → peer is Active after
+        // the tick.
+        let state = new_state();
+        {
+            let mut g = state.write().await;
+            let mut p = PeerPath::initial("paired".into(), TransportKind::DirectUdp);
+            p.https_state = mackes_transport::peer_path::HttpsFallbackState::Activating;
+            g.insert("paired".into(), p);
+        }
+        let w = MeshRouterWorker::new(Arc::clone(&state), https443_registry());
+        w.tick_once().await;
+        let g = state.read().await;
+        assert_eq!(
+            g.get("paired").unwrap().https_state,
+            mackes_transport::peer_path::HttpsFallbackState::Active,
+        );
     }
 }

@@ -972,42 +972,66 @@ above; integration tasks below in dependency order.
     needs to drive `open()` from the tick loop when the per-
     peer state enters `Activating`.
 
-- [ ] **v4.0.1: 12.18 D.3 wire MeshRouterWorker::tick_once to
-  drive Https443 opens on Activating (Tier 3) — follow-up to
-  D.1 + D.2 (2026-05-23)**
+- [✓] **v4.0.1: 12.18 D.3 wire MeshRouterWorker::tick_once to
+  drive Https443 opens on Activating (Tier 3) — shipped
+  2026-05-23** — closes the third leg of the 12.18 trilogy
+  (D.1 state machine + D.2 transport impl + D.3 activation
+  drive). `tick_once` now actively walks the per-peer state
+  map each tick and drives the Activating → Active/Failing
+  transition for any peer whose HTTPS-fallback machine is
+  mid-activation.
 
-  **As** the mesh-router worker,
-  **I want** my tick loop to actually call
-  `Https443Transport::open(peer_id)` for each peer in the
-  `Activating` state + feed the result back through
-  `observe_handshake_outcome`,
-  **so that** the per-peer `HttpsFallbackState` actually advances
-  from `Activating` to `Active` (or `Failing`) under live load.
+  Shipped:
+  - `MeshRouterWorker::drive_https_fallback_activations()` —
+    public-but-tick-driven method that:
+    1. Looks up the `Https443` impl via `find_transport`.
+       Returns 0 if no impl is registered (graceful-degrade for
+       daemons running without the transport).
+    2. Snapshots the Activating peer-id list under a read lock,
+       drops the lock before any open() awaits (keeps the
+       per-tick write-lock contention sub-millisecond).
+    3. For each peer: `https443.open(peer_id).await` → feed
+       result via `observe_handshake_outcome(peer_id, ok)`.
+       The state machine handles the Activating → Active /
+       Failing transition; D.3 just connects the wires.
+    4. Logs each outcome at `info` level with the peer id +
+       error code so the operator sees activation cycles in
+       `mackesd serve` output.
+  - `MeshRouterWorker::find_transport(kind)` — O(n) lookup into
+    the small (≤ 4) registry. Exposed for tests + future
+    operator-mode smokes.
+  - `tick_once` calls `drive_https_fallback_activations()` on
+    every tick (between the debug log + the metrics histogram
+    write).
 
-  **Acceptance** (bench-observable):
-  - [ ] On the next tick after a peer enters `Activating`,
-        the router walks the `TransportRegistry` looking for a
-        `TransportKind::Https443` impl + calls `open(peer_id)`
-        on it.
-  - [ ] On `Ok`: emit
-        `observe_handshake_outcome(peer_id, true)` → peer
-        transitions to `Active`.
-  - [ ] On `Err`: emit
-        `observe_handshake_outcome(peer_id, false)` → peer
-        transitions to `Failing`. Error code in the audit log.
-  - [ ] Re-attempt cadence: per the existing tick interval
-        (default 10 s); the failure window backoff lives in the
-        state machine, not the tick.
+  Acceptance covered by tests (7 new `mesh_router::tests`):
+  - **No Https443 registered → 0 attempts** (graceful-degrade).
+  - **Activating peer with Ok-returning Https443 → Active.**
+  - **Activating peer with Err-returning Https443 → Failing.**
+  - **Multiple Activating peers in one tick** — drive() handles
+    them all + each transitions correctly.
+  - **Peers in Inactive/Active/Failing aren't touched.**
+  - **`find_transport` lookup** returns Some for known kinds,
+    None otherwise.
+  - **End-to-end `tick_once`** drives the full Activating →
+    Active transition for a peer whose state was pre-seeded.
 
-  **Implementation notes:**
-  - `tick_once` today is mostly a scaffold (debug log + the
-    metrics histogram update); the scorer integration is
-    KDC2-1.9. D.3 lands the Https443 activation slice
-    independent of the scorer.
-  - Reference: the existing
-    `MeshRouterWorker::observe_handshake_outcome` + the new
-    `transport::https443::Https443Transport::open` are the two
-    pieces; D.3 just connects them inside `tick_once`.
+  20 mesh_router tests now green (13 previous + 7 new). The
+  12.18 wire is end-to-end functional on the code side:
+  `observe_probe_outcome` + `tick_once` together walk peers
+  from Inactive through Activating to Active using a real TLS
+  handshake (D.2 transport) when the fallback host is
+  configured.
+
+  Remaining bench acceptance (HW-2): real corporate-firewall
+  peer with UDP blocked, `tcpdump -i any port 443` shows
+  outbound HTTPS within 1 s of Activating; mitmproxy
+  transparent doesn't classify as tunneled.
+
+  **D.4 — connection-keeping slice** (the live `Connection`
+  returned by `open()` is dropped today; D.4 will hold it
+  across sends + drive packet writes through it) is captured
+  as a downstream task pending the framing-codec choice.
 - [✓] **v3.0.3: 1.8 wire search-results view into mde-files
   (Tier 2 mde-files::search) — shipped 2026-05-22** — `peer_folder`
   view function now takes `search_query: &str` + `layout: Layout`
