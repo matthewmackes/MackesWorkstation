@@ -2692,24 +2692,34 @@ license," "add guard," "add CI gate"); a few are scope
 clarifications ("Phase G migration in or out of v4.x?"). Working
 through them in priority order.
 
-- [>] **v4.0.1: lightdm-gtk-greeter Carbon glyphs +
-  fonts (partial 2026-05-23, Mackes GTK theme deferred)** —
-  Q36 in `docs/design/v3.0.0-mackes-xfce-workstation.md`
-  locks "20 px dark stripe, Carbon glyphs, Red Hat fonts for
-  visual continuity". Audit:
-  * `install-helpers/configure-lightdm.sh` already configures
-    a dark wallpaper + `font-name=Red Hat Text 11`, so font
-    continuity ✓.
-  * `icon-theme-name` was `Black-Sun` (third-party); flipped
-    to `Mackes-Carbon` in this commit so greeter indicators
-    (clock / session / language / a11y / power) render in
-    the same Carbon line-weight style as the desktop.
-  Remaining (v4.0.2): bundle a proper Mackes-styled GTK
-  theme matching Q36's "20 px dark stripe" panel chrome
-  (currently uses the third-party Orchis-Dark theme — close
-  but not on-brand). Acceptance for full close: fresh `dnf
-  install mde && reboot` shows a greeter with a Carbon-
-  styled panel stripe (not the Orchis-Dark variant).
+- [✓] **v4.0.1: lightdm-gtk-greeter Carbon glyphs + fonts —
+  shipped 2026-05-23 (partial; full GTK-theme split to
+  v4.0.2-LDM-1)** — Q36 in
+  `docs/design/v3.0.0-mackes-xfce-workstation.md` locks
+  "20 px dark stripe, Carbon glyphs, Red Hat fonts for
+  visual continuity". Audit + ship:
+  * `install-helpers/configure-lightdm.sh` already configured
+    dark wallpaper + `font-name=Red Hat Text 11` — fonts ✓.
+  * `icon-theme-name` flipped from third-party `Black-Sun` to
+    `Mackes-Carbon` so greeter indicators (clock / session /
+    language / a11y / power) render in the same Carbon
+    line-weight style as the desktop. Glyphs ✓.
+  Two of three Q36 acceptance points closed (fonts +
+  glyphs). The "20 px dark stripe" stays as v4.0.2-LDM-1
+  below since it's a GTK theme bundling task that needs
+  visual design coordination.
+
+- [ ] **v4.0.2: ship Mackes-styled GTK greeter theme** —
+  split from the v4.0.1 lightdm-gtk-greeter task on
+  2026-05-23. Greeter currently uses Orchis-Dark (third-
+  party). Q36 spec calls for a Mackes-styled 20 px dark
+  panel stripe matching the in-session top bar. Build
+  involves: (a) author a GTK CSS theme in
+  `data/themes/Mackes-Dark/gtk-3.0/` matching the desktop
+  panel chrome; (b) install via spec; (c) update
+  `configure-lightdm.sh` to set `theme-name=Mackes-Dark`.
+  Acceptance: fresh `dnf install mde && reboot` shows the
+  Carbon-styled panel stripe (not Orchis-Dark).
 - [✓] **v4.0.1: Plymouth theme — already shipped (verified
   2026-05-23)** — audit found the work was complete: theme
   directory exists at `data/plymouth/mackes/{mackes.plymouth,
