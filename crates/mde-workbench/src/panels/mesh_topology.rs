@@ -18,10 +18,12 @@
 //! Chrome influence (Phase 0.8): Win11 Settings → Bluetooth &
 //! devices "All devices" tabular view.
 
+use std::f32::consts::TAU;
 use std::time::SystemTime;
 
+use iced::widget::canvas::{self, Canvas, Frame, Path, Stroke, Text};
 use iced::widget::{button, column, container, row, scrollable, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Task, Theme};
+use iced::{Background, Border, Color, Element, Length, Padding, Point, Rectangle, Renderer, Size, Task, Theme};
 use mde_theme::{mde_icon, FontSize, Icon, IconSize, Palette, TypeRole};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -75,18 +77,27 @@ pub struct PeerRow {
     pub status: PeerStatus,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Layout {
+    #[default]
+    Table,
+    Graph,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct MeshTopologyPanel {
     pub peers: Vec<PeerRow>,
     pub error: Option<String>,
     pub last_run_at: Option<SystemTime>,
     pub busy: bool,
+    pub layout: Layout,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     Loaded(Result<Vec<PeerRow>, String>),
     RefreshClicked,
+    SetLayout(Layout),
 }
 
 impl MeshTopologyPanel {
@@ -120,6 +131,10 @@ impl MeshTopologyPanel {
             Message::RefreshClicked => {
                 self.busy = true;
                 Self::load()
+            }
+            Message::SetLayout(l) => {
+                self.layout = l;
+                Task::none()
             }
         }
     }
@@ -177,32 +192,65 @@ impl MeshTopologyPanel {
         })
         .on_press(crate::Message::MeshTopology(Message::RefreshClicked));
 
+        let table_btn = layout_toggle_btn("Table", self.layout == Layout::Table, palette)
+            .on_press(crate::Message::MeshTopology(Message::SetLayout(
+                Layout::Table,
+            )));
+        let graph_btn = layout_toggle_btn("Graph", self.layout == Layout::Graph, palette)
+            .on_press(crate::Message::MeshTopology(Message::SetLayout(
+                Layout::Graph,
+            )));
+
         let header = row![
             column![title, subtitle].spacing(2),
             Space::with_width(Length::Fill),
+            table_btn,
+            Space::with_width(Length::Fixed(4.0)),
+            graph_btn,
+            Space::with_width(Length::Fixed(8.0)),
             refresh_btn,
         ]
         .align_y(iced::alignment::Vertical::Center);
 
-        let mut rows_col = column![table_head(palette)].spacing(2);
-        for p in &self.peers {
-            rows_col = rows_col.push(table_row(p, palette));
-        }
-        if self.peers.is_empty() && self.last_run_at.is_some() {
-            rows_col = rows_col.push(empty_state_card(palette, self.error.as_deref()));
-        }
+        let body_element: Element<'_, crate::Message> = match self.layout {
+            Layout::Table => {
+                let mut rows_col = column![table_head(palette)].spacing(2);
+                for p in &self.peers {
+                    rows_col = rows_col.push(table_row(p, palette));
+                }
+                if self.peers.is_empty() && self.last_run_at.is_some() {
+                    rows_col = rows_col.push(empty_state_card(palette, self.error.as_deref()));
+                }
+                scrollable(rows_col).height(Length::Fill).into()
+            }
+            Layout::Graph => {
+                if self.peers.is_empty() {
+                    empty_state_card(palette, self.error.as_deref())
+                } else {
+                    Canvas::new(GraphProgram {
+                        peers: self.peers.clone(),
+                        palette,
+                    })
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+                }
+            }
+        };
 
-        let footer = text(
-            "Inter-peer latency matrix is not yet collected. Mackesd would need a peer-mesh sniffer to populate the missing edges; tracked as WB-2.k.a follow-up.",
-        )
-        .size(10)
-        .color(palette.text_muted.into_iced_color());
+        let footer_text = match self.layout {
+            Layout::Table => "Inter-peer latency matrix is not yet collected. Mackesd needs a peer-mesh sniffer to populate the missing edges; tracked as AF-NET-2 follow-up.",
+            Layout::Graph => "Graph shows the local node at center + each enrolled peer arrayed around it. Edges + thickness will reflect inter-peer latency when AF-NET-2 ships.",
+        };
+        let footer = text(footer_text)
+            .size(10)
+            .color(palette.text_muted.into_iced_color());
 
         container(
             column![
                 header,
                 Space::with_height(Length::Fixed(16.0)),
-                scrollable(rows_col).height(Length::Fill),
+                body_element,
                 Space::with_height(Length::Fixed(8.0)),
                 footer,
             ]
@@ -212,6 +260,156 @@ impl MeshTopologyPanel {
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+    }
+}
+
+fn layout_toggle_btn<'a>(
+    label: &'a str,
+    selected: bool,
+    palette: Palette,
+) -> iced::widget::Button<'a, crate::Message> {
+    let accent = palette.accent.into_iced_color();
+    let text_main = palette.text.into_iced_color();
+    let text_muted = palette.text_muted.into_iced_color();
+    iced::widget::button(text(label).size(11).color(if selected {
+        Color::WHITE
+    } else {
+        text_muted
+    }))
+    .padding(Padding::from([3u16, 10u16]))
+    .style(move |_t: &Theme, status: iced::widget::button::Status| {
+        let bg = if selected {
+            accent
+        } else {
+            match status {
+                iced::widget::button::Status::Hovered => Color {
+                    r: 0.15,
+                    g: 0.15,
+                    b: 0.17,
+                    a: 1.0,
+                },
+                _ => Color::TRANSPARENT,
+            }
+        };
+        iced::widget::button::Style {
+            background: Some(Background::Color(bg)),
+            text_color: if selected { Color::WHITE } else { text_main },
+            border: Border {
+                color: if selected {
+                    Color::TRANSPARENT
+                } else {
+                    Color { a: 0.20, ..Color::WHITE }
+                },
+                width: if selected { 0.0 } else { 1.0 },
+                radius: 4.0.into(),
+            },
+            shadow: iced::Shadow::default(),
+        }
+    })
+}
+
+/// WB-2.k.a (2026-05-23) — canvas program that draws the mesh
+/// graph: local node at center as a filled circle, each peer
+/// arrayed around it in a ring with a connecting edge. Status
+/// color tints the peer circles. Edge thickness is uniform for
+/// now (no inter-peer-latency data yet — AF-NET-2 fills that in).
+pub struct GraphProgram {
+    pub peers: Vec<PeerRow>,
+    pub palette: Palette,
+}
+
+impl<Message> canvas::Program<Message> for GraphProgram {
+    type State = ();
+
+    fn draw(
+        &self,
+        _state: &Self::State,
+        renderer: &Renderer,
+        _theme: &Theme,
+        bounds: Rectangle,
+        _cursor: iced::mouse::Cursor,
+    ) -> Vec<canvas::Geometry> {
+        let mut frame = Frame::new(renderer, bounds.size());
+        let size = bounds.size();
+        let center = Point::new(size.width / 2.0, size.height / 2.0);
+
+        // Empty state guard (view() already short-circuits but
+        // be defensive).
+        if self.peers.is_empty() {
+            return vec![frame.into_geometry()];
+        }
+
+        // Layout: peers arrayed on a ring at radius = min(W,H)*0.36
+        // around the center node.
+        let ring_radius = (size.width.min(size.height) * 0.36).max(60.0);
+        let n = self.peers.len() as f32;
+        let center_radius = 28.0;
+        let peer_radius = 22.0;
+        let edge_color = self.palette.border.into_iced_color();
+        let text_color = self.palette.text.into_iced_color();
+        let muted = self.palette.text_muted.into_iced_color();
+        let accent = self.palette.accent.into_iced_color();
+
+        // Draw edges first (so circles render on top).
+        for i in 0..self.peers.len() {
+            let angle = (i as f32 / n) * TAU - std::f32::consts::FRAC_PI_2;
+            let px = center.x + angle.cos() * ring_radius;
+            let py = center.y + angle.sin() * ring_radius;
+            let edge = Path::line(center, Point::new(px, py));
+            frame.stroke(
+                &edge,
+                Stroke {
+                    style: canvas::Style::Solid(edge_color),
+                    width: 1.5,
+                    ..Stroke::default()
+                },
+            );
+        }
+
+        // Draw center (local) node.
+        let center_circle = Path::circle(center, center_radius);
+        frame.fill(&center_circle, accent);
+        let center_label = Text {
+            content: "self".to_string(),
+            position: center,
+            color: Color::WHITE,
+            size: 12.0.into(),
+            font: iced::Font::DEFAULT,
+            horizontal_alignment: iced::alignment::Horizontal::Center,
+            vertical_alignment: iced::alignment::Vertical::Center,
+            ..Text::default()
+        };
+        frame.fill_text(center_label);
+
+        // Draw peers + their labels.
+        for (i, p) in self.peers.iter().enumerate() {
+            let angle = (i as f32 / n) * TAU - std::f32::consts::FRAC_PI_2;
+            let pos = Point::new(
+                center.x + angle.cos() * ring_radius,
+                center.y + angle.sin() * ring_radius,
+            );
+            let fill = match p.status {
+                PeerStatus::Online => Color::from_rgb(0.20, 0.80, 0.40),
+                PeerStatus::Idle => Color::from_rgb(0.95, 0.70, 0.20),
+                PeerStatus::Offline => Color::from_rgb(0.92, 0.32, 0.30),
+                PeerStatus::Unknown => muted,
+            };
+            let circle = Path::circle(pos, peer_radius);
+            frame.fill(&circle, fill);
+            let name = Text {
+                content: p.name.clone(),
+                position: Point::new(pos.x, pos.y + peer_radius + 14.0),
+                color: text_color,
+                size: 11.0.into(),
+                font: iced::Font::DEFAULT,
+                horizontal_alignment: iced::alignment::Horizontal::Center,
+                vertical_alignment: iced::alignment::Vertical::Center,
+                ..Text::default()
+            };
+            frame.fill_text(name);
+        }
+
+        vec![frame.into_geometry()]
     }
 }
 

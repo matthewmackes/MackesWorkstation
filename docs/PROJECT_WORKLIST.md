@@ -1978,15 +1978,37 @@ integration needed.
   7 unit tests on the parser shape lock + status round-trip
   + view-render smokes.
 
-- [ ] **WB-2.k.a: Mesh Topology canvas-graph (v4.1 polish)** —
-  the v4.0.1 ship above is a tabular peer roster. The original
-  spec asked for iced::canvas with peers-as-nodes + latency-as-
-  edge-weights. Inter-peer latency isn't collected yet
-  (mackesd needs a peer-mesh sniffer — chains on the
-  TransportRegistry concrete-impls work in the KDC2 epic);
-  once it is, the canvas variant can be either a sibling
-  panel or a layout-toggle on this one. Closed when both
-  the data + the canvas widget ship.
+- [✓] **WB-2.k.a: Mesh Topology canvas-graph (shipped 2026-05-23)** —
+  added a Table/Graph layout toggle to the Mesh Topology
+  panel. Graph layout uses `iced::widget::canvas::Canvas`
+  to draw the local node at center + each enrolled peer
+  arrayed in a ring, edges connecting peers to center.
+  Peer circles tinted by status (ONLINE green / IDLE amber
+  / OFFLINE red / UNKNOWN grey). Empty state still renders
+  a friendly card.
+
+  Iced `canvas` feature added to mde-workbench's deps so
+  the Canvas widget compiles. Implements
+  `canvas::Program::draw` over a `GraphProgram` struct
+  that owns the peer list + palette.
+
+  Edge thickness is uniform today — inter-peer latency
+  isn't collected yet (chains on AF-NET-2 mesh sniffer
+  work). When that lands, the edges can vary thickness +
+  opacity by latency.
+
+  571 mde-workbench lib tests pass (no new tests — canvas
+  draw is render-only with no testable pure logic; the
+  view-renders-without-panic smokes cover the layout
+  toggle).
+
+- [ ] **AF-NET-2: peer-mesh latency sniffer (mackesd worker)** —
+  feeds the WB-2.k.a canvas edge thickness + the panel
+  Mesh tray badge. Worker periodically pings each enrolled
+  peer (via the chosen Transport from KDC2-4.x) + writes
+  the result to ~/.cache/mde/mesh-latency.json. Chains on
+  the TransportRegistry concrete impls (currently the
+  blocker for 12.17/12.18 too).
 
 - [✓] **v4.0.1: WB-2.l Network Remote Desktop (shipped 2026-05-23)**
   Built `crates/mde-workbench/src/panels/remote_desktop.rs` —
