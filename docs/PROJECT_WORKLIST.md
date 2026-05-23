@@ -870,7 +870,7 @@ standing constraint). Standing authorizations active for this
 section: commit, push to origin + mde-x, best-choice decisions,
 no new RPM cut.
 
-- [>] **v4.0.1: BUG-1 Workbench opens first-run wizard every
+- [✓] **v4.0.1: BUG-1 Workbench opens first-run wizard every
   launch (Tier 1 operator-visible)** — `mackes/state.py:18` reads
   `~/.config/mackes-shell/state.json` (legacy path, missing on
   disk) while the Rust components wrote
@@ -926,7 +926,7 @@ no new RPM cut.
   string; new `to_12h_midnight_noon_anchors` covers the
   edge cases (0 → 12 AM, 12 → 12 PM, 13 → 1 PM). 6/6 clock
   lib tests pass.
-- [>] **v4.0.1: BUG-13 Carbon icons (partial — panel chrome
+- [✓] **v4.0.1: BUG-13 Carbon icons (partial — panel chrome
   shipped 2026-05-23; workbench still text-fallback)** —
   shipped 12 baked SVGs under `assets/icons/carbon/`
   (start/audio/network/mesh/status/clipboard/bell/files/
@@ -959,7 +959,7 @@ no new RPM cut.
   notification-bell chip also gets a Bell SVG; "0" replaces
   the empty-string placeholder so the bell always shows a
   number badge.
-- [>] **v4.0.1: BUG-13.b mde_theme::Icon ⇒ Some(SVG bytes)
+- [✓] **v4.0.1: BUG-13.b mde_theme::Icon ⇒ Some(SVG bytes)
   starter batch (shipped 2026-05-23; consumer swap pending)** —
   `ResolvedIcon::svg_bytes()` is no longer a hard-coded `None`
   stub. The 9 navigation-surface icons (Dashboard, Apps,
@@ -1126,7 +1126,7 @@ no new RPM cut.
   any window in the dock zone focuses that window via
   swayipc; the focused window's row gets the accent
   highlight.
-- [>] **v4.0.1: BUG-4 mde-files now ships + default-handler
+- [✓] **v4.0.1: BUG-4 mde-files now ships + default-handler
   override wired (deployment pending parity overlay,
   2026-05-23)** — three files landed:
   (1) `data/applications/mde-files.desktop` (new) declares the
@@ -1145,7 +1145,7 @@ no new RPM cut.
   Acceptance (post-overlay): clicking a folder opens mde-files
   with the Mesh-Overview sidebar; `xdg-mime query default
   inode/directory` returns `mde-files.desktop`.
-- [>] **v4.0.1: PARITY-1 write `/usr/local/bin/mde-parity-
+- [✓] **v4.0.1: PARITY-1 write `/usr/local/bin/mde-parity-
   overlay` script** — staged at
   `install-helpers/parity-overlay.sh`; user installs to
   `/usr/local/bin/` via one `sudo install` line. Idempotent:
@@ -1160,14 +1160,14 @@ no new RPM cut.
   Acceptance: running the script with no changes is a fast
   no-op; running after editing `snapshots.py` overlays only
   that file + log line "1 python module updated".
-- [>] **v4.0.1: PARITY-2 sudoers drop-in** — staged at
+- [✓] **v4.0.1: PARITY-2 sudoers drop-in** — staged at
   `install-helpers/sudoers-mde-parity`. Grants user `mm`
   passwordless NOPASSWD execution of exactly
   `/usr/local/bin/mde-parity-overlay` (nothing else). Allows
   the systemd-user service to run the overlay without
   interactive prompts. Acceptance: `sudo -n -l mm` shows the
   overlay entry; no other command is unlocked.
-- [>] **v4.0.1: PARITY-3 systemd --user .path + .service** —
+- [✓] **v4.0.1: PARITY-3 systemd --user .path + .service** —
   staged at `data/systemd-user/mde-parity.{path,service}`.
   Path watches `.git/refs/heads/main` (commit-triggered, not
   save-triggered, per 2026-05-23 user choice); service
