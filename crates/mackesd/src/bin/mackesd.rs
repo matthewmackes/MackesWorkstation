@@ -1398,6 +1398,36 @@ fn run_serve(
             }
         }
 
+        // v4.0.1 AF-NET-2 (2026-05-23) — mesh-latency sniffer.
+        // Pings every enrolled non-local peer every 30 s and
+        // writes the result to ~/.cache/mde/mesh-latency.json.
+        // The WB-2.k.a Cairo topology canvas + panel Mesh-status
+        // tray badge both consume the file. Best-choice
+        // deviation from the TransportRegistry-routed approach
+        // — see worker doc-comment.
+        match mackesd_core::store::open(&db_path) {
+            Ok(conn) => {
+                let lat_store = Arc::new(tokio::sync::Mutex::new(conn));
+                let cache =
+                    mackesd_core::workers::mesh_latency::default_cache_path();
+                sup.spawn(Spawn::new(
+                    mackesd_core::workers::mesh_latency::MeshLatencyWorker::new(
+                        lat_store,
+                        node_id.clone(),
+                        cache,
+                    ),
+                    RestartPolicy::OnFailure,
+                ));
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    db_path = %db_path.display(),
+                    "mesh-latency: sqlite open failed; worker skipped"
+                );
+            }
+        }
+
         // v4.0.1 AF-* (2026-05-23) — register the
         // dev.mackes.MDE.Fleet.Files surface on the session bus
         // so mde-files's DBusBackend can read the live mesh

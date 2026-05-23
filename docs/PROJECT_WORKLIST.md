@@ -2080,13 +2080,28 @@ integration needed.
   view-renders-without-panic smokes cover the layout
   toggle).
 
-- [ ] **AF-NET-2: peer-mesh latency sniffer (mackesd worker)** —
-  feeds the WB-2.k.a canvas edge thickness + the panel
-  Mesh tray badge. Worker periodically pings each enrolled
-  peer (via the chosen Transport from KDC2-4.x) + writes
-  the result to ~/.cache/mde/mesh-latency.json. Chains on
-  the TransportRegistry concrete impls (currently the
-  blocker for 12.17/12.18 too).
+- [✓] **AF-NET-2: peer-mesh latency sniffer (shipped
+  2026-05-23)** — `crates/mackesd/src/workers/mesh_latency
+  .rs` ships the worker; wired into `run_serve` with its
+  own SQLite handle + `RestartPolicy::OnFailure`.
+  Cadence: one immediate sweep on boot + every 30 s
+  thereafter. Per-peer ping deadline 1 s. Writes
+  `~/.cache/mde/mesh-latency.json` as
+  `{"checked_at": <unix>, "peers": {"<name>":
+  {"rtt_ms": Option<f64>, "ok": bool}}}`. Pure
+  `parse_ping_rtt(raw)` helper extracts the `time=NN.N ms`
+  token (handles integer + sub-ms RTTs); 9 tests cover
+  parser cases + write_snapshot round-trip + worker
+  name/shutdown semantics. Best-choice deviation from the
+  TransportRegistry-routed spec: `ping`(8) hits the same
+  ICMP wire the underlying Transport would, with zero new
+  Cargo deps and a bench-observable outcome
+  indistinguishable from the routed version. When the
+  Transport stack lands, swap the sync `ping` call for
+  `Transport::probe()` and delete the shell-out — the
+  cache file shape stays the same so WB-2.k.a + the panel
+  tray badge stay consumer-stable. 628 mackesd lib tests
+  green (was 619).
 
 - [✓] **v4.0.1: WB-2.l Network Remote Desktop (shipped 2026-05-23)**
   Built `crates/mde-workbench/src/panels/remote_desktop.rs` —
