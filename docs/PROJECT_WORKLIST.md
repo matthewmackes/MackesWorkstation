@@ -10385,12 +10385,15 @@ in favor of i3-native chrome.
 
 ## How to add a task
 
-Add new entries under **Active** with this shape:
+Add new entries under **Active** with this shape (the literal
+marker is `[ ]` — the example below indents one space so the
+worklist-counter grep `^- \[ \] ` doesn't tally the template as
+a real Open item):
 
 ```markdown
-- [ ] **<release-tag>: short title** — one or two sentences of
-  acceptance criteria + dependencies + estimated effort. Link to a
-  design doc if the lock context is non-trivial.
+ - [ ] **<release-tag>: short title** — one or two sentences of
+   acceptance criteria + dependencies + estimated effort. Link
+   to a design doc if the lock context is non-trivial.
 ```
 
 Move to `[>] In Progress` when you start substantive work,
