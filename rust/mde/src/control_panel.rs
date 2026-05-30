@@ -26,19 +26,25 @@ pub fn run(args: &[String]) -> ExitCode {
 
 fn list() {
     println!("Control Panel — Fedora system tools\n");
-    for (i, tool) in fedora::TOOLS.iter().enumerate() {
-        let status = if fedora::is_installed(tool.command) {
-            "installed"
-        } else {
-            "MISSING  "
-        };
-        println!(
-            "  {:>2}. [{}]  {:<32}  ({})",
-            i + 1,
-            status,
-            tool.name,
-            fedora::binary(tool.command)
-        );
+    let mut n = 0;
+    for category in fedora::categories() {
+        println!("{category}");
+        for tool in fedora::TOOLS.iter().filter(|t| t.category == category) {
+            n += 1;
+            let status = if fedora::is_installed(tool) {
+                "installed"
+            } else {
+                "MISSING  "
+            };
+            println!(
+                "  {:>2}. [{}]  {:<32}  ({})",
+                n,
+                status,
+                tool.name,
+                fedora::binary(tool.command)
+            );
+        }
+        println!();
     }
     let missing = fedora::missing_packages();
     if missing.is_empty() {

@@ -1,49 +1,96 @@
-//! Fedora system-tool wiring for the Win2000 Control Panel and the Start menu's
-//! System Tools. Each entry maps a Windows 2000 name to a real Fedora tool, the
-//! dnf package that provides it, and whether it runs in a terminal. Tools that
-//! aren't installed can be installed on demand via `pkexec dnf` (a graphical
-//! privilege prompt).
+//! Fedora system-tool wiring for the Win2000 Control Panel and the right-click
+//! System Tools menu. Each entry maps a Windows 2000 / descriptive name to a
+//! real Fedora tool, the dnf package that provides it, its category (used to
+//! group the menu/Control Panel), and whether it runs in a terminal. Tools that
+//! aren't installed can be installed via `pkexec dnf` from inside the desktop.
 
 use std::process::{Command, Stdio};
 
 #[allow(dead_code)]
 pub struct Tool {
-    /// Windows 2000 Control Panel / System Tools name.
+    /// Grouping (Control Panel section / right-click submenu).
+    pub category: &'static str,
+    /// Display name.
     pub name: &'static str,
     /// Shell command that launches it.
     pub command: &'static str,
-    /// Run inside a terminal (for CLI tools like `hostnamectl`).
+    /// Run inside a terminal (CLI tools).
     pub terminal: bool,
-    /// dnf package that provides the binary (for install-if-missing).
+    /// dnf package that provides it (for install-if-missing).
     pub package: &'static str,
+    /// Specific binary to test on `$PATH`; empty ⇒ detect via `rpm -q package`
+    /// (for package-only/service tools like cockpit or dnf-plugins-core).
+    pub detect_bin: &'static str,
     /// Freedesktop icon-name candidates, best first.
     pub icons: &'static [&'static str],
 }
 
-/// The Control Panel / System Tools table (ported from control-panel.py).
+const T: fn(&'static str, &'static str, &'static str, bool, &'static str, &'static str, &'static [&'static str]) -> Tool =
+    |category, name, command, terminal, package, detect_bin, icons| Tool { category, name, command, terminal, package, detect_bin, icons };
+
+/// The full tool table. Categories order = menu/Control Panel order.
 pub const TOOLS: &[Tool] = &[
-    Tool { name: "Add/Remove Programs", command: "dnfdragora", terminal: false, package: "dnfdragora", icons: &["system-software-install", "package-x-generic"] },
-    Tool { name: "Automatic Updates", command: "dnfdragora-updater", terminal: false, package: "dnfdragora", icons: &["system-software-update", "software-update-available"] },
-    Tool { name: "Windows Firewall", command: "firewall-config", terminal: false, package: "firewall-config", icons: &["security-high", "preferences-system-firewall"] },
-    Tool { name: "Network and Dial-up Connections", command: "nm-connection-editor", terminal: false, package: "nm-connection-editor", icons: &["network-wired", "network-workgroup"] },
-    Tool { name: "Sounds and Multimedia", command: "pavucontrol", terminal: false, package: "pavucontrol", icons: &["multimedia-volume-control", "audio-card"] },
-    Tool { name: "Disk Management", command: "gnome-disks", terminal: false, package: "gnome-disk-utility", icons: &["drive-harddisk", "gnome-disks"] },
-    Tool { name: "Partition Manager", command: "gparted", terminal: false, package: "gparted", icons: &["gparted", "drive-harddisk"] },
-    Tool { name: "Storage Spaces", command: "blivet-gui", terminal: false, package: "blivet-gui", icons: &["drive-multidisk", "blivet-gui"] },
-    Tool { name: "Users and Passwords", command: "seahorse", terminal: false, package: "seahorse", icons: &["system-users", "dialog-password"] },
-    Tool { name: "Regional Options", command: "system-config-language", terminal: false, package: "system-config-language", icons: &["preferences-desktop-locale"] },
-    Tool { name: "Keyboard", command: "im-chooser", terminal: false, package: "im-chooser", icons: &["input-keyboard", "preferences-desktop-keyboard"] },
-    Tool { name: "Event Viewer", command: "gnome-abrt", terminal: false, package: "gnome-abrt", icons: &["logviewer", "utilities-system-monitor"] },
-    Tool { name: "Security Center", command: "sealert -b", terminal: false, package: "setroubleshoot-server", icons: &["security-high", "preferences-system-privacy"] },
-    Tool { name: "Create Installation Media", command: "mediawriter", terminal: false, package: "mediawriter", icons: &["media-optical", "media-removable"] },
-    Tool { name: "System", command: "hostnamectl; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", icons: &["computer", "preferences-system"] },
-    Tool { name: "Date and Time", command: "timedatectl; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", icons: &["preferences-system-time", "clock"] },
-    // --- systemd core + service tooling (Win2000: Administrative Tools) -----
-    Tool { name: "Printers", command: "system-config-printer", terminal: false, package: "system-config-printer", icons: &["printer", "preferences-system-printer"] },
-    Tool { name: "Services", command: "systemctl --no-pager list-units --type=service; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", icons: &["preferences-system", "system-run"] },
-    Tool { name: "Boot Performance", command: "systemd-analyze; echo; systemd-analyze blame | head -n 30; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", icons: &["utilities-system-monitor", "clock"] },
-    Tool { name: "Name Resolution (DNS)", command: "resolvectl status; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd-resolved", icons: &["network-wired", "preferences-system-network"] },
-    Tool { name: "Temporary Files", command: "systemd-tmpfiles --cat-config | less", terminal: true, package: "systemd", icons: &["folder-temp", "user-trash"] },
+    // --- Control Panel (classic applets) -----------------------------------
+    Tool { category: "Control Panel", name: "Add/Remove Programs", command: "dnfdragora", terminal: false, package: "dnfdragora", detect_bin: "dnfdragora", icons: &["system-software-install"] },
+    Tool { category: "Control Panel", name: "Automatic Updates", command: "dnfdragora-updater", terminal: false, package: "dnfdragora", detect_bin: "dnfdragora-updater", icons: &["system-software-update"] },
+    Tool { category: "Control Panel", name: "Windows Firewall", command: "firewall-config", terminal: false, package: "firewall-config", detect_bin: "firewall-config", icons: &["security-high"] },
+    Tool { category: "Control Panel", name: "Network and Dial-up Connections", command: "nm-connection-editor", terminal: false, package: "nm-connection-editor", detect_bin: "nm-connection-editor", icons: &["network-wired"] },
+    Tool { category: "Control Panel", name: "Sounds and Multimedia", command: "pavucontrol", terminal: false, package: "pavucontrol", detect_bin: "pavucontrol", icons: &["multimedia-volume-control"] },
+    Tool { category: "Control Panel", name: "Disk Management", command: "gnome-disks", terminal: false, package: "gnome-disk-utility", detect_bin: "gnome-disks", icons: &["drive-harddisk"] },
+    Tool { category: "Control Panel", name: "Partition Manager", command: "gparted", terminal: false, package: "gparted", detect_bin: "gparted", icons: &["gparted"] },
+    Tool { category: "Control Panel", name: "Storage Spaces", command: "blivet-gui", terminal: false, package: "blivet-gui", detect_bin: "blivet-gui", icons: &["drive-multidisk"] },
+    Tool { category: "Control Panel", name: "Users and Passwords", command: "seahorse", terminal: false, package: "seahorse", detect_bin: "seahorse", icons: &["system-users"] },
+    Tool { category: "Control Panel", name: "Regional Options", command: "system-config-language", terminal: false, package: "system-config-language", detect_bin: "system-config-language", icons: &["preferences-desktop-locale"] },
+    Tool { category: "Control Panel", name: "Keyboard", command: "im-chooser", terminal: false, package: "im-chooser", detect_bin: "im-chooser", icons: &["input-keyboard"] },
+    Tool { category: "Control Panel", name: "Event Viewer", command: "gnome-abrt", terminal: false, package: "gnome-abrt", detect_bin: "gnome-abrt", icons: &["logviewer"] },
+    Tool { category: "Control Panel", name: "Security Center", command: "sealert -b", terminal: false, package: "setroubleshoot-server", detect_bin: "sealert", icons: &["security-high"] },
+    Tool { category: "Control Panel", name: "Create Installation Media", command: "mediawriter", terminal: false, package: "mediawriter", detect_bin: "mediawriter", icons: &["media-optical"] },
+    Tool { category: "Control Panel", name: "System", command: "hostnamectl; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", detect_bin: "hostnamectl", icons: &["computer"] },
+    Tool { category: "Control Panel", name: "Date and Time", command: "timedatectl; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", detect_bin: "timedatectl", icons: &["preferences-system-time"] },
+    Tool { category: "Control Panel", name: "Printers", command: "system-config-printer", terminal: false, package: "system-config-printer", detect_bin: "system-config-printer", icons: &["printer"] },
+
+    // --- Administrative Tools (systemd) -------------------------------------
+    Tool { category: "Administrative Tools", name: "Services", command: "systemctl --no-pager list-units --type=service; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", detect_bin: "systemctl", icons: &["preferences-system"] },
+    Tool { category: "Administrative Tools", name: "Boot Performance", command: "systemd-analyze; echo; systemd-analyze blame | head -n 30; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd", detect_bin: "systemd-analyze", icons: &["utilities-system-monitor"] },
+    Tool { category: "Administrative Tools", name: "Name Resolution (DNS)", command: "resolvectl status; echo; read -p 'Press Enter to close '", terminal: true, package: "systemd-resolved", detect_bin: "resolvectl", icons: &["network-wired"] },
+    Tool { category: "Administrative Tools", name: "Temporary Files", command: "systemd-tmpfiles --cat-config | less", terminal: true, package: "systemd", detect_bin: "systemd-tmpfiles", icons: &["folder-temp"] },
+
+    // --- All-in-One Dashboard -----------------------------------------------
+    Tool { category: "All-in-One Dashboard", name: "Cockpit (Web Console)", command: "xdg-open https://localhost:9090", terminal: false, package: "cockpit", detect_bin: "", icons: &["network-server"] },
+    Tool { category: "All-in-One Dashboard", name: "Stacer", command: "stacer", terminal: false, package: "stacer", detect_bin: "stacer", icons: &["stacer", "system-run"] },
+
+    // --- Resource Monitoring -------------------------------------------------
+    Tool { category: "Resource Monitoring", name: "btop", command: "btop", terminal: true, package: "btop", detect_bin: "btop", icons: &["utilities-system-monitor"] },
+    Tool { category: "Resource Monitoring", name: "htop", command: "htop", terminal: true, package: "htop", detect_bin: "htop", icons: &["utilities-system-monitor"] },
+    Tool { category: "Resource Monitoring", name: "Glances", command: "glances", terminal: true, package: "glances", detect_bin: "glances", icons: &["utilities-system-monitor"] },
+    Tool { category: "Resource Monitoring", name: "iotop (Disk I/O)", command: "iotop -o", terminal: true, package: "iotop", detect_bin: "iotop", icons: &["drive-harddisk"] },
+    Tool { category: "Resource Monitoring", name: "nvtop (GPU)", command: "nvtop", terminal: true, package: "nvtop", detect_bin: "nvtop", icons: &["video-display"] },
+
+    // --- Storage & Disk ------------------------------------------------------
+    Tool { category: "Storage & Disk", name: "ncdu (Disk Usage)", command: "ncdu /", terminal: true, package: "ncdu", detect_bin: "ncdu", icons: &["drive-harddisk"] },
+    Tool { category: "Storage & Disk", name: "Drive Health (SMART)", command: "smartctl --scan; echo; echo 'Detail: smartctl -a /dev/sdX'; read -p 'Press Enter to close '", terminal: true, package: "smartmontools", detect_bin: "smartctl", icons: &["drive-harddisk"] },
+
+    // --- Backup & Recovery ---------------------------------------------------
+    Tool { category: "Backup & Recovery", name: "Timeshift (Snapshots)", command: "timeshift-launcher", terminal: false, package: "timeshift", detect_bin: "timeshift-launcher", icons: &["document-save"] },
+
+    // --- Package Management --------------------------------------------------
+    Tool { category: "Package Management", name: "DNF Plugins", command: "dnf config-manager --help 2>&1 | less", terminal: true, package: "dnf-plugins-core", detect_bin: "", icons: &["package-x-generic"] },
+    Tool { category: "Package Management", name: "Flatpak", command: "flatpak list; echo; read -p 'Press Enter to close '", terminal: true, package: "flatpak", detect_bin: "flatpak", icons: &["package-x-generic"] },
+
+    // --- Network Tools -------------------------------------------------------
+    Tool { category: "Network Tools", name: "Nmap", command: "echo 'Usage: nmap <target>'; nmap --version; echo; read -p 'Press Enter to close '", terminal: true, package: "nmap", detect_bin: "nmap", icons: &["network-workgroup"] },
+    Tool { category: "Network Tools", name: "iPerf3", command: "echo 'Server: iperf3 -s   Client: iperf3 -c <host>'; iperf3 --version; echo; read -p 'Press Enter to close '", terminal: true, package: "iperf3", detect_bin: "iperf3", icons: &["network-wired"] },
+    Tool { category: "Network Tools", name: "Wireshark", command: "wireshark", terminal: false, package: "wireshark", detect_bin: "wireshark", icons: &["wireshark", "network-wired"] },
+
+    // --- Power Management ----------------------------------------------------
+    Tool { category: "Power Management", name: "PowerTOP", command: "echo 'Tip: pkexec powertop'; powertop --version; echo; read -p 'Press Enter to close '", terminal: true, package: "powertop", detect_bin: "powertop", icons: &["battery"] },
+
+    // --- Hardware Info -------------------------------------------------------
+    Tool { category: "Hardware Info", name: "fastfetch", command: "fastfetch; echo; read -p 'Press Enter to close '", terminal: true, package: "fastfetch", detect_bin: "fastfetch", icons: &["computer"] },
+    Tool { category: "Hardware Info", name: "Sensors (lm_sensors)", command: "sensors; echo; read -p 'Press Enter to close '", terminal: true, package: "lm_sensors", detect_bin: "sensors", icons: &["temperature"] },
+
+    // --- System Security -----------------------------------------------------
+    Tool { category: "System Security", name: "Lynis (Audit)", command: "echo 'Full audit: pkexec lynis audit system'; lynis show version; echo; read -p 'Press Enter to close '", terminal: true, package: "lynis", detect_bin: "lynis", icons: &["security-high"] },
 ];
 
 /// The leading binary of a command (`sealert -b` -> `sealert`).
@@ -51,12 +98,21 @@ pub fn binary(command: &str) -> &str {
     command.split_whitespace().next().unwrap_or(command)
 }
 
-/// Whether the tool's binary is on `$PATH`.
-pub fn is_installed(command: &str) -> bool {
-    let bin = binary(command);
-    Command::new("sh")
-        .arg("-c")
-        .arg(format!("command -v {bin}"))
+fn on_path(bin: &str) -> bool {
+    !bin.is_empty()
+        && Command::new("sh")
+            .arg("-c")
+            .arg(format!("command -v {bin}"))
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+}
+
+fn rpm_installed(package: &str) -> bool {
+    Command::new("rpm")
+        .args(["-q", package])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()
@@ -64,22 +120,50 @@ pub fn is_installed(command: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Launch a tool (in `foot` if it wants a terminal).
+/// Whether the tool is available: a specific binary on `$PATH`, else its rpm.
+pub fn is_installed(tool: &Tool) -> bool {
+    if on_path(tool.detect_bin) {
+        return true;
+    }
+    rpm_installed(tool.package)
+}
+
+/// Terminal font size for CLI tools: 150% of foot's 8pt default.
+pub const CLI_FONT_SIZE: u32 = 12;
+
+/// Launch a tool. CLI tools open in `foot` zoomed to 150% (12pt).
 pub fn launch(tool: &Tool) -> std::io::Result<()> {
     if tool.terminal {
-        Command::new("foot").arg("sh").arg("-c").arg(tool.command).spawn()?;
+        Command::new("foot")
+            .arg("-o")
+            .arg(format!("font=monospace:size={CLI_FONT_SIZE}"))
+            .arg("sh")
+            .arg("-c")
+            .arg(tool.command)
+            .spawn()?;
     } else {
         Command::new("sh").arg("-c").arg(tool.command).spawn()?;
     }
     Ok(())
 }
 
-/// Tools whose binary is not currently installed.
-pub fn missing() -> Vec<&'static Tool> {
-    TOOLS.iter().filter(|t| !is_installed(t.command)).collect()
+/// Ordered, de-duplicated list of categories.
+pub fn categories() -> Vec<&'static str> {
+    let mut cats = Vec::new();
+    for t in TOOLS {
+        if !cats.contains(&t.category) {
+            cats.push(t.category);
+        }
+    }
+    cats
 }
 
-/// The unique dnf packages needed to satisfy all missing tools.
+/// Tools whose package/binary is not currently present.
+pub fn missing() -> Vec<&'static Tool> {
+    TOOLS.iter().filter(|t| !is_installed(t)).collect()
+}
+
+/// Unique dnf packages needed to satisfy all missing tools.
 pub fn missing_packages() -> Vec<&'static str> {
     let mut pkgs: Vec<&str> = missing().iter().map(|t| t.package).collect();
     pkgs.sort_unstable();
