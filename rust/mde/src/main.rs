@@ -13,6 +13,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 mod control_panel;
+mod fedora;
 mod files;
 mod install;
 mod menu;
