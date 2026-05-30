@@ -1,14 +1,15 @@
-//! Start menu — a layer-shell popup anchored bottom-left, above the taskbar.
+//! Start menu — authentic Windows 2000 classic column with cascading submenus.
 //!
-//! A raised Win2000 menu: a navy side-banner on the left, then the system tools
-//! grouped by category (from `fedora.rs`) as flat items that highlight navy on
-//! hover, plus Log Off / Restart / Shut Down. Launching a tool (CLI tools open
-//! in foot at 150%) or pressing Esc closes the menu (the process exits).
+//! A full-screen transparent layer-shell surface: a click anywhere outside the
+//! menu (the overlay) closes it, as does Esc or launching an item. The menu
+//! sits bottom-left above the taskbar. Submenus open on click and cascade to
+//! the right (Programs ▶, Settings ▶, Search ▶, System Tools ▶).
 
 use std::process::{exit, Command, ExitCode};
 
-use iced::widget::{button, container, scrollable, text, Column, Row, Space};
-use iced::{event, keyboard, Background, Border, Element, Event, Length, Padding, Shadow, Task};
+use iced::alignment::{Horizontal, Vertical};
+use iced::widget::{button, container, mouse_area, scrollable, text, Column, Row, Space};
+use iced::{event, keyboard, Background, Border, Color, Element, Event, Length, Padding, Shadow, Task};
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity};
 use iced_layershell::settings::LayerShellSettings;
@@ -16,25 +17,38 @@ use iced_layershell::{to_layer_message, Appearance};
 
 use mde_ui::{frame, metrics, palette};
 
-use crate::fedora;
+use crate::{apps, fedora};
 
-const BOLD: iced::Font = mde_ui::font::UI_BOLD;
+/// A node in the menu tree.
+enum Node {
+    Sep,
+    Leaf(String, Act),
+    Sub(String, Vec<Node>),
+}
 
-#[derive(Default)]
-struct Menu;
-
-#[derive(Debug, Clone, Copy)]
-enum Power {
+/// What a leaf does when activated.
+#[derive(Clone)]
+enum Act {
+    Tool(usize),         // fedora tool index
+    Cmd(String, bool),   // shell command, run-in-terminal
+    Mde(&'static str),   // re-exec this binary with a subcommand
+    Run,
+    Help,
     LogOff,
-    Restart,
-    Shutdown,
+    ShutDown,
+}
+
+struct Menu {
+    root: Vec<Node>,
+    /// Indices of the currently-open submenu chain (column 0 selects column 1…).
+    open: Vec<usize>,
 }
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
 enum Message {
-    Launch(usize),
-    Power(Power),
+    Click(usize, usize), // (column, index)
+    Close,
     Event(Event),
 }
 
@@ -57,124 +71,321 @@ fn launch() -> Result<(), iced_layershell::Error> {
         .default_font(mde_ui::font::UI)
         .settings(MainSettings {
             layer_settings: LayerShellSettings {
-                size: Some((230, 460)),
+                // Full-screen overlay so clicks outside the menu close it.
+                anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
                 exclusive_zone: 0,
-                anchor: Anchor::Bottom | Anchor::Left,
-                margin: (0, 0, metrics::TASKBAR_HEIGHT as i32, 0),
                 keyboard_interactivity: KeyboardInteractivity::OnDemand,
                 ..Default::default()
             },
             ..Default::default()
         })
-        .run()
+        .run_with(|| (Menu { root: build_root(), open: Vec::new() }, Task::none()))
 }
 
-fn namespace(_state: &Menu) -> String {
+fn namespace(_: &Menu) -> String {
     "mde-menu".to_string()
 }
 
-fn style(_state: &Menu, _theme: &iced::Theme) -> Appearance {
+fn style(_: &Menu, _: &iced::Theme) -> Appearance {
     Appearance {
-        background_color: palette::color(palette::MENU),
+        background_color: Color::TRANSPARENT,
         text_color: palette::color(palette::MENU_TEXT),
     }
 }
 
-fn subscription(_state: &Menu) -> iced::Subscription<Message> {
+fn subscription(_: &Menu) -> iced::Subscription<Message> {
     event::listen().map(Message::Event)
 }
 
-fn update(_state: &mut Menu, message: Message) -> Task<Message> {
+// --- menu tree -------------------------------------------------------------
+
+fn build_root() -> Vec<Node> {
+    vec![
+        Node::Leaf("Windows Update".into(), Act::Cmd("dnfdragora-updater".into(), false)),
+        Node::Sep,
+        Node::Sub("Programs".into(), programs_tree()),
+        Node::Sub("Settings".into(), settings_tree()),
+        Node::Sub("Search".into(), search_tree()),
+        Node::Sub("System Tools".into(), system_tools_tree()),
+        Node::Leaf("Help".into(), Act::Help),
+        Node::Leaf("Run...".into(), Act::Run),
+        Node::Sep,
+        Node::Leaf("Log Off...".into(), Act::LogOff),
+        Node::Leaf("Shut Down...".into(), Act::ShutDown),
+    ]
+}
+
+fn programs_tree() -> Vec<Node> {
+    let mut nodes = Vec::new();
+    for (folder, apps) in apps::programs() {
+        let children = apps
+            .into_iter()
+            .map(|a| Node::Leaf(a.name, Act::Cmd(a.exec, a.terminal)))
+            .collect();
+        nodes.push(Node::Sub(folder, children));
+    }
+    if nodes.is_empty() {
+        nodes.push(Node::Leaf("(no applications found)".into(), Act::Help));
+    }
+    nodes
+}
+
+fn system_tools_tree() -> Vec<Node> {
+    fedora::categories()
+        .into_iter()
+        .map(|cat| {
+            let children = fedora::TOOLS
+                .iter()
+                .enumerate()
+                .filter(|(_, t)| t.category == cat)
+                .map(|(i, t)| Node::Leaf(t.name.to_string(), Act::Tool(i)))
+                .collect();
+            Node::Sub(cat.to_string(), children)
+        })
+        .collect()
+}
+
+fn settings_tree() -> Vec<Node> {
+    vec![
+        Node::Leaf("Control Panel".into(), Act::Mde("control-panel")),
+        Node::Leaf("Network and Dial-up Connections".into(), Act::Cmd("nm-connection-editor".into(), false)),
+        Node::Leaf("Printers".into(), Act::Cmd("system-config-printer".into(), false)),
+        Node::Leaf("Taskbar & Start Menu".into(), Act::Mde("control-panel")),
+    ]
+}
+
+fn search_tree() -> Vec<Node> {
+    vec![
+        Node::Leaf("For Files or Folders...".into(), Act::Mde("files")),
+        Node::Leaf("On the Internet...".into(), Act::Cmd("xdg-open https://duckduckgo.com".into(), false)),
+    ]
+}
+
+// --- update ----------------------------------------------------------------
+
+/// The visible columns for the current open-path: column 0 is the root, each
+/// subsequent column is the opened submenu's children.
+fn columns(menu: &Menu) -> Vec<&[Node]> {
+    let mut cols: Vec<&[Node]> = vec![&menu.root];
+    let mut cur: &[Node] = &menu.root;
+    for &i in &menu.open {
+        match cur.get(i) {
+            Some(Node::Sub(_, children)) => {
+                cols.push(children);
+                cur = children;
+            }
+            _ => break,
+        }
+    }
+    cols
+}
+
+fn update(menu: &mut Menu, message: Message) -> Task<Message> {
     match message {
-        Message::Launch(i) => {
-            if let Some(tool) = fedora::TOOLS.get(i) {
-                let _ = fedora::launch(tool);
+        Message::Click(col, idx) => {
+            let node = columns(menu).get(col).and_then(|c| c.get(idx));
+            match node {
+                Some(Node::Sub(_, _)) => {
+                    if menu.open.get(col) == Some(&idx) {
+                        menu.open.truncate(col); // toggle closed
+                    } else {
+                        menu.open.truncate(col);
+                        menu.open.push(idx);
+                    }
+                }
+                Some(Node::Leaf(_, act)) => {
+                    run_act(act);
+                    exit(0);
+                }
+                _ => {}
             }
-            exit(0);
         }
-        Message::Power(p) => {
-            match p {
-                Power::LogOff => drop(Command::new("swaymsg").arg("exit").spawn()),
-                Power::Restart => drop(Command::new("systemctl").arg("reboot").spawn()),
-                Power::Shutdown => drop(Command::new("systemctl").arg("poweroff").spawn()),
-            }
-            exit(0);
-        }
+        Message::Close => exit(0),
         Message::Event(Event::Keyboard(keyboard::Event::KeyPressed {
             key: keyboard::Key::Named(keyboard::key::Named::Escape),
             ..
-        })) => exit(0),
-        _ => Task::none(),
+        })) => {
+            if menu.open.is_empty() {
+                exit(0);
+            } else {
+                menu.open.pop(); // Esc backs out one level
+            }
+        }
+        _ => {}
+    }
+    Task::none()
+}
+
+fn run_act(act: &Act) {
+    match act {
+        Act::Tool(i) => {
+            if let Some(t) = fedora::TOOLS.get(*i) {
+                let _ = fedora::launch(t);
+            }
+        }
+        Act::Cmd(cmd, terminal) => launch_cmd(cmd, *terminal),
+        Act::Mde(sub) => {
+            if let Ok(exe) = std::env::current_exe() {
+                let _ = Command::new(exe).arg(sub).spawn();
+            }
+        }
+        Act::Run => {
+            let _ = Command::new("wofi").args(["--show", "run"]).spawn();
+        }
+        Act::Help => launch_cmd(
+            "echo 'MDE-Retro — Start=Win  Run=Win+R  Close=Alt+F4  Switch=Alt+Tab  My Computer=Win+E'; read -p 'Press Enter to close '",
+            true,
+        ),
+        Act::LogOff => {
+            let _ = Command::new("swaymsg").arg("exit").spawn(); // TODO: confirm dialog
+        }
+        Act::ShutDown => {
+            let _ = Command::new("systemctl").arg("poweroff").spawn(); // TODO: dialog
+        }
     }
 }
 
-fn menu_item_style(_theme: &iced::Theme, status: button::Status) -> button::Style {
-    let hot = matches!(status, button::Status::Hovered | button::Status::Pressed);
-    button::Style {
-        background: hot.then(|| Background::Color(palette::color(palette::HIGHLIGHT))),
-        text_color: if hot {
-            palette::color(palette::HIGHLIGHT_TEXT)
-        } else {
-            palette::color(palette::MENU_TEXT)
-        },
-        border: Border::default(),
-        shadow: Shadow::default(),
+fn launch_cmd(cmd: &str, terminal: bool) {
+    if terminal {
+        let _ = Command::new("foot")
+            .arg("-o")
+            .arg(format!("font=monospace:size={}", fedora::CLI_FONT_SIZE))
+            .arg("sh")
+            .arg("-c")
+            .arg(cmd)
+            .spawn();
+    } else {
+        let _ = Command::new("sh").arg("-c").arg(cmd).spawn();
     }
 }
+
+// --- view ------------------------------------------------------------------
 
 fn pad(top: f32, right: f32, bottom: f32, left: f32) -> Padding {
     Padding { top, right, bottom, left }
 }
 
-fn item<'a>(label: &'a str, message: Message) -> Element<'a, Message> {
-    button(text(label).size(11.0))
-        .on_press(message)
-        .width(Length::Fill)
-        .padding(pad(2.0, 10.0, 2.0, 10.0))
-        .style(menu_item_style)
-        .into()
-}
-
-fn header(label: &str) -> Element<'_, Message> {
-    container(text(label).size(11.0).font(BOLD))
-        .padding(pad(4.0, 8.0, 1.0, 8.0))
-        .into()
-}
-
-fn separator() -> Element<'static, Message> {
-    container(Space::new(Length::Fill, Length::Fixed(1.0)))
-        .padding(pad(3.0, 6.0, 3.0, 6.0))
-        .into()
-}
-
-fn view(_state: &Menu) -> Element<'_, Message> {
-    // Left navy banner (rotated "Windows 2000" text is a later refinement).
-    let banner = container(Space::new(Length::Fixed(0.0), Length::Fill))
-        .width(Length::Fixed(24.0))
-        .height(Length::Fill)
-        .style(|_theme| container::Style {
-            background: Some(Background::Color(palette::color(palette::ACTIVE_TITLE))),
-            ..container::Style::default()
-        });
-
-    let mut list = Column::new().spacing(0).padding([4, 2]);
-    for category in fedora::categories() {
-        list = list.push(header(category));
-        for (i, tool) in fedora::TOOLS.iter().enumerate() {
-            if tool.category == category {
-                list = list.push(item(tool.name, Message::Launch(i)));
-            }
+fn item_style(selected: bool) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
+    move |_t, status| {
+        let hot = selected || matches!(status, button::Status::Hovered | button::Status::Pressed);
+        button::Style {
+            background: hot.then(|| Background::Color(palette::color(palette::HIGHLIGHT))),
+            text_color: if hot {
+                palette::color(palette::HIGHLIGHT_TEXT)
+            } else {
+                palette::color(palette::MENU_TEXT)
+            },
+            border: Border::default(),
+            shadow: Shadow::default(),
         }
     }
-    list = list
-        .push(separator())
-        .push(item("Log Off...", Message::Power(Power::LogOff)))
-        .push(item("Restart", Message::Power(Power::Restart)))
-        .push(item("Shut Down...", Message::Power(Power::Shutdown)));
+}
 
-    let body = Row::new()
-        .push(banner)
-        .push(scrollable(list).width(Length::Fill).height(Length::Fill));
+const ITEM_H: f32 = 22.0;
+const SEP_H: f32 = 7.0;
+const MAX_COL_H: f32 = 680.0;
 
-    iced::widget::stack![frame::raised(), body].into()
+fn col_content_height(nodes: &[Node]) -> f32 {
+    nodes
+        .iter()
+        .map(|n| if matches!(n, Node::Sep) { SEP_H } else { ITEM_H })
+        .sum()
+}
+
+fn render_item<'a>(node: &'a Node, col: usize, idx: usize, selected: bool) -> Element<'a, Message> {
+    match node {
+        Node::Sep => container(
+            container(Space::new(Length::Fill, Length::Fixed(1.0)))
+                .width(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(palette::color(palette::BUTTON_SHADOW))),
+                    ..container::Style::default()
+                }),
+        )
+        .height(Length::Fixed(SEP_H))
+        .padding(pad(3.0, 6.0, 3.0, 6.0))
+        .into(),
+        Node::Leaf(label, _) => button(text(label).size(11.0))
+            .on_press(Message::Click(col, idx))
+            .width(Length::Fill)
+            .height(Length::Fixed(ITEM_H))
+            .padding(pad(4.0, 16.0, 0.0, 12.0))
+            .style(item_style(false))
+            .into(),
+        Node::Sub(label, _) => button(
+            Row::new()
+                .push(text(label).size(11.0).width(Length::Fill))
+                .push(text(">").size(11.0)),
+        )
+        .on_press(Message::Click(col, idx))
+        .width(Length::Fill)
+        .height(Length::Fixed(ITEM_H))
+        .padding(pad(4.0, 8.0, 0.0, 12.0))
+        .style(item_style(selected))
+        .into(),
+    }
+}
+
+fn item_list<'a>(nodes: &'a [Node], col: usize, open: Option<usize>) -> Column<'a, Message> {
+    let mut list = Column::new().spacing(0.0);
+    for (idx, node) in nodes.iter().enumerate() {
+        list = list.push(render_item(node, col, idx, open == Some(idx)));
+    }
+    list
+}
+
+fn banner<'a>(height: f32) -> Element<'a, Message> {
+    // Navy strip (rotated "MDE-Retro" text is a later refinement).
+    container(Space::new(Length::Fixed(24.0), Length::Fixed(height)))
+        .style(|_| container::Style {
+            background: Some(Background::Color(palette::color(palette::ACTIVE_TITLE))),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+fn render_column<'a>(nodes: &'a [Node], col: usize, open: Option<usize>, width: f32) -> Element<'a, Message> {
+    let h = (col_content_height(nodes).min(MAX_COL_H)) + 4.0;
+    let panel = iced::widget::stack![
+        frame::raised().thickness(2),
+        container(scrollable(item_list(nodes, col, open))).padding(2.0),
+    ];
+    container(panel)
+        .width(Length::Fixed(width))
+        .height(Length::Fixed(h))
+        .into()
+}
+
+fn render_root_column<'a>(nodes: &'a [Node], open: Option<usize>) -> Element<'a, Message> {
+    let h = (col_content_height(nodes).min(MAX_COL_H)) + 4.0;
+    let inner = Row::new().push(banner(h)).push(
+        container(scrollable(item_list(nodes, 0, open)))
+            .width(Length::Fixed(186.0))
+            .padding(2.0),
+    );
+    container(iced::widget::stack![frame::raised().thickness(2), inner])
+        .width(Length::Fixed(214.0))
+        .height(Length::Fixed(h))
+        .into()
+}
+
+fn view(menu: &Menu) -> Element<'_, Message> {
+    let cols = columns(menu);
+    let mut row = Row::new().align_y(Vertical::Top);
+    row = row.push(render_root_column(cols[0], menu.open.first().copied()));
+    for c in 1..cols.len() {
+        row = row.push(render_column(cols[c], c, menu.open.get(c).copied(), 200.0));
+    }
+
+    let menu_panel = container(row)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(Horizontal::Left)
+        .align_y(Vertical::Bottom)
+        .padding(pad(0.0, 0.0, metrics::TASKBAR_HEIGHT as f32, 0.0));
+
+    // Behind everything: a full-screen click catcher that closes the menu.
+    let overlay = mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close);
+
+    iced::widget::stack![overlay, menu_panel].into()
 }

@@ -12,6 +12,7 @@ use std::env;
 use std::path::Path;
 use std::process::ExitCode;
 
+mod apps;
 mod control_panel;
 mod fedora;
 mod files;
