@@ -42,6 +42,9 @@ struct Menu {
     root: Vec<Node>,
     /// Indices of the currently-open submenu chain (column 0 selects column 1…).
     open: Vec<usize>,
+    /// Keyboard selection within the active (deepest-open) column. `None` until
+    /// the first arrow key, matching Win2000 (no highlight until you navigate).
+    cursor: Option<usize>,
 }
 
 #[to_layer_message]
@@ -79,7 +82,7 @@ fn launch() -> Result<(), iced_layershell::Error> {
             },
             ..Default::default()
         })
-        .run_with(|| (Menu { root: build_root(), open: Vec::new() }, Task::none()))
+        .run_with(|| (Menu { root: build_root(), open: Vec::new(), cursor: None }, Task::none()))
 }
 
 fn namespace(_: &Menu) -> String {
@@ -180,6 +183,56 @@ fn columns(menu: &Menu) -> Vec<&[Node]> {
     cols
 }
 
+/// Index of the active (deepest-open) column in [`columns`].
+fn active_col(menu: &Menu) -> usize {
+    menu.open.len()
+}
+
+/// Step the selection by `delta` within `nodes`, skipping separators and
+/// wrapping. `from == None` lands on the first (delta>0) or last (delta<0) item.
+fn step(nodes: &[Node], from: Option<usize>, delta: isize) -> Option<usize> {
+    let len = nodes.len() as isize;
+    if len == 0 {
+        return None;
+    }
+    let mut i = match from {
+        Some(i) => i as isize,
+        None => {
+            if delta > 0 {
+                -1
+            } else {
+                len
+            }
+        }
+    };
+    for _ in 0..len {
+        i = (i + delta).rem_euclid(len);
+        if !matches!(nodes[i as usize], Node::Sep) {
+            return Some(i as usize);
+        }
+    }
+    None
+}
+
+/// Open the submenu the cursor is on (if it is a `Sub`), selecting its first item.
+fn open_cursor_sub(menu: &mut Menu) {
+    let is_sub = {
+        let cols = columns(menu);
+        menu.cursor
+            .and_then(|c| cols[active_col(menu)].get(c))
+            .map(|n| matches!(n, Node::Sub(_, _)))
+            == Some(true)
+    };
+    if let (true, Some(c)) = (is_sub, menu.cursor) {
+        menu.open.push(c);
+        let first = {
+            let cols = columns(menu);
+            step(cols[active_col(menu)], None, 1)
+        };
+        menu.cursor = first;
+    }
+}
+
 fn update(menu: &mut Menu, message: Message) -> Task<Message> {
     match message {
         Message::Click(col, idx) => {
@@ -202,13 +255,53 @@ fn update(menu: &mut Menu, message: Message) -> Task<Message> {
         }
         Message::Close => exit(0),
         Message::Event(Event::Keyboard(keyboard::Event::KeyPressed {
-            key: keyboard::Key::Named(keyboard::key::Named::Escape),
+            key: keyboard::Key::Named(named),
             ..
         })) => {
-            if menu.open.is_empty() {
-                exit(0);
-            } else {
-                menu.open.pop(); // Esc backs out one level
+            use keyboard::key::Named as N;
+            match named {
+                // Esc: back out one submenu level, or close at the root.
+                N::Escape => {
+                    if menu.open.pop().is_none() {
+                        exit(0);
+                    }
+                    menu.cursor = None;
+                }
+                N::ArrowDown | N::ArrowUp => {
+                    let delta = if named == N::ArrowDown { 1 } else { -1 };
+                    let next = {
+                        let cols = columns(menu);
+                        step(cols[active_col(menu)], menu.cursor, delta)
+                    };
+                    menu.cursor = next;
+                }
+                // Right opens the highlighted submenu.
+                N::ArrowRight => open_cursor_sub(menu),
+                // Left collapses the current column, reselecting its parent item.
+                N::ArrowLeft => {
+                    if let Some(parent) = menu.open.pop() {
+                        menu.cursor = Some(parent);
+                    }
+                }
+                N::Enter => {
+                    let act = {
+                        let cols = columns(menu);
+                        menu.cursor.and_then(|c| cols[active_col(menu)].get(c)).and_then(|n| {
+                            match n {
+                                Node::Leaf(_, a) => Some(a.clone()),
+                                _ => None,
+                            }
+                        })
+                    };
+                    match act {
+                        Some(a) => {
+                            run_act(&a);
+                            exit(0);
+                        }
+                        None => open_cursor_sub(menu), // Enter on a submenu opens it
+                    }
+                }
+                _ => {}
             }
         }
         _ => {}
@@ -374,12 +467,22 @@ fn render_root_column<'a>(nodes: &'a [Node], open: Option<usize>) -> Element<'a,
         .into()
 }
 
+/// Which item to highlight in column `col`: the keyboard cursor in the active
+/// column, otherwise the open-submenu item that leads to the next column.
+fn highlight_for(menu: &Menu, col: usize) -> Option<usize> {
+    if col == active_col(menu) {
+        menu.cursor
+    } else {
+        menu.open.get(col).copied()
+    }
+}
+
 fn view(menu: &Menu) -> Element<'_, Message> {
     let cols = columns(menu);
     let mut row = Row::new().align_y(Vertical::Top);
-    row = row.push(render_root_column(cols[0], menu.open.first().copied()));
+    row = row.push(render_root_column(cols[0], highlight_for(menu, 0)));
     for c in 1..cols.len() {
-        row = row.push(render_column(cols[c], c, menu.open.get(c).copied(), 200.0));
+        row = row.push(render_column(cols[c], c, highlight_for(menu, c), 200.0));
     }
 
     let menu_panel = container(row)
