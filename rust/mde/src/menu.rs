@@ -18,10 +18,7 @@ use mde_ui::{frame, metrics, palette};
 
 use crate::fedora;
 
-const BOLD: iced::Font = iced::Font {
-    weight: iced::font::Weight::Bold,
-    ..iced::Font::DEFAULT
-};
+const BOLD: iced::Font = mde_ui::font::UI_BOLD;
 
 #[derive(Default)]
 struct Menu;
@@ -55,6 +52,9 @@ fn launch() -> Result<(), iced_layershell::Error> {
     application(namespace, update, view)
         .style(style)
         .subscription(subscription)
+        .font(mde_ui::font::REGULAR_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .default_font(mde_ui::font::UI)
         .settings(MainSettings {
             layer_settings: LayerShellSettings {
                 size: Some((230, 460)),

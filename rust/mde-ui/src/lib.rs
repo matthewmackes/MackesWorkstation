@@ -10,6 +10,7 @@
 //! metrics, and the screenshot-diff harness checks the rendered result
 //! against them.
 
+pub mod font;
 pub mod metrics;
 pub mod palette;
 pub mod widget;

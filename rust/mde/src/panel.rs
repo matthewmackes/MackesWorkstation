@@ -46,6 +46,9 @@ fn launch() -> Result<(), iced_layershell::Error> {
     application(namespace, update, view)
         .style(style)
         .subscription(subscription)
+        .font(mde_ui::font::REGULAR_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .default_font(mde_ui::font::UI)
         .settings(MainSettings {
             layer_settings: LayerShellSettings {
                 size: Some((0, metrics::TASKBAR_HEIGHT as u32)),

@@ -62,6 +62,9 @@ pub fn run(args: &[String]) -> ExitCode {
 fn launch(start: PathBuf) -> iced::Result {
     iced::application(title, update, view)
         .theme(|_| iced::Theme::Light)
+        .font(mde_ui::font::REGULAR_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .default_font(mde_ui::font::UI)
         .run_with(move || {
             let mut f = Files {
                 cwd: start.clone(),

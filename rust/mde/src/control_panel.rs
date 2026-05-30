@@ -53,6 +53,9 @@ enum Message {
 fn gui() -> iced::Result {
     iced::application(|_: &ControlPanel| "Control Panel - mde".to_string(), update, view)
         .theme(|_| iced::Theme::Light)
+        .font(mde_ui::font::REGULAR_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .default_font(mde_ui::font::UI)
         .run()
 }
 
@@ -108,10 +111,7 @@ fn menubar<'a>() -> Element<'a, Message> {
 
 fn sidebar<'a>() -> Element<'a, Message> {
     let white = Color::WHITE;
-    let bold = iced::Font {
-        weight: iced::font::Weight::Bold,
-        ..iced::Font::DEFAULT
-    };
+    let bold = mde_ui::font::UI_BOLD;
     let col = Column::new()
         .spacing(8.0)
         .padding(pad(10.0, 12.0, 10.0, 12.0))
@@ -148,10 +148,7 @@ fn sidebar<'a>() -> Element<'a, Message> {
 }
 
 fn grid<'a>() -> Element<'a, Message> {
-    let bold = iced::Font {
-        weight: iced::font::Weight::Bold,
-        ..iced::Font::DEFAULT
-    };
+    let bold = mde_ui::font::UI_BOLD;
     let mut col = Column::new().spacing(0.0).padding(pad(4.0, 4.0, 4.0, 6.0));
     for category in fedora::categories() {
         col = col.push(
