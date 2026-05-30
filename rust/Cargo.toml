@@ -1,0 +1,31 @@
+# MDE-Retro Rust shell -- cargo workspace.
+# One multiplexed binary (`mde`) + a shared Win2000 widget crate (`mde-ui`).
+[workspace]
+resolver = "2"
+members = ["mde", "mde-ui"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["Matthew Mackes <matthewmackes@gmail.com>"]
+repository = "https://github.com/matthewmackes/MDE-Retro"
+rust-version = "1.80"
+
+# Shared dependency versions. NOTE: iced / iced_layershell versions are
+# approximate (authored without a compiler); reconcile on first build.
+[workspace.dependencies]
+iced = { version = "0.13", features = ["image", "svg", "advanced", "tokio"] }
+iced_layershell = "0.13"          # wlr-layer-shell backend for iced (bar + menu)
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+mde-ui = { path = "mde-ui" }
+
+# Lean release profile: small, fast binary.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

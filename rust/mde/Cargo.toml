@@ -1,0 +1,48 @@
+[package]
+name = "mde"
+description = "MDE-Retro: a Windows 2000 desktop shell for Sway (taskbar, Start menu, file manager, control panel)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "mde"
+path = "src/main.rs"
+
+[dependencies]
+mde-ui.workspace = true
+iced.workspace = true
+iced_layershell.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+
+# ---------------------------------------------------------------------------
+# RPM packaging (cargo-generate-rpm). Build with:
+#   cargo build --release && cargo generate-rpm -p mde
+# The package ships CODE ONLY; `mde install --assets` fetches Chicago95 + Win2k
+# on first run, so no third-party art is redistributed.
+# ---------------------------------------------------------------------------
+[package.metadata.generate-rpm]
+summary = "Windows 2000 desktop shell for Sway (MDE-Retro)"
+assets = [
+    { source = "target/release/mde", dest = "/usr/bin/mde", mode = "0755" },
+    # Symlinks so `mde-panel`, `mde-menu`, ... dispatch via argv[0].
+    # (created in %post; see post_install_script below)
+    { source = "../../README.md", dest = "/usr/share/doc/mde/README.md", mode = "0644", doc = true },
+]
+# Runtime packages the shell drives. Assets are fetched, not required here.
+requires = { sway = "*", foot = "*", grim = "*", "xkeyboard-config" = "*" }
+post_install_script = """
+for c in panel menu files control-panel install; do
+    ln -sf /usr/bin/mde /usr/bin/mde-$c
+done
+"""
+post_uninstall_script = """
+for c in panel menu files control-panel install; do
+    rm -f /usr/bin/mde-$c
+done
+"""
