@@ -83,17 +83,26 @@ pub fn logoff() -> ExitCode {
     }
 }
 
+/// Run `swaymsg exit`, reporting failure instead of pretending it worked.
+fn do_logoff() -> ! {
+    match Command::new("swaymsg").arg("exit").status() {
+        Ok(s) if s.success() => exit(0),
+        Ok(s) => {
+            eprintln!("mde logoff: 'swaymsg exit' failed ({s})");
+            exit(1);
+        }
+        Err(e) => {
+            eprintln!("mde logoff: could not run swaymsg: {e}");
+            exit(1);
+        }
+    }
+}
+
 fn logoff_update(_: &mut LogOff, m: M) -> Task<M> {
     match m {
-        M::Confirm => {
-            let _ = Command::new("swaymsg").arg("exit").spawn();
-            exit(0);
-        }
+        M::Confirm => do_logoff(),
         M::Cancel => exit(0),
-        M::Event(e) if is_enter(&e) => {
-            let _ = Command::new("swaymsg").arg("exit").spawn();
-            exit(0);
-        }
+        M::Event(e) if is_enter(&e) => do_logoff(),
         M::Event(e) if is_escape(&e) => exit(0),
         _ => Task::none(),
     }
@@ -168,14 +177,26 @@ fn do_shutdown(sel: &Choice) -> ! {
         Choice::LogOff => Command::new("swaymsg"),
         _ => Command::new("systemctl"),
     };
-    cmd.arg(match sel {
+    let verb = match sel {
         Choice::LogOff => "exit",
         Choice::ShutDown => "poweroff",
         Choice::Restart => "reboot",
         Choice::StandBy => "suspend",
-    });
-    let _ = cmd.spawn();
-    exit(0)
+    };
+    cmd.arg(verb);
+    // Wait for the command and check it: a failed power action (ENOENT, no
+    // polkit auth) must not look identical to success.
+    match cmd.status() {
+        Ok(s) if s.success() => exit(0),
+        Ok(s) => {
+            eprintln!("mde: '{verb}' command failed ({s})");
+            exit(1);
+        }
+        Err(e) => {
+            eprintln!("mde: could not run '{verb}': {e}");
+            exit(1);
+        }
+    }
 }
 
 fn shutdown_update(state: &mut Shutdown, m: M) -> Task<M> {

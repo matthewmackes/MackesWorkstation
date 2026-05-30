@@ -73,8 +73,9 @@ fn update(state: &mut ControlPanel, message: Message) -> Task<Message> {
             if let Some(tool) = fedora::TOOLS.get(i) {
                 if fedora::is_installed(tool) {
                     let _ = fedora::launch(tool);
-                } else {
-                    let _ = fedora::install(&[tool.package]);
+                } else if matches!(fedora::install(&[tool.package]), Ok(s) if s.success()) {
+                    // Install + open in one gesture, like Win2000 Add/Remove.
+                    let _ = fedora::launch(tool);
                 }
             }
         } else {

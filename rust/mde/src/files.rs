@@ -30,6 +30,9 @@ struct Files {
     hpos: usize,
     selected: Option<usize>,
     last_click: Option<(usize, std::time::Instant)>,
+    /// Last navigation/IO problem, shown in the status bar instead of leaving
+    /// the user staring at an unchanged or empty list with no explanation.
+    error: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,6 +79,7 @@ fn launch(start: PathBuf) -> iced::Result {
                 hpos: 0,
                 selected: None,
                 last_click: None,
+                error: None,
             };
             f.load();
             (f, Task::none())
@@ -98,17 +102,27 @@ fn title(state: &Files) -> String {
 impl Files {
     fn load(&mut self) {
         let mut entries = Vec::new();
-        if let Ok(rd) = std::fs::read_dir(&self.cwd) {
-            for e in rd.flatten() {
-                let path = e.path();
-                let md = e.metadata().ok();
-                let is_dir = md.as_ref().map(|m| m.is_dir()).unwrap_or(false);
-                let size = md.as_ref().map(|m| m.len()).unwrap_or(0);
-                entries.push(Entry {
-                    name: e.file_name().to_string_lossy().to_string(),
-                    path,
-                    is_dir,
-                    size,
+        match std::fs::read_dir(&self.cwd) {
+            Ok(rd) => {
+                for e in rd.flatten() {
+                    let path = e.path();
+                    let md = e.metadata().ok();
+                    let is_dir = md.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+                    let size = md.as_ref().map(|m| m.len()).unwrap_or(0);
+                    entries.push(Entry {
+                        name: e.file_name().to_string_lossy().to_string(),
+                        path,
+                        is_dir,
+                        size,
+                    });
+                }
+                self.error = None;
+            }
+            Err(e) => {
+                self.error = Some(match e.kind() {
+                    std::io::ErrorKind::PermissionDenied => "Access denied.".to_string(),
+                    std::io::ErrorKind::NotFound => "Folder not found.".to_string(),
+                    _ => "Cannot read this folder.".to_string(),
                 });
             }
         }
@@ -149,8 +163,8 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                     if entry.is_dir {
                         let p = entry.path.clone();
                         state.navigate(p);
-                    } else {
-                        let _ = Command::new("xdg-open").arg(&entry.path).spawn();
+                    } else if Command::new("xdg-open").arg(&entry.path).spawn().is_err() {
+                        state.error = Some("Could not open this file.".to_string());
                     }
                 }
             } else {
@@ -184,11 +198,16 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             }
         }
         Message::Refresh => state.load(),
-        Message::AddressChanged(s) => state.address = s,
+        Message::AddressChanged(s) => {
+            state.address = s;
+            state.error = None;
+        }
         Message::GoAddress => {
             let p = PathBuf::from(&state.address);
             if p.is_dir() {
                 state.navigate(p);
+            } else {
+                state.error = Some(format!("Cannot find '{}'.", state.address));
             }
         }
         Message::Noop => {}
@@ -366,10 +385,13 @@ fn list(state: &Files) -> Element<'_, Message> {
 }
 
 fn status_bar(state: &Files) -> Element<'_, Message> {
+    let msg = match &state.error {
+        Some(e) => e.clone(),
+        None => format!("{} object(s)", state.entries.len()),
+    };
     container(iced::widget::stack![
         frame::sunken(),
-        container(text(format!("{} object(s)", state.entries.len())).size(metrics::UI_PX))
-            .padding(pad(1.0, 6.0, 1.0, 6.0)),
+        container(text(msg).size(metrics::UI_PX)).padding(pad(1.0, 6.0, 1.0, 6.0)),
     ])
     .width(Length::Fill)
     .height(Length::Fixed(18.0))

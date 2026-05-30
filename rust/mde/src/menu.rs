@@ -370,7 +370,7 @@ fn item_style(selected: bool) -> impl Fn(&iced::Theme, button::Status) -> button
     }
 }
 
-const ITEM_H: f32 = 22.0;
+const ITEM_H: f32 = metrics::MENU_HEIGHT as f32; // 18 — the SM_CYMENU ground truth
 const SEP_H: f32 = 7.0;
 const MAX_COL_H: f32 = 680.0;
 

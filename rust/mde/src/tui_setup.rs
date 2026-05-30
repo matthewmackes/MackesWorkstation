@@ -42,9 +42,20 @@ struct App {
     steps: Vec<Step>,
     current: usize,
     dry_run: bool,
+    /// Steps that failed ("label: error"); shown on the Finish screen so a
+    /// broken install is never reported as success.
+    failed: Vec<String>,
 }
 
 pub fn run(dry_run: bool) -> ExitCode {
+    // ratatui::init() (crossterm raw mode) panics without a controlling tty.
+    // `mde setup --tui` is meant for a real console, so fail cleanly otherwise.
+    use std::io::IsTerminal;
+    if !std::io::stdin().is_terminal() || !std::io::stdout().is_terminal() {
+        eprintln!("mde setup --tui requires an interactive terminal.");
+        return ExitCode::FAILURE;
+    }
+
     let mut app = App {
         screen: if dry_run || is_root() { Screen::Welcome } else { Screen::NotRoot },
         steps: vec![
@@ -57,6 +68,7 @@ pub fn run(dry_run: bool) -> ExitCode {
         ],
         current: 0,
         dry_run,
+        failed: Vec::new(),
     };
 
     let mut terminal = ratatui::init();
@@ -82,7 +94,10 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> ExitCod
         if app.screen == Screen::Progress {
             // Run one step per frame so the screen updates between steps.
             if app.current < app.steps.len() {
-                run_step(app.current, app.dry_run);
+                if let Err(e) = run_step(app.current, app.dry_run) {
+                    let label = app.steps[app.current].label;
+                    app.failed.push(format!("{label}: {e}"));
+                }
                 app.steps[app.current].done = true;
                 app.current += 1;
             } else {
@@ -114,13 +129,23 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> ExitCod
 
 // --- install steps ---------------------------------------------------------
 
-fn run_step(i: usize, dry_run: bool) {
+/// Run a command and treat a non-zero exit (or spawn failure) as an error, so a
+/// failed install step is recorded rather than silently marked done.
+fn run_status(cmd: &mut Command) -> Result<(), String> {
+    match cmd.status() {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(format!("command exited with {s}")),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+fn run_step(i: usize, dry_run: bool) -> Result<(), String> {
     if dry_run {
         std::thread::sleep(Duration::from_millis(450));
-        return;
+        return Ok(());
     }
     match i {
-        0 => {} // collecting information (root already checked)
+        0 => Ok(()), // collecting information (root already checked)
         1 => {
             let mut pkgs: Vec<String> = CORE.iter().map(|s| s.to_string()).collect();
             for t in crate::fedora::TOOLS {
@@ -131,14 +156,15 @@ fn run_step(i: usize, dry_run: bool) {
             let mut args = vec!["install", "-y", "--skip-unavailable"];
             let refs: Vec<&str> = pkgs.iter().map(|s| s.as_str()).collect();
             args.extend(refs);
-            let _ = Command::new("dnf").args(&args).status();
+            run_status(Command::new("dnf").args(&args))
         }
         2 => {
             // configs are shipped by the RPM under /usr/share/mde/skel
-            let _ = Command::new("sh")
-                .arg("-c")
-                .arg("cp -rn /usr/share/mde/skel/. /etc/skel/ 2>/dev/null; true")
-                .status();
+            run_status(
+                Command::new("sh")
+                    .arg("-c")
+                    .arg("cp -rn /usr/share/mde/skel/. /etc/skel/ 2>/dev/null; true"),
+            )
         }
         3 => {
             // Per locked decision #7 the RPM ships no asset bytes — the visual
@@ -146,28 +172,31 @@ fn run_step(i: usize, dry_run: bool) {
             // admin's real user (SUDO_USER) now; everyone else's runs from their
             // session autostart on first login. (Running as root would only
             // populate /root, so we drop privileges to the target user.)
-            if let Some(user) = std::env::var("SUDO_USER").ok().filter(|u| u != "root") {
-                let _ = Command::new("runuser")
-                    .args(["-u", &user, "--", "mde", "install", "--assets"])
-                    .status();
+            match std::env::var("SUDO_USER").ok().filter(|u| u != "root") {
+                Some(user) => run_status(
+                    Command::new("runuser").args(["-u", &user, "--", "mde", "install", "--assets"]),
+                ),
+                None => Ok(()),
             }
         }
         4 => register_session(),
         5 => {
-            let _ = Command::new("systemctl").args(["set-default", "graphical.target"]).status();
-            let _ = Command::new("systemctl").args(["enable", "--now", "greetd"]).status();
+            run_status(Command::new("systemctl").args(["set-default", "graphical.target"]))?;
+            run_status(Command::new("systemctl").args(["enable", "--now", "greetd"]))
         }
-        _ => {}
+        _ => Ok(()),
     }
 }
 
-fn register_session() {
+fn register_session() -> Result<(), String> {
+    let e = |x: std::io::Error| x.to_string();
     let session = "[Desktop Entry]\nName=MDE-Retro\nComment=Windows 2000 desktop\nExec=sway\nType=Application\n";
-    let _ = std::fs::create_dir_all("/usr/share/wayland-sessions");
-    let _ = std::fs::write("/usr/share/wayland-sessions/mde-retro.desktop", session);
+    std::fs::create_dir_all("/usr/share/wayland-sessions").map_err(e)?;
+    std::fs::write("/usr/share/wayland-sessions/mde-retro.desktop", session).map_err(e)?;
     let greetd = "[terminal]\nvt = 1\n\n[default_session]\ncommand = \"tuigreet --remember --sessions /usr/share/wayland-sessions\"\nuser = \"greetd\"\n";
-    let _ = std::fs::create_dir_all("/etc/greetd");
-    let _ = std::fs::write("/etc/greetd/config.toml", greetd);
+    std::fs::create_dir_all("/etc/greetd").map_err(e)?;
+    std::fs::write("/etc/greetd/config.toml", greetd).map_err(e)?;
+    Ok(())
 }
 
 // --- rendering -------------------------------------------------------------
@@ -196,7 +225,7 @@ fn ui(f: &mut Frame, app: &App) {
         Screen::Welcome => (welcome_body(), " ENTER=Continue    F3=Exit "),
         Screen::Summary => (summary_body(), " ENTER=Begin Installation    F3=Exit "),
         Screen::Progress => (progress_body(app), " Installing, please wait... "),
-        Screen::Finish => (finish_body(), " ENTER=Finish "),
+        Screen::Finish => (finish_body(app), " ENTER=Finish "),
     };
 
     let inner = centered(rows[1], 64, 16);
@@ -250,8 +279,23 @@ fn progress_body(app: &App) -> ratatui::text::Text<'static> {
     ratatui::text::Text::from(lines)
 }
 
-fn finish_body() -> ratatui::text::Text<'static> {
-    "MDE-Retro has been installed on this computer.\n\nThe graphical environment (greetd) will now start, and the MDE-Retro logon screen will appear.\n\n  Press ENTER to start the graphical environment.".into()
+fn finish_body(app: &App) -> ratatui::text::Text<'static> {
+    if app.failed.is_empty() {
+        return "MDE-Retro has been installed on this computer.\n\nThe graphical environment (greetd) will now start, and the MDE-Retro logon screen will appear.\n\n  Press ENTER to start the graphical environment.".into();
+    }
+    // A failed step must not masquerade as success.
+    let mut lines = vec![
+        Line::from("Setup completed with errors — some steps did not finish:"),
+        Line::from(""),
+    ];
+    for f in &app.failed {
+        lines.push(Line::from(format!("  - {f}")));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(
+        "The system may be incomplete. Review the errors and re-run `sudo mde setup`.",
+    ));
+    ratatui::text::Text::from(lines)
 }
 
 #[allow(dead_code)]
