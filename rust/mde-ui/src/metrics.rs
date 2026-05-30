@@ -21,10 +21,16 @@ pub const TASKBAR_HEIGHT: u16 = 28;
 /// Default min width of a taskbar window button before it elides.
 pub const TASKBAR_BUTTON_MIN: u16 = 160;
 
-/// UI font family. Win2000 ships Tahoma; MDE-Retro aliases it to a humanist
-/// sans where Tahoma is absent (see `fontconfig/fonts.conf`).
-pub const UI_FONT: &str = "Tahoma";
-/// UI font size in points (Tahoma 8pt).
+/// The Win2000 UI font — the ground-truth TARGET. Tahoma is not freely
+/// distributable, so the shell renders a substitute (`mde_ui::font::FAMILY`);
+/// this records the original so the gap is named, not hidden. The renderer
+/// never requests this string — see `font.rs` for what actually ships.
+pub const UI_FONT_TARGET: &str = "Tahoma";
+/// UI font size in points (Tahoma 8pt) — the transcribed system value.
 pub const UI_FONT_PT: f32 = 8.0;
-/// Title-bar font is Tahoma Bold at the same size.
+/// `UI_FONT_PT` in device pixels at 96 DPI (8pt → 10.67px, rounded to 11): the
+/// ONE size every UI `.size(...)` call must use, so the "8pt everywhere" rule
+/// has a single source of truth instead of scattered literals.
+pub const UI_PX: f32 = 11.0;
+/// Title-bar font is the UI font, bold, at the same size.
 pub const TITLE_FONT_BOLD: bool = true;

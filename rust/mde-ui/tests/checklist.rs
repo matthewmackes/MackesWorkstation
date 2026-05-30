@@ -96,9 +96,21 @@ fn scrollbar_and_menu_rows() {
     assert_eq!(metrics::MENU_HEIGHT, 18);
 }
 
+/// Pin what the renderer ACTUALLY ships, not the unattainable target. Win2000's
+/// Tahoma isn't freely distributable, so the shell renders Droid Sans; a green
+/// "accuracy" test must never launder that approximation by asserting "Tahoma".
+/// The target is recorded separately so the gap stays named.
 #[test]
-fn ui_font_is_tahoma_8pt() {
-    assert_eq!(metrics::UI_FONT, "Tahoma");
-    assert_eq!(metrics::UI_FONT_PT, 8.0);
+fn ui_font_is_the_shipped_substitute() {
+    assert_eq!(mde_ui::font::FAMILY, "Droid Sans"); // the family every renderer loads
+    assert_eq!(metrics::UI_FONT_TARGET, "Tahoma"); // the documented ground truth
     assert!(metrics::TITLE_FONT_BOLD);
+}
+
+/// 8pt at 96 DPI is 10.67px → 11; UI_PX is the single size the renderer uses,
+/// so "8pt everywhere" is one derived constant rather than 38 magic literals.
+#[test]
+fn ui_size_is_one_source_of_truth() {
+    assert_eq!(metrics::UI_FONT_PT, 8.0);
+    assert_eq!(metrics::UI_PX, (metrics::UI_FONT_PT * 96.0 / 72.0).round());
 }

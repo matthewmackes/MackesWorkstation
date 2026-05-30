@@ -9,10 +9,11 @@ use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
 use iced::advanced::widget::{Tree, Widget};
 use iced::mouse;
-use iced::{Border, Color, Element, Length, Rectangle, Shadow, Size};
+use iced::{Color, Element, Length, Rectangle, Size};
 
 use crate::palette;
 use crate::widget::bevel::Bevel;
+use crate::widget::draw_edge;
 
 /// A 3D bevel frame. See [`raised`], [`sunken`], [`pressed`].
 pub struct BevelFrame {
@@ -70,32 +71,6 @@ impl BevelFrame {
     }
 }
 
-fn fill<Renderer: renderer::Renderer>(
-    renderer: &mut Renderer,
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-    color: Color,
-) {
-    if w <= 0.0 || h <= 0.0 {
-        return;
-    }
-    renderer.fill_quad(
-        renderer::Quad {
-            bounds: Rectangle {
-                x,
-                y,
-                width: w,
-                height: h,
-            },
-            border: Border::default(),
-            shadow: Shadow::default(),
-        },
-        color,
-    );
-}
-
 impl<Message, Theme, Renderer> Widget<Message, Theme, Renderer> for BevelFrame
 where
     Renderer: renderer::Renderer,
@@ -124,25 +99,7 @@ where
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
-        let b = layout.bounds();
-        let (x, y, w, h) = (b.x, b.y, b.width, b.height);
-
-        if let Some(face) = self.face {
-            fill(renderer, x, y, w, h, face);
-        }
-        // Outer edge (top/left vs bottom/right).
-        fill(renderer, x, y, w, 1.0, palette::color(self.bevel.outer_tl));
-        fill(renderer, x, y, 1.0, h, palette::color(self.bevel.outer_tl));
-        fill(renderer, x, y + h - 1.0, w, 1.0, palette::color(self.bevel.outer_br));
-        fill(renderer, x + w - 1.0, y, 1.0, h, palette::color(self.bevel.outer_br));
-
-        if self.thickness >= 2 {
-            // Inner edge.
-            fill(renderer, x + 1.0, y + 1.0, w - 2.0, 1.0, palette::color(self.bevel.inner_tl));
-            fill(renderer, x + 1.0, y + 1.0, 1.0, h - 2.0, palette::color(self.bevel.inner_tl));
-            fill(renderer, x + 1.0, y + h - 2.0, w - 2.0, 1.0, palette::color(self.bevel.inner_br));
-            fill(renderer, x + w - 2.0, y + 1.0, 1.0, h - 2.0, palette::color(self.bevel.inner_br));
-        }
+        draw_edge(renderer, layout.bounds(), self.bevel, self.thickness, self.face);
     }
 }
 

@@ -9,10 +9,11 @@ use iced::advanced::renderer;
 use iced::advanced::widget::{tree, Tree, Widget};
 use iced::advanced::{Clipboard, Shell};
 use iced::{event, mouse};
-use iced::{Border, Color, Element, Event, Length, Padding, Rectangle, Shadow, Size, Vector};
+use iced::{Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
 
 use crate::palette;
 use crate::widget::bevel::Bevel;
+use crate::widget::{draw_edge, fill};
 
 #[derive(Default)]
 struct State {
@@ -87,33 +88,6 @@ where
     }
 }
 
-fn fill<Renderer: renderer::Renderer>(r: &mut Renderer, x: f32, y: f32, w: f32, h: f32, c: Color) {
-    if w <= 0.0 || h <= 0.0 {
-        return;
-    }
-    r.fill_quad(
-        renderer::Quad {
-            bounds: Rectangle { x, y, width: w, height: h },
-            border: Border::default(),
-            shadow: Shadow::default(),
-        },
-        c,
-    );
-}
-
-fn draw_bevel<Renderer: renderer::Renderer>(r: &mut Renderer, b: Rectangle, bevel: Bevel, face: Color) {
-    let (x, y, w, h) = (b.x, b.y, b.width, b.height);
-    fill(r, x, y, w, h, face);
-    fill(r, x, y, w, 1.0, palette::color(bevel.outer_tl));
-    fill(r, x, y, 1.0, h, palette::color(bevel.outer_tl));
-    fill(r, x, y + h - 1.0, w, 1.0, palette::color(bevel.outer_br));
-    fill(r, x + w - 1.0, y, 1.0, h, palette::color(bevel.outer_br));
-    fill(r, x + 1.0, y + 1.0, w - 2.0, 1.0, palette::color(bevel.inner_tl));
-    fill(r, x + 1.0, y + 1.0, 1.0, h - 2.0, palette::color(bevel.inner_tl));
-    fill(r, x + 1.0, y + h - 2.0, w - 2.0, 1.0, palette::color(bevel.inner_br));
-    fill(r, x + w - 2.0, y + 1.0, 1.0, h - 2.0, palette::color(bevel.inner_br));
-}
-
 impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
     for Button<'a, Message, Theme, Renderer>
 where
@@ -156,8 +130,18 @@ where
         viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_ref::<State>();
+        let enabled = self.on_press.is_some();
         let down = state.is_pressed || self.active;
-        let bevel = if down { Bevel::sunken() } else { Bevel::raised() };
+        // Win2000 distinguishes a momentary press (single sunken-outer edge)
+        // from a toggled-on / active control (full sunken edge, e.g. the
+        // focused window's taskbar button).
+        let bevel = if state.is_pressed {
+            Bevel::pressed()
+        } else if self.active {
+            Bevel::sunken()
+        } else {
+            Bevel::raised()
+        };
         let b = layout.bounds();
         if self.default {
             // Classic default-button: a 1px black outline around the bevel.
@@ -166,19 +150,26 @@ where
             fill(renderer, b.x, b.y, 1.0, b.height, black);
             fill(renderer, b.x, b.y + b.height - 1.0, b.width, 1.0, black);
             fill(renderer, b.x + b.width - 1.0, b.y, 1.0, b.height, black);
-            draw_bevel(
+            draw_edge(
                 renderer,
                 Rectangle { x: b.x + 1.0, y: b.y + 1.0, width: b.width - 2.0, height: b.height - 2.0 },
                 bevel,
-                self.face,
+                2,
+                Some(self.face),
             );
         } else {
-            draw_bevel(renderer, b, bevel, self.face);
+            draw_edge(renderer, b, bevel, 2, Some(self.face));
         }
 
         let content_layout = layout.children().next().expect("button has one child");
+        // A button with no action is disabled: gray (embossed) label, the way
+        // Win2000 drew COLOR_GRAYTEXT. An actionable button uses BUTTON_TEXT.
         let content_style = renderer::Style {
-            text_color: palette::color(palette::BUTTON_TEXT),
+            text_color: palette::color(if enabled {
+                palette::BUTTON_TEXT
+            } else {
+                palette::GRAY_TEXT
+            }),
         };
         let offset = if down { Vector::new(1.0, 1.0) } else { Vector::ZERO };
         renderer.with_translation(offset, |renderer| {
