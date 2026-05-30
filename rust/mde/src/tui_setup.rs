@@ -141,10 +141,16 @@ fn run_step(i: usize, dry_run: bool) {
                 .status();
         }
         3 => {
-            let _ = Command::new("sh")
-                .arg("-c")
-                .arg("cp -rn /usr/share/mde/assets/icons/. /usr/share/icons/ 2>/dev/null; cp -rn /usr/share/mde/assets/sounds/. /usr/share/sounds/ 2>/dev/null; true")
-                .status();
+            // Per locked decision #7 the RPM ships no asset bytes — the visual
+            // assets are FETCHED per user. Trigger the fetch for the invoking
+            // admin's real user (SUDO_USER) now; everyone else's runs from their
+            // session autostart on first login. (Running as root would only
+            // populate /root, so we drop privileges to the target user.)
+            if let Some(user) = std::env::var("SUDO_USER").ok().filter(|u| u != "root") {
+                let _ = Command::new("runuser")
+                    .args(["-u", &user, "--", "mde", "install", "--assets"])
+                    .status();
+            }
         }
         4 => register_session(),
         5 => {

@@ -26,10 +26,19 @@ import re
 import shutil
 import tarfile
 import subprocess
+import urllib.request
 
 HOME = os.path.expanduser("~")
 TARBALL = f"{HOME}/.config/sway/resources/133-Win2k-2.2.2-1.tgz"
 THEME_DIR = f"{HOME}/.local/share/icons/Win2k"
+# Upstream source for the icon set (KDE-Store item 1120706). Per locked
+# decision #7 the asset bytes are fetched at install time, never redistributed,
+# so this URL — not a committed copy — is the source of truth. Override with
+# $MDE_WIN2K_URL if the store mirror changes.
+WIN2K_URL = os.environ.get(
+    "MDE_WIN2K_URL",
+    "https://files.kde.org/store/133-Win2k-2.2.2-1.tgz",
+)
 THEME_NAME = "Win2k"
 
 # KDE-2 category dir -> freedesktop Context
@@ -179,9 +188,33 @@ def refresh_cache():
         print("gtk-update-icon-cache not found (cache optional)")
 
 
+def fetch_if_missing():
+    """Download the icon tarball when it isn't cached locally.
+
+    Keeps the install code-only (decision #7): nothing is shipped with the
+    package; the bytes are pulled from upstream the first time. A pre-seeded
+    cache at TARBALL (e.g. an offline mirror) is used as-is if present.
+    """
+    if os.path.isfile(TARBALL):
+        return
+    os.makedirs(os.path.dirname(TARBALL), exist_ok=True)
+    print(f"fetching Win2k icon set: {WIN2K_URL}")
+    try:
+        with urllib.request.urlopen(WIN2K_URL) as resp, open(TARBALL, "wb") as out:
+            shutil.copyfileobj(resp, out)
+    except Exception as exc:  # noqa: BLE001 — surface a clear, actionable error
+        if os.path.exists(TARBALL):
+            os.remove(TARBALL)
+        raise SystemExit(
+            f"could not fetch the Win2k icon set from {WIN2K_URL}: {exc}\n"
+            f"Set $MDE_WIN2K_URL to a working mirror, or place the tarball at "
+            f"{TARBALL} manually."
+        )
+    print(f"  -> cached at {TARBALL}")
+
+
 def main():
-    if not os.path.isfile(TARBALL):
-        raise SystemExit(f"missing tarball: {TARBALL}")
+    fetch_if_missing()
     extract()
     make_aliases()
     write_index_theme()
