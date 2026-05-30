@@ -39,6 +39,19 @@ enum Msg {
     Finish,
 }
 
+/// Route `mde setup` to the TUI (headless / --tui) or the GUI (in-session).
+pub fn dispatch(args: &[String]) -> ExitCode {
+    let tui = args.iter().any(|a| a == "--tui");
+    let gui = args.iter().any(|a| a == "--gui");
+    let dry = args.iter().any(|a| a == "--dry-run");
+    let headless = std::env::var_os("WAYLAND_DISPLAY").is_none();
+    if gui || (!tui && !headless) {
+        run(args)
+    } else {
+        crate::tui_setup::run(dry)
+    }
+}
+
 pub fn run(_args: &[String]) -> ExitCode {
     let r = iced::application(|_: &Setup| "MDE-Retro Professional Setup".to_string(), update, view)
         .window_size(iced::Size::new(640.0, 480.0))

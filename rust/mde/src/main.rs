@@ -22,6 +22,7 @@ mod installer;
 mod menu;
 mod panel;
 mod sway;
+mod tui_setup;
 
 const USAGE: &str = "\
 mde — Windows 2000 desktop shell for Sway (MDE-Retro)
@@ -65,7 +66,7 @@ fn main() -> ExitCode {
         "control-panel" => control_panel::run(rest),
         "logoff" => dialogs::logoff(),
         "shutdown" => dialogs::shutdown(),
-        "setup" => installer::run(rest),
+        "setup" => installer::dispatch(rest),
         "install" => install::run(rest),
         "-V" | "--version" => {
             println!("mde {}", env!("CARGO_PKG_VERSION"));

@@ -9,7 +9,7 @@
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
-use iced::widget::{button, container, scrollable, text, text_input, Column, Row, Space};
+use iced::widget::{button, container, scrollable, text, text_input, Column, Row};
 use iced::{Background, Border, Element, Length, Padding, Shadow, Task};
 
 use mde_ui::{frame, palette};
