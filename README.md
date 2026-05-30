@@ -101,8 +101,7 @@ home/.config/
 └── fontconfig/fonts.conf             # Tahoma -> humanist sans alias
 assets/
 ├── install-assets.sh          # orchestrator: runs the installers below
-├── install-chicago95.sh       # icons/cursors/sounds/GTK theme from grassmunk/Chicago95
-└── install-reactos-assets.sh  # optional: harvest ReactOS open-licensed assets
+└── install-chicago95.sh       # icons/cursors/sounds/GTK theme from grassmunk/Chicago95
 ```
 
 The large asset sets (Chicago95 is ~76 MB of icons) are **not** committed — the
@@ -111,31 +110,8 @@ installers fetch them from upstream so their licenses travel with them. See
 
 ---
 
-## About ReactOS
-
-A recurring question: *can ReactOS's desktop shell be imported here?*
-
-**Not as running code.** ReactOS's shell (`explorer.exe`, taskbar, start menu) is
-native Win32/NT and renders through `win32k`/GDI — there is no equivalent on
-Wayland, so it can't be compiled to run under Sway, and it doesn't run cleanly
-under Wine either. Even if it did, it would manage Windows `HWND`s inside a Wine
-desktop, not your native Wayland clients.
-
-**The source is still useful two ways**, both of which this project embraces:
-
-1. **As pixel-exact assets** — ReactOS ships open-licensed icons, cursors,
-   wallpapers and sounds. `assets/install-reactos-assets.sh` harvests these.
-2. **As a faithful spec** — its `GetSysColor` defaults, metrics, fonts and layout
-   geometry are the ground truth we reimplement in the native Sway/Waybar/wofi
-   stack.
-
-If you want the *literal* ReactOS shell, run ReactOS in a VM (QEMU/KVM); that's a
-guest OS, not a Sway integration.
-
----
-
 ## License
 
 Configs and scripts: MIT. Bundled-by-download visual assets keep their upstream
-licenses (Chicago95 GPL-3.0, ReactOS GPL-2.0, Win2k icon theme per its store
-page). See [`LICENSE`](LICENSE).
+licenses (Chicago95 GPL-3.0, Win2k icon theme per its store page). See
+[`LICENSE`](LICENSE).

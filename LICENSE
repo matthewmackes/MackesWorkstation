@@ -30,8 +30,6 @@ install at runtime, which keep their own upstream licenses:
   * Chicago95 (icons, cursors, sounds, GTK theme) -- GPL-3.0
         https://github.com/grassmunk/Chicago95
   * Win2k icon theme (KDE-Store item 1120706)     -- see the item's page
-  * ReactOS assets (optional)                      -- GPL-2.0 / mixed
-        https://github.com/reactos/reactos
 
 None of those asset bytes are redistributed here; the installers download them
 from their upstreams so their licenses travel with them.
