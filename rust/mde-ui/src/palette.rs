@@ -11,7 +11,11 @@ pub type Rgb = (u8, u8, u8);
 // --- Core Win2000 Classic colors (COLOR_* / GetSysColor defaults) ----------
 pub const BACKGROUND: Rgb = (0x3a, 0x6e, 0xa5); // desktop
 pub const ACTIVE_TITLE: Rgb = (0x0a, 0x24, 0x6a); // focused title bar / Highlight
-pub const ACTIVE_TITLE_GRADIENT: Rgb = (0xa6, 0xca, 0xf0); // title gradient end
+// Recorded ground truth, but NOT rendered by mde: sway draws title bars as a
+// flat `client.focused` color, so the navy→blue gradient caption is the known
+// casualty of the mde↔sway boundary (see ACCURACY.md §0). Kept so the value is
+// transcribed; it only returns if mde ever draws client-side title rows.
+pub const ACTIVE_TITLE_GRADIENT: Rgb = (0xa6, 0xca, 0xf0); // title gradient end (sway-owned)
 pub const INACTIVE_TITLE: Rgb = (0x80, 0x80, 0x80);
 pub const TITLE_TEXT: Rgb = (0xff, 0xff, 0xff);
 pub const INACTIVE_TITLE_TEXT: Rgb = (0xd4, 0xd0, 0xc8);

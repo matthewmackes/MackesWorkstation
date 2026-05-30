@@ -8,6 +8,36 @@ The Win2000 look is verified, not eyeballed. Two layers, both wired into
 | 1 — static metric checklist | `cargo test -p mde-ui` (`mde-ui/tests/checklist.rs`) | no — gates every build |
 | 2 — rendered screenshot spot-check | `cargo test --test accuracy` (`mde/tests/accuracy.rs`) | yes — skips when headless |
 
+## 0. Who draws what — the mde ↔ sway boundary
+
+This is the project's central architectural fact, and every accuracy decision
+flows from it, so it is stated here rather than left implicit:
+
+- **sway draws** the desktop background, every toplevel window's **title bar**
+  and resize **frame**, and window **z-order/stacking**. These come from the
+  sway config's `client.*` colors (focused title `#0a246a`, frame `#d4d0c8`)
+  and `output bg #3a6ea5` — *not* from `mde`.
+- **mde draws** the client area inside each window, plus its two own surfaces:
+  the layer-shell **taskbar** (`mde panel`) and **Start-menu** popup (`mde menu`).
+
+Two consequences worth naming, because they were silently decided once and
+should be deliberate:
+
+- The **gradient caption** (`palette::ACTIVE_TITLE_GRADIENT` → `#a6caf0`) is the
+  known casualty: a sway server-side title bar is a flat color, so the
+  Win2000 navy→blue gradient is *not* rendered today. The constant is kept as
+  recorded ground truth; the gradient only returns if mde ever draws its own
+  client-side title rows (which it deliberately does **not** — that would make
+  mde a window manager; see the "tensions to keep"). Flat navy is the conscious
+  trade, not an oversight.
+- `metrics::SIZE_FRAME` / `FIXED_FRAME` are likewise **sway-owned today** —
+  transcribed for completeness, applied by sway's frame, not by mde.
+
+The harness reflects this split: layer 2 already asserts one sway-drawn surface
+(the desktop background `#3a6ea5`). Asserting sway's title-bar navy / frame
+silver means capturing *including* a window's decoration rect (not just the
+client crop) — a planned extension so both halves of the desktop are verified.
+
 ## 1. Metric checklist (static)
 
 `mde-ui` encodes the targets in code (`palette.rs`, `metrics.rs`).
