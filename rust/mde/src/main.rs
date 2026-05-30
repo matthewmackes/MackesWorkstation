@@ -18,6 +18,7 @@ mod dialogs;
 mod fedora;
 mod files;
 mod install;
+mod installer;
 mod menu;
 mod panel;
 mod sway;
@@ -64,6 +65,7 @@ fn main() -> ExitCode {
         "control-panel" => control_panel::run(rest),
         "logoff" => dialogs::logoff(),
         "shutdown" => dialogs::shutdown(),
+        "setup" => installer::run(rest),
         "install" => install::run(rest),
         "-V" | "--version" => {
             println!("mde {}", env!("CARGO_PKG_VERSION"));
