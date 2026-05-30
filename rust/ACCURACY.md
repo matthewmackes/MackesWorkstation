@@ -1,43 +1,66 @@
 # Accuracy harness — "accuracy is job 1"
 
-The Win2000 look is verified, not eyeballed. Two layers:
+The Win2000 look is verified, not eyeballed. Two layers, both wired into
+`cargo test`:
+
+| Layer | Test | Needs Wayland? |
+| --- | --- | --- |
+| 1 — static metric checklist | `cargo test -p mde-ui` (`mde-ui/tests/checklist.rs`) | no — gates every build |
+| 2 — rendered screenshot spot-check | `cargo test --test accuracy` (`mde/tests/accuracy.rs`) | yes — skips when headless |
 
 ## 1. Metric checklist (static)
 
-`mde-ui` encodes the targets in code (`palette.rs`, `metrics.rs`). Unit tests
-assert internal consistency (e.g. the bevel raised/sunken mirror). The checklist
-below is what a rendered component must satisfy:
+`mde-ui` encodes the targets in code (`palette.rs`, `metrics.rs`).
+`mde-ui/tests/checklist.rs` pins the ground truth so any accidental drift in a
+color or metric fails CI; `widget/bevel.rs` additionally asserts the
+raised/sunken mirror. The checklist below is what a rendered component must
+satisfy (✓ = covered by a layer-1 test):
 
-- [ ] Desktop background `#3a6ea5`
-- [ ] Window frame silver `#d4d0c8`; sizing frame 3px, fixed frame 1px
-- [ ] Active title bar `#0a246a` → gradient to `#a6caf0`; height 18px; Tahoma Bold
-- [ ] Inactive title bar `#808080`
-- [ ] 3D bevel: raised = white/`#dfdfdf` (TL) over `#808080`/`#404040` (BR)
-- [ ] Selection / highlight `#0a246a`, text white
-- [ ] Taskbar height 28px, raised bevel; sunken clock well
-- [ ] Scrollbars 16px; menu rows 18px
-- [ ] UI font Tahoma 8pt everywhere
+- [x] Desktop background `#3a6ea5`
+- [x] Window frame silver `#d4d0c8`; sizing frame 3px, fixed frame 1px
+- [x] Active title bar `#0a246a` → gradient to `#a6caf0`; height 18px; Tahoma Bold
+- [x] Inactive title bar `#808080`
+- [x] 3D bevel: raised = white/`#dfdfdf` (TL) over `#808080`/`#404040` (BR)
+- [x] Selection / highlight `#0a246a`, text white
+- [x] Taskbar height 28px, raised bevel; sunken clock well
+- [x] Scrollbars 16px; menu rows 18px
+- [x] UI font Tahoma 8pt everywhere
 
-## 2. Screenshot diff (dynamic)
+## 2. Screenshot spot-check (dynamic)
 
-`tests/accuracy/` compares live captures to reference Win2000 screenshots.
+`tests/accuracy/` captures the live shell and asserts that the *rendered*
+output paints the ground-truth colors at known coordinates — catching theming
+regressions the static layer can't see.
 
 ```
 tests/accuracy/
-  refs/             reference Win2000 PNGs (taskbar, start-menu, window, ...)
+  refs/             reference Win2000 PNGs (desktop, explorer, menu, open-dialog)
   captures/         grim output (gitignored)
-  checklist.toml    per-component tolerances + crop regions
+  checklist.toml    per-component spot-check points (coord + expected color + tol)
+  capture.sh        launches each component and grim-captures it
 ```
 
 Flow (run inside a Sway session):
 
-1. Launch the component (e.g. `mde panel`) on a fixed-size headless output.
-2. `grim -o HEADLESS-1 captures/taskbar.png`
-3. Compare crop regions against `refs/` with an SSIM + per-pixel-ΔE tolerance.
-4. Spot-check exact colors at known coordinates (title bar, bevel lines).
+```
+cargo build
+tests/accuracy/capture.sh all            # -> captures/desktop.png, panel.png, ...
+cargo test --test accuracy -- --nocapture
+```
 
-The comparator is a small Rust test (`cargo test --test accuracy`) so it can
-gate CI. Reference PNGs are added as each component is built.
+`capture.sh` launches each component, lets it paint, and `grim`s the active
+output. `mde/tests/accuracy.rs` then decodes each PNG (pure-Rust `png` crate)
+and compares the pixel at every `[[capture.*.point]]` to its expected hex
+within a per-channel tolerance. Coordinates are resolution-independent
+(negative = from the far edge), so the same checklist works at any output size.
 
-> Needs a running Wayland session + `grim`; skipped automatically when
-> `WAYLAND_DISPLAY` is unset (e.g. in a headless CI without a nested compositor).
+Why spot-check our own render instead of SSIM-diffing the `refs/` photos: the
+reference screenshots are real Win2000 captures at a foreign resolution/DPI, so
+a whole-image diff is dominated by scale/content misalignment, not color
+fidelity. Asserting exact palette values at fixed points is both stricter on
+what matters (the colors) and free of that noise. The `refs/` PNGs remain the
+visual target for manual eyeballing and future per-region comparison.
+
+> Skips automatically when `WAYLAND_DISPLAY` is unset (headless CI), and skips
+> any component whose capture PNG hasn't been generated — so a partial capture
+> run still verifies what it has.

@@ -22,6 +22,12 @@ anyhow.workspace = true
 ratatui = "0.29"
 crossterm = "0.28"
 
+[dev-dependencies]
+# Accuracy harness (tests/accuracy.rs): decode grim PNG captures and parse the
+# spot-check checklist. Both are pure-Rust and only pulled in for `cargo test`.
+png = "0.17"
+toml = "0.8"
+
 # ---------------------------------------------------------------------------
 # RPM packaging (cargo-generate-rpm). Build with:
 #   cargo build --release && cargo generate-rpm -p mde

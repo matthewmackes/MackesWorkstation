@@ -1,0 +1,104 @@
+//! Static accuracy checklist (layer 1 of `rust/ACCURACY.md`).
+//!
+//! These tests pin the Windows 2000 Classic ground truth — the exact palette
+//! values and UI metrics transcribed from
+//! `assets/reference/win2000-classic-colors.ini` and the classic `SM_*`
+//! system metrics. They have no Wayland or GUI dependency, so they gate every
+//! build: any accidental drift in a color or metric fails CI immediately.
+//!
+//! The dynamic screenshot spot-check (layer 2) lives in the `mde` crate and
+//! validates that the *rendered* output actually paints these values.
+
+use mde_ui::metrics;
+use mde_ui::palette::{self, Rgb};
+
+// --- Palette ---------------------------------------------------------------
+
+#[test]
+fn desktop_background_is_win2000_blue() {
+    assert_eq!(palette::BACKGROUND, (0x3a, 0x6e, 0xa5));
+}
+
+#[test]
+fn active_title_is_navy_with_blue_gradient_end() {
+    assert_eq!(palette::ACTIVE_TITLE, (0x0a, 0x24, 0x6a));
+    assert_eq!(palette::ACTIVE_TITLE_GRADIENT, (0xa6, 0xca, 0xf0));
+}
+
+#[test]
+fn inactive_title_is_gray() {
+    assert_eq!(palette::INACTIVE_TITLE, (0x80, 0x80, 0x80));
+}
+
+#[test]
+fn selection_highlight_is_navy_on_white() {
+    assert_eq!(palette::HIGHLIGHT, (0x0a, 0x24, 0x6a));
+    assert_eq!(palette::HIGHLIGHT_TEXT, (0xff, 0xff, 0xff));
+}
+
+#[test]
+fn window_and_frame_silver() {
+    assert_eq!(palette::WINDOW, (0xff, 0xff, 0xff));
+    assert_eq!(palette::MENU, (0xd4, 0xd0, 0xc8));
+    assert_eq!(palette::BUTTON_FACE, (0xd4, 0xd0, 0xc8));
+}
+
+/// The 3D ramp must run strictly light -> dark so bevels read correctly.
+#[test]
+fn bevel_ramp_is_monotonically_darker() {
+    let lum = |c: Rgb| c.0 as u32 + c.1 as u32 + c.2 as u32;
+    assert!(lum(palette::BUTTON_HILIGHT) > lum(palette::BUTTON_LIGHT));
+    assert!(lum(palette::BUTTON_LIGHT) > lum(palette::BUTTON_FACE));
+    assert!(lum(palette::BUTTON_FACE) > lum(palette::BUTTON_SHADOW));
+    assert!(lum(palette::BUTTON_SHADOW) > lum(palette::BUTTON_DK_SHADOW));
+}
+
+#[test]
+fn bevel_endpoints_match_checklist() {
+    // raised = white/#dfdfdf (TL) over #808080/#404040 (BR)
+    assert_eq!(palette::BUTTON_HILIGHT, (0xff, 0xff, 0xff));
+    assert_eq!(palette::BUTTON_LIGHT, (0xdf, 0xdf, 0xdf));
+    assert_eq!(palette::BUTTON_SHADOW, (0x80, 0x80, 0x80));
+    assert_eq!(palette::BUTTON_DK_SHADOW, (0x40, 0x40, 0x40));
+}
+
+/// `color()` must round-trip an 8-bit channel exactly (no gamma surprises).
+#[test]
+fn color_conversion_is_exact_8bit() {
+    let c = palette::color(palette::BACKGROUND);
+    assert_eq!((c.r * 255.0).round() as u8, 0x3a);
+    assert_eq!((c.g * 255.0).round() as u8, 0x6e);
+    assert_eq!((c.b * 255.0).round() as u8, 0xa5);
+}
+
+// --- Metrics ---------------------------------------------------------------
+
+#[test]
+fn title_bar_is_18px() {
+    assert_eq!(metrics::TITLE_BAR_HEIGHT, 18);
+}
+
+#[test]
+fn frames_match_win2000() {
+    assert_eq!(metrics::SIZE_FRAME, 3);
+    assert_eq!(metrics::FIXED_FRAME, 1);
+    assert_eq!(metrics::BEVEL_LINE, 1);
+}
+
+#[test]
+fn taskbar_is_28px() {
+    assert_eq!(metrics::TASKBAR_HEIGHT, 28);
+}
+
+#[test]
+fn scrollbar_and_menu_rows() {
+    assert_eq!(metrics::SCROLLBAR, 16);
+    assert_eq!(metrics::MENU_HEIGHT, 18);
+}
+
+#[test]
+fn ui_font_is_tahoma_8pt() {
+    assert_eq!(metrics::UI_FONT, "Tahoma");
+    assert_eq!(metrics::UI_FONT_PT, 8.0);
+    assert!(metrics::TITLE_FONT_BOLD);
+}

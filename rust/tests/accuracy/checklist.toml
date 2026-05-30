@@ -1,0 +1,57 @@
+# Accuracy spot-check checklist (layer 2 of rust/ACCURACY.md).
+#
+# Each [[point]] asserts that a captured frame paints a Windows 2000 ground-
+# truth color at a known location. The harness (mde/tests/accuracy.rs) decodes
+# the capture PNG and compares the pixel to `hex` within `tol` (max per-channel
+# absolute difference). Coordinates are resolution-independent:
+#
+#   x / y  >= 0  -> absolute pixels from the top-left
+#   x / y  <  0  -> pixels from the right / bottom edge  (e.g. y = -3 is the
+#                   3rd row up from the bottom, inside a bottom-anchored taskbar)
+#
+# Captures are produced by tests/accuracy/capture.sh into captures/ (gitignored).
+# A point whose capture file is absent is reported as SKIPPED, not failed, so
+# the suite still runs on a box where only some components were captured.
+
+[capture.desktop]
+file = "desktop.png"
+# Full-output grab of the running desktop (sway background + taskbar strip).
+
+[[capture.desktop.point]]
+label = "desktop background (COLOR_BACKGROUND)"
+x = 80
+y = 80
+hex = "3a6ea5"
+tol = 8
+
+[[capture.desktop.point]]
+label = "taskbar face, silver (COLOR_3DFACE)"
+x = -200
+y = -6
+hex = "d4d0c8"
+tol = 6
+
+[[capture.desktop.point]]
+label = "taskbar raised-bevel top highlight (COLOR_3DHIGHLIGHT)"
+x = 4
+y = -28
+hex = "ffffff"
+tol = 12
+
+[capture.panel]
+file = "panel.png"
+# Full-output grab while `mde panel` (the Rust layer-shell taskbar) is running.
+
+[[capture.panel.point]]
+label = "panel face, silver"
+x = -200
+y = -6
+hex = "d4d0c8"
+tol = 6
+
+[[capture.panel.point]]
+label = "panel top-edge highlight"
+x = 4
+y = -28
+hex = "ffffff"
+tol = 16
