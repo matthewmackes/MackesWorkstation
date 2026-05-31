@@ -13,10 +13,35 @@ pub use button::{button, Button};
 pub use frame::BevelFrame;
 
 use iced::advanced::renderer;
-use iced::widget::{pick_list, text_input};
+use iced::widget::{container, pick_list, scrollable, text_input};
 use iced::{Background, Border, Color, Rectangle, Shadow};
 
 use crate::palette;
+
+/// Win2000 scrollbar: a light-gray (`COLOR_3DLIGHT`) track with a silver
+/// (`COLOR_3DFACE`) thumb edged in shadow. iced can't draw the full 3D thumb
+/// bevel (a rail scroller is one color + one border), so this is the closest
+/// faithful approximation. Pass to `scrollable(...).style(mde_ui::scrollbar)`.
+pub fn scrollbar(_theme: &iced::Theme, _status: scrollable::Status) -> scrollable::Style {
+    let rail = scrollable::Rail {
+        background: Some(Background::Color(palette::color(palette::BUTTON_LIGHT))),
+        border: Border::default(),
+        scroller: scrollable::Scroller {
+            color: palette::color(palette::BUTTON_FACE),
+            border: Border {
+                color: palette::color(palette::BUTTON_SHADOW),
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+        },
+    };
+    scrollable::Style {
+        container: container::Style::default(),
+        vertical_rail: rail,
+        horizontal_rail: rail,
+        gap: None,
+    }
+}
 
 /// The Win2000 sunken-white dropdown (closed `pick_list` control): `COLOR_WINDOW`
 /// fill, a recessed 1px edge, navy selection text. Pass to

@@ -138,7 +138,7 @@ fn hardware_tab(devices: &[DeviceCategory]) -> Element<'static, Message> {
     }
     let well = iced::widget::stack![
         frame::sunken().face(palette::color(palette::WINDOW)),
-        container(scrollable(tree)).padding(3.0),
+        container(scrollable(tree).style(mde_ui::scrollbar)).padding(3.0),
     ];
     Column::new()
         .spacing(8.0)

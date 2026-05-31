@@ -375,7 +375,7 @@ fn list(state: &Files) -> Element<'_, Message> {
 
     let inner = Column::new()
         .push(header)
-        .push(scrollable(rows).width(Length::Fill).height(Length::Fill));
+        .push(scrollable(rows).width(Length::Fill).height(Length::Fill).style(mde_ui::scrollbar));
 
     iced::widget::stack![
         frame::sunken().face(palette::color(palette::WINDOW)),

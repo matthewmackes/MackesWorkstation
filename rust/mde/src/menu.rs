@@ -542,7 +542,7 @@ fn render_column<'a>(nodes: &'a [Node], col: usize, open: Option<usize>, width: 
     let h = (col_content_height(nodes).min(MAX_COL_H)) + 4.0;
     let panel = iced::widget::stack![
         frame::raised().thickness(2),
-        container(scrollable(item_list(nodes, col, open))).padding(2.0),
+        container(scrollable(item_list(nodes, col, open)).style(mde_ui::scrollbar)).padding(2.0),
     ];
     container(panel)
         .width(Length::Fixed(width))
@@ -553,7 +553,7 @@ fn render_column<'a>(nodes: &'a [Node], col: usize, open: Option<usize>, width: 
 fn render_root_column<'a>(nodes: &'a [Node], open: Option<usize>) -> Element<'a, Message> {
     let h = (col_content_height(nodes).min(MAX_COL_H)) + 4.0;
     let inner = Row::new().push(banner(h)).push(
-        container(scrollable(item_list(nodes, 0, open)))
+        container(scrollable(item_list(nodes, 0, open)).style(mde_ui::scrollbar))
             .width(Length::Fixed(186.0))
             .padding(2.0),
     );
