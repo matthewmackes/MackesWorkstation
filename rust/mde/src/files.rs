@@ -6,10 +6,11 @@
 //! the sunken details list (Name/Size/Type, navigates on click), and a status
 //! bar ("N object(s)"). Directory reads use std::fs; files open via xdg-open.
 
-use std::path::PathBuf;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-use iced::widget::{button, container, scrollable, text, text_input, Column, Row};
+use iced::widget::{button, container, scrollable, text, text_input, Column, Row, Space};
 use iced::{Background, Border, Element, Length, Padding, Shadow, Task};
 
 use mde_ui::{frame, metrics, palette};
@@ -33,6 +34,8 @@ struct Files {
     /// Last navigation/IO problem, shown in the status bar instead of leaving
     /// the user staring at an unchanged or empty list with no explanation.
     error: Option<String>,
+    /// Expanded directories in the left tree pane.
+    tree_expanded: HashSet<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +48,8 @@ enum Message {
     Refresh,
     AddressChanged(String),
     GoAddress,
+    TreeToggle(PathBuf),
+    TreeNav(PathBuf),
     Noop,
 }
 
@@ -80,6 +85,7 @@ fn launch(start: PathBuf) -> iced::Result {
                 selected: None,
                 last_click: None,
                 error: None,
+                tree_expanded: home().into_iter().collect(),
             };
             f.load();
             (f, Task::none())
@@ -208,6 +214,17 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 state.navigate(p);
             } else {
                 state.error = Some(format!("Cannot find '{}'.", state.address));
+            }
+        }
+        Message::TreeToggle(p) => {
+            if !state.tree_expanded.remove(&p) {
+                state.tree_expanded.insert(p);
+            }
+        }
+        Message::TreeNav(p) => {
+            if p.is_dir() {
+                state.tree_expanded.insert(p.clone());
+                state.navigate(p);
             }
         }
         Message::Noop => {}
@@ -398,12 +415,87 @@ fn status_bar(state: &Files) -> Element<'_, Message> {
     .into()
 }
 
+/// Immediate subdirectories of `path`, sorted (case-insensitive).
+fn subdirs(path: &Path) -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = std::fs::read_dir(path)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.is_dir())
+        .collect();
+    v.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    v
+}
+
+fn tree_label(path: &Path) -> String {
+    path.file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.display().to_string())
+}
+
+/// Recursive tree rows for `path` at `depth`; expands children when in the set.
+fn tree_rows(state: &Files, path: &Path, label: String, depth: u16) -> Vec<Element<'static, Message>> {
+    let expanded = state.tree_expanded.contains(path);
+    let marker = if expanded { "\u{25bc}" } else { "\u{25b6}" }; // ▼ / ▶
+    let row = Row::new()
+        .push(Space::with_width(Length::Fixed(depth as f32 * 12.0)))
+        .push(
+            button(text(marker).size(metrics::UI_PX))
+                .on_press(Message::TreeToggle(path.to_path_buf()))
+                .padding(pad(0.0, 3.0, 0.0, 3.0))
+                .style(flat),
+        )
+        .push(
+            button(text(label).size(metrics::UI_PX))
+                .on_press(Message::TreeNav(path.to_path_buf()))
+                .width(Length::Fill)
+                .padding(pad(0.0, 4.0, 0.0, 2.0))
+                .style(row_style(path == state.cwd)),
+        );
+    let mut rows: Vec<Element<'static, Message>> = vec![row.into()];
+    if expanded {
+        for kid in subdirs(path) {
+            let l = tree_label(&kid);
+            rows.extend(tree_rows(state, &kid, l, depth + 1));
+        }
+    }
+    rows
+}
+
+fn tree_pane(state: &Files) -> Element<'_, Message> {
+    let mut col = Column::new().spacing(0.0);
+    // Roots: the user's home, then the filesystem root ("My Computer").
+    if let Some(h) = home() {
+        for row in tree_rows(state, &h, "Home".to_string(), 0) {
+            col = col.push(row);
+        }
+    }
+    for row in tree_rows(state, Path::new("/"), "Filesystem".to_string(), 0) {
+        col = col.push(row);
+    }
+    iced::widget::stack![
+        frame::sunken().face(palette::color(palette::WINDOW)),
+        container(scrollable(col).style(mde_ui::scrollbar)).padding(2.0),
+    ]
+    .into()
+}
+
 fn view(state: &Files) -> Element<'_, Message> {
+    let body = Row::new()
+        .push(
+            container(tree_pane(state))
+                .width(Length::Fixed(180.0))
+                .height(Length::Fill)
+                .padding(pad(2.0, 1.0, 2.0, 2.0)),
+        )
+        .push(container(list(state)).width(Length::Fill).height(Length::Fill).padding(2.0));
+
     let content = Column::new()
         .push(menubar())
         .push(toolbar(state))
         .push(address_bar(state))
-        .push(container(list(state)).width(Length::Fill).height(Length::Fill).padding(2.0))
+        .push(container(body).width(Length::Fill).height(Length::Fill))
         .push(status_bar(state));
 
     container(content)
