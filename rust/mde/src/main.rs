@@ -5,8 +5,7 @@
 //! `mde`). One binary keeps the install lean; the heavy UI code lives behind
 //! these subcommands.
 //!
-//! The subcommands are scaffolded; each prints a not-implemented notice until
-//! its component lands (see the rust-shell tasks).
+//! All subcommands are implemented; see [`USAGE`] for the full set.
 
 use std::env;
 use std::path::Path;

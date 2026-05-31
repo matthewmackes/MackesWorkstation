@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Capture the MDE-Retro PREVIEW GALLERY: a screenshot of every shell component,
+# taken in an isolated headless nested sway so the result is clean, awake, and
+# unoccluded regardless of the host session (it works from an away/headless run).
+#
+# This is the operator's review artifact — one PNG per component under
+# tests/accuracy/captures/gallery/, plus a contact sheet if ImageMagick is here.
+#
+# Usage:  tests/accuracy/gallery.sh
+# Requires: sway (headless backend), grim, swaymsg, a built ./target/debug/mde.
+set -uo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+rust_root="$(cd "$here/../.." && pwd)"
+bin="$rust_root/target/debug/mde"
+out="$here/captures/gallery"
+conf="$here/gallery-sway.conf"
+RT="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+command -v sway >/dev/null || { echo "gallery: sway not found" >&2; exit 1; }
+command -v grim >/dev/null || { echo "gallery: grim not found" >&2; exit 1; }
+[[ -x "$bin" ]] || { echo "gallery: build first (cargo build) — $bin missing" >&2; exit 1; }
+mkdir -p "$out"
+
+# --- bring up an isolated headless sway, detect its wayland display ----------
+before=$(ls "$RT"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock' | sort)
+log="$(mktemp /tmp/mde-gallery-sway.XXXXXX.log)"
+WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 setsid sway -c "$conf" >"$log" 2>&1 &
+disown 2>/dev/null || true
+
+SWAYSOCK=""
+for _ in $(seq 1 40); do
+    for s in $(ls -t "$RT"/sway-ipc.*.sock 2>/dev/null); do
+        if SWAYSOCK="$s" swaymsg -t get_outputs 2>/dev/null | grep -q HEADLESS-1; then
+            export SWAYSOCK="$s"; break 2
+        fi
+    done
+    sleep 0.3
+done
+[[ -n "$SWAYSOCK" ]] || { echo "gallery: nested sway failed to start" >&2; cat "$log" >&2; exit 1; }
+sleep 0.4
+after=$(ls "$RT"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock' | sort)
+WL=$(comm -13 <(echo "$before") <(echo "$after") | head -1 | xargs -r basename)
+[[ -n "$WL" ]] || { echo "gallery: could not find nested wayland display" >&2; SWAYSOCK="$SWAYSOCK" swaymsg exit 2>/dev/null; exit 1; }
+export WAYLAND_DISPLAY="$WL"
+echo "gallery: nested sway up (WAYLAND_DISPLAY=$WL, SWAYSOCK=$SWAYSOCK)"
+
+cleanup() { swaymsg exit >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+
+# --- helpers -----------------------------------------------------------------
+# shot NAME [--crop GEO] [--wait SECS] CMD [ARGS...] — launch a component, let
+# it paint, grab the output, then close it before the next shot. By default
+# grabs the full output (the window floats centered on the blue desktop, title
+# bar and all). --crop "X,Y WxH" grabs just that region (e.g. the taskbar strip,
+# which is otherwise a thin band on a big empty desktop). --wait overrides the
+# paint delay for slow-to-map components.
+shot() {
+    local name="$1"; shift
+    local crop="" wait=2.2
+    while [[ "${1:-}" == --* ]]; do
+        case "$1" in
+            --crop) crop="$2"; shift 2 ;;
+            --wait) wait="$2"; shift 2 ;;
+            *) break ;;
+        esac
+    done
+    echo "  [$name] $*"
+    "$bin" "$@" >/dev/null 2>&1 &
+    local pid=$!
+    sleep "$wait"
+    if [[ -n "$crop" ]]; then
+        grim -g "$crop" "$out/$name.png" 2>/dev/null && echo "    -> $name.png (crop $crop, $(stat -c%s "$out/$name.png" 2>/dev/null) B)" || echo "    !! grab failed"
+    else
+        grim -o HEADLESS-1 "$out/$name.png" 2>/dev/null && echo "    -> $name.png ($(stat -c%s "$out/$name.png" 2>/dev/null) B)" || echo "    !! grab failed"
+    fi
+    kill "$pid" 2>/dev/null || true
+    wait "$pid" 2>/dev/null || true
+    # let the surface fully unmap so the next shot is clean
+    sleep 0.4
+}
+
+# --- the gallery -------------------------------------------------------------
+echo "gallery: capturing components…"
+# The taskbar is a thin strip at the bottom of a 1280x960 output — crop to it.
+shot panel            --crop "0,920 1280x40" panel
+shot start-menu       menu
+shot files            files "$HOME"
+shot control-panel    control-panel
+shot system-properties --wait 3.0 system-properties
+shot run-dialog       run
+shot properties       properties "Command Prompt" "/usr/bin/foot"
+shot log-off          logoff
+shot shut-down        shutdown
+shot setup            setup --gui
+
+# --- optional contact sheet --------------------------------------------------
+if command -v montage >/dev/null 2>&1; then
+    echo "gallery: assembling contact sheet…"
+    montage "$out"/panel.png "$out"/start-menu.png "$out"/files.png \
+            "$out"/control-panel.png "$out"/system-properties.png "$out"/run-dialog.png \
+            "$out"/properties.png "$out"/log-off.png "$out"/shut-down.png "$out"/setup.png \
+            -tile 2x -geometry 640x480+6+6 -background '#d4d0c8' -title "MDE-Retro — preview gallery" \
+            "$out/_contact-sheet.png" 2>/dev/null && echo "    -> _contact-sheet.png" || echo "    (montage failed; individual shots are in $out)"
+else
+    echo "gallery: ImageMagick 'montage' not found — individual shots only (in $out)"
+fi
+
+echo "gallery: done. Shots in $out"
+ls -1 "$out"/*.png 2>/dev/null
