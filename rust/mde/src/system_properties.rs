@@ -7,10 +7,11 @@
 //! `mde system-properties --info`     prints the General facts (headless)
 //! `mde system-properties --devices`  prints the Device Manager tree (headless)
 
+use std::collections::HashSet;
 use std::process::{exit, ExitCode};
 
 use iced::widget::{container, scrollable, text, Column, Row, Space};
-use iced::{Background, Element, Length, Padding, Task};
+use iced::{Background, Border, Element, Length, Padding, Shadow, Task};
 
 use mde_ui::{button, frame, metrics, palette};
 
@@ -30,11 +31,14 @@ struct SysProps {
     current: usize,
     general: General,
     devices: Vec<DeviceCategory>,
+    /// Expanded category indices in the Device Manager tree.
+    expanded: HashSet<usize>,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     SelectTab(usize),
+    ToggleCategory(usize),
     Close,
 }
 
@@ -51,8 +55,11 @@ pub fn run(args: &[String]) -> ExitCode {
         .font(mde_ui::font::BOLD_BYTES)
         .default_font(mde_ui::font::UI)
         .run_with(|| {
+            let devices = sysinfo::devices();
+            // Start with every category expanded (an informative first view).
+            let expanded = (0..devices.len()).collect();
             (
-                SysProps { current: 0, general: sysinfo::general(), devices: sysinfo::devices() },
+                SysProps { current: 0, general: sysinfo::general(), devices, expanded },
                 Task::none(),
             )
         });
@@ -65,6 +72,11 @@ pub fn run(args: &[String]) -> ExitCode {
 fn update(state: &mut SysProps, message: Message) -> Task<Message> {
     match message {
         Message::SelectTab(i) => state.current = i,
+        Message::ToggleCategory(i) => {
+            if !state.expanded.remove(&i) {
+                state.expanded.insert(i);
+            }
+        }
         Message::Close => exit(0),
     }
     Task::none()
@@ -125,15 +137,44 @@ fn computer_name_tab(g: &General) -> Element<'static, Message> {
         .into()
 }
 
-fn hardware_tab(devices: &[DeviceCategory]) -> Element<'static, Message> {
-    // The native Device Manager tree (sunken white well, category → devices).
+/// Flat tree-row button: navy HIGHLIGHT on hover, white hot text (the Win2000
+/// tree-view row look — not a 3D bevel).
+fn tree_row_style(_t: &iced::Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
+    let hot = matches!(status, iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed);
+    iced::widget::button::Style {
+        background: hot.then(|| Background::Color(palette::color(palette::HIGHLIGHT))),
+        text_color: if hot {
+            palette::color(palette::HIGHLIGHT_TEXT)
+        } else {
+            palette::color(palette::WINDOW_TEXT)
+        },
+        border: Border::default(),
+        shadow: Shadow::default(),
+    }
+}
+
+fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
+    // Native Device Manager: a collapsible tree (category ▶/▼ → devices), in a
+    // sunken white well. Expanding/collapsing is a click on the category row.
     let mut tree = Column::new().spacing(0.0);
-    for cat in devices {
-        tree = tree.push(text(cat.name).size(metrics::UI_PX).font(mde_ui::font::UI_BOLD));
-        for d in &cat.devices {
-            tree = tree.push(
-                container(text(format!("    {d}")).size(metrics::UI_PX)).padding(pad(0.0, 0.0, 0.0, 8.0)),
-            );
+    for (i, cat) in state.devices.iter().enumerate() {
+        let open = state.expanded.contains(&i);
+        let marker = if open { "▼ " } else { "▶ " };
+        tree = tree.push(
+            iced::widget::button(
+                text(format!("{marker}{}", cat.name)).size(metrics::UI_PX).font(mde_ui::font::UI_BOLD),
+            )
+            .on_press(Message::ToggleCategory(i))
+            .width(Length::Fill)
+            .padding(pad(1.0, 4.0, 1.0, 4.0))
+            .style(tree_row_style),
+        );
+        if open {
+            for d in &cat.devices {
+                tree = tree.push(
+                    container(text(d.clone()).size(metrics::UI_PX)).padding(pad(0.0, 4.0, 0.0, 22.0)),
+                );
+            }
         }
     }
     let well = iced::widget::stack![
@@ -155,7 +196,7 @@ fn tab_content(state: &SysProps) -> Element<'static, Message> {
     match state.current {
         0 => general_tab(&state.general),
         1 => computer_name_tab(&state.general),
-        2 => hardware_tab(&state.devices),
+        2 => hardware_tab(state),
         3 => placeholder(
             "Advanced: Environment Variables, Performance (zram/swappiness), and Startup & Recovery (default boot entry, GRUB timeout).",
         ),
