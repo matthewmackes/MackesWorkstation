@@ -33,12 +33,16 @@ struct SysProps {
     devices: Vec<DeviceCategory>,
     /// Expanded category indices in the Device Manager tree.
     expanded: HashSet<usize>,
+    /// False until the (slow) device scan finishes, so the Hardware tab can show
+    /// "Scanning…" instead of an empty tree that looks like "no devices".
+    scanned: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     SelectTab(usize),
     ToggleCategory(usize),
+    DevicesLoaded(Vec<DeviceCategory>),
     Close,
 }
 
@@ -55,12 +59,18 @@ pub fn run(args: &[String]) -> ExitCode {
         .font(mde_ui::font::BOLD_BYTES)
         .default_font(mde_ui::font::UI)
         .run_with(|| {
-            let devices = sysinfo::devices();
-            // Start with every category expanded (an informative first view).
-            let expanded = (0..devices.len()).collect();
+            // The General facts are cheap (/proc + os-release), so load them now;
+            // the device scan (lspci/lsblk/lsusb, ~2s) would block the first
+            // paint, so kick it off as a task and let the window appear at once.
             (
-                SysProps { current: 0, general: sysinfo::general(), devices, expanded },
-                Task::none(),
+                SysProps {
+                    current: 0,
+                    general: sysinfo::general(),
+                    devices: Vec::new(),
+                    expanded: HashSet::new(),
+                    scanned: false,
+                },
+                Task::perform(async { sysinfo::devices() }, Message::DevicesLoaded),
             )
         });
     match r {
@@ -76,6 +86,12 @@ fn update(state: &mut SysProps, message: Message) -> Task<Message> {
             if !state.expanded.remove(&i) {
                 state.expanded.insert(i);
             }
+        }
+        Message::DevicesLoaded(devs) => {
+            // Start with every category expanded (an informative first view).
+            state.expanded = (0..devs.len()).collect();
+            state.devices = devs;
+            state.scanned = true;
         }
         Message::Close => exit(0),
     }
@@ -162,6 +178,12 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
     // Native Device Manager: a collapsible tree (category ▶/▼ → devices), in a
     // sunken white well. Expanding/collapsing is a click on the category row.
     let mut tree = Column::new().spacing(0.0);
+    if !state.scanned {
+        tree = tree.push(
+            container(text("Scanning hardware devices\u{2026}").size(metrics::UI_PX))
+                .padding(pad(2.0, 4.0, 2.0, 4.0)),
+        );
+    }
     for (i, cat) in state.devices.iter().enumerate() {
         let open = state.expanded.contains(&i);
         // "+"/"-" (the Win2000 tree control) — Droid Sans lacks the ▶/▼ glyphs.
