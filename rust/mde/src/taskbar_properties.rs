@@ -53,8 +53,8 @@ fn gui() -> iced::Result {
         .resizable(false)
         .theme(|_| iced::Theme::Light)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .run_with(|| {
             let st = crate::state::load();
             (
@@ -112,7 +112,7 @@ fn taskbar_preview() -> Element<'static, Message> {
         .spacing(4.0)
         .align_y(iced::Alignment::Center)
         .padding(pad(2.0, 4.0, 2.0, 4.0))
-        .push(button(text("Start").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD)))
+        .push(button(text("Start").size(metrics::UI_PX).font(mde_ui::font::ui_bold())))
         .push(Space::with_width(Length::Fill))
         .push(
             container(text("3:14 PM").size(metrics::UI_PX))

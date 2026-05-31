@@ -100,8 +100,8 @@ pub fn run(_args: &[String]) -> ExitCode {
         .resizable(false)
         .subscription(|_| iced::time::every(Duration::from_millis(110)).map(|_| Msg::Tick))
         .font(font::REGULAR_BYTES)
-        .font(font::BOLD_BYTES)
-        .default_font(font::UI)
+        .font(font::BOLD_BYTES).font(font::PLEX_REGULAR_BYTES).font(font::PLEX_BOLD_BYTES)
+        .default_font(font::ui())
         .run_with(|| (Setup { stage: 0, progress: 0.0, done: false }, Task::none()));
     match r {
         Ok(()) => ExitCode::SUCCESS,
@@ -143,16 +143,16 @@ fn bg_gradient() -> Background {
 
 fn stage_list(state: &Setup) -> Element<'_, Msg> {
     let mut col = Column::new().spacing(10.0).padding(pad(16.0, 10.0, 16.0, 16.0));
-    col = col.push(text("MDE-Retro").size(18.0).font(font::UI_BOLD).color(white()));
+    col = col.push(text("MDE-Retro").size(18.0).font(font::ui_bold()).color(white()));
     col = col.push(text("Professional Setup").size(metrics::UI_PX).color(dim()));
     col = col.push(Space::new(Length::Fill, Length::Fixed(14.0)));
     for (i, (title, _)) in STAGES.iter().enumerate() {
         let (marker, color, fnt) = if i < state.stage || (state.done && i == state.stage) {
-            ("   ", white(), font::UI) // done
+            ("   ", white(), font::ui()) // done
         } else if i == state.stage {
-            (">  ", white(), font::UI_BOLD) // current
+            (">  ", white(), font::ui_bold()) // current
         } else {
-            ("   ", dim(), font::UI) // pending
+            ("   ", dim(), font::ui()) // pending
         };
         col = col.push(text(format!("{marker}{title}")).size(metrics::UI_PX).color(color).font(fnt));
     }
@@ -196,7 +196,7 @@ fn content(state: &Setup) -> Element<'_, Msg> {
         .spacing(16.0)
         .padding(pad(24.0, 24.0, 16.0, 24.0))
         .width(Length::Fill);
-    col = col.push(text(title).size(15.0).font(font::UI_BOLD).color(white()));
+    col = col.push(text(title).size(15.0).font(font::ui_bold()).color(white()));
     col = col.push(text(desc).size(metrics::UI_PX).color(white()));
     col = col.push(Space::new(Length::Fill, Length::Fixed(8.0)));
 

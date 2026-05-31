@@ -178,8 +178,8 @@ fn gui(save: bool, title: String, current: PathBuf, filename: String, filters: V
         .window_size(iced::Size::new(540.0, 380.0))
         .theme(|_| iced::Theme::Light)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .run_with(move || {
             let entries = read_entries(&current, &filters[0]);
             (

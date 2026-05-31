@@ -79,8 +79,8 @@ fn gui() -> iced::Result {
     iced::application(|_: &ControlPanel| "Control Panel - mde".to_string(), update, view)
         .theme(|_| iced::Theme::Light)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .run_with(|| {
             let installed = fedora::TOOLS.iter().map(fedora::is_installed).collect();
             (ControlPanel { installed, ..ControlPanel::default() }, Task::none())
@@ -252,7 +252,7 @@ fn disabled_item(_t: &iced::Theme, _s: button::Status) -> button::Style {
 
 /// The Help ▸ About box.
 fn about_box() -> Element<'static, Message> {
-    let bold = mde_ui::font::UI_BOLD;
+    let bold = mde_ui::font::ui_bold();
     let body = Column::new()
         .spacing(8.0)
         .align_x(iced::Alignment::Center)
@@ -278,7 +278,7 @@ fn about_box() -> Element<'static, Message> {
 }
 
 fn sidebar<'a>() -> Element<'a, Message> {
-    let bold = mde_ui::font::UI_BOLD;
+    let bold = mde_ui::font::ui_bold();
     let accent = mde_ui::infoband::accent();
     let col = Column::new()
         .spacing(8.0)
@@ -339,7 +339,7 @@ fn grid(state: &ControlPanel) -> Element<'_, Message> {
 
 /// A bold category section heading.
 fn cat_header(category: &'static str) -> Element<'static, Message> {
-    container(text(category).size(metrics::UI_PX).font(mde_ui::font::UI_BOLD))
+    container(text(category).size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
         .padding(pad(5.0, 6.0, 1.0, 4.0))
         .into()
 }
@@ -423,7 +423,7 @@ fn large_cell<'a>(state: &ControlPanel, i: usize, tool: &'a fedora::Tool) -> Ele
 
 /// Details view: a columnar list (Name · Category · Status) with a header row.
 fn grid_details(state: &ControlPanel) -> Element<'_, Message> {
-    let bold = mde_ui::font::UI_BOLD;
+    let bold = mde_ui::font::ui_bold();
     let header = Row::new()
         .padding(pad(2.0, 6.0, 3.0, 6.0))
         .push(text("Name").size(metrics::UI_PX).font(bold).width(Length::Fill))

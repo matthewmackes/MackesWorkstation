@@ -13,21 +13,33 @@ pub const REGULAR_BYTES: &[u8] = include_bytes!("../fonts/DroidSans.ttf");
 /// Bold face.
 pub const BOLD_BYTES: &[u8] = include_bytes!("../fonts/DroidSans-Bold.ttf");
 
-/// The family name the bundled TTFs register under.
+/// The Windows 2000 UI font (Tahoma stand-in).
 pub const FAMILY: &str = "Droid Sans";
 
-/// The default UI font (Tahoma stand-in).
-pub const UI: Font = Font {
-    family: Family::Name(FAMILY),
-    ..Font::DEFAULT
-};
+/// IBM Plex Sans — the BeOS-theme UI font (OFL), bundled and registered too.
+pub const PLEX_REGULAR_BYTES: &[u8] = include_bytes!("../fonts/IBMPlexSans-Regular.ttf");
+pub const PLEX_BOLD_BYTES: &[u8] = include_bytes!("../fonts/IBMPlexSans-Bold.ttf");
+pub const PLEX_FAMILY: &str = "IBM Plex Sans";
+
+/// The active UI font family — IBM Plex Sans under the BeOS theme, else Droid
+/// Sans. Both are registered at startup, so switching is just the family name.
+fn family() -> &'static str {
+    if crate::palette::is_beos() {
+        PLEX_FAMILY
+    } else {
+        FAMILY
+    }
+}
+
+/// The default UI font.
+pub fn ui() -> Font {
+    Font { family: Family::Name(family()), ..Font::DEFAULT }
+}
 
 /// Bold UI font (title bars, menu section headers).
-pub const UI_BOLD: Font = Font {
-    family: Family::Name(FAMILY),
-    weight: Weight::Bold,
-    ..Font::DEFAULT
-};
+pub fn ui_bold() -> Font {
+    Font { family: Family::Name(family()), weight: Weight::Bold, ..Font::DEFAULT }
+}
 
 /// The Nerd Font family used for notification-area glyph icons (volume,
 /// network, battery, and SNI tray items). Hack Nerd Font ships the Font Awesome

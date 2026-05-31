@@ -97,7 +97,7 @@ fn tab<'a, Message: Clone + 'a>(label: &str, active: bool, msg: Message) -> Elem
     } else {
         Padding { top: 3.0, right: 10.0, bottom: 2.0, left: 10.0 }
     };
-    let labelled = container(text(label.to_string()).size(metrics::UI_PX).font(font::UI))
+    let labelled = container(text(label.to_string()).size(metrics::UI_PX).font(font::ui()))
         .padding(pad)
         .height(Length::Fixed(TAB_H));
     mouse_area(iced::widget::stack![TabEdge { active }, labelled])

@@ -110,8 +110,8 @@ fn launch(start: PathBuf) -> iced::Result {
         .theme(|_| iced::Theme::Light)
         .subscription(|_: &Files| event::listen().map(Message::Event))
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .run_with(move || {
             let mut f = Files {
                 cwd: start.clone(),
@@ -916,7 +916,7 @@ fn info_band(state: &Files) -> Element<'_, Message> {
                 .push(
                     text(band_title(state))
                         .size(metrics::INFO_TITLE_PX)
-                        .font(mde_ui::font::UI_BOLD)
+                        .font(mde_ui::font::ui_bold())
                         .color(mde_ui::infoband::accent()),
                 ),
         )

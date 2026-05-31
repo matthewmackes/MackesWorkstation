@@ -97,8 +97,8 @@ fn launch(kind: String) -> Result<(), iced_layershell::Error> {
         .style(style)
         .subscription(|_: &Popup| event::listen().map(Message::Event))
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .settings(MainSettings {
             layer_settings: LayerShellSettings {
                 anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,

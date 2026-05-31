@@ -352,8 +352,8 @@ fn gui() -> iced::Result {
         .theme(|_| iced::Theme::Light)
         .subscription(|_: &Display| iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::Tick))
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .run_with(|| {
             let live = outputs::query();
             let desired = outputs::desired_from(&live);
@@ -617,7 +617,7 @@ fn label(s: &str) -> Element<'static, Message> {
 }
 
 fn bold(s: &str) -> Element<'static, Message> {
-    text(s.to_string()).size(metrics::UI_PX).font(mde_ui::font::UI_BOLD).into()
+    text(s.to_string()).size(metrics::UI_PX).font(mde_ui::font::ui_bold()).into()
 }
 
 fn tab_strip(current: usize) -> Element<'static, Message> {
@@ -633,7 +633,7 @@ fn monitor_graphic<'a>(screen: Element<'a, Message>, number: Option<usize>) -> E
         .push(iced::widget::stack![frame::sunken().thickness(2), inner]);
     if let Some(n) = number {
         screen_stack = screen_stack.push(
-            container(text(format!("{}", n + 1)).size(48.0).font(mde_ui::font::UI_BOLD).color(Color::WHITE))
+            container(text(format!("{}", n + 1)).size(48.0).font(mde_ui::font::ui_bold()).color(Color::WHITE))
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .center_x(Length::Fill)
@@ -760,6 +760,7 @@ fn apply_icon_set(set: IconSet) {
     st.icon_set = set.key().to_string();
     let _ = crate::state::save(&st);
     set_gtk_icon_theme(set.theme());
+    set_labwc_title(set == IconSet::Haiku);
     // Detached so it outlives the `pkill`: kill every mde surface (incl. this
     // Display window) and relaunch the taskbar with the new set indexed.
     if let Ok(exe) = std::env::current_exe() {
@@ -769,6 +770,30 @@ fn apply_icon_set(set: IconSet) {
             .arg("-c")
             .arg(format!("sleep 0.3; pkill -x mde; sleep 0.4; exec '{exe}' panel"))
             .spawn();
+    }
+}
+
+/// Recolor the labwc active title bar for the theme — BeOS yellow tab with black
+/// text, or the Windows 2000 navy with white text — then reconfigure labwc live.
+fn set_labwc_title(beos: bool) {
+    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
+    let path = home.join(".local/share/themes/Win2000-MDE/openbox-3/themerc");
+    let Ok(text) = std::fs::read_to_string(&path) else { return };
+    let (bg, fg) = if beos { ("#ffd700", "#000000") } else { ("#0a246a", "#ffffff") };
+    let mut out = String::new();
+    for line in text.lines() {
+        let t = line.trim_start();
+        if t.starts_with("window.active.title.bg.color:") {
+            out.push_str(&format!("window.active.title.bg.color: {bg}\n"));
+        } else if t.starts_with("window.active.label.text.color:") {
+            out.push_str(&format!("window.active.label.text.color: {fg}\n"));
+        } else {
+            out.push_str(line);
+            out.push('\n');
+        }
+    }
+    if std::fs::write(&path, out).is_ok() {
+        let _ = std::process::Command::new("labwc").arg("--reconfigure").spawn();
     }
 }
 
@@ -801,7 +826,7 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
     // A mock window preview, recolored by the chosen scheme.
     let (border_hex, _bg, _txt) = outputs::scheme_colors(state.scheme.key());
     let title_color = parse_hex(border_hex);
-    let title = container(text("Active Window").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD).color(Color::WHITE))
+    let title = container(text("Active Window").size(metrics::UI_PX).font(mde_ui::font::ui_bold()).color(Color::WHITE))
         .width(Length::Fill)
         .padding(pad(2.0, 6.0, 2.0, 6.0))
         .style(move |_| container::Style {

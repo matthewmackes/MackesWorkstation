@@ -72,6 +72,7 @@ assets = [
     { source = "target/rpm-assets/icons/Win2k/**/*", dest = "/usr/share/icons/Win2k/", mode = "0644" },
     { source = "target/rpm-assets/icons/Haiku/**/*", dest = "/usr/share/icons/Haiku/", mode = "0644" },
     { source = "assets/licenses/haiku-icons-MIT.txt", dest = "/usr/share/licenses/mde/haiku-icons-MIT.txt", mode = "0644", doc = true },
+    { source = "assets/licenses/IBMPlexSans-OFL.txt", dest = "/usr/share/licenses/mde/IBMPlexSans-OFL.txt", mode = "0644", doc = true },
     { source = "target/rpm-assets/icons/Chicago95_Standard_Cursors/**/*", dest = "/usr/share/icons/Chicago95_Standard_Cursors/", mode = "0644" },
     { source = "target/rpm-assets/sounds/Chicago95/**/*", dest = "/usr/share/sounds/Chicago95/", mode = "0644" },
     # GPL-3 text + provenance NOTICE for the bundled art (license compliance).

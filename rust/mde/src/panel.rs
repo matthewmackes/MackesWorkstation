@@ -8,11 +8,14 @@ use std::process::{Child, Command, ExitCode};
 use std::time::Duration;
 
 use iced::mouse::ScrollDelta;
-use iced::widget::{container, mouse_area, svg, text, Row, Space, Stack};
+use iced::widget::{container, mouse_area, svg, text, Column, Row, Space, Stack};
 use iced::{Element, Length, Padding, Task};
 
 /// The Start-button icon (carbon "layout-grid"), recoloured to the UI text colour.
 const START_ICON: &[u8] = include_bytes!("start_icon.svg");
+
+/// Width of the vertical BeOS Deskbar (px).
+const BEOS_BAR_W: f32 = 115.0;
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::Anchor;
 use iced_layershell::settings::LayerShellSettings;
@@ -107,21 +110,31 @@ fn launch() -> Result<(), iced_layershell::Error> {
         .style(style)
         .subscription(subscription)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI);
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui());
     // Register the Nerd Font for glyph icons if present on the system.
     if let Some(bytes) = nerd_font_bytes() {
         app = app.font(bytes);
     }
-    app.settings(MainSettings {
-            layer_settings: LayerShellSettings {
-                size: Some((0, metrics::TASKBAR_HEIGHT as u32)),
-                exclusive_zone: metrics::TASKBAR_HEIGHT as i32,
-                anchor: Anchor::Bottom | Anchor::Left | Anchor::Right,
-                ..Default::default()
-            },
+    // BeOS mode: a vertical Deskbar anchored to the left edge; Windows 2000: the
+    // horizontal taskbar along the bottom. Either way the bar reserves its strip
+    // via the exclusive zone.
+    let layer_settings = if palette::is_beos() {
+        LayerShellSettings {
+            size: Some((BEOS_BAR_W as u32, 0)),
+            exclusive_zone: BEOS_BAR_W as i32,
+            anchor: Anchor::Top | Anchor::Left | Anchor::Bottom,
             ..Default::default()
-        })
+        }
+    } else {
+        LayerShellSettings {
+            size: Some((0, metrics::TASKBAR_HEIGHT as u32)),
+            exclusive_zone: metrics::TASKBAR_HEIGHT as i32,
+            anchor: Anchor::Bottom | Anchor::Left | Anchor::Right,
+            ..Default::default()
+        }
+    };
+    app.settings(MainSettings { layer_settings, ..Default::default() })
         .run_with(|| {
             let panel = Panel {
                 pinned: crate::state::load().pinned,
@@ -239,34 +252,93 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
     Task::none()
 }
 
+/// The Start button (carbon grid icon + "Start" label) at width `w` × height
+/// `h`, including the shared right-click (Start context menu). Used by both bars.
+fn start_button(state: &Panel, w: Length, h: Length) -> Element<'_, Message> {
+    mouse_area(
+        button(
+            Row::new()
+                .spacing(4.0)
+                .align_y(iced::Alignment::Center)
+                .push(
+                    svg(svg::Handle::from_memory(START_ICON))
+                        .width(Length::Fixed(16.0))
+                        .height(Length::Fixed(16.0))
+                        .style(|_t, _s| svg::Style { color: Some(palette::color(palette::WINDOW_TEXT)) }),
+                )
+                .push(text("Start").size(metrics::UI_PX).font(mde_ui::font::ui_bold())),
+        )
+        .on_press(Message::Start)
+        .active(state.menu.is_some())
+        .width(w)
+        .height(h),
+    )
+    .on_right_press(Message::StartContext)
+    .into()
+}
+
+/// The notification-area glyphs (SNI items + brightness/volume/network/battery),
+/// built once and arranged by either bar orientation.
+fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
+    let mut v: Vec<Element<Message>> = Vec::new();
+    for (i, item) in state.tray_items.iter().enumerate() {
+        if is_network_icon(&item.icon_name) {
+            continue;
+        }
+        v.push(glyph_button(sni_glyph(&item.icon_name), Message::TrayActivate(i)));
+    }
+    if state.has_backlight {
+        v.push(
+            mouse_area(glyph_el('\u{f0335}'))
+                .on_press(Message::Launch("mde display".into()))
+                .on_scroll(|d| Message::Brightness(scroll_up(&d)))
+                .into(),
+        );
+    }
+    if let Some((pct, muted)) = state.volume {
+        v.push(
+            mouse_area(glyph_el(volume_glyph(pct, muted)))
+                .on_press(Message::Launch("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle".into()))
+                .on_right_press(Message::Launch("pavucontrol".into()))
+                .on_scroll(|d| {
+                    if scroll_up(&d) {
+                        Message::Launch("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+".into())
+                    } else {
+                        Message::Launch("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-".into())
+                    }
+                })
+                .into(),
+        );
+    }
+    v.push(glyph_button(net_glyph(state.net), Message::Launch("nm-connection-editor".into())));
+    if let Some((pct, charging)) = state.battery {
+        v.push(glyph_button(
+            battery_glyph(pct, charging),
+            Message::Launch(
+                "xfce4-power-manager-settings || gnome-power-statistics \
+                 || mate-power-preferences || gnome-control-center power \
+                 || mde control-panel"
+                    .into(),
+            ),
+        ));
+    }
+    v
+}
+
+/// Dispatch to the horizontal Windows-2000 taskbar or the vertical BeOS Deskbar.
 fn view(state: &Panel) -> Element<'_, Message> {
+    if palette::is_beos() {
+        view_vertical(state)
+    } else {
+        view_horizontal(state)
+    }
+}
+
+fn view_horizontal(state: &Panel) -> Element<'_, Message> {
     let mut bar = Row::new()
         .spacing(2.0)
         .height(Length::Fill)
-        .push(
-            mouse_area(
-                button(
-                    Row::new()
-                        .spacing(4.0)
-                        .align_y(iced::Alignment::Center)
-                        .push(
-                            svg(svg::Handle::from_memory(START_ICON))
-                                .width(Length::Fixed(16.0))
-                                .height(Length::Fixed(16.0))
-                                .style(|_t, _s| svg::Style {
-                                    color: Some(palette::color(palette::WINDOW_TEXT)),
-                                }),
-                        )
-                        .push(text("Start").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD)),
-                )
-                .on_press(Message::Start)
-                // Show the button pressed while the menu is open — immediate
-                // feedback so a single click clearly registers.
-                .active(state.menu.is_some())
-                .height(Length::Fill),
-            )
-            .on_right_press(Message::StartContext),
-        )
+        .push(start_button(state, Length::Shrink, Length::Fill))
         .push(Space::with_width(Length::Fixed(6.0)));
 
     // Quick Launch: pinned apps (from menu.json), between Start and the windows.
@@ -306,54 +378,10 @@ fn view(state: &Panel) -> Element<'_, Message> {
         mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
     );
 
-    // The notification area: SNI tray icons (as glyphs) + the shell's own
-    // Volume / Network / Battery indicators, all in the Nerd Font, then the clock.
+    // The notification area: tray glyphs then the clock, in one sunken well.
     let mut tray = Row::new().spacing(3.0).align_y(iced::Alignment::Center);
-    // Third-party SNI items, rendered as glyphs; network-ish ones are skipped
-    // because the shell draws network itself just below.
-    for (i, item) in state.tray_items.iter().enumerate() {
-        if is_network_icon(&item.icon_name) {
-            continue;
-        }
-        tray = tray.push(glyph_button(sni_glyph(&item.icon_name), Message::TrayActivate(i)));
-    }
-    // Brightness (laptop backlight): scroll to dim/brighten, click opens Display.
-    if state.has_backlight {
-        tray = tray.push(
-            mouse_area(glyph_el('\u{f0335}'))
-                .on_press(Message::Launch("mde display".into()))
-                .on_scroll(|d| Message::Brightness(scroll_up(&d))),
-        );
-    }
-    // Volume: scroll to change, click to mute, right-click opens the mixer.
-    if let Some((pct, muted)) = state.volume {
-        tray = tray.push(
-            mouse_area(glyph_el(volume_glyph(pct, muted)))
-                .on_press(Message::Launch("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle".into()))
-                .on_right_press(Message::Launch("pavucontrol".into()))
-                .on_scroll(|d| {
-                    if scroll_up(&d) {
-                        Message::Launch("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+".into())
-                    } else {
-                        Message::Launch("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-".into())
-                    }
-                }),
-        );
-    }
-    // Network (click → nm-connection-editor).
-    tray = tray.push(glyph_button(net_glyph(state.net), Message::Launch("nm-connection-editor".into())));
-    // Battery — click opens Power Options: a real power manager if one is
-    // installed, else the shell's Control Panel (Power Management category).
-    if let Some((pct, charging)) = state.battery {
-        tray = tray.push(glyph_button(
-            battery_glyph(pct, charging),
-            Message::Launch(
-                "xfce4-power-manager-settings || gnome-power-statistics \
-                 || mate-power-preferences || gnome-control-center power \
-                 || mde control-panel"
-                    .into(),
-            ),
-        ));
+    for g in tray_glyphs(state) {
+        tray = tray.push(g);
     }
     // The Win2000 notification area: a single sunken well holding the tray
     // glyphs on the left and the clock on the right. The content is the stack's
@@ -385,6 +413,78 @@ fn view(state: &Panel) -> Element<'_, Message> {
                 .width(Length::Fill)
                 .height(Length::Fill),
         )
+        .into()
+}
+
+/// A thin etched horizontal divider for the vertical bar.
+fn vbar_sep<'a>() -> Element<'a, Message> {
+    container(Space::new(Length::Fill, Length::Fixed(1.0)))
+        .width(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(iced::Background::Color(palette::color(palette::BUTTON_SHADOW))),
+            ..container::Style::default()
+        })
+        .into()
+}
+
+/// The BeOS Deskbar: a vertical strip on the left — clock + tray glyphs, then
+/// the running-window list, with the Start button pinned at the very bottom.
+fn view_vertical(state: &Panel) -> Element<'_, Message> {
+    let mut col = Column::new().spacing(3.0).width(Length::Fill).height(Length::Fill);
+
+    // Clock, then the tray glyphs in a centred row (BeOS keeps these near the top).
+    col = col.push(
+        container(text(state.clock.clone()).size(metrics::UI_PX))
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+            .padding(Padding { top: 2.0, right: 0.0, bottom: 2.0, left: 0.0 }),
+    );
+    let mut tray = Row::new().spacing(2.0).align_y(iced::Alignment::Center);
+    for g in tray_glyphs(state) {
+        tray = tray.push(g);
+    }
+    col = col.push(container(tray).width(Length::Fill).center_x(Length::Fill));
+    col = col.push(vbar_sep());
+
+    // Quick-launch pins.
+    for item in &state.pinned {
+        col = col.push(
+            button(text(truncate(&item.name, 14)).size(metrics::UI_PX))
+                .on_press(Message::Launch(item.command.clone()))
+                .width(Length::Fill),
+        );
+    }
+
+    // Running windows, stacked; each is icon + title (same Win2000 click rules).
+    for w in &state.windows {
+        let label = Row::new()
+            .spacing(4.0)
+            .align_y(iced::Alignment::Center)
+            .push(crate::icons::icon_any(&[w.app_id.as_str(), "application-x-executable"], 16))
+            .push(text(truncate(&w.title, 11)).size(metrics::UI_PX));
+        col = col.push(
+            mouse_area(
+                button(label)
+                    .on_press(Message::TaskButton(w.id))
+                    .active(w.focused)
+                    .width(Length::Fill)
+                    .height(Length::Fixed(28.0)),
+            )
+            .on_right_press(Message::MinimizeToggle(w.id)),
+        );
+    }
+
+    // The empty remainder (right-click opens the taskbar context menu) pushes
+    // the Start button down to the very bottom of the bar.
+    col = col.push(
+        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
+    );
+    col = col.push(vbar_sep());
+    col = col.push(start_button(state, Length::Fill, Length::Fixed(24.0)));
+
+    Stack::new()
+        .push(frame::raised())
+        .push(container(col).padding(2.0).width(Length::Fill).height(Length::Fill))
         .into()
 }
 

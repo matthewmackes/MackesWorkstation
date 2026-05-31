@@ -21,5 +21,11 @@ bundles classic-look assets from third parties, under their own terms:
 - License: **MIT/X** — full text in `haiku-icons-MIT.txt` (this directory).
   Freely redistributable; bundled in the RPM.
 
+## IBM Plex Sans  (the BeOS-theme UI font, embedded in the binary)
+- Upstream: https://github.com/IBM/plex
+- License: **SIL Open Font License 1.1** — full text in `IBMPlexSans-OFL.txt`.
+  Freely redistributable; the Regular + Bold faces are compiled into the mde
+  binary (used when the BeOS theme is active).
+
 If in doubt, install code-only and run `mde install --assets`, which fetches
 these from upstream at first run instead of redistributing them.

@@ -157,8 +157,8 @@ fn launch() -> Result<(), iced_layershell::Error> {
         .style(style)
         .subscription(subscription)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .settings(MainSettings {
             layer_settings: LayerShellSettings {
                 // Full-screen overlay so clicks outside the menu close it.

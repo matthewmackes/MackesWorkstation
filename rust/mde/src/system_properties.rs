@@ -69,8 +69,8 @@ pub fn run(args: &[String]) -> ExitCode {
         .resizable(false)
         .theme(|_| iced::Theme::Light)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES)
-        .default_font(mde_ui::font::UI)
+        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .default_font(mde_ui::font::ui())
         .run_with(|| {
             // The General facts are cheap (/proc + os-release), so load them now;
             // the device scan (lspci/lsblk/lsusb) + the advanced probes would
@@ -145,7 +145,7 @@ fn tab_strip(current: usize) -> Element<'static, Message> {
 fn field<'a>(label: &'a str, value: String) -> Element<'a, Message> {
     Row::new()
         .spacing(6.0)
-        .push(text(label).size(metrics::UI_PX).font(mde_ui::font::UI_BOLD).width(Length::Fixed(120.0)))
+        .push(text(label).size(metrics::UI_PX).font(mde_ui::font::ui_bold()).width(Length::Fixed(120.0)))
         .push(text(value).size(metrics::UI_PX))
         .into()
 }
@@ -153,14 +153,14 @@ fn field<'a>(label: &'a str, value: String) -> Element<'a, Message> {
 fn general_tab(g: &General) -> Element<'static, Message> {
     Column::new()
         .spacing(8.0)
-        .push(text("System:").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD))
+        .push(text("System:").size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
         .push(field("", format!("{} {}", g.product, g.version)))
         .push(field("Kernel", g.kernel.clone()))
         .push(Space::new(Length::Fill, Length::Fixed(6.0)))
-        .push(text("Registered to:").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD))
+        .push(text("Registered to:").size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
         .push(field("", g.user.clone()))
         .push(Space::new(Length::Fill, Length::Fixed(6.0)))
-        .push(text("Computer:").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD))
+        .push(text("Computer:").size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
         .push(field("Processor", g.cpu.clone()))
         .push(field("Processors", format!("{} logical", g.cores)))
         .push(field("Memory", g.mem_human()))
@@ -209,7 +209,7 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
         let marker = if open { "- " } else { "+ " };
         tree = tree.push(
             iced::widget::button(
-                text(format!("{marker}{}", cat.name)).size(metrics::UI_PX).font(mde_ui::font::UI_BOLD),
+                text(format!("{marker}{}", cat.name)).size(metrics::UI_PX).font(mde_ui::font::ui_bold()),
             )
             .on_press(Message::ToggleCategory(i))
             .width(Length::Fill)
