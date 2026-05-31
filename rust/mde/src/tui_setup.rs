@@ -16,11 +16,14 @@ use ratatui::Frame;
 const BLUE: Color = Color::Indexed(18); // deep NT setup blue
 const TITLE: &str = "MDE-Retro Professional Setup";
 
-/// Core runtime packages (everything else = the 40 system tools).
+/// Core runtime packages (everything else = the 40 system tools). `git` and
+/// `python3` are required by the asset-fetch step (`mde install --assets`
+/// clones Chicago95 with git and runs the Win2k icon installer with python3),
+/// so they must land before "Installing visual assets".
 const CORE: &[&str] = &[
     "sway", "foot", "swaybg", "grim", "wmenu", "NetworkManager",
     "NetworkManager-applet", "greetd", "tuigreet", "pipewire", "wireplumber",
-    "xkeyboard-config", "google-droid-sans-fonts", "polkit",
+    "xkeyboard-config", "google-droid-sans-fonts", "polkit", "git", "python3",
 ];
 
 #[derive(PartialEq)]
