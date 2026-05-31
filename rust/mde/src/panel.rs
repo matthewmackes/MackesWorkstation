@@ -7,6 +7,7 @@
 use std::process::{Child, Command, ExitCode};
 use std::time::Duration;
 
+use iced::mouse::ScrollDelta;
 use iced::widget::{container, mouse_area, text, Row, Space, Stack};
 use iced::{Element, Length, Padding, Task};
 use iced_layershell::build_pattern::{application, MainSettings};
@@ -35,6 +36,8 @@ struct Panel {
     volume: Option<(u8, bool)>,
     net: NetState,
     battery: Option<(u8, bool)>,
+    /// Whether a laptop backlight exists (gates the brightness tray glyph).
+    has_backlight: bool,
     /// The Start menu child process, if open. The panel owns it so a second
     /// Start click toggles it closed instead of stacking another full-screen
     /// overlay (which made the menu "take several clicks" to open), and so it
@@ -63,6 +66,7 @@ enum Message {
     TaskbarContext,
     TaskButton(u64),
     MinimizeToggle(u64),
+    Brightness(bool),
     Launch(String),
     TrayActivate(usize),
 }
@@ -120,6 +124,7 @@ fn launch() -> Result<(), iced_layershell::Error> {
                 pinned: crate::state::load().pinned,
                 tray: Some(crate::tray::start()),
                 wm: wlr::start(),
+                has_backlight: backlight_dir().is_some(),
                 ..Panel::default()
             };
             (panel, Task::done(Message::Tick))
@@ -221,6 +226,11 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
                 state.children.push(child);
             }
         }
+        Message::Brightness(up) => {
+            if let Some(child) = step_brightness(up) {
+                state.children.push(child);
+            }
+        }
         _ => {}
     }
     Task::none()
@@ -292,9 +302,28 @@ fn view(state: &Panel) -> Element<'_, Message> {
         }
         tray = tray.push(glyph_button(sni_glyph(&item.icon_name), Message::TrayActivate(i)));
     }
-    // Volume (click → pavucontrol).
+    // Brightness (laptop backlight): scroll to dim/brighten, click opens Display.
+    if state.has_backlight {
+        tray = tray.push(
+            mouse_area(glyph_el('\u{f0335}'))
+                .on_press(Message::Launch("mde display".into()))
+                .on_scroll(|d| Message::Brightness(scroll_up(&d))),
+        );
+    }
+    // Volume: scroll to change, click to mute, right-click opens the mixer.
     if let Some((pct, muted)) = state.volume {
-        tray = tray.push(glyph_button(volume_glyph(pct, muted), Message::Launch("pavucontrol".into())));
+        tray = tray.push(
+            mouse_area(glyph_el(volume_glyph(pct, muted)))
+                .on_press(Message::Launch("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle".into()))
+                .on_right_press(Message::Launch("pavucontrol".into()))
+                .on_scroll(|d| {
+                    if scroll_up(&d) {
+                        Message::Launch("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+".into())
+                    } else {
+                        Message::Launch("wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-".into())
+                    }
+                }),
+        );
     }
     // Network (click → nm-connection-editor).
     tray = tray.push(glyph_button(net_glyph(state.net), Message::Launch("nm-connection-editor".into())));
@@ -398,6 +427,45 @@ fn poll_net() -> NetState {
     }
 }
 
+/// The first laptop backlight device directory, if any.
+fn backlight_dir() -> Option<std::path::PathBuf> {
+    std::fs::read_dir("/sys/class/backlight").ok()?.flatten().map(|e| e.path()).next()
+}
+
+/// Step the backlight up/down via logind's SetBrightness (no root). Returns the
+/// spawned `busctl` child so the panel can reap it.
+fn step_brightness(up: bool) -> Option<Child> {
+    let dir = backlight_dir()?;
+    let dev = dir.file_name()?.to_str()?.to_string();
+    let cur: u32 = std::fs::read_to_string(dir.join("brightness")).ok()?.trim().parse().ok()?;
+    let max: u32 = std::fs::read_to_string(dir.join("max_brightness")).ok()?.trim().parse().ok()?;
+    let step = (max * 7 / 100).max(1);
+    let floor = max * 5 / 100;
+    let new = if up { (cur + step).min(max) } else { cur.saturating_sub(step).max(floor) };
+    Command::new("busctl")
+        .args([
+            "call",
+            "org.freedesktop.login1",
+            "/org/freedesktop/login1/session/auto",
+            "org.freedesktop.login1.Session",
+            "SetBrightness",
+            "ssu",
+            "backlight",
+            &dev,
+            &new.to_string(),
+        ])
+        .spawn()
+        .ok()
+}
+
+/// Whether a scroll gesture went up (raise) rather than down (lower).
+fn scroll_up(d: &ScrollDelta) -> bool {
+    let y = match d {
+        ScrollDelta::Lines { y, .. } | ScrollDelta::Pixels { y, .. } => *y,
+    };
+    y >= 0.0
+}
+
 /// Battery as (percent, charging) from sysfs; None when there's no battery.
 fn poll_battery() -> Option<(u8, bool)> {
     let rd = std::fs::read_dir("/sys/class/power_supply").ok()?;
@@ -472,6 +540,14 @@ fn is_network_icon(icon_name: &str) -> bool {
     ["network", "wifi", "wireless", "signal", "nm-", "wired", "ethernet", "vpn"]
         .iter()
         .any(|k| n.contains(k))
+}
+
+/// A bare notification-area glyph (no button chrome) for wrapping in a
+/// `mouse_area` that wants click + scroll handling.
+fn glyph_el(g: char) -> Element<'static, Message> {
+    container(text(g.to_string()).font(mde_ui::font::NERD).size(15.0).color(palette::color(palette::WINDOW_TEXT)))
+        .padding(Padding { top: 1.0, right: 3.0, bottom: 1.0, left: 3.0 })
+        .into()
 }
 
 /// A flat (chromeless) notification-area glyph button.
