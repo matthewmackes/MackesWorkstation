@@ -49,6 +49,9 @@ struct Files {
     /// Cut/copy clipboard: the source path and whether it was cut (move) vs
     /// copied. Paste acts on the current folder.
     clipboard: Option<(PathBuf, bool)>,
+    /// Details-list sort: column (0 = Name, 1 = Size, 2 = Type) and direction.
+    sort_col: usize,
+    sort_desc: bool,
 }
 
 /// The menubar titles (indices used by `open_menu` / ToggleMenu).
@@ -67,6 +70,7 @@ enum Message {
     TreeToggle(PathBuf),
     TreeNav(PathBuf),
     ToggleFolders,
+    HeaderClick(usize),
     ToggleMenu(usize),
     CloseMenu,
     NewFolder,
@@ -124,6 +128,8 @@ fn launch(start: PathBuf) -> iced::Result {
                 cursor: Point::ORIGIN,
                 ctx: None,
                 clipboard: None,
+                sort_col: 0,
+                sort_desc: false,
             };
             f.load();
             (f, Task::none())
@@ -170,16 +176,30 @@ impl Files {
                 });
             }
         }
-        // Folders first, then files; alphabetical, case-insensitive.
-        entries.sort_by(|a, b| {
-            b.is_dir
-                .cmp(&a.is_dir)
-                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-        });
         self.entries = entries;
+        self.sort_entries();
         self.address = self.cwd.display().to_string();
         self.selected = None;
         self.last_click = None;
+    }
+
+    /// Sort the current entries by the active column/direction. Folders always
+    /// group before files (the Win2000 details view), and Name is the tiebreak.
+    fn sort_entries(&mut self) {
+        let (col, desc) = (self.sort_col, self.sort_desc);
+        self.entries.sort_by(|a, b| {
+            let primary = match col {
+                1 => a.size.cmp(&b.size),
+                2 => kind(a).to_lowercase().cmp(&kind(b).to_lowercase()),
+                _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+            };
+            let primary = if desc { primary.reverse() } else { primary };
+            // Folders first regardless of direction, then the column, then name.
+            b.is_dir
+                .cmp(&a.is_dir)
+                .then(primary)
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+        });
     }
 
     fn navigate(&mut self, path: PathBuf) {
@@ -333,9 +353,60 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             }
         }
         Message::ToggleFolders => state.show_tree = !state.show_tree,
+        Message::HeaderClick(col) => {
+            if state.sort_col == col {
+                state.sort_desc = !state.sort_desc;
+            } else {
+                state.sort_col = col;
+                state.sort_desc = false;
+            }
+            let sel = state.selected.and_then(|i| state.entries.get(i)).map(|e| e.path.clone());
+            state.sort_entries();
+            // Keep the selection on the same item after re-sorting.
+            state.selected = sel.and_then(|p| state.entries.iter().position(|e| e.path == p));
+        }
         // Track the pointer so the context menu opens at the cursor.
         Message::Event(Event::Mouse(iced::mouse::Event::CursorMoved { position })) => {
             state.cursor = position;
+        }
+        Message::Event(Event::Keyboard(iced::keyboard::Event::KeyPressed { key, .. })) => {
+            use iced::keyboard::key::Named;
+            use iced::keyboard::Key;
+            // Shell navigation keys, active only when no menu/context is open.
+            if state.ctx.is_none() && state.open_menu.is_none() {
+                match key {
+                    Key::Named(Named::Enter) => {
+                        if let Some(i) = state.selected {
+                            state.activate(i);
+                        }
+                    }
+                    Key::Named(Named::Backspace) => {
+                        if let Some(parent) = state.cwd.parent() {
+                            let p = parent.to_path_buf();
+                            state.navigate(p);
+                        }
+                    }
+                    Key::Named(Named::Delete) => {
+                        if let Some(i) = state.selected {
+                            state.trash(i);
+                        }
+                    }
+                    Key::Named(Named::F5) => state.load(),
+                    Key::Named(Named::ArrowDown) => {
+                        if !state.entries.is_empty() {
+                            let n = state.entries.len();
+                            state.selected = Some(state.selected.map_or(0, |i| (i + 1).min(n - 1)));
+                        }
+                    }
+                    Key::Named(Named::ArrowUp) => {
+                        if !state.entries.is_empty() {
+                            state.selected = Some(state.selected.map_or(0, |i| i.saturating_sub(1)));
+                        }
+                    }
+                    Key::Named(Named::Escape) => state.selected = None,
+                    _ => {}
+                }
+            }
         }
         Message::Event(_) => {}
         Message::RowContext(i) => {
@@ -621,16 +692,14 @@ fn address_bar(state: &Files) -> Element<'_, Message> {
         .into()
 }
 
-fn header_cell<'a>(label: &'a str, width: Length) -> Element<'a, Message> {
-    // A column header is a raised button-like cell (full 2-line edge), the way
-    // Win2000's list-view header draws — not a thin hairline.
-    iced::widget::stack![
-        frame::raised(),
-        container(text(label).size(metrics::UI_PX))
-            .padding(pad(1.0, 6.0, 1.0, 6.0))
-            .width(width),
-    ]
-    .into()
+fn header_cell<'a>(label: &'a str, width: Length, col: usize) -> Element<'a, Message> {
+    // A column header is a raised 3D button (Win2000's list-view header) — and
+    // clicking it sorts the list by that column.
+    mde_ui::button(text(label).size(metrics::UI_PX))
+        .on_press(Message::HeaderClick(col))
+        .width(width)
+        .padding(pad(1.0, 6.0, 1.0, 6.0))
+        .into()
 }
 
 fn list(state: &Files) -> Element<'_, Message> {
@@ -640,9 +709,9 @@ fn list(state: &Files) -> Element<'_, Message> {
 
     let header = Row::new()
         .height(Length::Fixed(18.0))
-        .push(header_cell("Name", name_w))
-        .push(header_cell("Size", size_w))
-        .push(header_cell("Type", type_w));
+        .push(header_cell("Name", name_w, 0))
+        .push(header_cell("Size", size_w, 1))
+        .push(header_cell("Type", type_w, 2));
 
     let mut rows = Column::new().spacing(0.0);
     for (i, e) in state.entries.iter().enumerate() {
