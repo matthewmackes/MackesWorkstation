@@ -274,6 +274,27 @@ fn step(nodes: &[Node], from: Option<usize>, delta: isize) -> Option<usize> {
     None
 }
 
+/// Accelerator jump: the next item after `from` (wrapping) whose label starts
+/// with `ch` (case-insensitive), skipping separators.
+fn jump(nodes: &[Node], from: Option<usize>, ch: char) -> Option<usize> {
+    let len = nodes.len();
+    if len == 0 {
+        return None;
+    }
+    let start = from.map(|i| i + 1).unwrap_or(0);
+    for k in 0..len {
+        let i = (start + k) % len;
+        let label = match &nodes[i] {
+            Node::Leaf(l, _) | Node::Sub(l, _) => l,
+            Node::Sep => continue,
+        };
+        if label.chars().next().map(|c| c.to_ascii_lowercase()) == Some(ch) {
+            return Some(i);
+        }
+    }
+    None
+}
+
 /// Open the submenu the cursor is on (if it is a `Sub`), selecting its first item.
 fn open_cursor_sub(menu: &mut Menu) {
     let is_sub = {
@@ -362,6 +383,21 @@ fn update(menu: &mut Menu, message: Message) -> Task<Message> {
                     }
                 }
                 _ => {}
+            }
+        }
+        // Accelerator letters: jump to the next item starting with the key.
+        Message::Event(Event::Keyboard(keyboard::Event::KeyPressed {
+            key: keyboard::Key::Character(s),
+            ..
+        })) => {
+            if let Some(ch) = s.chars().next().map(|c| c.to_ascii_lowercase()) {
+                let next = {
+                    let cols = columns(menu);
+                    jump(cols[active_col(menu)], menu.cursor, ch)
+                };
+                if next.is_some() {
+                    menu.cursor = next;
+                }
             }
         }
         _ => {}
@@ -556,4 +592,32 @@ fn view(menu: &Menu) -> Element<'_, Message> {
     let overlay = mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close);
 
     iced::widget::stack![overlay, menu_panel].into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn leaf(s: &str) -> Node {
+        Node::Leaf(s.into(), Act::Help)
+    }
+
+    #[test]
+    fn accelerator_jump_finds_next_match_wrapping() {
+        let nodes = vec![leaf("Apple"), Node::Sep, leaf("Banana"), leaf("Avocado")];
+        assert_eq!(jump(&nodes, None, 'a'), Some(0)); // first 'a' = Apple
+        assert_eq!(jump(&nodes, Some(0), 'a'), Some(3)); // next 'a' = Avocado
+        assert_eq!(jump(&nodes, Some(3), 'a'), Some(0)); // wraps back to Apple
+        assert_eq!(jump(&nodes, None, 'b'), Some(2)); // Banana
+        assert_eq!(jump(&nodes, None, 'z'), None); // no match
+    }
+
+    #[test]
+    fn step_skips_separators_and_wraps() {
+        let nodes = vec![leaf("A"), Node::Sep, leaf("B")];
+        assert_eq!(step(&nodes, None, 1), Some(0)); // first selectable
+        assert_eq!(step(&nodes, Some(0), 1), Some(2)); // skips the separator
+        assert_eq!(step(&nodes, Some(2), 1), Some(0)); // wraps
+        assert_eq!(step(&nodes, Some(0), -1), Some(2)); // up wraps to last
+    }
 }
