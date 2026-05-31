@@ -9,6 +9,8 @@ stage="$here/target/rpm-assets"
 share="${XDG_DATA_HOME:-$HOME/.local/share}"
 rm -rf "$stage"; mkdir -p "$stage/icons" "$stage/sounds"
 cp -r "$share/icons/Win2k" "$stage/icons/"
+# The alternate Haiku icon set (Display > Appearance), MIT-licensed.
+cp -r "$share/icons/Haiku" "$stage/icons/"
 cp -r "$share/icons/Chicago95_Standard_Cursors" "$stage/icons/"
 cp -r "$share/sounds/Chicago95" "$stage/sounds/"
 find "$stage" -name 'icon-theme.cache' -delete

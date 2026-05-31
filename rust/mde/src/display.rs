@@ -166,6 +166,44 @@ impl std::fmt::Display for Scheme {
     }
 }
 
+/// The icon set selectable on the Appearance tab.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IconSet {
+    Win2000,
+    Haiku,
+}
+impl IconSet {
+    const ALL: [IconSet; 2] = [IconSet::Win2000, IconSet::Haiku];
+    /// The state key persisted in menu.json.
+    fn key(self) -> &'static str {
+        match self {
+            IconSet::Win2000 => "win2k",
+            IconSet::Haiku => "haiku",
+        }
+    }
+    /// The freedesktop icon-theme directory name (for gtk-icon-theme-name).
+    fn theme(self) -> &'static str {
+        match self {
+            IconSet::Win2000 => "Win2k",
+            IconSet::Haiku => "Haiku",
+        }
+    }
+    fn from_key(k: &str) -> Self {
+        match k {
+            "haiku" => IconSet::Haiku,
+            _ => IconSet::Win2000,
+        }
+    }
+}
+impl std::fmt::Display for IconSet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            IconSet::Win2000 => "Windows 2000 (Classic)",
+            IconSet::Haiku => "Haiku",
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct WaitChoice(u32); // minutes
 impl std::fmt::Display for WaitChoice {
@@ -232,6 +270,7 @@ struct Display {
 
     // Appearance
     scheme: Scheme,
+    icon_set: IconSet,
 
     // Effects (sway has no effect engine — these are faithful-but-inert except
     // where noted; kept for the 1:1 control set).
@@ -267,6 +306,7 @@ enum Message {
     ToggleLock(bool),
 
     SetScheme(Scheme),
+    SetIconSet(IconSet),
     ToggleFxTransition(bool),
     ToggleFxDrag(bool),
     ToggleFxLargeIcons(bool),
@@ -332,6 +372,7 @@ fn gui() -> iced::Result {
                     wait: WaitChoice(0),
                     lock: true,
                     scheme: Scheme::Standard,
+                    icon_set: IconSet::from_key(&crate::state::load().icon_set),
                     fx_transition: true,
                     fx_drag_contents: true,
                     fx_large_icons: false,
@@ -399,6 +440,10 @@ fn update(state: &mut Display, message: Message) -> Task<Message> {
         Message::ToggleLock(b) => state.lock = b,
 
         Message::SetScheme(s) => state.scheme = s,
+        Message::SetIconSet(set) => {
+            state.icon_set = set;
+            apply_icon_set(set);
+        }
         Message::ToggleFxTransition(b) => state.fx_transition = b,
         Message::ToggleFxDrag(b) => state.fx_drag_contents = b,
         Message::ToggleFxLargeIcons(b) => state.fx_large_icons = b,
@@ -708,6 +753,50 @@ fn screensaver_tab(state: &Display) -> Element<'_, Message> {
         .into()
 }
 
+/// Persist the icon set, point GTK at the matching theme, and restart the shell
+/// so every surface (taskbar + GTK apps) adopts the new icons.
+fn apply_icon_set(set: IconSet) {
+    let mut st = crate::state::load();
+    st.icon_set = set.key().to_string();
+    let _ = crate::state::save(&st);
+    set_gtk_icon_theme(set.theme());
+    // Detached so it outlives the `pkill`: kill every mde surface (incl. this
+    // Display window) and relaunch the taskbar with the new set indexed.
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.to_string_lossy().to_string();
+        let _ = std::process::Command::new("setsid")
+            .arg("sh")
+            .arg("-c")
+            .arg(format!("sleep 0.3; pkill -x mde; sleep 0.4; exec '{exe}' panel"))
+            .spawn();
+    }
+}
+
+/// Rewrite (or insert) `gtk-icon-theme-name` in the GTK 3 + GTK 4 settings.ini
+/// so GTK apps use the chosen icon theme.
+fn set_gtk_icon_theme(theme: &str) {
+    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
+    let line = format!("gtk-icon-theme-name = {theme}");
+    for ver in ["gtk-3.0", "gtk-4.0"] {
+        let path = home.join(".config").join(ver).join("settings.ini");
+        let mut text = std::fs::read_to_string(&path).unwrap_or_else(|_| "[Settings]\n".to_string());
+        if !text.contains("[Settings]") {
+            text = format!("[Settings]\n{text}");
+        }
+        if let Some(start) = text.find("gtk-icon-theme-name") {
+            let end = text[start..].find('\n').map(|n| start + n).unwrap_or(text.len());
+            text.replace_range(start..end, &line);
+        } else if let Some(idx) = text.find("[Settings]") {
+            let nl = text[idx..].find('\n').map(|n| idx + n + 1).unwrap_or(text.len());
+            text.insert_str(nl, &format!("{line}\n"));
+        }
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&path, text);
+    }
+}
+
 fn appearance_tab(state: &Display) -> Element<'_, Message> {
     // A mock window preview, recolored by the chosen scheme.
     let (border_hex, _bg, _txt) = outputs::scheme_colors(state.scheme.key());
@@ -736,7 +825,14 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
                 .push(label("Scheme:"))
                 .push(pick_list(Scheme::ALL.to_vec(), Some(state.scheme), Message::SetScheme).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
         )
-        .push(label("Applying rewrites the labwc Win2000 theme colours and reconfigures the window decorations. Repainting the mde shell itself adopts the scheme on next launch."));
+        .push(
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::Alignment::Center)
+                .push(label("Icon set:"))
+                .push(pick_list(IconSet::ALL.to_vec(), Some(state.icon_set), Message::SetIconSet).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
+        )
+        .push(label("Changing the icon set restarts the shell so the taskbar and apps adopt it. The colour scheme rewrites the labwc theme; the mde shell adopts it on next launch."));
 
     Column::new()
         .spacing(12.0)

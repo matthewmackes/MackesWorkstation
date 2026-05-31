@@ -25,6 +25,10 @@ pub struct MenuState {
     /// Default false ⇒ the large-icon Start menu, the Win2000 default.
     #[serde(default)]
     pub start_small_icons: bool,
+    /// Icon set key (Display ▸ Appearance). "" / "win2k" ⇒ the Windows 2000
+    /// classic icons; "haiku" ⇒ the Haiku OS icon theme.
+    #[serde(default)]
+    pub icon_set: String,
 }
 
 /// `~/.config/mde/menu.json` (honouring `$XDG_CONFIG_HOME`).
@@ -76,6 +80,7 @@ mod tests {
                 PinnedItem { name: "Terminal".into(), command: "foot".into() },
             ],
             start_small_icons: true,
+            icon_set: "haiku".into(),
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);

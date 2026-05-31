@@ -15,5 +15,11 @@ bundles classic-look assets from third parties, under their own terms:
   bundled RPM publicly** — MDE-Retro does not assert a redistribution right over
   this third-party art.
 
+## Haiku icon theme  (alternate icon set — Display ▸ Appearance)
+- Upstream: https://github.com/lxmx/haiku-icons (based on phillbush/haiku-icons
+  and the Haiku OS originals).
+- License: **MIT/X** — full text in `haiku-icons-MIT.txt` (this directory).
+  Freely redistributable; bundled in the RPM.
+
 If in doubt, install code-only and run `mde install --assets`, which fetches
 these from upstream at first run instead of redistributing them.

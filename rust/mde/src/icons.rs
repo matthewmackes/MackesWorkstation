@@ -19,8 +19,15 @@ use std::sync::OnceLock;
 use iced::widget::{image, svg, Space};
 use iced::{Element, Length};
 
-/// Themes searched, in priority order (matches the installed Inherits chain).
-const THEMES: &[&str] = &["Win2k", "Chicago95", "hicolor"];
+/// Themes searched, in priority order, chosen by the persisted icon set
+/// (Display ▸ Appearance). "haiku" ⇒ Haiku then the generic hicolor fallback;
+/// anything else ⇒ the Windows 2000 classic chain.
+fn themes() -> &'static [&'static str] {
+    match crate::state::load().icon_set.as_str() {
+        "haiku" => &["Haiku", "hicolor"],
+        _ => &["Win2k", "Chicago95", "hicolor"],
+    }
+}
 
 /// Icon-theme base directories (XDG data dirs + the per-user ~/.icons).
 fn base_dirs() -> Vec<PathBuf> {
@@ -60,8 +67,8 @@ fn path_size(p: &Path) -> u16 {
 }
 
 /// Recursively collect icon files under `dir` (depth-capped) into `out`,
-/// keyed by file stem → list of paths.
-fn walk(dir: &Path, depth: u8, out: &mut HashMap<String, Vec<PathBuf>>) {
+/// keyed by file stem → list of (theme rank, path).
+fn walk(dir: &Path, rank: u8, depth: u8, out: &mut HashMap<String, Vec<(u8, PathBuf)>>) {
     if depth == 0 {
         return;
     }
@@ -70,27 +77,29 @@ fn walk(dir: &Path, depth: u8, out: &mut HashMap<String, Vec<PathBuf>>) {
         let path = entry.path();
         let Ok(ft) = entry.file_type() else { continue };
         if ft.is_dir() {
-            walk(&path, depth - 1, out);
+            walk(&path, rank, depth - 1, out);
         } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             if ext == "png" || ext == "svg" {
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    out.entry(stem.to_string()).or_default().push(path.clone());
+                    out.entry(stem.to_string()).or_default().push((rank, path.clone()));
                 }
             }
         }
     }
 }
 
-/// The lazily-built name → candidate-paths index, in theme priority order.
-fn index() -> &'static HashMap<String, Vec<PathBuf>> {
-    static INDEX: OnceLock<HashMap<String, Vec<PathBuf>>> = OnceLock::new();
+/// The lazily-built name → (theme rank, path) index. Rank is the theme's
+/// position in [`themes`], so a higher-priority theme always wins regardless of
+/// size (needed for the scalable-only Haiku set to beat hicolor rasters).
+fn index() -> &'static HashMap<String, Vec<(u8, PathBuf)>> {
+    static INDEX: OnceLock<HashMap<String, Vec<(u8, PathBuf)>>> = OnceLock::new();
     INDEX.get_or_init(|| {
-        let mut map: HashMap<String, Vec<PathBuf>> = HashMap::new();
+        let mut map: HashMap<String, Vec<(u8, PathBuf)>> = HashMap::new();
         for base in base_dirs() {
-            for theme in THEMES {
+            for (rank, theme) in themes().iter().enumerate() {
                 let dir = base.join(theme);
                 if dir.is_dir() {
-                    walk(&dir, 5, &mut map);
+                    walk(&dir, rank as u8, 5, &mut map);
                 }
             }
         }
@@ -99,24 +108,23 @@ fn index() -> &'static HashMap<String, Vec<PathBuf>> {
 }
 
 /// Resolve an icon `name` at the desired pixel `size`, or `None` if absent.
-/// Prefers an exact size, then the nearest available size ≥ requested, then the
-/// largest smaller one; SVG (size 0) is taken only if no raster size fits.
+/// Theme priority dominates; within a theme, prefers an exact size, then the
+/// nearest size ≥ requested, then the largest smaller one, then scalable.
 pub fn lookup(name: &str, size: u16) -> Option<PathBuf> {
     let candidates = index().get(name)?;
     candidates
         .iter()
-        .min_by_key(|p| {
+        .min_by_key(|(rank, p)| {
             let s = path_size(p);
-            // Lower score = better. Exact match best; then ≥ size by overshoot;
-            // then < size by deficit + a penalty; scalable (0) as a last resort.
-            match s {
+            let size_score = match s {
                 _ if s == size => 0u32,
                 0 => 100_000,
                 _ if s > size => 1_000 + (s - size) as u32,
                 _ => 10_000 + (size - s) as u32,
-            }
+            };
+            (*rank, size_score)
         })
-        .cloned()
+        .map(|(_, p)| p.clone())
 }
 
 /// An iced element rendering the first of `names` that resolves at `size`,
