@@ -10,8 +10,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-use iced::widget::{button, container, scrollable, text, text_input, Column, Row, Space};
-use iced::{Background, Border, Element, Length, Padding, Shadow, Task};
+use iced::widget::{button, container, mouse_area, scrollable, text, text_input, Column, Row, Space};
+use iced::{event, Background, Border, Element, Event, Length, Padding, Point, Shadow, Task};
 
 use mde_ui::{frame, metrics, palette};
 
@@ -41,6 +41,14 @@ struct Files {
     /// Left pane mode: `false` = the web-view info band (Win2000 default),
     /// `true` = the folder tree. The "Folders" toolbar button toggles it.
     show_tree: bool,
+    /// Last known cursor position (tracked so the right-click context menu can
+    /// open at the pointer, the Win2000 way).
+    cursor: Point,
+    /// The entry index whose right-click context menu is open, if any.
+    ctx: Option<usize>,
+    /// Cut/copy clipboard: the source path and whether it was cut (move) vs
+    /// copied. Paste acts on the current folder.
+    clipboard: Option<(PathBuf, bool)>,
 }
 
 /// The menubar titles (indices used by `open_menu` / ToggleMenu).
@@ -64,6 +72,16 @@ enum Message {
     NewFolder,
     CloseWindow,
     About,
+    // Right-click context menu on a list row, and its actions.
+    Event(Event),
+    RowContext(usize),
+    CloseCtx,
+    CtxOpen,
+    CtxCut,
+    CtxCopy,
+    CtxPaste,
+    CtxDelete,
+    CtxProperties,
     Noop,
 }
 
@@ -86,6 +104,7 @@ pub fn run(args: &[String]) -> ExitCode {
 fn launch(start: PathBuf) -> iced::Result {
     iced::application(title, update, view)
         .theme(|_| iced::Theme::Light)
+        .subscription(|_: &Files| event::listen().map(Message::Event))
         .font(mde_ui::font::REGULAR_BYTES)
         .font(mde_ui::font::BOLD_BYTES)
         .default_font(mde_ui::font::UI)
@@ -102,6 +121,9 @@ fn launch(start: PathBuf) -> iced::Result {
                 tree_expanded: home().into_iter().collect(),
                 open_menu: None,
                 show_tree: false,
+                cursor: Point::ORIGIN,
+                ctx: None,
+                clipboard: None,
             };
             f.load();
             (f, Task::none())
@@ -167,6 +189,57 @@ impl Files {
         self.history.push(path);
         self.hpos = self.history.len() - 1;
     }
+
+    /// Open entry `i`: enter a folder, or hand a file to `xdg-open`.
+    fn activate(&mut self, i: usize) {
+        if let Some(entry) = self.entries.get(i) {
+            if entry.is_dir {
+                let p = entry.path.clone();
+                self.navigate(p);
+            } else if Command::new("xdg-open").arg(&entry.path).spawn().is_err() {
+                self.error = Some("Could not open this file.".to_string());
+            }
+        }
+    }
+
+    /// Move entry `i` to the trash (the Recycle Bin) via `gio trash`.
+    fn trash(&mut self, i: usize) {
+        if let Some(entry) = self.entries.get(i) {
+            let (path, name) = (entry.path.clone(), entry.name.clone());
+            match Command::new("gio").arg("trash").arg(&path).status() {
+                Ok(s) if s.success() => self.load(),
+                Ok(_) | Err(_) => self.error = Some(format!("Could not delete '{name}'.")),
+            }
+        }
+    }
+
+    /// Paste the clipboard entry into the current folder (move if it was cut,
+    /// else copy). Folder *copy* is not yet supported (surfaced, not silent).
+    fn paste(&mut self) {
+        let Some((src, cut)) = self.clipboard.clone() else { return };
+        let Some(fname) = src.file_name() else { return };
+        let dst = self.cwd.join(fname);
+        if dst == src {
+            return;
+        }
+        let result = if cut {
+            std::fs::rename(&src, &dst).map(|_| ())
+        } else if src.is_dir() {
+            self.error = Some("Copying folders isn't supported yet.".to_string());
+            return;
+        } else {
+            std::fs::copy(&src, &dst).map(|_| ())
+        };
+        match result {
+            Ok(()) => {
+                if cut {
+                    self.clipboard = None;
+                }
+                self.load();
+            }
+            Err(e) => self.error = Some(format!("Paste failed: {e}")),
+        }
+    }
 }
 
 fn update(state: &mut Files, message: Message) -> Task<Message> {
@@ -181,14 +254,7 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 .unwrap_or(false);
             if is_double {
                 state.last_click = None;
-                if let Some(entry) = state.entries.get(i) {
-                    if entry.is_dir {
-                        let p = entry.path.clone();
-                        state.navigate(p);
-                    } else if Command::new("xdg-open").arg(&entry.path).spawn().is_err() {
-                        state.error = Some("Could not open this file.".to_string());
-                    }
-                }
+                state.activate(i);
             } else {
                 state.selected = Some(i);
                 state.last_click = Some((i, now));
@@ -267,6 +333,63 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             }
         }
         Message::ToggleFolders => state.show_tree = !state.show_tree,
+        // Track the pointer so the context menu opens at the cursor.
+        Message::Event(Event::Mouse(iced::mouse::Event::CursorMoved { position })) => {
+            state.cursor = position;
+        }
+        Message::Event(_) => {}
+        Message::RowContext(i) => {
+            state.selected = Some(i);
+            state.ctx = Some(i);
+            state.open_menu = None;
+        }
+        Message::CloseCtx => state.ctx = None,
+        Message::CtxOpen => {
+            let target = state.ctx.or(state.selected);
+            state.ctx = None;
+            if let Some(i) = target {
+                state.activate(i);
+            }
+        }
+        Message::CtxCut => {
+            let p = state.ctx.or(state.selected).and_then(|i| state.entries.get(i)).map(|e| e.path.clone());
+            if let Some(p) = p {
+                state.clipboard = Some((p, true));
+            }
+            state.ctx = None;
+        }
+        Message::CtxCopy => {
+            let p = state.ctx.or(state.selected).and_then(|i| state.entries.get(i)).map(|e| e.path.clone());
+            if let Some(p) = p {
+                state.clipboard = Some((p, false));
+            }
+            state.ctx = None;
+        }
+        Message::CtxPaste => {
+            state.ctx = None;
+            state.paste();
+        }
+        Message::CtxDelete => {
+            let target = state.ctx.or(state.selected);
+            state.ctx = None;
+            if let Some(i) = target {
+                state.trash(i);
+            }
+        }
+        Message::CtxProperties => {
+            if let Some(e) = state.ctx.or(state.selected).and_then(|i| state.entries.get(i)) {
+                let exe = std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.to_str().map(String::from))
+                    .unwrap_or_else(|| "mde".to_string());
+                let _ = Command::new(exe)
+                    .arg("properties")
+                    .arg(&e.name)
+                    .arg(e.path.display().to_string())
+                    .spawn();
+            }
+            state.ctx = None;
+        }
         Message::Noop => {}
     }
     Task::none()
@@ -368,13 +491,18 @@ fn menubar(state: &Files) -> Element<'_, Message> {
 
 /// The commands in menubar menu `i`: (label, message, enabled). Disabled items
 /// (not yet wired) render grayed, the Win2000 way, rather than being absent.
-fn menu_items(i: usize) -> Vec<(&'static str, Message, bool)> {
+/// Edit reflects the live selection/clipboard so Cut/Copy/Paste light up.
+fn menu_items(state: &Files, i: usize) -> Vec<(&'static str, Message, bool)> {
+    let has_sel = state.selected.is_some();
+    let has_clip = state.clipboard.is_some();
     match i {
         0 => vec![("New Folder", Message::NewFolder, true), ("Close", Message::CloseWindow, true)],
         1 => vec![
-            ("Cut", Message::Noop, false),
-            ("Copy", Message::Noop, false),
-            ("Paste", Message::Noop, false),
+            ("Cut", Message::CtxCut, has_sel),
+            ("Copy", Message::CtxCopy, has_sel),
+            ("Paste", Message::CtxPaste, has_clip),
+            ("Delete", Message::CtxDelete, has_sel),
+            ("Properties", Message::CtxProperties, has_sel),
         ],
         2 => vec![("Refresh", Message::Refresh, true)],
         3 => vec![("Add to Favorites", Message::Noop, false)],
@@ -390,10 +518,16 @@ fn menu_x(i: usize) -> f32 {
     MENUS[..i].iter().map(|l| l.len() as f32 * 6.0 + 16.0).sum()
 }
 
-/// The dropdown panel for menu `i`: a raised frame over the command list.
-fn dropdown(i: usize) -> Element<'static, Message> {
+/// A raised dropdown panel over a list of (label, message, enabled) commands —
+/// shared by the menubar dropdowns and the row context menu.
+fn command_menu(items: Vec<(&'static str, Message, bool)>) -> Element<'static, Message> {
     let mut col = Column::new().spacing(0.0);
-    for (label, msg, enabled) in menu_items(i) {
+    for (label, msg, enabled) in items {
+        if label.is_empty() {
+            // A separator entry.
+            col = col.push(container(Space::new(Length::Fill, Length::Fixed(5.0))).padding(pad(2.0, 6.0, 2.0, 6.0)));
+            continue;
+        }
         let color = if enabled {
             palette::color(palette::MENU_TEXT)
         } else {
@@ -408,6 +542,27 @@ fn dropdown(i: usize) -> Element<'static, Message> {
         );
     }
     iced::widget::stack![frame::raised(), container(col).padding(2.0)].into()
+}
+
+/// The dropdown panel for menubar menu `i`.
+fn dropdown(state: &Files, i: usize) -> Element<'static, Message> {
+    command_menu(menu_items(state, i))
+}
+
+/// The right-click context menu for a list row.
+fn context_menu(state: &Files) -> Element<'static, Message> {
+    let has_clip = state.clipboard.is_some();
+    command_menu(vec![
+        ("Open", Message::CtxOpen, true),
+        ("", Message::Noop, false),
+        ("Cut", Message::CtxCut, true),
+        ("Copy", Message::CtxCopy, true),
+        ("Paste", Message::CtxPaste, has_clip),
+        ("", Message::Noop, false),
+        ("Delete", Message::CtxDelete, true),
+        ("", Message::Noop, false),
+        ("Properties", Message::CtxProperties, true),
+    ])
 }
 
 /// A toolbar button: raised 3D chrome (Win2000 hot-track / classic), pressed on
@@ -507,11 +662,14 @@ fn list(state: &Files) -> Element<'_, Message> {
             )
             .push(text(kind(e)).size(metrics::UI_PX).width(type_w));
         rows = rows.push(
-            button(row)
-                .on_press(Message::Open(i))
-                .padding(pad(1.0, 4.0, 1.0, 4.0))
-                .width(Length::Fill)
-                .style(row_style(state.selected == Some(i))),
+            mouse_area(
+                button(row)
+                    .on_press(Message::Open(i))
+                    .padding(pad(1.0, 4.0, 1.0, 4.0))
+                    .width(Length::Fill)
+                    .style(row_style(state.selected == Some(i))),
+            )
+            .on_right_press(Message::RowContext(i)),
         );
     }
 
@@ -742,21 +900,32 @@ fn view(state: &Files) -> Element<'_, Message> {
             ..container::Style::default()
         });
 
-    // An open menubar menu overlays a dropdown (positioned under its title) plus
-    // a transparent full-window catcher so a click anywhere else closes it.
-    match state.open_menu {
-        Some(i) => {
-            let catcher = iced::widget::mouse_area(Space::new(Length::Fill, Length::Fill))
-                .on_press(Message::CloseMenu);
-            let positioned = Column::new()
-                .push(Space::with_height(Length::Fixed(20.0)))
-                .push(
-                    Row::new()
-                        .push(Space::with_width(Length::Fixed(menu_x(i))))
-                        .push(container(dropdown(i)).width(Length::Fixed(170.0))),
-                );
-            iced::widget::stack![base, catcher, positioned].into()
-        }
-        None => base.into(),
+    // A right-click row context menu takes precedence; otherwise an open menubar
+    // menu overlays its dropdown. Each adds a transparent full-window catcher so
+    // a click (or right-click) anywhere else dismisses it.
+    if state.ctx.is_some() {
+        let catcher = mouse_area(Space::new(Length::Fill, Length::Fill))
+            .on_press(Message::CloseCtx)
+            .on_right_press(Message::CloseCtx);
+        let positioned = Column::new()
+            .push(Space::with_height(Length::Fixed(state.cursor.y)))
+            .push(
+                Row::new()
+                    .push(Space::with_width(Length::Fixed(state.cursor.x)))
+                    .push(container(context_menu(state)).width(Length::Fixed(150.0))),
+            );
+        iced::widget::stack![base, catcher, positioned].into()
+    } else if let Some(i) = state.open_menu {
+        let catcher = mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::CloseMenu);
+        let positioned = Column::new()
+            .push(Space::with_height(Length::Fixed(20.0)))
+            .push(
+                Row::new()
+                    .push(Space::with_width(Length::Fixed(menu_x(i))))
+                    .push(container(dropdown(state, i)).width(Length::Fixed(170.0))),
+            );
+        iced::widget::stack![base, catcher, positioned].into()
+    } else {
+        base.into()
     }
 }
