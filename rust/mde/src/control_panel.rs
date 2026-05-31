@@ -43,6 +43,10 @@ pub fn run(args: &[String]) -> ExitCode {
 struct ControlPanel {
     selected: Option<usize>,
     last_click: Option<(usize, std::time::Instant)>,
+    /// Installed-state per tool, parallel to `fedora::TOOLS`. Computed once at
+    /// startup — `is_installed` spawns subprocesses (`command -v` / `rpm -q`),
+    /// so calling it from the view would fire ~80 of them on every redraw.
+    installed: Vec<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -57,7 +61,10 @@ fn gui() -> iced::Result {
         .font(mde_ui::font::REGULAR_BYTES)
         .font(mde_ui::font::BOLD_BYTES)
         .default_font(mde_ui::font::UI)
-        .run()
+        .run_with(|| {
+            let installed = fedora::TOOLS.iter().map(fedora::is_installed).collect();
+            (ControlPanel { installed, ..ControlPanel::default() }, Task::none())
+        })
 }
 
 fn update(state: &mut ControlPanel, message: Message) -> Task<Message> {
@@ -71,10 +78,13 @@ fn update(state: &mut ControlPanel, message: Message) -> Task<Message> {
         if is_double {
             state.last_click = None;
             if let Some(tool) = fedora::TOOLS.get(i) {
-                if fedora::is_installed(tool) {
+                if state.installed.get(i).copied().unwrap_or(false) {
                     let _ = fedora::launch(tool);
                 } else if matches!(fedora::install(&[tool.package]), Ok(s) if s.success()) {
                     // Install + open in one gesture, like Win2000 Add/Remove.
+                    if let Some(flag) = state.installed.get_mut(i) {
+                        *flag = true;
+                    }
                     let _ = fedora::launch(tool);
                 }
             }
@@ -130,40 +140,38 @@ fn menubar<'a>() -> Element<'a, Message> {
 }
 
 fn sidebar<'a>() -> Element<'a, Message> {
-    let white = palette::color(palette::WINDOW);
     let bold = mde_ui::font::UI_BOLD;
+    let accent = mde_ui::infoband::accent();
     let col = Column::new()
         .spacing(8.0)
         .padding(pad(10.0, 12.0, 10.0, 12.0))
-        .push(text("Control Panel").size(15.0).font(bold).color(white))
-        .push(container(Space::new(Length::Fill, Length::Fixed(2.0))).style(
-            move |_| container::Style {
-                background: Some(Background::Color(white)),
-                ..container::Style::default()
-            },
-        ))
         .push(
-            text("Select an item to view its description.")
-                .size(metrics::UI_PX)
-                .color(white),
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::Alignment::Center)
+                .push(crate::icons::icon_any(&["preferences-system", "gnome-control-center", "computer"], 32))
+                .push(text("Control Panel").size(metrics::INFO_TITLE_PX).font(bold).color(accent)),
         )
+        .push(container(Space::new(Length::Fill, Length::Fixed(2.0))).style(mde_ui::infoband::rule))
+        .push(text("Select an item to view its description.").size(metrics::UI_PX))
         .push(
-            text("Configures your computer and adds or removes programs and devices.")
-                .size(metrics::UI_PX)
-                .color(white),
+            container(
+                text("Configures your computer and adds or removes programs and devices.")
+                    .size(metrics::UI_PX),
+            )
+            .style(mde_ui::infoband::tip)
+            .padding(pad(4.0, 6.0, 4.0, 6.0))
+            .width(Length::Fill),
         )
-        .push(Space::new(Length::Fill, Length::Fixed(8.0)))
-        .push(text("See also:").size(metrics::UI_PX).color(white))
-        .push(text("Administrative Tools").size(metrics::UI_PX).color(white))
-        .push(text("Windows Update").size(metrics::UI_PX).color(white));
+        .push(Space::new(Length::Fill, Length::Fixed(6.0)))
+        .push(text("See also:").size(metrics::UI_PX))
+        .push(text("Administrative Tools").size(metrics::UI_PX).color(accent))
+        .push(text("Windows Update").size(metrics::UI_PX).color(accent));
 
     container(col)
         .width(Length::Fixed(190.0))
         .height(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(Background::Color(palette::color(palette::INFO_BAND))),
-            ..container::Style::default()
-        })
+        .style(mde_ui::infoband::band)
         .into()
 }
 
@@ -178,7 +186,7 @@ fn grid(state: &ControlPanel) -> Element<'_, Message> {
             if tool.category != category {
                 continue;
             }
-            let label = if fedora::is_installed(tool) {
+            let label = if state.installed.get(i).copied().unwrap_or(true) {
                 tool.name.to_string()
             } else {
                 format!("{}  (install)", tool.name)
@@ -186,7 +194,7 @@ fn grid(state: &ControlPanel) -> Element<'_, Message> {
             let row = Row::new()
                 .spacing(5.0)
                 .align_y(iced::Alignment::Center)
-                .push(crate::icons::icon_any(applet_icon(tool.name, tool.category), 16))
+                .push(crate::icons::icon_any(tool.icons, 16))
                 .push(text(label).size(metrics::UI_PX));
             col = col.push(
                 button(row)
@@ -204,74 +212,9 @@ fn grid(state: &ControlPanel) -> Element<'_, Message> {
     .into()
 }
 
-/// Freedesktop icon-name candidates for a Control Panel applet, by name keyword
-/// then category. The resolver tries each and falls back to blank space, so an
-/// unmatched applet simply shows no icon rather than tofu.
-fn applet_icon(name: &str, category: &str) -> &'static [&'static str] {
-    let n = name.to_ascii_lowercase();
-    let has = |k: &str| n.contains(k);
-    if has("add/remove") || has("program") {
-        &["applications-other", "system-software-install", "package-x-generic"]
-    } else if has("firewall") {
-        &["network-firewall", "security-high", "preferences-system-network"]
-    } else if has("network") || has("dial-up") || has("dns") {
-        &["network-workgroup", "network-wired", "preferences-system-network"]
-    } else if has("sound") || has("multimedia") || has("audio") {
-        &["multimedia-volume-control", "audio-card", "preferences-desktop-sound"]
-    } else if has("display") || has("screen") {
-        &["preferences-desktop-display", "video-display"]
-    } else if has("partition") || has("disk") || has("storage") || has("drive") || has("usage") || has("smart") || has("health") {
-        &["drive-harddisk", "utilities-system-monitor"]
-    } else if has("user") || has("password") {
-        &["system-users", "preferences-desktop-user", "user-info"]
-    } else if has("regional") || has("language") || has("keyboard") {
-        &["preferences-desktop-keyboard", "preferences-desktop-locale"]
-    } else if has("event") || has("log") {
-        &["utilities-log-viewer", "logviewer", "text-x-generic"]
-    } else if has("security") || has("lynis") {
-        &["security-high", "preferences-system-privacy"]
-    } else if has("date") || has("time") {
-        &["preferences-system-time", "clock"]
-    } else if has("printer") || has("print") {
-        &["printer"]
-    } else if has("update") {
-        &["system-software-update"]
-    } else if has("installation media") || has("media") {
-        &["media-optical", "drive-optical"]
-    } else if has("cockpit") || has("dashboard") || has("web console") {
-        &["network-server", "applications-internet"]
-    } else if has("stacer") || has("btop") || has("htop") || has("glances") || has("iotop") || has("nvtop") || has("monitor") || has("performance") {
-        &["utilities-system-monitor", "applications-system"]
-    } else if has("timeshift") || has("snapshot") || has("backup") || has("restore") {
-        &["deja-dup", "drive-harddisk", "system-software-install"]
-    } else if has("flatpak") || has("dnf") || has("plugin") || has("package") {
-        &["package-x-generic", "system-software-install"]
-    } else if has("nmap") || has("iperf") || has("wireshark") {
-        &["network-workgroup", "applications-internet"]
-    } else if has("powertop") || has("sensor") {
-        &["battery", "preferences-system-power"]
-    } else if has("fastfetch") || has("temporary") || has("clean") {
-        &["utilities-terminal", "user-trash"]
-    } else if has("service") {
-        &["applications-system", "preferences-system"]
-    } else if has("system") {
-        &["computer", "preferences-system"]
-    } else {
-        match category {
-            "Administrative Tools" => &["applications-system", "preferences-system"],
-            "Resource Monitoring" => &["utilities-system-monitor"],
-            "Storage & Disk" => &["drive-harddisk"],
-            "Backup & Recovery" => &["drive-harddisk", "system-software-install"],
-            "Package Management" => &["package-x-generic", "system-software-install"],
-            "All-in-One Dashboard" => &["applications-system", "network-server"],
-            _ => &["preferences-system", "applications-system", "application-x-executable"],
-        }
-    }
-}
-
-fn status_bar<'a>() -> Element<'a, Message> {
+fn status_bar(state: &ControlPanel) -> Element<'_, Message> {
     let total = fedora::TOOLS.len();
-    let missing = fedora::missing().len();
+    let missing = state.installed.iter().filter(|&&i| !i).count();
     container(iced::widget::stack![
         frame::sunken().thickness(1),
         container(text(format!("{total} items, {missing} not installed")).size(metrics::UI_PX))
@@ -290,7 +233,7 @@ fn view(state: &ControlPanel) -> Element<'_, Message> {
     let content = Column::new()
         .push(menubar())
         .push(container(body).width(Length::Fill).height(Length::Fill))
-        .push(status_bar());
+        .push(status_bar(state));
 
     container(content)
         .width(Length::Fill)
