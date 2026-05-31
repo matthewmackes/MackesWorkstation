@@ -45,21 +45,57 @@ enum Msg {
     Finish,
 }
 
-/// Route `mde setup` to the TUI (headless / --tui) or the GUI (in-session).
+/// Route `mde setup`:
+///   --gui            the themed iced Setup *preview* (does not install)
+///   --tui / headless the real text-mode installer (verified engine), here
+///   in-session       launch that same real TUI installer, privileged, in a
+///                    Win2000-styled terminal — so the in-session path performs
+///                    a real install via the hardened engine, not fake progress.
 pub fn dispatch(args: &[String]) -> ExitCode {
     let tui = args.iter().any(|a| a == "--tui");
     let gui = args.iter().any(|a| a == "--gui");
     let dry = args.iter().any(|a| a == "--dry-run");
     let headless = std::env::var_os("WAYLAND_DISPLAY").is_none();
-    if gui || (!tui && !headless) {
-        run(args)
-    } else {
+    if gui {
+        run(args) // themed visual preview (explicit opt-in)
+    } else if tui || headless {
         crate::tui_setup::run(dry)
+    } else {
+        launch_tui_terminal(dry)
+    }
+}
+
+/// In-session: open a Win2000-blue `foot` window running the real TUI installer
+/// as root (`pkexec mde setup --tui`). The verified engine does the work; the
+/// terminal is the graphical face. Dry runs skip privilege (they install nothing).
+fn launch_tui_terminal(dry: bool) -> ExitCode {
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.to_str().map(String::from))
+        .unwrap_or_else(|| "mde".to_string());
+    let inner = if dry {
+        format!("'{exe}' setup --tui --dry-run; printf '\\nPress Enter to close… '; read _")
+    } else {
+        format!("pkexec '{exe}' setup --tui")
+    };
+    let status = std::process::Command::new("foot")
+        .args(["--title", "MDE-Retro Setup", "-o", "colors.background=0a246a"])
+        .arg("sh")
+        .arg("-c")
+        .arg(inner)
+        .status();
+    match status {
+        Ok(s) if s.success() => ExitCode::SUCCESS,
+        Ok(_) => ExitCode::FAILURE,
+        Err(e) => {
+            eprintln!("mde setup: could not launch terminal: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
-    let r = iced::application(|_: &Setup| "MDE-Retro Professional Setup".to_string(), update, view)
+    let r = iced::application(|_: &Setup| "MDE-Retro Setup (preview)".to_string(), update, view)
         .window_size(iced::Size::new(640.0, 480.0))
         .resizable(false)
         .subscription(|_| iced::time::every(Duration::from_millis(110)).map(|_| Msg::Tick))
