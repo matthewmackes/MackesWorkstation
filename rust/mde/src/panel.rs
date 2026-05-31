@@ -7,7 +7,7 @@
 use std::process::{Command, ExitCode};
 use std::time::Duration;
 
-use iced::widget::{container, text, Row, Space, Stack};
+use iced::widget::{container, mouse_area, text, Row, Space, Stack};
 use iced::{Element, Length, Padding, Task};
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::Anchor;
@@ -31,6 +31,8 @@ struct Panel {
 enum Message {
     Tick,
     Start,
+    StartContext,
+    TaskbarContext,
     Focus(i64),
     Launch(String),
 }
@@ -88,7 +90,9 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
             state.windows = sway::windows().unwrap_or_default();
             state.clock = clock_now();
         }
-        Message::Start => spawn_self("menu"),
+        Message::Start => spawn_self(&["menu"]),
+        Message::StartContext => spawn_self(&["popup", "start"]),
+        Message::TaskbarContext => spawn_self(&["popup", "taskbar"]),
         Message::Focus(id) => {
             let _ = sway::focus(id);
         }
@@ -105,15 +109,18 @@ fn view(state: &Panel) -> Element<'_, Message> {
         .spacing(2.0)
         .height(Length::Fill)
         .push(
-            button(
-                Row::new()
-                    .spacing(4.0)
-                    .align_y(iced::Alignment::Center)
-                    .push(mde_ui::flag::flag())
-                    .push(text("Start").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD)),
+            mouse_area(
+                button(
+                    Row::new()
+                        .spacing(4.0)
+                        .align_y(iced::Alignment::Center)
+                        .push(mde_ui::flag::flag())
+                        .push(text("Start").size(metrics::UI_PX).font(mde_ui::font::UI_BOLD)),
+                )
+                .on_press(Message::Start)
+                .height(Length::Fill),
             )
-            .on_press(Message::Start)
-            .height(Length::Fill),
+            .on_right_press(Message::StartContext),
         )
         .push(Space::with_width(Length::Fixed(6.0)));
 
@@ -139,7 +146,10 @@ fn view(state: &Panel) -> Element<'_, Message> {
         );
     }
 
-    bar = bar.push(Space::with_width(Length::Fill));
+    // The empty stretch of bar: right-click opens the taskbar context menu.
+    bar = bar.push(
+        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
+    );
 
     let clock = Stack::new().push(frame::sunken()).push(
         container(text(state.clock.clone()).size(metrics::UI_PX))
@@ -179,9 +189,9 @@ fn clock_now() -> String {
         .unwrap_or_default()
 }
 
-fn spawn_self(sub: &str) {
+fn spawn_self(args: &[&str]) {
     if let Ok(exe) = std::env::current_exe() {
-        let _ = Command::new(exe).arg(sub).spawn();
+        let _ = Command::new(exe).args(args).spawn();
     }
 }
 

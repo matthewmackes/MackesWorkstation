@@ -21,6 +21,7 @@ mod install;
 mod installer;
 mod menu;
 mod panel;
+mod popup;
 mod state;
 mod sway;
 mod sysinfo;
@@ -37,6 +38,7 @@ USAGE:
 COMMANDS:
     panel            Taskbar: Start button, window buttons, tray, clock
     menu [MODE]      Start menu (modes: main, programs, system, run)
+    popup KIND       Context menu (kinds: taskbar, start) for the panel
     files [PATH]     Explorer-style file manager
     control-panel    Windows 2000 Control Panel
     run              Run dialog (type a command to launch)
@@ -71,6 +73,7 @@ fn main() -> ExitCode {
     match cmd {
         "panel" => panel::run(rest),
         "menu" => menu::run(rest),
+        "popup" => popup::run(rest),
         "files" => files::run(rest),
         "control-panel" => control_panel::run(rest),
         "run" => dialogs::run_dialog(),
