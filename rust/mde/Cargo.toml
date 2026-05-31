@@ -76,9 +76,16 @@ assets = [
     { source = "assets/licenses/GPL-3.0.txt", dest = "/usr/share/licenses/mde/GPL-3.0.txt", mode = "0644", doc = true },
     { source = "assets/licenses/NOTICE.md", dest = "/usr/share/licenses/mde/NOTICE.md", mode = "0644", doc = true },
 ]
-# Runtime packages the shell actually drives (the CORE set the installer needs +
-# the helpers the shell shells out to). Visual assets are fetched, not required.
-requires = { labwc = "*", "wlr-randr" = "*", wlopm = "*", swaybg = "*", swayidle = "*", swaylock = "*", foot = "*", grim = "*", "xdg-utils" = "*", brightnessctl = "*", NetworkManager = "*", greetd = "*", tuigreet = "*", pipewire = "*", wireplumber = "*", polkit = "*", "google-droid-sans-fonts" = "*", "xkeyboard-config" = "*" }
+# Runtime packages the shell actually drives. `requires` = the CORE session +
+# every app the shell launches directly from its own menus / taskbar (so nothing
+# the UI offers is ever missing). `recommends` = the Control Panel's catalogue of
+# system tools — pulled in by default on a normal install (dnf honours Recommends)
+# but removable, matching "listed in the Control Panel". Visual assets are fetched.
+requires = { labwc = "*", "wlr-randr" = "*", wlopm = "*", swaybg = "*", swayidle = "*", swaylock = "*", foot = "*", grim = "*", "xdg-utils" = "*", brightnessctl = "*", NetworkManager = "*", greetd = "*", tuigreet = "*", pipewire = "*", wireplumber = "*", polkit = "*", "google-droid-sans-fonts" = "*", "xkeyboard-config" = "*", firefox = "*", terminator = "*", dnfdragora = "*", "nm-connection-editor" = "*", "system-config-printer" = "*", pavucontrol = "*", playerctl = "*" }
+# Apps the Start menu / Control Panel list but that are optional, large, or
+# install-on-click in the UI. dnf installs Recommends by default; they can be
+# removed without removing mde.
+recommends = { swayosd = "*", "blivet-gui" = "*", btop = "*", cockpit = "*", fastfetch = "*", "firewall-config" = "*", flatpak = "*", glances = "*", "gnome-abrt" = "*", "gnome-disk-utility" = "*", gparted = "*", htop = "*", "im-chooser" = "*", iotop = "*", iperf3 = "*", lm_sensors = "*", lynis = "*", mediawriter = "*", ncdu = "*", nmap = "*", nvtop = "*", powertop = "*", seahorse = "*", "setroubleshoot-server" = "*", smartmontools = "*", "system-config-language" = "*", timeshift = "*", wireshark = "*" }
 post_install_script = """
 for c in panel menu popup files control-panel system-properties run properties setup install logoff shutdown; do
     ln -sf /usr/bin/mde /usr/bin/mde-$c
