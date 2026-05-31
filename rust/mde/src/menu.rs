@@ -716,29 +716,33 @@ fn item_list<'a>(
     list
 }
 
+/// Width of the Start-menu side banner.
+const BANNER_W: f32 = 28.0;
+
 fn banner<'a>(height: f32) -> Element<'a, Message> {
-    // The navy side banner with the product name down it. (Win2000 rotates the
-    // text 90°; iced has no easy text rotation, so the letters stack vertically,
-    // bottom-aligned, in white bold — the same reading direction.)
-    let mut col = Column::new()
-        .align_x(Horizontal::Center)
-        .width(Length::Fixed(24.0))
-        .height(Length::Fixed(height))
-        .push(Space::new(Length::Fill, Length::Fill));
-    for ch in "MDE-Retro".chars() {
-        col = col.push(
-            text(ch.to_string())
-                .size(metrics::UI_PX)
-                .font(mde_ui::font::UI_BOLD)
-                .color(palette::color(palette::TITLE_TEXT)),
-        );
-    }
-    col = col.push(Space::new(Length::Fill, Length::Fixed(10.0)));
-    container(col)
-        .style(|_| container::Style {
-            background: Some(Background::Color(palette::color(palette::ACTIVE_TITLE))),
-            ..container::Style::default()
-        })
+    // The classic Windows side banner (à la Windows Me): a black strip with a
+    // blue glow at the foot and the product name rotated 90°, reading
+    // bottom-to-top — "MDE Retro" white, "Workstation" light blue, bold italic.
+    // Rendered as an SVG because iced has no text rotation but its svg widget
+    // rasterises <text> with the system fonts (Droid Sans).
+    let w = BANNER_W;
+    let h = height.max(1.0);
+    let ty = h - 10.0;
+    let svg = format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">
+<defs><linearGradient id="g" x1="0" y1="1" x2="0" y2="0">
+<stop offset="0" stop-color="#3a6ad0" stop-opacity="1"/>
+<stop offset="0.22" stop-color="#0a1a40" stop-opacity="0"/>
+</linearGradient></defs>
+<rect width="{w}" height="{h}" fill="#000000"/>
+<rect width="{w}" height="{h}" fill="url(#g)"/>
+<text transform="translate(20,{ty}) rotate(-90)" font-family="Droid Sans" font-style="italic" font-weight="bold" text-anchor="start">
+<tspan font-size="15" fill="#ffffff">MDE Retro </tspan><tspan font-size="12" fill="#6f9fe0">Workstation</tspan>
+</text></svg>"##
+    );
+    iced::widget::svg(iced::widget::svg::Handle::from_memory(svg.into_bytes()))
+        .width(Length::Fixed(w))
+        .height(Length::Fixed(h))
         .into()
 }
 
@@ -759,7 +763,7 @@ fn render_root_column<'a>(nodes: &'a [Node], open: Option<usize>, large: bool) -
     // The root column is the only one that grows large icons (the Win2000
     // default); "Show small icons in Start menu" collapses it back to 16px.
     let (icon_px, row_h, inner_w, total_w) =
-        if large { (32, ITEM_H_LARGE, 200.0, 228.0) } else { (16, ITEM_H, 186.0, 214.0) };
+        if large { (32, ITEM_H_LARGE, 200.0, 232.0) } else { (16, ITEM_H, 186.0, 218.0) };
     let h = (col_content_height(nodes, row_h).min(MAX_COL_H)) + 4.0;
     let inner = Row::new().push(banner(h)).push(
         container(scrollable(item_list(nodes, 0, open, icon_px, row_h)).style(mde_ui::scrollbar))
@@ -786,7 +790,7 @@ fn view(menu: &Menu) -> Element<'_, Message> {
     let cols = columns(menu);
     let large = !menu.small_icons;
     let root_row_h = if large { ITEM_H_LARGE } else { ITEM_H };
-    let root_w = if large { 228.0 } else { 214.0 };
+    let root_w = if large { 232.0 } else { 218.0 };
     const SUB_W: f32 = 200.0;
     // Item lists start this far below a column's top (the 2px container pad over
     // the raised frame); used to line a submenu up with its parent item.
