@@ -16,6 +16,7 @@ mod control_panel;
 mod dialogs;
 mod fedora;
 mod files;
+mod icons;
 mod install;
 mod installer;
 mod menu;

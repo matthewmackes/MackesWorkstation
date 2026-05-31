@@ -320,6 +320,33 @@ fn kind(e: &Entry) -> String {
     }
 }
 
+/// Candidate freedesktop icon names for an entry, by kind/extension (the icon
+/// resolver tries each in turn and falls back to blank space if none resolve).
+fn icon_names(e: &Entry) -> &'static [&'static str] {
+    if e.is_dir {
+        return &["folder"];
+    }
+    let ext = e.path.extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
+    match ext.as_str() {
+        "txt" | "md" | "log" | "rst" | "ini" | "conf" | "cfg" | "toml" | "yaml" | "yml" => {
+            &["text-x-generic", "text-plain"]
+        }
+        "png" | "jpg" | "jpeg" | "gif" | "bmp" | "svg" | "webp" | "ico" => &["image-x-generic"],
+        "mp3" | "flac" | "ogg" | "wav" | "m4a" => &["audio-x-generic"],
+        "mp4" | "mkv" | "webm" | "avi" | "mov" => &["video-x-generic"],
+        "pdf" => &["application-pdf", "text-x-generic"],
+        "zip" | "gz" | "xz" | "bz2" | "tar" | "tgz" | "zst" | "7z" | "rpm" => {
+            &["package-x-generic", "application-x-archive", "text-x-generic"]
+        }
+        "sh" | "bash" | "zsh" | "py" | "rs" | "c" | "cpp" | "h" | "js" | "ts" => {
+            &["text-x-script", "text-x-generic"]
+        }
+        "html" | "htm" | "xml" | "json" => &["text-html", "text-x-generic"],
+        "desktop" => &["application-x-executable", "text-x-generic"],
+        _ => &["text-x-generic", "application-x-generic", "unknown"],
+    }
+}
+
 fn menubar(state: &Files) -> Element<'_, Message> {
     let mut bar = Row::new().spacing(0.0);
     for (i, label) in MENUS.iter().enumerate() {
@@ -464,8 +491,15 @@ fn list(state: &Files) -> Element<'_, Message> {
 
     let mut rows = Column::new().spacing(0.0);
     for (i, e) in state.entries.iter().enumerate() {
+        // A 16px shell icon leads the name cell, like Win2000's list view.
+        let name_cell = Row::new()
+            .spacing(4.0)
+            .align_y(iced::Alignment::Center)
+            .push(crate::icons::icon_any(icon_names(e), 16))
+            .push(text(e.name.clone()).size(metrics::UI_PX))
+            .width(name_w);
         let row = Row::new()
-            .push(text(e.name.clone()).size(metrics::UI_PX).width(name_w))
+            .push(name_cell)
             .push(
                 text(if e.is_dir { String::new() } else { human(e.size) })
                     .size(metrics::UI_PX)
