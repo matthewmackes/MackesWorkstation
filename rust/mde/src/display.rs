@@ -753,7 +753,7 @@ fn monitor_graphic<'a>(screen: Element<'a, Message>, number: Option<usize>) -> E
         .push(iced::widget::stack![frame::sunken().thickness(2), inner]);
     if let Some(n) = number {
         screen_stack = screen_stack.push(
-            container(text(format!("{}", n + 1)).size(48.0).font(mde_ui::font::ui_bold()).color(Color::WHITE))
+            container(text(format!("{}", n + 1)).size(metrics::IDENTIFY_PX).font(mde_ui::font::ui_bold()).color(Color::WHITE))
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .center_x(Length::Fill)

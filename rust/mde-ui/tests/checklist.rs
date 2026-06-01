@@ -139,4 +139,11 @@ fn ui_size_is_one_source_of_truth() {
     // INFO_TITLE_PX is §2.3's one larger UI size (info-band/about/control-panel
     // headings); pin it so a silent drift fails CI like UI_PX does.
     assert_eq!(metrics::INFO_TITLE_PX, 16.0);
+    // The remaining named UI sizes (§2.3): the Identify overlay and the two
+    // Setup-wizard sizes. Pinned so they stay a single source, not literals.
+    assert_eq!(metrics::IDENTIFY_PX, 48.0);
+    assert_eq!(metrics::WIZARD_HEADING_PX, 15.0);
+    assert_eq!(metrics::WIZARD_STATUS_PX, 10.0);
+    // The taskbar window-button minimum width (SM_*-style layout metric).
+    assert_eq!(metrics::TASKBAR_BUTTON_MIN, 160);
 }

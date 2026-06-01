@@ -193,7 +193,7 @@ fn bg_gradient() -> Background {
 }
 
 fn status_bar<'a>() -> Element<'a, Msg> {
-    container(text("MDE-Retro Professional Setup").size(10.0).color(dim()))
+    container(text("MDE-Retro Professional Setup").size(metrics::WIZARD_STATUS_PX).color(dim()))
         .width(Length::Fill)
         .padding(pad(2.0, 8.0, 2.0, 8.0))
         .style(|_| container::Style {
@@ -237,7 +237,7 @@ fn tree(state: &Setup) -> Element<'_, Msg> {
 fn view(state: &Setup) -> Element<'_, Msg> {
     let mut header = Column::new().spacing(4.0).padding(pad(16.0, 24.0, 8.0, 24.0));
     header = header.push(
-        text("Choose Components").size(15.0).font(font::ui_bold()).color(white()),
+        text("Choose Components").size(metrics::WIZARD_HEADING_PX).font(font::ui_bold()).color(white()),
     );
     header = header.push(
         text("Select the software to install. Installed items are locked; unavailable ones are dimmed.")

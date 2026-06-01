@@ -149,13 +149,7 @@ fn icon_tint() -> Option<iced::Color> {
         if !palette::is_carbon() {
             return None; // Win2000/BeOS: leave theme art as-is.
         }
-        let dark = palette::is_dark();
-        let rgb = match palette::accent_idx() {
-            0 => if dark { (0x78, 0xa9, 0xff) } else { (0x0f, 0x62, 0xfe) }, // blue
-            1 => if dark { (0xff, 0x83, 0x2b) } else { (0xba, 0x4e, 0x00) }, // orange
-            2 => if dark { (0xfa, 0x4d, 0x56) } else { (0xda, 0x1e, 0x28) }, // red
-            _ => if dark { (0xf4, 0xf4, 0xf4) } else { (0x16, 0x16, 0x16) }, // neutral
-        };
+        let rgb = palette::icon_accent(palette::accent_idx(), palette::is_dark());
         Some(iced::Color::from_rgb8(rgb.0, rgb.1, rgb.2))
     })
 }

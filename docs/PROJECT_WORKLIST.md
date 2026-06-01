@@ -20,13 +20,11 @@ frame::pressed, _gauge); routed 3 raw-hex leaks through palette
 
 Remaining (FINISH unless noted):
 
-- [ ] **§2.1** Move the Carbon icon-accent table (`icons.rs:154-159`, 8 RGB
-  literals) into `palette.rs` as named roles, reusing `carbon_accent()`/`URGENT`
-  where they already match; pin in `checklist.rs`.
-- [ ] **§2.3** Replace raw `.size()` literals with named `metrics` constants:
-  `display.rs:756` (`48.0` identify overlay → `IDENTIFY_PX`), `installer.rs:196,240`
-  (`10.0`/`15.0` → `metrics` constants); pin them.
-- [ ] **§2.2** Pin `TASKBAR_BUTTON_MIN = 160` in `checklist.rs` (low priority).
+- [✓] **§2.1** Carbon icon-accent table moved to `palette::icon_accent()`;
+  `icons.rs` calls it. (No raw hex at the icon site.)
+- [✓] **§2.3** `.size()` literals replaced with named `metrics` constants
+  (`IDENTIFY_PX`, `WIZARD_HEADING_PX`, `WIZARD_STATUS_PX`) at display.rs/installer.rs.
+- [✓] **§2.2** `TASKBAR_BUTTON_MIN`, `IDENTIFY_PX`, `WIZARD_*` pinned in `checklist.rs`.
 - [ ] **§3 mockup** `display.rs` Effects tab — 3 enabled checkboxes whose state is
   never read/persisted: grey out (`cbox_disabled`) or persist via `state.rs`.
 - [ ] **§3 mockup** `taskbar_properties.rs` "Show clock" + "Use Personalized Menus" —
@@ -43,6 +41,15 @@ Remaining (FINISH unless noted):
 
 ## Backlog
 
+- [ ] **Mobile Devices (native KDE Connect)** — 15-Q spec in [[mde-kdeconnect]].
+  Shared crate `matthewmackes/MDE-KDECnt-Rust` (public) stands up the protocol core
+  (✓ Phase 1: extracted + 181 tests). Remaining: [ ] generalize the host (Transport
+  trait + event stream) + complete the LAN transport (UDP 1716 + rustls) in the
+  shared crate; [ ] rewire MDE + MDE-Retro to depend on it; [ ] `mde connect`
+  systemd user daemon + pairing modal/tray; [ ] capability surfaces (notifications
+  bidirectional + a freedesktop notify daemon, clipboard, battery, file transfer via
+  Explorer "Send to", MPRIS, run-commands, SMS); [ ] "Mobile Devices" Control Panel
+  applet. LAN-only; remote-input deferred. Config at ~/.config/mde/connect/.
 - [ ] Carbon polish (from the theme survey): primary-blue / ghost button variants
   (current Carbon buttons are flat secondary); explicit accent-tinted labwc
   titlebar buttons; popup.rs context menus still bottom-anchored under the top bar.

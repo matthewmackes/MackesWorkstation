@@ -38,5 +38,12 @@ pub const UI_PX: f32 = 11.0;
 /// shell (Win2000 drew this caption well above body text). Single source so the
 /// band title isn't a scattered literal either.
 pub const INFO_TITLE_PX: f32 = 16.0;
+/// Setup-wizard heading size (the "Choose Components" step title). Named so the
+/// installer doesn't carry a scattered literal (§2.3).
+pub const WIZARD_HEADING_PX: f32 = 15.0;
+/// Setup-wizard status-bar caption size (smaller than UI text).
+pub const WIZARD_STATUS_PX: f32 = 10.0;
+/// The big monitor-number overlay drawn by Display ▸ Identify.
+pub const IDENTIFY_PX: f32 = 48.0;
 /// Title-bar font is the UI font, bold, at the same size.
 pub const TITLE_FONT_BOLD: bool = true;

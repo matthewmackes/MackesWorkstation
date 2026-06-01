@@ -167,6 +167,18 @@ pub fn carbon_accent() -> Rgb {
     }
 }
 
+/// The icon tint for an accent hue (0=blue 1=orange 2=red 3=neutral) in the
+/// given mode. The four Carbon icon accents live here, not at the icon call site
+/// (§2.1: no raw hex outside palette.rs). Returns the Carbon token `Rgb`.
+pub fn icon_accent(idx: u8, dark: bool) -> Rgb {
+    match idx {
+        0 => if dark { (0x78, 0xa9, 0xff) } else { (0x0f, 0x62, 0xfe) }, // blue
+        1 => if dark { (0xff, 0x83, 0x2b) } else { (0xba, 0x4e, 0x00) }, // orange
+        2 => if dark { (0xfa, 0x4d, 0x56) } else { (0xda, 0x1e, 0x28) }, // red
+        _ => if dark { (0xf4, 0xf4, 0xf4) } else { (0x16, 0x16, 0x16) }, // neutral
+    }
+}
+
 /// Map a Win2000 role color to its IBM Carbon token, per the active light/dark
 /// mode. Tuple keys are the canonical Win2000 role values (note the white/black
 /// text vs surface SENTINELS above, which let text stay legible after surfaces
