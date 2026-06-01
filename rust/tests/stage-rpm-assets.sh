@@ -15,4 +15,7 @@ cp -r "$share/icons/Chicago95_Standard_Cursors" "$stage/icons/"
 cp -r "$share/sounds/Chicago95" "$stage/sounds/"
 find "$stage" -name 'icon-theme.cache' -delete
 rm -rf "$stage/icons/Chicago95_Standard_Cursors/build"  # source files, not the theme
+# Prune dangling symlinks (the Haiku theme ships a few alias links whose targets
+# aren't generated) — cargo-generate-rpm errors out trying to read them.
+find "$stage" -xtype l -delete
 echo "staged $(du -sh "$stage" | cut -f1) into $stage"
