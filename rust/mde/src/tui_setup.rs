@@ -26,6 +26,7 @@ enum Screen {
     NotRoot,
     Welcome,
     Summary,
+    Components,
     Progress,
     Finish,
 }
@@ -33,6 +34,13 @@ enum Screen {
 struct Step {
     label: &'static str,
     done: bool,
+}
+
+/// One line of the Choose-Components list: a category header or a package.
+#[derive(Clone, Copy)]
+enum CompRow {
+    Header(&'static str),
+    Item(usize), // index into App::cat
 }
 
 struct App {
@@ -43,9 +51,91 @@ struct App {
     /// Steps that failed ("label: error"); shown on the Finish screen so a
     /// broken install is never reported as success.
     failed: Vec<String>,
-    /// Packages step 1 installs — from `--packages` (GUI handoff) or, failing
-    /// that, the curated catalogue default.
+    /// Packages step 1 installs — from `--packages` (GUI handoff) or, in the
+    /// interactive flow, committed from `checked` on leaving the Components screen.
     selection: Vec<String>,
+    /// Interactive = no --packages given, so show the Choose-Components screen.
+    interactive: bool,
+    // --- Choose-Components state (parallel vectors indexed like `cat`) --------
+    cat: Vec<crate::catalogue::Component>,
+    checked: Vec<bool>,
+    /// mandatory || already-installed — shown checked and not toggleable.
+    locked: Vec<bool>,
+    /// offered by an enabled repo (else greyed, can't be selected).
+    avail: Vec<bool>,
+    rows: Vec<CompRow>,
+    cursor: usize,
+}
+
+impl App {
+    fn move_cursor(&mut self, delta: isize) {
+        if self.rows.is_empty() {
+            return;
+        }
+        let last = self.rows.len() - 1;
+        let mut c = self.cursor as isize + delta;
+        if c < 0 {
+            c = 0;
+        } else if c as usize > last {
+            c = last as isize;
+        }
+        self.cursor = c as usize;
+    }
+
+    fn toggle_cursor(&mut self) {
+        match self.rows[self.cursor] {
+            CompRow::Item(i) => {
+                if !self.locked[i] && self.avail[i] {
+                    self.checked[i] = !self.checked[i];
+                }
+            }
+            CompRow::Header(cat) => {
+                // Toggle the whole category: if any toggleable item is off, turn
+                // them all on; otherwise turn them all off.
+                let idxs: Vec<usize> = (0..self.cat.len())
+                    .filter(|&i| self.cat[i].category == cat && !self.locked[i] && self.avail[i])
+                    .collect();
+                let any_off = idxs.iter().any(|&i| !self.checked[i]);
+                for i in idxs {
+                    self.checked[i] = any_off;
+                }
+            }
+        }
+    }
+
+    /// m/s/e presets. Locked (mandatory/installed) are always on; unavailable
+    /// can never be on.
+    fn preset(&mut self, default_on_only: bool, everything: bool) {
+        for i in 0..self.cat.len() {
+            self.checked[i] = self.locked[i]
+                || (self.avail[i] && (everything || (default_on_only && self.cat[i].default_on)));
+        }
+    }
+
+    /// Commit the checked set as the install selection.
+    fn commit_selection(&mut self) {
+        self.selection = self
+            .cat
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| self.checked[*i])
+            .map(|(_, c)| c.package.to_string())
+            .collect();
+    }
+}
+
+/// Build the display rows: a header per category, then its packages, in order.
+fn build_rows(cat: &[crate::catalogue::Component]) -> Vec<CompRow> {
+    let mut rows = Vec::new();
+    for cn in crate::catalogue::categories(cat) {
+        rows.push(CompRow::Header(cn));
+        for (i, c) in cat.iter().enumerate() {
+            if c.category == cn {
+                rows.push(CompRow::Item(i));
+            }
+        }
+    }
+    rows
 }
 
 pub fn run(dry_run: bool, packages: Option<Vec<String>>) -> ExitCode {
@@ -56,6 +146,27 @@ pub fn run(dry_run: bool, packages: Option<Vec<String>>) -> ExitCode {
         eprintln!("mde setup --tui requires an interactive terminal.");
         return ExitCode::FAILURE;
     }
+
+    // Build the selectable catalogue + its checked/locked/available state. The
+    // availability probe (one dnf repoquery) only runs in the interactive flow.
+    let interactive = packages.is_none();
+    let cat = crate::catalogue::catalogue();
+    let n = cat.len();
+    let mut checked = vec![false; n];
+    let mut locked = vec![false; n];
+    let mut avail = vec![true; n];
+    if interactive {
+        println!("Querying package repositories…");
+        let pkgs: Vec<&str> = cat.iter().map(|c| c.package).collect();
+        let available = crate::catalogue::available(&pkgs);
+        for (i, c) in cat.iter().enumerate() {
+            let installed = crate::catalogue::is_installed(c.package);
+            locked[i] = c.mandatory || installed;
+            avail[i] = available.contains(c.package);
+            checked[i] = c.mandatory || installed || (c.default_on && avail[i]);
+        }
+    }
+    let rows = build_rows(&cat);
 
     let mut app = App {
         screen: if dry_run || is_root() { Screen::Welcome } else { Screen::NotRoot },
@@ -71,8 +182,16 @@ pub fn run(dry_run: bool, packages: Option<Vec<String>>) -> ExitCode {
         current: 0,
         dry_run,
         failed: Vec::new(),
-        selection: packages
-            .unwrap_or_else(|| crate::catalogue::default_selection(&crate::catalogue::catalogue())),
+        // Interactive: filled by commit_selection() when leaving the Components
+        // screen. Non-interactive: the explicit --packages set.
+        selection: packages.unwrap_or_default(),
+        interactive,
+        cat,
+        checked,
+        locked,
+        avail,
+        rows,
+        cursor: 0,
     };
 
     let mut terminal = ratatui::init();
@@ -131,7 +250,19 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> ExitCod
             match (&app.screen, k.code) {
                 (Screen::NotRoot, _) => return ExitCode::from(1),
                 (Screen::Welcome, KeyCode::Enter) => app.screen = Screen::Summary,
-                (Screen::Summary, KeyCode::Enter) => app.screen = Screen::Progress,
+                (Screen::Summary, KeyCode::Enter) => {
+                    app.screen = if app.interactive { Screen::Components } else { Screen::Progress };
+                }
+                (Screen::Components, KeyCode::Enter) => {
+                    app.commit_selection();
+                    app.screen = Screen::Progress;
+                }
+                (Screen::Components, KeyCode::Up) => app.move_cursor(-1),
+                (Screen::Components, KeyCode::Down) => app.move_cursor(1),
+                (Screen::Components, KeyCode::Char(' ')) => app.toggle_cursor(),
+                (Screen::Components, KeyCode::Char('m' | 'M')) => app.preset(false, false),
+                (Screen::Components, KeyCode::Char('s' | 'S')) => app.preset(true, false),
+                (Screen::Components, KeyCode::Char('e' | 'E')) => app.preset(false, true),
                 (Screen::Finish, KeyCode::Enter) => return ExitCode::SUCCESS,
                 (_, KeyCode::F(3)) | (_, KeyCode::Esc) => return ExitCode::from(1),
                 _ => {}
@@ -261,21 +392,36 @@ fn ui(f: &mut Frame, app: &App) {
     .alignment(Alignment::Center);
     f.render_widget(title, rows[0]);
 
-    let (body, keys) = match app.screen {
-        Screen::NotRoot => (not_root_body(), " Press any key to exit "),
-        Screen::Welcome => (welcome_body(), " ENTER=Continue    F3=Exit "),
-        Screen::Summary => (summary_body(), " ENTER=Begin Installation    F3=Exit "),
-        Screen::Progress => (progress_body(app), " Installing, please wait... "),
-        Screen::Finish => (finish_body(app), " ENTER=Finish "),
+    let keys = match app.screen {
+        Screen::NotRoot => " Press any key to exit ",
+        Screen::Welcome => " ENTER=Continue    F3=Exit ",
+        Screen::Summary => " ENTER=Choose Components    F3=Exit ",
+        Screen::Components => {
+            " \u{2191}\u{2193} Move   SPACE Toggle   M/S/E Minimal/Standard/Everything   ENTER Install   F3 Exit "
+        }
+        Screen::Progress => " Installing, please wait... ",
+        Screen::Finish => " ENTER=Finish ",
     };
 
-    let inner = centered(rows[1], 64, 16);
-    f.render_widget(
-        Paragraph::new(body)
-            .style(Style::default().fg(Color::White).bg(BLUE))
-            .wrap(Wrap { trim: false }),
-        inner,
-    );
+    if app.screen == Screen::Components {
+        render_components(f, app, rows[1]);
+    } else {
+        let body = match app.screen {
+            Screen::NotRoot => not_root_body(),
+            Screen::Welcome => welcome_body(),
+            Screen::Summary => summary_body(),
+            Screen::Progress => progress_body(app),
+            Screen::Finish => finish_body(app),
+            Screen::Components => unreachable!(),
+        };
+        let inner = centered(rows[1], 64, 16);
+        f.render_widget(
+            Paragraph::new(body)
+                .style(Style::default().fg(Color::White).bg(BLUE))
+                .wrap(Wrap { trim: false }),
+            inner,
+        );
+    }
 
     let keybar = Paragraph::new(Line::from(Span::styled(
         keys,
@@ -283,6 +429,48 @@ fn ui(f: &mut Frame, app: &App) {
     )))
     .alignment(Alignment::Left);
     f.render_widget(keybar, rows[2]);
+}
+
+/// Render the Choose-Components list (category headers + package checkboxes),
+/// windowed so the cursor row stays visible, with locked/unavailable styling.
+fn render_components(f: &mut Frame, app: &App, area: Rect) {
+    let h = area.height.max(1) as usize;
+    let total = app.rows.len();
+    // Keep the cursor in view: scroll so it sits within [start, start+h).
+    let start = if app.cursor + 1 > h { app.cursor + 1 - h } else { 0 };
+    let end = (start + h).min(total);
+
+    let mut lines: Vec<Line> = Vec::with_capacity(end - start);
+    for ri in start..end {
+        let cursor = ri == app.cursor;
+        let (text, mut style) = match app.rows[ri] {
+            CompRow::Header(cat) => (
+                format!("  {cat}"),
+                Style::default().fg(Color::Rgb(0xFF, 0xFF, 0x66)).bg(BLUE).add_modifier(Modifier::BOLD),
+            ),
+            CompRow::Item(i) => {
+                let c = &app.cat[i];
+                let mark = if app.checked[i] { "[X]" } else { "[ ]" };
+                let (suffix, st) = if !app.avail[i] {
+                    (" (unavailable)", Style::default().fg(Color::DarkGray).bg(BLUE))
+                } else if app.locked[i] {
+                    let tag = if c.mandatory { " (required)" } else { " (installed)" };
+                    (tag, Style::default().fg(Color::Gray).bg(BLUE))
+                } else {
+                    ("", Style::default().fg(Color::White).bg(BLUE))
+                };
+                (format!("    {mark} {}{}", c.name, suffix), st)
+            }
+        };
+        if cursor {
+            style = style.add_modifier(Modifier::REVERSED);
+        }
+        lines.push(Line::from(Span::styled(text, style)));
+    }
+    f.render_widget(
+        Paragraph::new(ratatui::text::Text::from(lines)).style(Style::default().bg(BLUE)),
+        area,
+    );
 }
 
 fn centered(area: Rect, width: u16, height: u16) -> Rect {
@@ -302,7 +490,7 @@ fn welcome_body() -> ratatui::text::Text<'static> {
 }
 
 fn summary_body() -> ratatui::text::Text<'static> {
-    "Setup will perform the following on this computer:\n\n  - Install the desktop runtime and all system tools (dnf)\n  - Deploy the MDE-Retro configuration (system-wide and per user)\n  - Install the Windows 2000 icons, cursors, sounds and fonts\n  - Register the MDE-Retro session and the greetd login manager\n  - Switch the system to graphical startup\n\n  To begin installation, press ENTER.".into()
+    "Setup will perform the following on this computer:\n\n  - Install the components you choose (desktop, apps, system tools, and\n    Xen/XCP-ng guest tools when running in a VM)\n  - Deploy the MDE-Retro configuration (system-wide and per user)\n  - Install the Windows 2000 icons, cursors, sounds and fonts\n  - Register the MDE-Retro session and the login manager\n  - Switch the system to graphical startup\n\n  To choose which components to install, press ENTER.".into()
 }
 
 fn progress_body(app: &App) -> ratatui::text::Text<'static> {

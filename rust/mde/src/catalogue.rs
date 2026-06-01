@@ -200,15 +200,6 @@ pub fn available(packages: &[&str]) -> BTreeSet<String> {
     set
 }
 
-/// The default-selected packages (mandatory ∪ installed ∪ curated default-on),
-/// used when Setup runs without an interactive selection (or --packages).
-pub fn default_selection(cat: &[Component]) -> Vec<String> {
-    cat.iter()
-        .filter(|c| c.mandatory || c.default_on || is_installed(c.package))
-        .map(|c| c.package.to_string())
-        .collect()
-}
-
 /// If the XCP-ng/XenServer guest agent got installed, enable its service so the
 /// host sees the guest (IP/memory, clean shutdown). The systemd unit is
 /// `xe-linux-distribution`; older builds use `xe-daemon` — try both, best-effort.
