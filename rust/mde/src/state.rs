@@ -15,9 +15,22 @@ pub struct PinnedItem {
     pub command: String,
 }
 
+fn def_theme() -> String {
+    "carbon".into()
+}
+fn def_theme_mode() -> String {
+    "dark".into()
+}
+fn def_icon_color() -> String {
+    "neutral".into()
+}
+
 /// The persisted menu/shell state. `#[serde(default)]` on every field keeps old
-/// files loadable as new fields are added (pinned today; renames/hidden next).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+/// files loadable as new fields are added. The appearance fields default to the
+/// Carbon theme (dark, neutral icons) — see SPEC-carbon-theme.md — so explicit
+/// default fns are required (bare String default is "", which is wrong here);
+/// the manual `Default` impl below must agree so `parse("{}") == default()`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct MenuState {
     #[serde(default)]
     pub pinned: Vec<PinnedItem>,
@@ -26,9 +39,31 @@ pub struct MenuState {
     #[serde(default)]
     pub start_small_icons: bool,
     /// Icon set key (Display ▸ Appearance). "" / "win2k" ⇒ the Windows 2000
-    /// classic icons; "haiku" ⇒ the Haiku OS icon theme.
+    /// classic icons; "haiku" ⇒ the Haiku OS icon theme. Distinct from `theme`.
     #[serde(default)]
     pub icon_set: String,
+    /// Look-and-feel theme: "carbon" (default) or "win2000".
+    #[serde(default = "def_theme")]
+    pub theme: String,
+    /// Carbon light/dark mode: "dark" (default) or "light".
+    #[serde(default = "def_theme_mode")]
+    pub theme_mode: String,
+    /// Icon accent hue: "neutral" (default), "blue", "orange", or "red".
+    #[serde(default = "def_icon_color")]
+    pub icon_color: String,
+}
+
+impl Default for MenuState {
+    fn default() -> Self {
+        MenuState {
+            pinned: Vec::new(),
+            start_small_icons: false,
+            icon_set: String::new(),
+            theme: def_theme(),
+            theme_mode: def_theme_mode(),
+            icon_color: def_icon_color(),
+        }
+    }
 }
 
 /// `~/.config/mde/menu.json` (honouring `$XDG_CONFIG_HOME`).
@@ -81,9 +116,22 @@ mod tests {
             ],
             start_small_icons: true,
             icon_set: "haiku".into(),
+            theme: "win2000".into(),
+            theme_mode: "light".into(),
+            icon_color: "blue".into(),
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);
+    }
+
+    #[test]
+    fn appearance_defaults_are_carbon_dark_neutral() {
+        // First run / empty file must yield the Carbon defaults (SPEC item 1/4/5).
+        let d = parse("{}");
+        assert_eq!(d.theme, "carbon");
+        assert_eq!(d.theme_mode, "dark");
+        assert_eq!(d.icon_color, "neutral");
+        assert_eq!(d, MenuState::default());
     }
 
     #[test]

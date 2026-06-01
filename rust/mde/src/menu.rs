@@ -833,6 +833,9 @@ fn highlight_for(menu: &Menu, col: usize) -> Option<usize> {
 }
 
 fn view(menu: &Menu) -> Element<'_, Message> {
+    if palette::is_carbon() {
+        return view_carbon(menu);
+    }
     let cols = columns(menu);
     let large = !menu.small_icons;
     let root_row_h = if large { ITEM_H_LARGE } else { ITEM_H };
@@ -906,6 +909,164 @@ fn view(menu: &Menu) -> Element<'_, Message> {
         }
     }
     layers.into()
+}
+
+/// The Carbon product-switcher Start menu: a flat grid of app tiles dropping
+/// from the top-left ≡ button. Folder entries (Programs/Settings/…) drill into a
+/// sub-grid with a Back tile; leaves launch. Reuses the cascade `open`/`Click`
+/// plumbing — `open.len()` is the current depth and the deepest column's nodes
+/// are the tiles. Right-click still raises the Open/Pin/Properties context menu.
+fn view_carbon(menu: &Menu) -> Element<'_, Message> {
+    const COLS: usize = 4;
+    const TILE_W: f32 = 104.0;
+    const TILE_H: f32 = 88.0;
+    const BAR_H: f32 = 32.0; // mirrors panel::CARBON_BAR_H
+
+    let cols = columns(menu);
+    let depth = menu.open.len();
+    let nodes = cols[depth];
+
+    // Build the tile list: a Back tile when drilled in, then every non-separator
+    // node (keeping its ORIGINAL index so Click() indexes the column correctly).
+    let mut tiles: Vec<Element<Message>> = Vec::new();
+    if depth > 0 {
+        // Back = toggle the parent submenu closed (Click on the open parent).
+        let parent_idx = menu.open[depth - 1];
+        tiles.push(carbon_tile_raw(
+            crate::icons::icon_any(&["go-previous", "back", "arrow-left"], 32),
+            "Back",
+            Message::Click(depth - 1, parent_idx),
+            None,
+        ));
+    }
+    for (i, node) in nodes.iter().enumerate() {
+        match node {
+            Node::Sep => {}
+            Node::Leaf(label, _) | Node::Sub(label, _) => {
+                tiles.push(carbon_tile_raw(
+                    crate::icons::icon_any(menu_icon(label), 32),
+                    label,
+                    Message::Click(depth, i),
+                    Some(Message::RightClick(depth, i)),
+                ));
+            }
+        }
+    }
+
+    // Arrange tiles into rows of COLS.
+    let mut grid = Column::new().spacing(2.0);
+    let mut row = Row::new().spacing(2.0);
+    let mut n = 0;
+    for tile in tiles {
+        row = row.push(tile);
+        n += 1;
+        if n % COLS == 0 {
+            grid = grid.push(row);
+            row = Row::new().spacing(2.0);
+        }
+    }
+    if n % COLS != 0 {
+        // Pad the last row so it stays left-aligned at the tile width.
+        for _ in 0..(COLS - (n % COLS)) {
+            row = row.push(Space::new(Length::Fixed(TILE_W), Length::Fixed(TILE_H)));
+        }
+        grid = grid.push(row);
+    }
+
+    // The flat panel: a Carbon layer surface, 1px border, 2px radius, soft
+    // overlay shadow. Width fits COLS tiles; height caps and scrolls.
+    let panel_w = COLS as f32 * TILE_W + (COLS as f32 - 1.0) * 2.0 + 16.0;
+    let panel = container(scrollable(container(grid).padding(8.0)).style(mde_ui::scrollbar))
+        .width(Length::Fixed(panel_w))
+        .max_height(MAX_COL_H + 8.0)
+        .style(|_| container::Style {
+            background: Some(Background::Color(palette::color(palette::MENU))),
+            border: Border {
+                color: palette::color(palette::WINDOW_FRAME),
+                width: 1.0,
+                radius: 2.0.into(),
+            },
+            shadow: Shadow {
+                color: Color { a: 0.35, ..Color::BLACK },
+                offset: iced::Vector::new(0.0, 2.0),
+                blur_radius: 12.0,
+            },
+            ..container::Style::default()
+        });
+
+    // Backdrop click-catcher closes the menu; the panel drops from the top-left.
+    let mut layers = iced::widget::stack![
+        mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close),
+        container(panel)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Horizontal::Left)
+            .align_y(Vertical::Top)
+            .padding(Padding { top: BAR_H + 2.0, right: 0.0, bottom: 0.0, left: 4.0 }),
+    ];
+
+    // Right-click context menu (Open / Pin / Properties), dropped near the top.
+    if let Some((c, i)) = menu.context {
+        if node_meta(menu, c, i).is_some() {
+            let pinned = node_meta(menu, c, i).map(|(n, _)| menu.pinned.contains(&n)).unwrap_or(false);
+            layers = layers.push(
+                container(context_menu(pinned))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(Horizontal::Left)
+                    .align_y(Vertical::Top)
+                    .padding(pad(BAR_H + 40.0, 0.0, 0.0, 40.0)),
+            );
+        }
+    }
+    layers.into()
+}
+
+/// One Carbon switcher tile: a flat vertical button (icon over a centered,
+/// wrapped label) with an accent-tinted hover. `right` wires the context menu.
+fn carbon_tile_raw<'a>(
+    icon: Element<'a, Message>,
+    label: &'a str,
+    press: Message,
+    right: Option<Message>,
+) -> Element<'a, Message> {
+    let content = Column::new()
+        .spacing(4.0)
+        .align_x(Horizontal::Center)
+        .width(Length::Fill)
+        .push(container(icon).center_x(Length::Fill))
+        .push(
+            text(label)
+                .size(metrics::UI_PX)
+                .align_x(Horizontal::Center)
+                .width(Length::Fill),
+        );
+    let btn = button(content)
+        .on_press(press)
+        .width(Length::Fixed(104.0))
+        .height(Length::Fixed(88.0))
+        .padding(pad(8.0, 4.0, 6.0, 4.0))
+        .style(carbon_tile_style());
+    match right {
+        Some(r) => mouse_area(btn).on_right_press(r).into(),
+        None => btn.into(),
+    }
+}
+
+/// Carbon tile style: transparent at rest, accent-tinted on hover/press, 2px
+/// radius, label in menu text.
+fn carbon_tile_style() -> impl Fn(&iced::Theme, button::Status) -> button::Style {
+    |_theme, status| {
+        let hot = matches!(status, button::Status::Hovered | button::Status::Pressed);
+        let mut a = palette::accent();
+        a.a = 0.18;
+        button::Style {
+            background: hot.then_some(Background::Color(a)),
+            text_color: palette::color(palette::MENU_TEXT),
+            border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 2.0.into() },
+            shadow: Shadow::default(),
+        }
+    }
 }
 
 /// The launcher right-click menu panel. `pinned` swaps Pin for Unpin. Sized to

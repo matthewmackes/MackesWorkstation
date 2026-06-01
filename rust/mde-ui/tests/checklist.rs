@@ -33,7 +33,9 @@ fn inactive_title_is_gray() {
 #[test]
 fn selection_highlight_is_navy_on_white() {
     assert_eq!(palette::HIGHLIGHT, (0x0a, 0x24, 0x6a));
-    assert_eq!(palette::HIGHLIGHT_TEXT, (0xff, 0xff, 0xff));
+    // Sentinel white (0xff,0xff,0xfe) — renders pure white in Win2000; the 1-LSB
+    // marker lets the Carbon dark remap keep selection text light. See palette.rs.
+    assert_eq!(palette::HIGHLIGHT_TEXT, (0xff, 0xff, 0xfe));
 }
 
 #[test]

@@ -29,17 +29,29 @@ use crate::palette;
 /// bevel (a rail scroller is one color + one border), so this is the closest
 /// faithful approximation. Pass to `scrollable(...).style(mde_ui::scrollbar)`.
 pub fn scrollbar(_theme: &iced::Theme, _status: scrollable::Status) -> scrollable::Style {
-    let rail = scrollable::Rail {
-        background: Some(Background::Color(palette::color(palette::BUTTON_LIGHT))),
-        border: Border::default(),
-        scroller: scrollable::Scroller {
-            color: palette::color(palette::BUTTON_FACE),
-            border: Border {
+    // Carbon: a thin flat track with a gray thumb, no 3D edge / arrow buttons.
+    let rail = if palette::is_carbon() {
+        scrollable::Rail {
+            background: Some(Background::Color(palette::color(palette::MENU))),
+            border: Border::default(),
+            scroller: scrollable::Scroller {
                 color: palette::color(palette::BUTTON_SHADOW),
-                width: 1.0,
-                radius: 0.0.into(),
+                border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
             },
-        },
+        }
+    } else {
+        scrollable::Rail {
+            background: Some(Background::Color(palette::color(palette::BUTTON_LIGHT))),
+            border: Border::default(),
+            scroller: scrollable::Scroller {
+                color: palette::color(palette::BUTTON_FACE),
+                border: Border {
+                    color: palette::color(palette::BUTTON_SHADOW),
+                    width: 1.0,
+                    radius: 0.0.into(),
+                },
+            },
+        }
     };
     scrollable::Style {
         container: container::Style::default(),
@@ -47,6 +59,12 @@ pub fn scrollbar(_theme: &iced::Theme, _status: scrollable::Status) -> scrollabl
         horizontal_rail: rail,
         gap: None,
     }
+}
+
+/// Corner radius for fields/controls under the active theme (Carbon = 2px,
+/// Win2000/BeOS = square).
+fn ctl_radius() -> iced::border::Radius {
+    if palette::is_carbon() { 2.0.into() } else { 0.0.into() }
 }
 
 /// The Win2000 sunken-white dropdown (closed `pick_list` control): `COLOR_WINDOW`
@@ -61,7 +79,7 @@ pub fn sunken_picklist(_theme: &iced::Theme, _status: pick_list::Status) -> pick
         border: Border {
             color: palette::color(palette::BUTTON_SHADOW),
             width: 1.0,
-            radius: 0.0.into(),
+            radius: ctl_radius(),
         },
     }
 }
@@ -75,7 +93,7 @@ pub fn sunken_field(_theme: &iced::Theme, _status: text_input::Status) -> text_i
         border: Border {
             color: palette::color(palette::BUTTON_SHADOW),
             width: 1.0,
-            radius: 0.0.into(),
+            radius: ctl_radius(),
         },
         icon: palette::color(palette::WINDOW_TEXT),
         placeholder: palette::color(palette::GRAY_TEXT),
@@ -93,7 +111,7 @@ pub fn checkbox_style(_theme: &iced::Theme, _status: checkbox::Status) -> checkb
         border: Border {
             color: palette::color(palette::BUTTON_SHADOW),
             width: 1.0,
-            radius: 0.0.into(),
+            radius: ctl_radius(),
         },
         text_color: Some(palette::color(palette::WINDOW_TEXT)),
     }
@@ -121,7 +139,7 @@ pub fn progress_style(_theme: &iced::Theme) -> progress_bar::Style {
         border: Border {
             color: palette::color(palette::BUTTON_SHADOW),
             width: 1.0,
-            radius: 0.0.into(),
+            radius: ctl_radius(),
         },
     }
 }
@@ -154,6 +172,26 @@ pub(crate) fn draw_edge<R: renderer::Renderer>(
     face: Option<Color>,
 ) {
     let (x, y, w, h) = (rect.x, rect.y, rect.width, rect.height);
+    // Carbon: no 3D bevel. One flat fill + a single 1px subtle border, 2px
+    // radius. Collapses raised/sunken/pressed into the same flat surface; the
+    // face color (and accent on active states, chosen by the caller) carries
+    // all the meaning. `bevel`/`thickness` are intentionally ignored here.
+    if palette::is_carbon() {
+        let _ = (bevel, thickness);
+        r.fill_quad(
+            renderer::Quad {
+                bounds: rect,
+                border: Border {
+                    color: palette::color(palette::WINDOW_FRAME),
+                    width: 1.0,
+                    radius: 2.0.into(),
+                },
+                shadow: Shadow::default(),
+            },
+            face.unwrap_or(Color::TRANSPARENT),
+        );
+        return;
+    }
     if let Some(face) = face {
         fill(r, x, y, w, h, face);
     }

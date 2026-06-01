@@ -17,6 +17,7 @@ mod catalogue;
 mod control_panel;
 mod dialogs;
 mod display;
+mod embedded_icons;
 mod filedialog;
 mod fedora;
 mod files;
@@ -66,10 +67,31 @@ COMMANDS:
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
 
-    // Pair the shell color theme with the chosen icon set: the Haiku icons bring
-    // the BeOS palette; Windows 2000 icons keep the Win2000 palette. Set once,
-    // up front, so every subcommand's UI renders in the right theme.
-    mde_ui::palette::use_beos(state::load().icon_set == "haiku");
+    // Select the shell look-and-feel from persisted state, once, up front, so
+    // every subcommand's UI renders in the right theme. Each subcommand is its
+    // own process, so this runs at every launch. Carbon (default) brings the IBM
+    // Carbon palette + Plex font with a light/dark mode and an icon accent hue;
+    // "win2000" keeps the classic look (and the Haiku icon set still maps to the
+    // BeOS palette for back-compat).
+    {
+        use mde_ui::palette::{self, Theme};
+        let st = state::load();
+        match st.theme.as_str() {
+            "win2000" => palette::set_theme(if st.icon_set == "haiku" {
+                Theme::Beos
+            } else {
+                Theme::Win2000
+            }),
+            _ => palette::set_theme(Theme::Carbon),
+        }
+        palette::set_dark(st.theme_mode != "light");
+        palette::set_accent(match st.icon_color.as_str() {
+            "blue" => 0,
+            "orange" => 1,
+            "red" => 2,
+            _ => 3, // neutral
+        });
+    }
 
     // Resolve the subcommand from argv[0] basename if it looks like `mde-foo`.
     let argv0 = args

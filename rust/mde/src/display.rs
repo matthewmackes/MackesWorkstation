@@ -204,6 +204,104 @@ impl std::fmt::Display for IconSet {
     }
 }
 
+/// The look-and-feel theme selectable on the Appearance tab (state key `theme`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Theme {
+    Carbon,
+    Win2000,
+}
+impl Theme {
+    const ALL: [Theme; 2] = [Theme::Carbon, Theme::Win2000];
+    fn key(self) -> &'static str {
+        match self {
+            Theme::Carbon => "carbon",
+            Theme::Win2000 => "win2000",
+        }
+    }
+    fn from_key(k: &str) -> Self {
+        match k {
+            "win2000" => Theme::Win2000,
+            _ => Theme::Carbon,
+        }
+    }
+}
+impl std::fmt::Display for Theme {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Theme::Carbon => "IBM Carbon",
+            Theme::Win2000 => "Windows 2000 (Classic)",
+        })
+    }
+}
+
+/// Carbon light/dark mode (state key `theme_mode`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ThemeMode {
+    Dark,
+    Light,
+}
+impl ThemeMode {
+    const ALL: [ThemeMode; 2] = [ThemeMode::Dark, ThemeMode::Light];
+    fn key(self) -> &'static str {
+        match self {
+            ThemeMode::Dark => "dark",
+            ThemeMode::Light => "light",
+        }
+    }
+    fn from_key(k: &str) -> Self {
+        match k {
+            "light" => ThemeMode::Light,
+            _ => ThemeMode::Dark,
+        }
+    }
+}
+impl std::fmt::Display for ThemeMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            ThemeMode::Dark => "Dark (Gray 90)",
+            ThemeMode::Light => "Light (Gray 10)",
+        })
+    }
+}
+
+/// The icon accent hue (state key `icon_color`); each auto-shades per mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IconColor {
+    Neutral,
+    Blue,
+    Orange,
+    Red,
+}
+impl IconColor {
+    const ALL: [IconColor; 4] = [IconColor::Neutral, IconColor::Blue, IconColor::Orange, IconColor::Red];
+    fn key(self) -> &'static str {
+        match self {
+            IconColor::Neutral => "neutral",
+            IconColor::Blue => "blue",
+            IconColor::Orange => "orange",
+            IconColor::Red => "red",
+        }
+    }
+    fn from_key(k: &str) -> Self {
+        match k {
+            "blue" => IconColor::Blue,
+            "orange" => IconColor::Orange,
+            "red" => IconColor::Red,
+            _ => IconColor::Neutral,
+        }
+    }
+}
+impl std::fmt::Display for IconColor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            IconColor::Neutral => "Neutral",
+            IconColor::Blue => "Blue",
+            IconColor::Orange => "Orange",
+            IconColor::Red => "Red",
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct WaitChoice(u32); // minutes
 impl std::fmt::Display for WaitChoice {
@@ -271,6 +369,9 @@ struct Display {
     // Appearance
     scheme: Scheme,
     icon_set: IconSet,
+    theme: Theme,
+    theme_mode: ThemeMode,
+    icon_color: IconColor,
 
     // Effects (sway has no effect engine — these are faithful-but-inert except
     // where noted; kept for the 1:1 control set).
@@ -307,6 +408,9 @@ enum Message {
 
     SetScheme(Scheme),
     SetIconSet(IconSet),
+    SetTheme(Theme),
+    SetThemeMode(ThemeMode),
+    SetIconColor(IconColor),
     ToggleFxTransition(bool),
     ToggleFxDrag(bool),
     ToggleFxLargeIcons(bool),
@@ -359,6 +463,7 @@ fn gui() -> iced::Result {
             let desired = outputs::desired_from(&live);
             let selected = live.iter().position(|o| o.focused).unwrap_or(0);
             let wallpapers = scan_wallpapers();
+            let st0 = crate::state::load();
             (
                 Display {
                     tab: 4, // open on Settings (the display-manager core)
@@ -372,7 +477,10 @@ fn gui() -> iced::Result {
                     wait: WaitChoice(0),
                     lock: true,
                     scheme: Scheme::Standard,
-                    icon_set: IconSet::from_key(&crate::state::load().icon_set),
+                    icon_set: IconSet::from_key(&st0.icon_set),
+                    theme: Theme::from_key(&st0.theme),
+                    theme_mode: ThemeMode::from_key(&st0.theme_mode),
+                    icon_color: IconColor::from_key(&st0.icon_color),
                     fx_transition: true,
                     fx_drag_contents: true,
                     fx_large_icons: false,
@@ -443,6 +551,18 @@ fn update(state: &mut Display, message: Message) -> Task<Message> {
         Message::SetIconSet(set) => {
             state.icon_set = set;
             apply_icon_set(set);
+        }
+        Message::SetTheme(t) => {
+            state.theme = t;
+            apply_appearance(state);
+        }
+        Message::SetThemeMode(m) => {
+            state.theme_mode = m;
+            apply_appearance(state);
+        }
+        Message::SetIconColor(c) => {
+            state.icon_color = c;
+            apply_appearance(state);
         }
         Message::ToggleFxTransition(b) => state.fx_transition = b,
         Message::ToggleFxDrag(b) => state.fx_drag_contents = b,
@@ -756,6 +876,39 @@ fn screensaver_tab(state: &Display) -> Element<'_, Message> {
 /// Persist the icon set and apply the whole paired theme — GTK icon theme + UI
 /// font, the labwc title colour — then restart the shell so every surface
 /// (taskbar + GTK apps) adopts it.
+/// Persist the Carbon theme/mode/icon-color and restart the shell so the
+/// taskbar and every app process re-read the palette + icon tint. Also recolors
+/// the labwc window frame to match (Carbon header gray vs Win2000 navy).
+fn apply_appearance(state: &Display) {
+    let mut st = crate::state::load();
+    st.theme = state.theme.key().to_string();
+    st.theme_mode = state.theme_mode.key().to_string();
+    st.icon_color = state.icon_color.key().to_string();
+    let _ = crate::state::save(&st);
+    // Window-frame color: Carbon uses a flat header (Gray 100 dark / white light),
+    // Win2000 keeps navy. Reuse the labwc themerc rewriter.
+    let (bg, fg) = match (state.theme, state.theme_mode) {
+        (Theme::Carbon, ThemeMode::Dark) => ("#161616", "#f4f4f4"),
+        (Theme::Carbon, ThemeMode::Light) => ("#ffffff", "#161616"),
+        (Theme::Win2000, _) => ("#0a246a", "#ffffff"),
+    };
+    set_labwc_title_colors(bg, fg);
+    restart_shell();
+}
+
+/// Kill every mde surface (incl. this Display window) and relaunch the taskbar,
+/// detached so it outlives the `pkill`. Shared by the appearance appliers.
+fn restart_shell() {
+    if let Ok(exe) = std::env::current_exe() {
+        let exe = exe.to_string_lossy().to_string();
+        let _ = std::process::Command::new("setsid")
+            .arg("sh")
+            .arg("-c")
+            .arg(format!("sleep 0.3; pkill -x mde; sleep 0.4; exec '{exe}' panel"))
+            .spawn();
+    }
+}
+
 fn apply_icon_set(set: IconSet) {
     let beos = set == IconSet::Haiku;
     let mut st = crate::state::load();
@@ -771,25 +924,22 @@ fn apply_icon_set(set: IconSet) {
         gtk_settings("gtk-font-name", None);
     }
     set_labwc_title(beos);
-    // Detached so it outlives the `pkill`: kill every mde surface (incl. this
-    // Display window) and relaunch the taskbar with the new set indexed.
-    if let Ok(exe) = std::env::current_exe() {
-        let exe = exe.to_string_lossy().to_string();
-        let _ = std::process::Command::new("setsid")
-            .arg("sh")
-            .arg("-c")
-            .arg(format!("sleep 0.3; pkill -x mde; sleep 0.4; exec '{exe}' panel"))
-            .spawn();
-    }
+    restart_shell();
 }
 
 /// Recolor the labwc active title bar for the theme — BeOS yellow tab with black
 /// text, or the Windows 2000 navy with white text — then reconfigure labwc live.
 fn set_labwc_title(beos: bool) {
+    let (bg, fg) = if beos { ("#ffd700", "#000000") } else { ("#0a246a", "#ffffff") };
+    set_labwc_title_colors(bg, fg);
+}
+
+/// Rewrite the labwc active-title bg/text colors in the themerc and reconfigure
+/// labwc live. Shared by the icon-set (BeOS/Win2000) and Carbon appliers.
+fn set_labwc_title_colors(bg: &str, fg: &str) {
     let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
     let path = home.join(".local/share/themes/Win2000-MDE/openbox-3/themerc");
     let Ok(text) = std::fs::read_to_string(&path) else { return };
-    let (bg, fg) = if beos { ("#ffd700", "#000000") } else { ("#0a246a", "#ffffff") };
     let mut out = String::new();
     for line in text.lines() {
         let t = line.trim_start();
@@ -902,7 +1052,28 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
                 .push(label("Icon set:"))
                 .push(pick_list(IconSet::ALL.to_vec(), Some(state.icon_set), Message::SetIconSet).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
         )
-        .push(label("Each icon set pairs with a matching shell colour theme (Windows 2000 / BeOS). Changing it restarts the shell so the taskbar and apps adopt both. The Scheme above rewrites the labwc window-frame colours."));
+        .push(
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::Alignment::Center)
+                .push(label("Theme:"))
+                .push(pick_list(Theme::ALL.to_vec(), Some(state.theme), Message::SetTheme).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
+        )
+        .push(
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::Alignment::Center)
+                .push(label("Mode:"))
+                .push(pick_list(ThemeMode::ALL.to_vec(), Some(state.theme_mode), Message::SetThemeMode).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
+        )
+        .push(
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::Alignment::Center)
+                .push(label("Icon colour:"))
+                .push(pick_list(IconColor::ALL.to_vec(), Some(state.icon_color), Message::SetIconColor).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
+        )
+        .push(label("Theme sets the look-and-feel: IBM Carbon (flat, Plex font, light/dark) or Windows 2000 (classic 3D). Mode picks Carbon's light/dark. Icon colour tints the shell icons (each hue auto-shades for the mode). Changing any of these restarts the shell. The Scheme/Icon set above pair with the classic theme."));
 
     Column::new()
         .spacing(12.0)

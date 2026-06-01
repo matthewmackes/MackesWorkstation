@@ -127,16 +127,65 @@ pub fn lookup(name: &str, size: u16) -> Option<PathBuf> {
         .map(|(_, p)| p.clone())
 }
 
+/// SVG bytes for an icon `name` embedded in the binary (the Mackes-Carbon set
+/// that replaces the Windows 2000 icons), or `None` if the name isn't mapped.
+/// Built once into a map; the const slice is small (68 entries) and sorted.
+fn embedded(name: &str) -> Option<&'static [u8]> {
+    static MAP: OnceLock<HashMap<&'static str, &'static [u8]>> = OnceLock::new();
+    MAP.get_or_init(|| crate::embedded_icons::ICONS.iter().copied().collect())
+        .get(name)
+        .copied()
+}
+
+/// The tint applied to single-color (`currentColor`) SVG icons, from the
+/// persisted icon accent hue and the active light/dark mode (resolved once).
+/// `None` ⇒ render in the SVG's own color (the embedded Carbon set is black, so
+/// `None` would paint black; for the neutral choice we still pick a theme-aware
+/// near-black/near-white so icons stay legible on either surface).
+fn icon_tint() -> Option<iced::Color> {
+    static TINT: OnceLock<Option<iced::Color>> = OnceLock::new();
+    *TINT.get_or_init(|| {
+        use mde_ui::palette;
+        if !palette::is_carbon() {
+            return None; // Win2000/BeOS: leave theme art as-is.
+        }
+        let dark = palette::is_dark();
+        let rgb = match palette::accent_idx() {
+            0 => if dark { (0x78, 0xa9, 0xff) } else { (0x0f, 0x62, 0xfe) }, // blue
+            1 => if dark { (0xff, 0x83, 0x2b) } else { (0xba, 0x4e, 0x00) }, // orange
+            2 => if dark { (0xfa, 0x4d, 0x56) } else { (0xda, 0x1e, 0x28) }, // red
+            _ => if dark { (0xf4, 0xf4, 0xf4) } else { (0x16, 0x16, 0x16) }, // neutral
+        };
+        Some(iced::Color::from_rgb8(rgb.0, rgb.1, rgb.2))
+    })
+}
+
 /// An iced element rendering the first of `names` that resolves at `size`,
-/// boxed to a `size`×`size` square. Falls back to empty space (never tofu /
-/// never a broken-image marker) when nothing matches.
+/// boxed to a `size`×`size` square. The embedded Carbon set is consulted first
+/// (so the baked-in icons win over any installed theme); the freedesktop theme
+/// chain is the fallback. Single-color SVGs are tinted by [`icon_tint`] (the
+/// chosen icon accent / mode); raster fallbacks render in their own color.
+/// Returns empty space (never tofu / never a broken-image marker) when nothing
+/// matches.
 pub fn icon_any<'a, Message: 'a>(names: &[&str], size: u16) -> Element<'a, Message> {
     let len = Length::Fixed(size as f32);
+    let tinted = |h: svg::Handle| -> Element<'a, Message> {
+        let mut el = svg(h).width(len).height(len);
+        if let Some(c) = icon_tint() {
+            el = el.style(move |_theme, _status| svg::Style { color: Some(c) });
+        }
+        el.into()
+    };
+    for name in names {
+        if let Some(bytes) = embedded(name) {
+            return tinted(svg::Handle::from_memory(bytes));
+        }
+    }
     for name in names {
         if let Some(path) = lookup(name, size) {
             let is_svg = path.extension().and_then(|e| e.to_str()) == Some("svg");
             return if is_svg {
-                svg(svg::Handle::from_path(path)).width(len).height(len).into()
+                tinted(svg::Handle::from_path(path))
             } else {
                 image(image::Handle::from_path(path)).width(len).height(len).into()
             };
@@ -172,5 +221,29 @@ mod tests {
     #[test]
     fn missing_icon_is_none() {
         assert!(lookup("definitely-not-an-icon-name-xyzzy", 32).is_none());
+    }
+
+    #[test]
+    fn embedded_map_is_well_formed() {
+        let names: Vec<&str> = crate::embedded_icons::ICONS.iter().map(|(n, _)| *n).collect();
+        assert!(names.len() >= 68, "expected the full mapped set, got {}", names.len());
+        let mut sorted = names.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), names.len(), "embedded icon names must be unique");
+        for (name, bytes) in crate::embedded_icons::ICONS {
+            assert!(!bytes.is_empty(), "{name} has empty SVG bytes");
+            assert!(bytes.starts_with(b"<") || bytes.starts_with(b"\xEF\xBB\xBF"), "{name} is not SVG/XML");
+        }
+    }
+
+    #[test]
+    fn embedded_wins_for_core_shell_icons() {
+        // A sampling across every UI surface the shell draws from. These must be
+        // baked in so the Carbon set renders regardless of any installed theme.
+        for name in ["folder", "computer", "firefox", "printer", "text-html", "user-home", "drive-harddisk"] {
+            assert!(embedded(name).is_some(), "{name} should be embedded");
+        }
+        assert!(embedded("definitely-not-mapped-xyzzy").is_none());
     }
 }

@@ -9,7 +9,11 @@ use std::time::Duration;
 
 use iced::mouse::ScrollDelta;
 use iced::widget::{container, image, mouse_area, text, Column, Row, Space, Stack};
-use iced::{Element, Length, Padding, Task};
+use iced::{Color, Element, Length, Padding, Task};
+
+/// Height of the Carbon UI Shell top bar (px) — a touch taller than the Win2000
+/// taskbar for the flatter product-header feel.
+const CARBON_BAR_H: f32 = 32.0;
 
 /// The Start-button icon (carbon "layout-grid") as a black PNG. Deliberately a
 /// raster, not SVG: iced loads the entire system font DB (~20 MB) the first time
@@ -124,10 +128,17 @@ fn launch() -> Result<(), iced_layershell::Error> {
     if let Some(bytes) = nerd_font_bytes() {
         app = app.font(bytes);
     }
-    // BeOS mode: a vertical Deskbar anchored to the left edge; Windows 2000: the
-    // horizontal taskbar along the bottom. Either way the bar reserves its strip
-    // via the exclusive zone.
-    let layer_settings = if palette::is_beos() {
+    // Carbon: a flat UI Shell bar anchored to the TOP edge. BeOS: a vertical
+    // Deskbar on the left. Windows 2000: the horizontal taskbar along the bottom.
+    // Either way the bar reserves its strip via the exclusive zone.
+    let layer_settings = if palette::is_carbon() {
+        LayerShellSettings {
+            size: Some((0, CARBON_BAR_H as u32)),
+            exclusive_zone: CARBON_BAR_H as i32,
+            anchor: Anchor::Top | Anchor::Left | Anchor::Right,
+            ..Default::default()
+        }
+    } else if palette::is_beos() {
         LayerShellSettings {
             size: Some((BEOS_BAR_W as u32, 0)),
             exclusive_zone: BEOS_BAR_W as i32,
@@ -161,6 +172,15 @@ fn namespace(_state: &Panel) -> String {
 }
 
 fn style(_state: &Panel, _theme: &iced::Theme) -> Appearance {
+    // Carbon UI Shell header: a flat Gray 100 (dark) / white (light) strip.
+    if palette::is_carbon() {
+        let bg = if palette::is_dark() {
+            Color::from_rgb8(0x16, 0x16, 0x16)
+        } else {
+            Color::from_rgb8(0xff, 0xff, 0xff)
+        };
+        return Appearance { background_color: bg, text_color: palette::color(palette::WINDOW_TEXT) };
+    }
     Appearance {
         background_color: palette::color(palette::BUTTON_FACE),
         text_color: palette::color(palette::WINDOW_TEXT),
@@ -341,13 +361,133 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
     v
 }
 
-/// Dispatch to the horizontal Windows-2000 taskbar or the vertical BeOS Deskbar.
+/// Dispatch to the Carbon top bar, the vertical BeOS Deskbar, or the horizontal
+/// Windows-2000 taskbar.
 fn view(state: &Panel) -> Element<'_, Message> {
-    if palette::is_beos() {
+    if palette::is_carbon() {
+        view_carbon(state)
+    } else if palette::is_beos() {
         view_vertical(state)
     } else {
         view_horizontal(state)
     }
+}
+
+/// The Carbon UI Shell header: a flat top bar. Left: a ≡ switcher button + the
+/// "MDE" breadcrumb. Middle: running windows as flat tabs with a 2px accent
+/// underline on the focused one. Right: tray glyphs + clock. No bevels, no wells.
+fn view_carbon(state: &Panel) -> Element<'_, Message> {
+    let text_c = palette::color(palette::WINDOW_TEXT);
+
+    // ≡ switcher + "MDE" breadcrumb (opens the product-switcher menu).
+    let start = mouse_area(
+        container(
+            Row::new()
+                .spacing(6.0)
+                .align_y(iced::Alignment::Center)
+                .push(text("\u{f0c9}").size(15.0).font(mde_ui::font::NERD).color(text_c)) // fa-bars (≡)
+                .push(text("MDE").size(metrics::UI_PX).font(mde_ui::font::ui_bold()).color(text_c)),
+        )
+        .height(Length::Fill)
+        .center_y(Length::Fill)
+        .padding(Padding { top: 0.0, right: 12.0, bottom: 0.0, left: 12.0 }),
+    )
+    .on_press(Message::Start)
+    .on_right_press(Message::StartContext);
+
+    let mut bar = Row::new()
+        .spacing(0.0)
+        .height(Length::Fill)
+        .align_y(iced::Alignment::Center)
+        .push(start);
+
+    // Quick Launch pins as flat ghost buttons.
+    for item in &state.pinned {
+        bar = bar.push(
+            mouse_area(
+                container(text(truncate(&item.name, 12)).size(metrics::UI_PX).color(text_c))
+                    .height(Length::Fill)
+                    .center_y(Length::Fill)
+                    .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 10.0 }),
+            )
+            .on_press(Message::Launch(item.command.clone())),
+        );
+    }
+
+    // Running windows: flat tabs, focused one underlined in the accent.
+    for w in &state.windows {
+        bar = bar.push(carbon_task_button(w, text_c));
+    }
+
+    // Empty stretch: right-click opens the taskbar context menu.
+    bar = bar.push(
+        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
+    );
+
+    // Tray glyphs then the clock, flat at the right (no sunken well).
+    let mut tray = Row::new().spacing(4.0).align_y(iced::Alignment::Center);
+    for g in tray_glyphs(state) {
+        tray = tray.push(g);
+    }
+    bar = bar.push(
+        container(
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::Alignment::Center)
+                .height(Length::Fill)
+                .push(tray)
+                .push(text(state.clock.clone()).size(metrics::UI_PX).color(text_c)),
+        )
+        .height(Length::Fill)
+        .center_y(Length::Fill)
+        .padding(Padding { top: 0.0, right: 12.0, bottom: 0.0, left: 6.0 }),
+    );
+
+    // A 1px Carbon border-subtle divider along the bottom edge of the header.
+    Stack::new()
+        .push(container(bar).width(Length::Fill).height(Length::Fill))
+        .push(
+            Column::new().push(Space::new(Length::Fill, Length::Fill)).push(
+                container(Space::new(Length::Fill, Length::Fixed(1.0))).width(Length::Fill).style(|_| {
+                    container::Style {
+                        background: Some(iced::Background::Color(palette::color(palette::WINDOW_FRAME))),
+                        ..container::Style::default()
+                    }
+                }),
+            ),
+        )
+        .into()
+}
+
+/// A Carbon running-window tab: icon + title, flat, with a 2px accent underline
+/// when the window is focused. Left-click focuses/minimizes; right-click toggles
+/// minimize (same rules as the Win2000 taskbar button).
+fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
+    let label = Row::new()
+        .spacing(6.0)
+        .align_y(iced::Alignment::Center)
+        .push(crate::icons::icon_any(&[w.app_id.as_str(), "application-x-executable"], 16))
+        .push(text(truncate(&w.title, 18)).size(metrics::UI_PX).color(text_c));
+    let underline = if w.focused { palette::accent() } else { Color::TRANSPARENT };
+    let col = Column::new()
+        .width(Length::Fixed(metrics::TASKBAR_BUTTON_MIN as f32))
+        .height(Length::Fill)
+        .push(
+            container(label)
+                .height(Length::Fill)
+                .center_y(Length::Fill)
+                .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 10.0 }),
+        )
+        .push(
+            container(Space::new(Length::Fill, Length::Fixed(2.0))).style(move |_| container::Style {
+                background: Some(iced::Background::Color(underline)),
+                ..container::Style::default()
+            }),
+        );
+    mouse_area(col)
+        .on_press(Message::TaskButton(w.id))
+        .on_right_press(Message::MinimizeToggle(w.id))
+        .into()
 }
 
 fn view_horizontal(state: &Panel) -> Element<'_, Message> {

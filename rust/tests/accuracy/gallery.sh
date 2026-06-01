@@ -82,8 +82,10 @@ shot() {
 
 # --- the gallery -------------------------------------------------------------
 echo "gallery: capturing components…"
-# The taskbar is a thin strip at the bottom of a 1280x960 output — crop to it.
-shot panel            --crop "0,920 1280x40" panel
+# The bar is a thin strip on a 1280x960 output. The default Carbon theme anchors
+# its UI Shell bar to the TOP; the Win2000/BeOS themes use the bottom/left. Crop
+# the top strip to match the default. (For a Win2000 capture, use "0,920 1280x40".)
+shot panel            --crop "0,0 1280x40" panel
 shot start-menu       menu
 shot files            files "$HOME"
 shot control-panel    control-panel
