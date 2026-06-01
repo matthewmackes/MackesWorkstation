@@ -26,7 +26,10 @@ fi
 mkdir -p "$BACKUP"
 say() { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
 # Back up a file once (first run wins, so revert restores the true original).
-bk() { [ -e "$1" ] && [ ! -e "$BACKUP/$(basename "$1").orig" ] && cp -a "$1" "$BACKUP/$(basename "$1").orig" || true; }
+# cp -aL: dereference symlinks so the backup is a real file. /etc/os-release is a
+# symlink into /usr/lib; a plain `cp -a` copied the link and left a dangling
+# backup/os-release.orig (revert then restored nothing).
+bk() { [ -e "$1" ] && [ ! -e "$BACKUP/$(basename "$1").orig" ] && cp -aL "$1" "$BACKUP/$(basename "$1").orig" || true; }
 # Tracks whether a network-dependent / critical step silently failed. The
 # .activated marker (which permanently disarms the boot one-shot) is written
 # only if this stays 0 — so an offline first boot that can't fetch the LightDM
@@ -58,7 +61,15 @@ if command -v plymouth-set-default-theme >/dev/null; then
     rm -rf /usr/share/plymouth/themes/mde-retro
     cp -a "$ASSETS/plymouth/mde-retro" /usr/share/plymouth/themes/
     echo "$(plymouth-set-default-theme 2>/dev/null || echo bgrt)" >"$BACKUP/plymouth-theme.orig"
-    plymouth-set-default-theme -R mde-retro || { echo "  (plymouth rebuild failed; check dracut)"; INCOMPLETE=1; }
+    # mde-retro is a SCRIPTED theme (ModuleName=script) → needs the script plugin
+    # module /usr/lib64/plymouth/script.so. It's a package Require, but install
+    # here too in case of an offline/partial state (mirrors the LightDM section).
+    # Without it, plymouth-set-default-theme -R aborts with "script.so does not
+    # exist" and the splash silently stays on the stock theme.
+    if [ ! -e /usr/lib64/plymouth/script.so ]; then
+        rpm -q plymouth-plugin-script >/dev/null 2>&1 || dnf install -y plymouth-plugin-script >/dev/null 2>&1 || true
+    fi
+    plymouth-set-default-theme -R mde-retro || { echo "  (plymouth rebuild failed; check dracut / plymouth-plugin-script)"; INCOMPLETE=1; }
 else
     echo "  plymouth not installed; skipping boot splash"
 fi

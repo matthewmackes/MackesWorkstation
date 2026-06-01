@@ -56,7 +56,11 @@ summary = "Windows 2000 desktop shell for Sway (MDE-Retro)"
 # marker-aware so it won't re-brand or flip the DM back to greetd.
 # r4: unified package catalogue (incl. Xen/XCP-ng guest tools) + Choose-Components
 # selector in both the TUI and GUI installers; Control Panel greys missing tools.
-release = "4"
+# r5: fix boot splash never applying — mde-retro is a SCRIPTED Plymouth theme, so
+# it needs plymouth-plugin-script (/usr/lib64/plymouth/script.so); added to
+# requires + install-branding.sh now installs it before setting the theme. Also
+# fixed the os-release backup (cp -aL) so revert restores it.
+release = "5"
 assets = [
     { source = "target/release/mde", dest = "/usr/bin/mde", mode = "0755" },
     # Symlinks so `mde-panel`, `mde-menu`, ... dispatch via argv[0].
@@ -109,7 +113,7 @@ assets = [
 # the UI offers is ever missing). `recommends` = the Control Panel's catalogue of
 # system tools — pulled in by default on a normal install (dnf honours Recommends)
 # but removable, matching "listed in the Control Panel". Visual assets are fetched.
-requires = { labwc = "*", "wlr-randr" = "*", wlopm = "*", swaybg = "*", swayidle = "*", swaylock = "*", foot = "*", grim = "*", "xdg-utils" = "*", brightnessctl = "*", NetworkManager = "*", greetd = "*", tuigreet = "*", lightdm = "*", "lightdm-gtk-greeter" = "*", pipewire = "*", wireplumber = "*", polkit = "*", "google-droid-sans-fonts" = "*", "xkeyboard-config" = "*", firefox = "*", terminator = "*", dnfdragora = "*", "nm-connection-editor" = "*", "system-config-printer" = "*", pavucontrol = "*", playerctl = "*" }
+requires = { labwc = "*", "wlr-randr" = "*", wlopm = "*", swaybg = "*", swayidle = "*", swaylock = "*", foot = "*", grim = "*", "xdg-utils" = "*", brightnessctl = "*", NetworkManager = "*", greetd = "*", tuigreet = "*", lightdm = "*", "lightdm-gtk-greeter" = "*", "plymouth-plugin-script" = "*", pipewire = "*", wireplumber = "*", polkit = "*", "google-droid-sans-fonts" = "*", "xkeyboard-config" = "*", firefox = "*", terminator = "*", dnfdragora = "*", "nm-connection-editor" = "*", "system-config-printer" = "*", pavucontrol = "*", playerctl = "*" }
 # Apps the Start menu / Control Panel list but that are optional, large, or
 # install-on-click in the UI. dnf installs Recommends by default; they can be
 # removed without removing mde.
