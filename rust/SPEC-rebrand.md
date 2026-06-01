@@ -31,10 +31,15 @@ package version) + "Built on Fedora 44" small print.
 - Needs root: install theme, `plymouth-set-default-theme -R` + `dracut -f`.
 
 ## 3. Login (LightDM)
-- **Switch greetd → LightDM** with the **web greeter** (webkit2/web-greeter) for a
-  near-pixel "Log On to Windows" dialog (centered grey box, user + password,
-  OK/Cancel/Shutdown), over the **Win2000 desktop blue (#3a6ea5)**.
-- NOTE: the web greeter may need a COPR/source build on Fedora 44 — flag at build.
+- **Switch greetd → LightDM** with **lightdm-gtk-greeter**, themed for a Windows
+  2000 "Log On to Windows" feel: Chicago95 GTK theme + Win2k icons over the
+  branded login wallpaper. Both are hard `Requires`, so the login works offline.
+- DECISION (2026-06-01): a **web greeter was rejected**. web-greeter (Nuitka) is
+  unsupported on Fedora and ships .deb-only; nody-greeter is a ~90MB Electron
+  blob with no Fedora rpm. gtk-greeter is native, lightweight, and offline-safe.
+  The greeter runs as the unprivileged `lightdm` user, so its theme/icons are
+  installed **system-wide** (Win2k icons ship in the package; install-branding.sh
+  best-effort copies a fetched Chicago95 GTK theme into /usr/share/themes).
 
 ## 4. OS rebrand (full cosmetic)
 - `/etc/os-release` + `/usr/lib/os-release`: NAME/PRETTY_NAME/LOGO/HOME_URL → MDE
@@ -49,5 +54,13 @@ package version) + "Built on Fedora 44" small print.
 - **Startup sound:** keep the current Chicago95 login chime.
 
 ## Packaging
-- All assets + scripts bundled in the RPM; `mde setup` runs the rebrand as an
-  automatic step; licenses already covered (assets are MDE-original).
+- All assets + scripts bundled in the RPM; licenses already covered (assets are
+  MDE-original).
+- **Auto-activation:** the RPM ships `mde-activate-branding.service` (disabled)
+  and enables it from `%posttrans`. On the next boot the one-shot runs
+  `install-branding.sh`, then writes `/var/lib/mde-branding/.activated` and
+  self-disables (so upgrades never re-fire it). This keeps the greeter dnf
+  install, Plymouth initramfs rebuild, and greetd→LightDM switch OUT of the rpm
+  transaction — never run them inline in `%post` (dnf-inside-dnf deadlocks; and
+  `%post` would re-fire on every upgrade). `mde setup` runs the same script
+  directly for the interactive install; either path satisfies the marker.

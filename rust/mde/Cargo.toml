@@ -49,6 +49,10 @@ toml = "0.8"
 # ---------------------------------------------------------------------------
 [package.metadata.generate-rpm]
 summary = "Windows 2000 desktop shell for Sway (MDE-Retro)"
+# Package release — bump on packaging/asset changes that reuse the same crate
+# version, so `dnf upgrade` sees a newer NEVRA. r2: RPM auto-activates branding
+# via a %posttrans one-shot; LightDM login uses gtk-greeter (web greeter dropped).
+release = "2"
 assets = [
     { source = "target/release/mde", dest = "/usr/bin/mde", mode = "0755" },
     # Symlinks so `mde-panel`, `mde-menu`, ... dispatch via argv[0].
@@ -72,6 +76,12 @@ assets = [
     # os-release/issue/fastfetch content, install-/revert-branding.sh. The setup
     # step runs install-branding.sh from here (invoked via `bash`, no +x needed).
     { source = "../assets/branding/**/*", dest = "/usr/share/mde/branding/", mode = "0644" },
+    # One-shot branding activator. Ships disabled; %posttrans enables it. On the
+    # next boot it runs install-branding.sh once (network up, no dnf lock held),
+    # then the /var/lib/mde-branding/.activated marker self-disables it so it
+    # never re-fires on upgrades. Keeps the initramfs rebuild + DM switch OUT of
+    # the rpm transaction (the unsafe way). See post_trans_script below.
+    { source = "../assets/systemd/mde-activate-branding.service", dest = "/usr/lib/systemd/system/mde-activate-branding.service", mode = "0644" },
     # --- Bundled third-party assets (staged into target/rpm-assets) ----------
     { source = "target/rpm-assets/icons/Win2k/**/*", dest = "/usr/share/icons/Win2k/", mode = "0644" },
     { source = "target/rpm-assets/icons/Haiku/**/*", dest = "/usr/share/icons/Haiku/", mode = "0644" },
@@ -91,7 +101,7 @@ assets = [
 # the UI offers is ever missing). `recommends` = the Control Panel's catalogue of
 # system tools — pulled in by default on a normal install (dnf honours Recommends)
 # but removable, matching "listed in the Control Panel". Visual assets are fetched.
-requires = { labwc = "*", "wlr-randr" = "*", wlopm = "*", swaybg = "*", swayidle = "*", swaylock = "*", foot = "*", grim = "*", "xdg-utils" = "*", brightnessctl = "*", NetworkManager = "*", greetd = "*", tuigreet = "*", pipewire = "*", wireplumber = "*", polkit = "*", "google-droid-sans-fonts" = "*", "xkeyboard-config" = "*", firefox = "*", terminator = "*", dnfdragora = "*", "nm-connection-editor" = "*", "system-config-printer" = "*", pavucontrol = "*", playerctl = "*" }
+requires = { labwc = "*", "wlr-randr" = "*", wlopm = "*", swaybg = "*", swayidle = "*", swaylock = "*", foot = "*", grim = "*", "xdg-utils" = "*", brightnessctl = "*", NetworkManager = "*", greetd = "*", tuigreet = "*", lightdm = "*", "lightdm-gtk-greeter" = "*", pipewire = "*", wireplumber = "*", polkit = "*", "google-droid-sans-fonts" = "*", "xkeyboard-config" = "*", firefox = "*", terminator = "*", dnfdragora = "*", "nm-connection-editor" = "*", "system-config-printer" = "*", pavucontrol = "*", playerctl = "*" }
 # Apps the Start menu / Control Panel list but that are optional, large, or
 # install-on-click in the UI. dnf installs Recommends by default; they can be
 # removed without removing mde.
@@ -102,8 +112,21 @@ for c in panel menu popup files control-panel system-properties about run proper
 done
 fc-cache -f /usr/share/fonts/mde-ibm-plex-sans >/dev/null 2>&1 || true
 """
+# %posttrans runs ONCE after the whole transaction, after dnf releases its lock —
+# the only safe place to arm boot-time activation. It just enables the one-shot;
+# the heavy work (dnf greeter install, plymouth -R initramfs rebuild, greetd->
+# lightdm switch) is deferred to that unit on next boot, never run inline here.
+post_trans_script = """
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable mde-activate-branding.service >/dev/null 2>&1 || true
+"""
 post_uninstall_script = """
 for c in panel menu popup files control-panel system-properties about run properties setup install logoff shutdown; do
     rm -f /usr/bin/mde-$c
 done
+# On full erase ($1 == 0), not upgrade, drop the one-shot's enable symlink. (The
+# unit file itself is package-owned and removed by rpm; this clears the wants/.)
+if [ "$1" = 0 ]; then
+    systemctl disable mde-activate-branding.service >/dev/null 2>&1 || true
+fi
 """

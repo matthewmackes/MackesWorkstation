@@ -16,7 +16,6 @@ restore /etc/issue
 restore /etc/motd
 restore /etc/lightdm/lightdm.conf
 restore /etc/lightdm/lightdm-gtk-greeter.conf
-restore /etc/lightdm/web-greeter.yml
 rm -f /usr/share/icons/hicolor/256x256/apps/mde-retro.png
 
 # Plymouth: restore the previous default theme + rebuild initramfs.
@@ -38,6 +37,11 @@ fi
 say "Restoring the display manager (greetd)"
 systemctl disable lightdm 2>/dev/null || true
 systemctl enable greetd 2>/dev/null || true
+
+# Re-arm the one-shot activator: disable it and drop the marker, so a future
+# reinstall (or `sudo mde setup`) re-applies branding rather than skipping it.
+systemctl disable mde-activate-branding.service 2>/dev/null || true
+rm -f /var/lib/mde-branding/.activated
 
 rm -f /etc/fastfetch/config.jsonc
 say "Reverted. Reboot to return to stock Fedora branding."

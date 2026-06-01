@@ -47,7 +47,18 @@ the **GUI** Setup screen. Overrides: `--tui`, `--gui`, `--dry-run`.
    --assets` → Chicago95 + Win2k into that user's `~/.local/share`)
 5. Registering session + greetd (wayland-session, greetd config)
 6. Finalizing (`set-default graphical.target`, `enable --now greetd`)
+7. Applying MDE Retro branding (`install-branding.sh`: os-release, Plymouth,
+   GRUB, console, fastfetch, wallpaper, LightDM login — and switches the display
+   manager greetd → LightDM, so it runs after step 5)
+
+> Branding (step 7) is also applied by the **RPM** without `mde setup`: the
+> package ships `mde-activate-branding.service` disabled and enables it from
+> `%posttrans`; on the next boot it runs `install-branding.sh` once, writes
+> `/var/lib/mde-branding/.activated`, and self-disables. So a plain `dnf install
+> mde` lands the rebrand on the next boot — the heavy work (greeter dnf install,
+> Plymouth initramfs rebuild, DM switch) stays out of the rpm transaction.
+> Re-arm with `revert-branding.sh` (removes the marker + disables the unit).
 
 ## GUI (in-session path — already built: `installer.rs`)
 The Win2000 GUI Setup screen (blue gradient, stage list, progress trough). Same
-6-stage brain; runs the unprivileged steps and `pkexec` for dnf.
+7-stage brain; runs the unprivileged steps and `pkexec` for dnf.
