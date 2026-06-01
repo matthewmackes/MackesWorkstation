@@ -8,11 +8,14 @@ use std::process::{Child, Command, ExitCode};
 use std::time::Duration;
 
 use iced::mouse::ScrollDelta;
-use iced::widget::{container, mouse_area, svg, text, Column, Row, Space, Stack};
+use iced::widget::{container, image, mouse_area, text, Column, Row, Space, Stack};
 use iced::{Element, Length, Padding, Task};
 
-/// The Start-button icon (carbon "layout-grid"), recoloured to the UI text colour.
-const START_ICON: &[u8] = include_bytes!("start_icon.svg");
+/// The Start-button icon (carbon "layout-grid") as a black PNG. Deliberately a
+/// raster, not SVG: iced loads the entire system font DB (~20 MB) the first time
+/// it renders any SVG, and this was the panel's only guaranteed SVG. A PNG keeps
+/// the panel font-DB-free in the common (PNG-icon) case.
+const START_ICON: &[u8] = include_bytes!("start_icon.png");
 
 /// Width of the vertical BeOS Deskbar (px).
 const BEOS_BAR_W: f32 = 115.0;
@@ -275,10 +278,9 @@ fn start_button(state: &Panel, w: Length, h: Length) -> Element<'_, Message> {
                 .spacing(4.0)
                 .align_y(iced::Alignment::Center)
                 .push(
-                    svg(svg::Handle::from_memory(START_ICON))
+                    image(image::Handle::from_bytes(START_ICON))
                         .width(Length::Fixed(16.0))
-                        .height(Length::Fixed(16.0))
-                        .style(|_t, _s| svg::Style { color: Some(palette::color(palette::WINDOW_TEXT)) }),
+                        .height(Length::Fixed(16.0)),
                 )
                 .push(text("Start").size(metrics::UI_PX).font(mde_ui::font::ui_bold())),
         )
