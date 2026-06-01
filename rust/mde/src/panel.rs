@@ -44,6 +44,8 @@ struct Panel {
     battery: Option<(u8, bool)>,
     /// Whether a laptop backlight exists (gates the brightness tray glyph).
     has_backlight: bool,
+    /// Tick counter: the expensive subprocess polls run every 5th tick.
+    tick: u32,
     /// The Start menu child process, if open. The panel owns it so a second
     /// Start click toggles it closed instead of stacking another full-screen
     /// overlay (which made the menu "take several clicks" to open), and so it
@@ -165,14 +167,22 @@ fn subscription(_state: &Panel) -> iced::Subscription<Message> {
 fn update(state: &mut Panel, message: Message) -> Task<Message> {
     match message {
         Message::Tick => {
+            // Cheap every tick (just reads shared memory): the window list and
+            // the tray snapshot, so the taskbar stays responsive.
             state.windows = state.wm.as_ref().map(|w| w.windows()).unwrap_or_default();
-            state.clock = clock_now();
             if let Some(t) = &state.tray {
                 state.tray_items = t.lock().map(|v| v.clone()).unwrap_or_default();
             }
-            state.volume = poll_volume();
-            state.net = poll_net();
-            state.battery = poll_battery();
+            // The expensive indicators each fork a subprocess (date / wpctl /
+            // nmcli). They only need ~minute precision and change rarely, so poll
+            // them every 5th tick — cutting ~3 forks/sec to ~0.6/sec.
+            if state.tick % 5 == 0 {
+                state.clock = clock_now();
+                state.volume = poll_volume();
+                state.net = poll_net();
+                state.battery = poll_battery();
+            }
+            state.tick = state.tick.wrapping_add(1);
             // Reap finished children so they don't linger as zombies, and clear
             // the menu handle once it has closed itself (item picked / clicked
             // away) so the next Start click re-opens it.
