@@ -68,6 +68,10 @@ assets = [
     { source = "skel/.local/share/themes/Win2000-MDE/openbox-3/themerc", dest = "/usr/share/mde/skel/.local/share/themes/Win2000-MDE/openbox-3/themerc", mode = "0644" },
     # The Wayland session entry the greeter lists.
     { source = "skel/mde-retro.desktop", dest = "/usr/share/wayland-sessions/mde-retro.desktop", mode = "0644" },
+    # Rebrand assets + scripts: Plymouth/GRUB/LightDM themes, logos, wallpaper,
+    # os-release/issue/fastfetch content, install-/revert-branding.sh. The setup
+    # step runs install-branding.sh from here (invoked via `bash`, no +x needed).
+    { source = "../assets/branding/**/*", dest = "/usr/share/mde/branding/", mode = "0644" },
     # --- Bundled third-party assets (staged into target/rpm-assets) ----------
     { source = "target/rpm-assets/icons/Win2k/**/*", dest = "/usr/share/icons/Win2k/", mode = "0644" },
     { source = "target/rpm-assets/icons/Haiku/**/*", dest = "/usr/share/icons/Haiku/", mode = "0644" },

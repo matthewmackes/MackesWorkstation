@@ -1,0 +1,12 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": { "source": "/usr/share/mde/branding/fastfetch-logo.txt", "type": "data", "color": { "1": "blue", "2": "white" } },
+  "display": { "separator": "  " },
+  "modules": [
+    { "type": "title" },
+    "separator",
+    { "type": "os", "format": "MDE Retro Workstation (Built on Fedora {3})" },
+    "kernel", "uptime", "packages", "shell", "wm", "terminal", "cpu", "gpu", "memory", "disk",
+    "break", "colors"
+  ]
+}

@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=MDE Retro
+Description=MDE Retro Workstation boot splash (Windows 2000 style)
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/mde-retro
+ScriptFile=/usr/share/plymouth/themes/mde-retro/mde-retro.script

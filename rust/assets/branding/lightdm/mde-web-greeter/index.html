@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<!-- MDE Retro Workstation LightDM web greeter: a Windows-2000 "Log On" dialog
+     over the desktop blue. Targets the web-greeter / nody-greeter `lightdm` API
+     (signals via .connect()), with defensive fallbacks. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; font-family: "IBM Plex Sans", "Droid Sans", Tahoma, sans-serif; }
+  html, body { margin: 0; height: 100%; }
+  body { background: #3a6ea5; display: flex; align-items: center; justify-content: center; }
+  .dialog { width: 420px; background: #d4d0c8; border: 2px solid #ffffff;
+            border-right-color: #404040; border-bottom-color: #404040;
+            box-shadow: 2px 2px 0 #808080; }
+  .titlebar { background: #0a246a; color: #fff; font-weight: bold; font-size: 13px;
+              padding: 4px 8px; display: flex; align-items: center; gap: 8px; }
+  .titlebar img { width: 18px; height: 18px; }
+  .body { padding: 18px; display: flex; gap: 16px; }
+  .logo { width: 72px; height: 72px; flex: 0 0 auto; }
+  .fields { flex: 1; }
+  .row { display: flex; align-items: center; margin: 6px 0; }
+  .row label { width: 86px; font-size: 13px; color: #000; }
+  .row input, .row select { flex: 1; font-size: 13px; padding: 3px 4px;
+            background: #fff; border: 2px solid #808080; border-right-color: #fff;
+            border-bottom-color: #fff; }
+  .buttons { padding: 0 18px 16px; display: flex; gap: 8px; justify-content: flex-end; }
+  button { font-size: 13px; padding: 4px 16px; background: #d4d0c8;
+           border: 2px solid #fff; border-right-color: #404040; border-bottom-color: #404040; }
+  button:active { border-color: #404040; border-right-color: #fff; border-bottom-color: #fff; }
+  #msg { color: #800000; font-size: 12px; min-height: 14px; padding: 0 18px 8px; }
+  .heading { font-size: 13px; margin-bottom: 10px; }
+  .heading b { font-size: 15px; }
+</style>
+</head>
+<body>
+  <form class="dialog" onsubmit="doLogin(); return false;">
+    <div class="titlebar"><img src="logo.png" alt=""> Log On to MDE Retro Workstation</div>
+    <div class="body">
+      <img class="logo" src="logo.png" alt="">
+      <div class="fields">
+        <div class="heading">Type a <b>user name</b> and <b>password</b> to log on.</div>
+        <div class="row"><label>User name:</label><input id="user" autofocus></div>
+        <div class="row"><label>Password:</label><input id="pass" type="password"></div>
+        <div class="row"><label>Session:</label><select id="session"></select></div>
+      </div>
+    </div>
+    <div id="msg"></div>
+    <div class="buttons">
+      <button type="submit">OK</button>
+      <button type="button" onclick="document.getElementById('pass').value=''">Cancel</button>
+      <button type="button" onclick="lightdm.shutdown && lightdm.shutdown()">Shut Down…</button>
+    </div>
+  </form>
+<script>
+  function el(id){ return document.getElementById(id); }
+  function setMsg(t){ el('msg').textContent = t || ''; }
+
+  // Populate sessions + a default username once the greeter API is ready.
+  function init() {
+    try {
+      var sel = el('session');
+      (lightdm.sessions || []).forEach(function(s){
+        var o = document.createElement('option'); o.value = s.key; o.textContent = s.name; sel.appendChild(o);
+      });
+      // Prefer the MDE Retro session if present.
+      for (var i=0;i<sel.options.length;i++){ if(/mde/i.test(sel.options[i].textContent)){ sel.selectedIndex=i; } }
+      var u = (lightdm.users || [])[0];
+      if (u) el('user').value = u.username || u.name || '';
+    } catch(e){}
+  }
+
+  var pendingPassword = false;
+  function doLogin() {
+    setMsg('');
+    try { lightdm.cancel_authentication && lightdm.cancel_authentication(); } catch(e){}
+    pendingPassword = true;
+    lightdm.authenticate(el('user').value);
+  }
+
+  function wire() {
+    // web-greeter / nody: signals expose .connect()
+    if (lightdm.show_prompt && lightdm.show_prompt.connect) {
+      lightdm.show_prompt.connect(function(text, type){
+        if (pendingPassword) { pendingPassword = false; lightdm.respond(el('pass').value); }
+      });
+      lightdm.authentication_complete.connect(function(){
+        if (lightdm.is_authenticated) {
+          lightdm.start_session(el('session').value || (lightdm.default_session));
+        } else { setMsg('The user name or password is incorrect.'); }
+      });
+      lightdm.show_message && lightdm.show_message.connect(function(t){ setMsg(t); });
+    }
+  }
+
+  // web-greeter fires window._ready_event / GreeterReady; fall back to load.
+  window.addEventListener('GreeterReady', function(){ init(); wire(); });
+  window.addEventListener('load', function(){
+    if (window.lightdm) { init(); wire(); }
+  });
+</script>
+</body>
+</html>

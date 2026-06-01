@@ -1,0 +1,73 @@
+# MDE Retro Workstation boot splash — Windows 2000 style.
+# Black screen with a faint blue glow, centred logo + wordmark, a "Built on
+# Fedora" footer, and the classic looping row of sliding blue progress blocks.
+
+# --- background: black with a subtle blue glow toward the bottom -------------
+Window.SetBackgroundTopColor(0.0, 0.0, 0.0);
+Window.SetBackgroundBottomColor(0.04, 0.10, 0.25);
+
+sw = Window.GetWidth();
+sh = Window.GetHeight();
+cx = sw / 2;
+
+# --- logo (centred, a little above middle) -----------------------------------
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetX(cx - logo.image.GetWidth() / 2);
+logo.sprite.SetY(sh / 2 - logo.image.GetHeight() - 24);
+
+# --- wordmark + footer (drawn as text images) --------------------------------
+title.image = Image.Text("MDE Retro Workstation", 1, 1, 1, 1, "Sans Bold 20");
+title.sprite = Sprite(title.image);
+title.sprite.SetX(cx - title.image.GetWidth() / 2);
+title.sprite.SetY(sh / 2 + 8);
+
+foot.image = Image.Text("Built on Fedora", 0.55, 0.70, 0.95, 1, "Sans 11");
+foot.sprite = Sprite(foot.image);
+foot.sprite.SetX(cx - foot.image.GetWidth() / 2);
+foot.sprite.SetY(sh - 48);
+
+# --- sliding-blocks progress marquee -----------------------------------------
+block.image = Image("block.png");
+block.w = block.image.GetWidth();
+block.count = 5;
+spacing = block.w + 8;
+group = block.count * spacing;       # width of the moving block group
+track = 240;                         # visible marquee track width
+track_x = cx - track / 2;
+track_y = sh / 2 + 52;
+
+for (i = 0; i < block.count; i++) {
+    blocks[i].sprite = Sprite(block.image);
+    blocks[i].sprite.SetY(track_y);
+    blocks[i].sprite.SetOpacity(1);
+}
+
+offset = 0;
+fun refresh() {
+    # advance the group; wrap so it loops continuously left -> right
+    offset += 3;
+    if (offset > group) offset -= group;
+    for (i = 0; i < block.count; i++) {
+        x = track_x + offset + i * spacing;
+        # wrap each block within the track
+        while (x > track_x + track) x -= (group + spacing);
+        # fade blocks that fall outside the track edges
+        if (x < track_x - block.w || x > track_x + track) {
+            blocks[i].sprite.SetOpacity(0);
+        } else {
+            blocks[i].sprite.SetOpacity(1);
+            blocks[i].sprite.SetX(x);
+        }
+    }
+}
+Plymouth.SetRefreshFunction(refresh);
+
+# Password prompt (e.g. LUKS) — keep it simple and on-brand.
+fun display_password(prompt, bullets) {
+    pw.image = Image.Text(prompt, 1, 1, 1, 1, "Sans 12");
+    pw.sprite = Sprite(pw.image);
+    pw.sprite.SetX(cx - pw.image.GetWidth() / 2);
+    pw.sprite.SetY(sh - 96);
+}
+Plymouth.SetDisplayPasswordFunction(display_password);

@@ -68,6 +68,7 @@ pub fn run(dry_run: bool) -> ExitCode {
             Step { label: "Installing visual assets", done: false },
             Step { label: "Registering session and login manager", done: false },
             Step { label: "Finalizing installation", done: false },
+            Step { label: "Applying MDE Retro branding", done: false },
         ],
         current: 0,
         dry_run,
@@ -186,6 +187,14 @@ fn run_step(i: usize, dry_run: bool) -> Result<(), String> {
         5 => {
             run_status(Command::new("systemctl").args(["set-default", "graphical.target"]))?;
             run_status(Command::new("systemctl").args(["enable", "--now", "greetd"]))
+        }
+        6 => {
+            // Rebrand the install as MDE Retro Workstation (os-release, Plymouth,
+            // GRUB, console, fastfetch, wallpaper, LightDM login). Switches the
+            // display manager greetd -> LightDM, so it runs after step 5.
+            run_status(
+                Command::new("bash").arg("/usr/share/mde/branding/scripts/install-branding.sh"),
+            )
         }
         _ => Ok(()),
     }
