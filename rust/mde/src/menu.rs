@@ -164,7 +164,12 @@ fn launch() -> Result<(), iced_layershell::Error> {
                 // Full-screen overlay so clicks outside the menu close it.
                 anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
                 exclusive_zone: 0,
-                keyboard_interactivity: KeyboardInteractivity::OnDemand,
+                // Exclusive (not OnDemand): a freshly-mapped OnDemand layer
+                // surface on labwc receives pointer motion (hover) but its first
+                // click is consumed to focus it rather than delivered — so items
+                // never fire. Exclusive focuses the surface on map, so clicks
+                // (and keyboard nav) work immediately. The menu is modal/transient.
+                keyboard_interactivity: KeyboardInteractivity::Exclusive,
                 ..Default::default()
             },
             ..Default::default()

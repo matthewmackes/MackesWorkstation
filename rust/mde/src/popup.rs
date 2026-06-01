@@ -103,7 +103,10 @@ fn launch(kind: String) -> Result<(), iced_layershell::Error> {
             layer_settings: LayerShellSettings {
                 anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
                 exclusive_zone: 0,
-                keyboard_interactivity: KeyboardInteractivity::OnDemand,
+                // Exclusive so the freshly-mapped overlay is focused on map and
+                // its first click is delivered (OnDemand eats it to focus). See
+                // the note in menu.rs.
+                keyboard_interactivity: KeyboardInteractivity::Exclusive,
                 ..Default::default()
             },
             ..Default::default()
