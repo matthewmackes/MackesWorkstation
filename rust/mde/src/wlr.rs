@@ -72,15 +72,6 @@ impl Wm {
         }
     }
 
-    /// Close a window (used by the labwc titlebar path / scripting).
-    #[allow(dead_code)]
-    pub fn close(&self, id: u64) {
-        if let Some(h) = self.handle(id) {
-            h.close();
-            self.flush();
-        }
-    }
-
     pub fn set_minimized(&self, id: u64, on: bool) {
         if let Some(h) = self.handle(id) {
             if on {
@@ -92,17 +83,6 @@ impl Wm {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn set_maximized(&self, id: u64, on: bool) {
-        if let Some(h) = self.handle(id) {
-            if on {
-                h.set_maximized();
-            } else {
-                h.unset_maximized();
-            }
-            self.flush();
-        }
-    }
 }
 
 /// Start the background foreign-toplevel listener; `None` if there's no Wayland

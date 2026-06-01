@@ -32,9 +32,10 @@ Remaining (FINISH unless noted):
 - [✓] **§4 packaging** Add `assets/licenses/DroidSans-Apache-2.0.txt` to the asset
   list + a Droid Sans entry to `NOTICE.md` (the font is embedded in the shipped
   binary; IBM Plex — embedded the same way — is already covered).
-- [ ] **§3 decision** `wlr.rs` `Wm::close` / `Wm::set_maximized` and `outputs.rs`
-  `Output::make` are `#[allow(dead_code)]`: remove, or keep as deliberate
-  protocol/EDID API with a comment justifying the retention.
+- [✓] **§3 decision** `wlr.rs` `Wm::close`/`Wm::set_maximized` REMOVED (per-window
+  close/maximize is labwc's by the compositor boundary, so the taskbar never calls
+  them); `outputs.rs` `Output::make` FINISHED — folded into `Output::label()` so the
+  Display dropdown shows the full EDID identity ("Dell U2419H (DP-1)"), unit-pinned.
 - [ ] **§1 docs** Deeper prose pass: the reorg fixed each doc's headline claims +
   added status banners, but some body paragraphs in `PREVIEW.md`/`ACCURACY.md`
   still narrate the pre-cutover/Win2000-only world. Full rewrite when convenient.

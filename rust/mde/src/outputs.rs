@@ -52,8 +52,7 @@ impl Mode {
 #[derive(Debug, Clone)]
 pub struct Output {
     pub name: String,
-    /// Manufacturer string from EDID (transcribed; the label prefers model+name).
-    #[allow(dead_code)]
+    /// Manufacturer string from EDID; prepended to the model in [`Output::label`].
     pub make: String,
     pub model: String,
     /// Whether the output is currently enabled.
@@ -75,12 +74,16 @@ pub struct Output {
 
 impl Output {
     pub fn label(&self) -> String {
-        let title = if self.model.is_empty() {
-            self.name.clone()
-        } else {
-            format!("{} ({})", self.model, self.name)
+        // EDID identity: "<make> <model>" when both are present, else whichever
+        // one EDID gave us; fall back to the connector name (e.g. DP-1) when it
+        // gave neither, so the dropdown is never blank.
+        let ident = match (self.make.trim(), self.model.trim()) {
+            ("", "") => return self.name.clone(),
+            ("", model) => model.to_string(),
+            (make, "") => make.to_string(),
+            (make, model) => format!("{make} {model}"),
         };
-        title
+        format!("{ident} ({})", self.name)
     }
 
     /// Distinct resolutions (W×H), highest-area first — the "Screen area" stops.
@@ -508,6 +511,15 @@ mod tests {
         assert_eq!(outs[1].scale, 2.0);
         assert_eq!(outs[1].transform, "90");
         assert!(!outs[1].active);
+    }
+
+    #[test]
+    fn label_folds_make_into_model() {
+        let outs = parse(SAMPLE);
+        // make + model present → "Dell U2419H (DP-1)".
+        assert_eq!(outs[0].label(), "Dell U2419H (DP-1)");
+        // model empty but make present → "LG (HDMI-A-1)".
+        assert_eq!(outs[1].label(), "LG (HDMI-A-1)");
     }
 
     #[test]
