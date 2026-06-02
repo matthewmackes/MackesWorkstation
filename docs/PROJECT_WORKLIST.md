@@ -112,8 +112,19 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   the rsa→ring PKCS#8 interop; proto's 181 still green). **✓ host increment 2** (commit
   `9c1268f`): the object-safe `Transport`/`Connection` traits (async-trait) + an
   in-process `LoopbackTransport` that round-trips packets through the real frame codec
-  (9 tests). Remaining: [ ] host increment 3 — the LAN transport
-  (UDP 1716 discovery + rustls TCP) + router; [ ] push MDE-KDECnt-Rust + rewire MDE-Retro
+  (9 tests). **✓ audit-hardening** (commit `90ccddc`): an adversarial audit of
+  increments 1+2 returned the rsa→ring interop and "session keys never touch disk" as
+  VERIFIED-GOOD; fixed the one real issue (`identity.pkcs8` was 0644-then-chmod-0600 —
+  now created 0600 atomically via `OpenOptions::create_new().mode()`, which also refuses
+  a symlink; store dir 0700; a test asserts both) + the empty-`$XDG_CONFIG_HOME` fallback
+  + two doc-drift fixes (10 tests). **✓ host increment 3a** (commit `6f34adf`): the
+  UDP/1716 LAN **discovery** half — `UdpDiscovery` binds the socket, broadcasts our
+  `kdeconnect.identity` announce on a timer, and folds inbound announces into the proto
+  `DiscoveryRegistry`, emitting `PeerDiscovered`/`PeerLost`; address-cached for the TCP
+  connect; `ingest`/`prune` unit-tested with an injected clock + a hermetic two-instance
+  loopback round-trip of `run` (15 tests). Remaining: [ ] host increment 3b — the rustls
+  TCP pairing handshake (`Transport::open` against a discovered peer) + router that ties
+  discovery + connections onto the event stream; [ ] push MDE-KDECnt-Rust + rewire MDE-Retro
   to depend on it (git dep); [ ] `mde connect`
   systemd user daemon + pairing modal/tray; [ ] capability surfaces (notifications
   bidirectional + a freedesktop notify daemon, clipboard, battery, file transfer via
