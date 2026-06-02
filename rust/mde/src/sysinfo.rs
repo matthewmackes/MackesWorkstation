@@ -138,6 +138,31 @@ pub fn advanced() -> Advanced {
     }
 }
 
+/// The privileged command that applies an automatic-updates posture (Apply on
+/// System Properties ▸ Updates, and the Win10 Update page, E13). It sets BOTH
+/// halves that [`advanced`] reads back — the dnf-automatic **timer** and
+/// `automatic.conf`'s **`apply_updates`** — so Download-only (`no`) and Install
+/// (`yes`) genuinely differ; toggling the timer alone can't distinguish them (the
+/// prior Apply produced the same command for both). One `pkexec`; the `sed` form
+/// matches the whitespace-stripped key `advanced` checks (`apply_updates=yes`).
+pub fn set_auto_command(mode: AutoMode) -> String {
+    match mode {
+        AutoMode::Off => "pkexec systemctl disable --now dnf-automatic.timer".to_string(),
+        AutoMode::DownloadOnly | AutoMode::Install => {
+            let apply = if matches!(mode, AutoMode::Install) {
+                "yes"
+            } else {
+                "no"
+            };
+            format!(
+                "pkexec sh -c 'systemctl enable --now dnf-automatic.timer && \
+                 sed -i -E \"s/^[[:space:]]*apply_updates[[:space:]]*=.*/apply_updates = {apply}/\" \
+                 /etc/dnf/automatic.conf'"
+            )
+        }
+    }
+}
+
 /// A Device Manager category and the devices under it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeviceCategory {
@@ -273,6 +298,20 @@ pub fn run(args: &[String]) -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn set_auto_command_sets_timer_and_apply_updates() {
+        // Off disables the timer; Download/Install enable it AND set apply_updates
+        // (no/yes) so they actually differ — the bug was that they didn't (E13.1).
+        assert!(set_auto_command(AutoMode::Off).contains("disable --now dnf-automatic.timer"));
+        let d = set_auto_command(AutoMode::DownloadOnly);
+        let i = set_auto_command(AutoMode::Install);
+        assert!(d.contains("enable --now dnf-automatic.timer"));
+        assert!(i.contains("enable --now dnf-automatic.timer"));
+        assert!(d.contains("apply_updates = no"));
+        assert!(i.contains("apply_updates = yes"));
+        assert_ne!(d, i, "Download and Install must produce different commands");
+    }
 
     const OS_RELEASE: &str =
         "NAME=\"Fedora Linux\"\nVERSION=\"44 (Workstation Edition)\"\nID=fedora\n";

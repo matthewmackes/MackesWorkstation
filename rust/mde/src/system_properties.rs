@@ -383,18 +383,19 @@ fn updates_tab(state: &SysProps) -> Element<'static, Message> {
             AutoMode::DownloadOnly,
         ))
         .push(opt("Install updates automatically", AutoMode::Install));
-    // Apply via the dnf-automatic timer (privileged; the radios pick the posture).
-    let apply_cmd = match state.auto_sel {
-        AutoMode::Off => "pkexec systemctl disable --now dnf-automatic.timer".to_string(),
-        _ => "pkexec systemctl enable --now dnf-automatic.timer".to_string(),
-    };
+    // Apply the chosen posture (privileged): sets the dnf-automatic timer AND
+    // automatic.conf's apply_updates, so Download-only vs Install actually differ
+    // (shared with the Win10 Update page, E13.1).
     Column::new()
         .spacing(10.0)
         .push(group_box("Keep my computer up to date", group))
         .push(
             Row::new()
                 .push(Space::with_width(Length::Fill))
-                .push(launch_button("Apply", apply_cmd)),
+                .push(launch_button(
+                    "Apply",
+                    sysinfo::set_auto_command(state.auto_sel),
+                )),
         )
         .into()
 }
