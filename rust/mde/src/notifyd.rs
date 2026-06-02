@@ -98,6 +98,14 @@ pub fn save_file(f: &NotifFile) {
     }
 }
 
+/// Mark everything as read (stamp `last_read = now`), so the panel badge falls to
+/// 0 on its next tick. Called when the Action Center opens (E3.9).
+pub fn stamp_last_read() {
+    let mut f = load_file();
+    f.last_read = SystemTime::now();
+    save_file(&f);
+}
+
 /// Mirror the store to disk, preserving the on-disk `last_read` marker.
 fn mirror(store: &Store) {
     let mut f = load_file();

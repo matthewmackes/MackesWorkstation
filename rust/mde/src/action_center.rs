@@ -42,6 +42,7 @@ struct Center {
 enum Message {
     Clear(u32),         // dismiss one notification
     ClearGroup(String), // dismiss every notification from one app
+    ClearAll,           // dismiss every notification
     ToggleTile(String), // flip a quick-action tile + its backend
     ToggleExpand,       // show/hide the tiles past the first four
     Close,
@@ -49,6 +50,8 @@ enum Message {
 }
 
 pub fn run_center(_args: &[String]) -> ExitCode {
+    // Opening the center marks everything read, so the panel badge clears (E3.9).
+    notifyd::stamp_last_read();
     match launch() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -125,6 +128,12 @@ fn update(state: &mut Center, message: Message) -> Task<Message> {
                 dbus_close(n.id);
             }
             state.notes.retain(|n| n.app_name != app);
+        }
+        Message::ClearAll => {
+            for n in &state.notes {
+                dbus_close(n.id);
+            }
+            state.notes.clear();
         }
         Message::ToggleTile(id) => {
             if let Some((_, on)) = state.tiles.iter_mut().find(|(t, _)| *t == id) {
@@ -312,6 +321,20 @@ fn view(state: &Center) -> Element<'_, Message> {
                 col = col.push(card(n));
             }
         }
+        // "Clear all" at the bottom of the history region.
+        col = col.push(
+            container(
+                mouse_area(
+                    text("Clear all")
+                        .size(metrics::UI_PX)
+                        .color(palette::accent()),
+                )
+                .on_press(Message::ClearAll),
+            )
+            .width(Length::Fill)
+            .align_x(Horizontal::Right)
+            .padding(pad(2.0, 4.0, 0.0, 0.0)),
+        );
         scrollable(col).style(mde_ui::scrollbar).into()
     };
 
