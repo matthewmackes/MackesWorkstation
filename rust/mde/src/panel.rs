@@ -393,13 +393,15 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
     v
 }
 
-/// Dispatch to the Carbon top bar, the vertical BeOS Deskbar, or the horizontal
-/// Windows-2000 taskbar.
+/// Dispatch to the Carbon top bar, the vertical BeOS Deskbar, the Windows 10
+/// bottom bar, or the horizontal Windows-2000 taskbar.
 fn view(state: &Panel) -> Element<'_, Message> {
     if palette::is_carbon() {
         view_carbon(state)
     } else if palette::is_beos() {
         view_vertical(state)
+    } else if palette::is_windows10() {
+        view_win10(state)
     } else {
         view_horizontal(state)
     }
@@ -558,6 +560,137 @@ fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
                     bottom: 0.0,
                     left: 10.0,
                 }),
+        )
+        .push(
+            container(Space::new(Length::Fill, Length::Fixed(2.0))).style(move |_| {
+                container::Style {
+                    background: Some(iced::Background::Color(underline)),
+                    ..container::Style::default()
+                }
+            }),
+        );
+    mouse_area(col)
+        .on_press(Message::TaskButton(w.id))
+        .on_right_press(Message::MinimizeToggle(w.id))
+        .into()
+}
+
+/// The Windows 10 taskbar: a flat dark bottom bar. Left: a square Start tile.
+/// Middle: running apps as icon-only buttons with a 2px accent underline on the
+/// focused one. Right: tray glyphs + clock. (Search box, Task View, jump lists,
+/// badges, and the Action Center button are later E2 stories.)
+/// The Windows 10 Start tile: a flat, icon-only square (the Windows-logo Nerd
+/// glyph, themeable light-on-dark; accent-tinted while Start is open). Raster-free
+/// and SVG-free, like the rest of the panel (§7).
+fn win10_start_tile(state: &Panel) -> Element<'_, Message> {
+    let c = if state.menu.is_some() {
+        palette::accent()
+    } else {
+        palette::color(palette::WINDOW_TEXT)
+    };
+    mouse_area(
+        container(
+            text("\u{f17a}")
+                .size(18.0)
+                .font(mde_ui::font::NERD)
+                .color(c),
+        )
+        .width(Length::Fixed(WIN10_BAR_H))
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill),
+    )
+    .on_press(Message::Start)
+    .on_right_press(Message::StartContext)
+    .into()
+}
+
+fn view_win10(state: &Panel) -> Element<'_, Message> {
+    let text_c = palette::color(palette::WINDOW_TEXT);
+    let mut bar = Row::new()
+        .spacing(0.0)
+        .height(Length::Fill)
+        .align_y(iced::Alignment::Center)
+        .push(win10_start_tile(state));
+
+    for w in &state.windows {
+        bar = bar.push(win10_task_button(w));
+    }
+
+    bar = bar.push(
+        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
+    );
+
+    let mut tray = Row::new().spacing(4.0).align_y(iced::Alignment::Center);
+    for g in tray_glyphs(state) {
+        tray = tray.push(g);
+    }
+    bar = bar.push(
+        container(
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::Alignment::Center)
+                .height(Length::Fill)
+                .push(tray)
+                .push(text(state.clock.clone()).size(metrics::UI_PX).color(text_c)),
+        )
+        .height(Length::Fill)
+        .center_y(Length::Fill)
+        .padding(Padding {
+            top: 0.0,
+            right: 12.0,
+            bottom: 0.0,
+            left: 6.0,
+        }),
+    );
+
+    // Flat dark bar (Win10 SHELL_HEADER) with a 1px accent top edge.
+    Stack::new()
+        .push(
+            container(bar)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(iced::Background::Color(palette::color(
+                        palette::SHELL_HEADER,
+                    ))),
+                    ..container::Style::default()
+                }),
+        )
+        .push(
+            Column::new()
+                .push(
+                    container(Space::new(Length::Fill, Length::Fixed(1.0)))
+                        .width(Length::Fill)
+                        .style(|_| container::Style {
+                            background: Some(iced::Background::Color(palette::accent())),
+                            ..container::Style::default()
+                        }),
+                )
+                .push(Space::new(Length::Fill, Length::Fill)),
+        )
+        .into()
+}
+
+/// A Windows 10 taskbar app button: icon-only, with a 2px accent underline when
+/// focused. Left-click focuses/minimizes; right-click toggles minimize.
+fn win10_task_button(w: &wlr::Window) -> Element<'_, Message> {
+    let underline = if w.focused {
+        palette::accent()
+    } else {
+        Color::TRANSPARENT
+    };
+    let col = Column::new()
+        .width(Length::Fixed(WIN10_BAR_H))
+        .height(Length::Fill)
+        .push(
+            container(crate::icons::icon_any(
+                &[w.app_id.as_str(), "application-x-executable"],
+                24,
+            ))
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
         )
         .push(
             container(Space::new(Length::Fill, Length::Fixed(2.0))).style(move |_| {
