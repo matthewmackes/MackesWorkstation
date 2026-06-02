@@ -73,6 +73,9 @@ struct Files {
     /// Details-list sort: column (0 = Name, 1 = Size, 2 = Type) and direction.
     sort_col: usize,
     sort_desc: bool,
+    /// Win10 search-in-folder query: filters the details list live, case-insensitive
+    /// (E8.11). Empty = no filter; cleared on a folder change.
+    search: String,
     /// Which landing the main area renders (Win10 Quick access vs a folder).
     pane: Pane,
     /// Win10 Quick access user-pinned folders (persisted `explorer_pins`, E8.3),
@@ -98,6 +101,7 @@ enum Message {
     Home,
     Refresh,
     AddressChanged(String),
+    SearchChanged(String),
     GoAddress,
     TreeToggle(PathBuf),
     TreeNav(PathBuf),
@@ -199,6 +203,7 @@ fn launch(start: PathBuf, pane: Pane, pins: Vec<PathBuf>) -> iced::Result {
                 clipboard: None,
                 sort_col: 0,
                 sort_desc: false,
+                search: String::new(),
                 pane,
                 pins,
                 qctx: None,
@@ -278,6 +283,7 @@ impl Files {
 
     fn navigate(&mut self, path: PathBuf) {
         self.pane = Pane::Folder;
+        self.search.clear();
         self.cwd = path.clone();
         self.load();
         self.history.truncate(self.hpos + 1);
@@ -370,6 +376,7 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 state.hpos -= 1;
                 state.cwd = state.history[state.hpos].clone();
                 state.pane = Pane::Folder;
+                state.search.clear();
                 state.load();
             }
         }
@@ -378,6 +385,7 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 state.hpos += 1;
                 state.cwd = state.history[state.hpos].clone();
                 state.pane = Pane::Folder;
+                state.search.clear();
                 state.load();
             }
         }
@@ -391,6 +399,7 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             state.address = s;
             state.error = None;
         }
+        Message::SearchChanged(s) => state.search = s,
         Message::GoAddress => {
             let addr = state.address.trim().to_string();
             if addr.contains("://") {
@@ -948,9 +957,10 @@ fn toolbar(state: &Files) -> Element<'_, Message> {
 /// `ctx.or(selected)`). No Rename — files.rs has no rename action yet.
 fn command_bar(state: &Files) -> Element<'_, Message> {
     let sel = state.selected.is_some();
-    let row = Row::new()
+    let mut row = Row::new()
         .spacing(2.0)
         .padding(2.0)
+        .align_y(iced::Alignment::Center)
         .push(tool("New folder", Some(Message::NewFolder)))
         .push(tool("Cut", sel.then_some(Message::CtxCut)))
         .push(tool("Copy", sel.then_some(Message::CtxCopy)))
@@ -960,6 +970,16 @@ fn command_bar(state: &Files) -> Element<'_, Message> {
         ))
         .push(tool("Delete", sel.then_some(Message::CtxDelete)))
         .push(tool("Properties", sel.then_some(Message::CtxProperties)));
+    // Win10 search-in-folder box, only while browsing a folder (E8.11).
+    if state.pane == Pane::Folder {
+        row = row.push(Space::with_width(Length::Fill)).push(
+            text_input("Search", &state.search)
+                .on_input(Message::SearchChanged)
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(180.0))
+                .style(mde_ui::sunken_field),
+        );
+    }
     container(iced::widget::stack![
         frame::raised().thickness(1),
         container(row).width(Length::Fill)
@@ -997,6 +1017,12 @@ fn header_cell<'a>(label: &'a str, width: Length, col: usize) -> Element<'a, Mes
         .into()
 }
 
+/// Win10 search-in-folder match: case-insensitive substring of the name. An empty
+/// query matches everything. `q_lower` is the already-lowercased query (E8.11).
+fn name_matches(name: &str, q_lower: &str) -> bool {
+    q_lower.is_empty() || name.to_lowercase().contains(q_lower)
+}
+
 fn list(state: &Files) -> Element<'_, Message> {
     let name_w = Length::FillPortion(6);
     let size_w = Length::Fixed(90.0);
@@ -1008,8 +1034,14 @@ fn list(state: &Files) -> Element<'_, Message> {
         .push(header_cell("Size", size_w, 1))
         .push(header_cell("Type", type_w, 2));
 
+    let q = state.search.to_lowercase();
     let mut rows = Column::new().spacing(0.0);
     for (i, e) in state.entries.iter().enumerate() {
+        // Win10 search-in-folder: hide rows whose name doesn't contain the query
+        // (case-insensitive), keeping the original index so Open(i) still maps right.
+        if !name_matches(&e.name, &q) {
+            continue;
+        }
         // A 16px shell icon leads the name cell, like Win2000's list view.
         let name_cell = Row::new()
             .spacing(4.0)
@@ -1076,6 +1108,15 @@ fn status_bar(state: &Files) -> Element<'_, Message> {
             } else {
                 format!("{n} paired device(s)")
             }
+        }
+        None if !state.search.is_empty() => {
+            let q = state.search.to_lowercase();
+            let m = state
+                .entries
+                .iter()
+                .filter(|e| name_matches(&e.name, &q))
+                .count();
+            format!("{m} of {} object(s)", state.entries.len())
         }
         None => format!("{} object(s)", state.entries.len()),
     };
@@ -2132,6 +2173,15 @@ fn view(state: &Files) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn search_filter_is_case_insensitive_substring() {
+        assert!(name_matches("Report.PDF", "report"));
+        assert!(name_matches("Report.PDF", "pdf"));
+        assert!(name_matches("Report.PDF", "")); // empty query matches all
+        assert!(name_matches("budget.xlsx", "bud"));
+        assert!(!name_matches("Report.PDF", "xyz"));
+    }
 
     #[test]
     fn copy_tree_mirrors_a_directory() {
