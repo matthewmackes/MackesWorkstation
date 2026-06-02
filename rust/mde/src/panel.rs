@@ -69,6 +69,9 @@ struct Panel {
     /// Other fire-and-forget children (popups, launched apps) we reap each tick
     /// to keep them from piling up as zombies.
     children: Vec<Child>,
+    /// Unread notification count for the Win10 Action Center badge (E2.7),
+    /// recomputed from the notifyd mirror each tick; 0 ⇒ no chip.
+    unread: usize,
 }
 
 /// Network connectivity, summarised for the tray glyph.
@@ -92,6 +95,7 @@ enum Message {
     Brightness(bool),
     Launch(String),
     TrayActivate(usize),
+    ActionCenter,
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
@@ -226,6 +230,10 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
             if let Some(t) = &state.tray {
                 state.tray_items = t.lock().map(|v| v.clone()).unwrap_or_default();
             }
+            // Win10 Action Center unread badge (E2.7): a cheap mirror-file read.
+            if palette::is_windows10() {
+                state.unread = crate::notifyd::unread_count();
+            }
             // The expensive indicators each fork a subprocess (date / wpctl /
             // nmcli). They only need ~minute precision and change rarely, so poll
             // them every 5th tick — cutting ~3 forks/sec to ~0.6/sec.
@@ -253,6 +261,9 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
                 crate::tray::activate(&it.service, &it.path);
             }
         }
+        // Open the Action Center pane; it stamps last_read, so the badge clears
+        // on the next tick (E2.7).
+        Message::ActionCenter => push_child(state, spawn_child(&["action-center"])),
         // Toggle the Start menu: open it if closed, close it if already open.
         // Owning the child (instead of fire-and-forget spawning) is what stops
         // rapid clicks during the menu's start-up from stacking duplicate
@@ -618,6 +629,58 @@ fn win10_start_tile(state: &Panel) -> Element<'_, Message> {
     .into()
 }
 
+/// The Win10 Action Center button (far right): a speech-bubble Nerd glyph with a
+/// small accent unread-count chip when notifications are pending (E2.7). Click
+/// opens `mde action-center`, which stamps last_read so the chip clears.
+fn win10_ac_button(state: &Panel) -> Element<'_, Message> {
+    let glyph = text("\u{f075}") // nf-fa-comment
+        .size(16.0)
+        .font(mde_ui::font::NERD)
+        .color(palette::color(palette::WINDOW_TEXT));
+    let inner: Element<Message> = if state.unread > 0 {
+        let badge = container(
+            text(state.unread.min(99).to_string())
+                .size(9.0)
+                .color(palette::color(palette::HIGHLIGHT_TEXT)),
+        )
+        .padding(Padding {
+            top: 0.0,
+            right: 3.0,
+            bottom: 0.0,
+            left: 3.0,
+        })
+        .style(|_| container::Style {
+            background: Some(iced::Background::Color(palette::accent())),
+            border: iced::Border {
+                radius: 6.0.into(),
+                ..Default::default()
+            },
+            ..container::Style::default()
+        });
+        Row::new()
+            .spacing(2.0)
+            .align_y(iced::Alignment::Center)
+            .push(glyph)
+            .push(badge)
+            .into()
+    } else {
+        glyph.into()
+    };
+    mouse_area(
+        container(inner)
+            .height(Length::Fill)
+            .center_y(Length::Fill)
+            .padding(Padding {
+                top: 0.0,
+                right: 4.0,
+                bottom: 0.0,
+                left: 4.0,
+            }),
+    )
+    .on_press(Message::ActionCenter)
+    .into()
+}
+
 fn view_win10(state: &Panel) -> Element<'_, Message> {
     let text_c = palette::color(palette::WINDOW_TEXT);
     let mut bar = Row::new()
@@ -645,7 +708,8 @@ fn view_win10(state: &Panel) -> Element<'_, Message> {
                 .align_y(iced::Alignment::Center)
                 .height(Length::Fill)
                 .push(tray)
-                .push(text(state.clock.clone()).size(metrics::UI_PX).color(text_c)),
+                .push(text(state.clock.clone()).size(metrics::UI_PX).color(text_c))
+                .push(win10_ac_button(state)),
         )
         .height(Length::Fill)
         .center_y(Length::Fill)
