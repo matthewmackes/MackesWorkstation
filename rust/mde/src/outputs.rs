@@ -327,6 +327,53 @@ fn apply_wallpaper(w: &Wallpaper) {
         .spawn();
 }
 
+/// Set + persist *only* the desktop wallpaper — relaunch swaybg now and write
+/// `wallpaper.sh` so it replays at login. Unlike [`persist`], this leaves output
+/// geometry alone, so the Win10 Personalization ▸ Background page (E7.4) can
+/// change the wallpaper without touching resolution.
+pub fn set_wallpaper(path: &str, mode: &str) -> std::io::Result<()> {
+    let w = Wallpaper {
+        path: path.to_string(),
+        mode: mode.to_string(),
+    };
+    apply_wallpaper(&w);
+    write_wallpaper_script(&wallpaper_text(&w))
+}
+
+/// Set + persist a solid-color background (`swaybg -c <hex>`).
+pub fn set_solid(color_hex: &str) -> std::io::Result<()> {
+    let _ = Command::new("pkill").args(["-x", "swaybg"]).status();
+    let _ = Command::new("swaybg").args(["-c", color_hex]).spawn();
+    let body = format!("#!/bin/sh\npkill -x swaybg\nswaybg -c {color_hex} &\n");
+    write_wallpaper_script(&body)
+}
+
+/// Set + persist a slideshow that cycles `images` every `secs` (a background
+/// loop relaunching swaybg — the standard swaybg-has-no-native-slideshow hop).
+pub fn set_slideshow(images: &[String], mode: &str, secs: u32) -> std::io::Result<()> {
+    if images.is_empty() {
+        return Ok(());
+    }
+    let quoted: Vec<String> = images.iter().map(|p| shell_quote(p)).collect();
+    let list = quoted.join(" ");
+    let body = format!(
+        "#!/bin/sh\npkill -x swaybg\n( while :; do for f in {list}; do \
+         pkill -x swaybg; swaybg -i \"$f\" -m {mode} & sleep {secs}; done; done ) &\n"
+    );
+    // Apply now by sourcing the same loop.
+    let _ = Command::new("sh").arg("-c").arg(&body).spawn();
+    write_wallpaper_script(&body)
+}
+
+/// Write the generated `wallpaper.sh` (shared by the three setters above).
+fn write_wallpaper_script(body: &str) -> std::io::Result<()> {
+    let Some(dir) = mde_config_dir() else {
+        return Ok(());
+    };
+    std::fs::create_dir_all(&dir)?;
+    write_script(&dir.join("wallpaper.sh"), body)
+}
+
 /// Apply the whole desired state live (no persistence). Best-effort: each
 /// output is independent so a single bad mode doesn't abort the rest.
 pub fn apply_live(d: &Desired) {

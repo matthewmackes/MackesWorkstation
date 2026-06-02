@@ -444,6 +444,19 @@ pub fn color(rgb: Rgb) -> iced::Color {
     iced::Color::from_rgb8(rgb.0, rgb.1, rgb.2)
 }
 
+/// The theme-remapped role color as a `#rrggbb` string — for passing a palette
+/// color to an external tool that wants hex (e.g. `swaybg -c`), keeping the hex
+/// formatting on the palette edge (§2.1).
+pub fn hex(rgb: Rgb) -> String {
+    let rgb = match theme() {
+        Theme::Win2000 => rgb,
+        Theme::Beos => beos(rgb),
+        Theme::Carbon => carbon(rgb),
+        Theme::Windows10 => win10(rgb),
+    };
+    format!("#{:02x}{:02x}{:02x}", rgb.0, rgb.1, rgb.2)
+}
+
 /// The UI accent as an `iced::Color` (Carbon Blue 60 under Carbon; the Win2000
 /// navy HIGHLIGHT otherwise). Convenience for accent underlines/focus rings.
 pub fn accent() -> iced::Color {

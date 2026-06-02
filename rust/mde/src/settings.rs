@@ -18,13 +18,36 @@ use std::collections::HashMap;
 use std::process::{Command, ExitCode};
 
 use iced::widget::{
-    button, column, container, mouse_area, scrollable, text, text_input, Column, Row, Space,
+    button, column, container, image, mouse_area, pick_list, scrollable, text, text_input, Column,
+    Row, Space,
 };
 use iced::{Background, Border, Color, Element, Length, Padding, Task};
 
 use mde_ui::{metrics, palette};
 
-use crate::fedora;
+use crate::wallpaper::{self, BgMode};
+use crate::{fedora, outputs};
+
+/// The Background page's source mode (E7.4): a picture, a solid color, or a
+/// slideshow cycling the scanned pictures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BgSource {
+    Picture,
+    Solid,
+    Slideshow,
+}
+impl BgSource {
+    const ALL: [BgSource; 3] = [BgSource::Picture, BgSource::Solid, BgSource::Slideshow];
+}
+impl std::fmt::Display for BgSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            BgSource::Picture => "Picture",
+            BgSource::Solid => "Solid color",
+            BgSource::Slideshow => "Slideshow",
+        })
+    }
+}
 
 const COLS: usize = 4;
 
@@ -35,6 +58,8 @@ enum Kind {
     Deferred,
     /// The native Personalization ▸ Colors page (E6.4).
     Colors,
+    /// The native Personalization ▸ Background page (E7.4).
+    Background,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -147,7 +172,7 @@ const CATEGORIES: &[Category] = &[
         pages: &[
             Page {
                 title: "Background",
-                kind: Kind::Mde("display"),
+                kind: Kind::Background,
             },
             Page {
                 title: "Colors",
@@ -287,6 +312,11 @@ struct Settings {
     accent: u8,
     /// Home-screen search query (E6.6): filters the flat (category, page) list.
     search: String,
+    /// Background page (E7.4): source mode, scanned pictures, selection, fit.
+    bg_source: BgSource,
+    bg_wallpapers: Vec<String>,
+    bg_selected: Option<usize>,
+    bg_mode: BgMode,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -302,6 +332,13 @@ enum Message {
     SetAccent(u8),
     Search(String),
     Jump(usize, usize), // (category, page) from a search result
+    // Background page (E7.4).
+    BgSource(BgSource),
+    BgSelect(usize),
+    BgMode(BgMode),
+    BgBrowse,
+    BgBrowsed(Option<String>),
+    BgApply,
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -371,6 +408,7 @@ fn list() -> ExitCode {
             let backend = match p.kind {
                 Kind::Deferred => continue,
                 Kind::Colors => "(native: Colors)".to_string(),
+                Kind::Background => "(native: Background)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
                 Kind::Cmd(c, _) => format!("cmd: {c}"),
@@ -398,6 +436,10 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 dark: st.theme_mode != "light",
                 accent: accent_index(&st.icon_color),
                 search: initial_search,
+                bg_source: BgSource::Picture,
+                bg_wallpapers: wallpaper::scan(),
+                bg_selected: None,
+                bg_mode: BgMode::Fill,
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -462,8 +504,39 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             palette::set_accent(a);
             persist(state);
         }
+        Message::BgSource(s) => state.bg_source = s,
+        Message::BgSelect(i) => state.bg_selected = Some(i),
+        Message::BgMode(m) => state.bg_mode = m,
+        Message::BgBrowse => {
+            return Task::perform(async { wallpaper::browse() }, Message::BgBrowsed);
+        }
+        Message::BgBrowsed(Some(p)) => {
+            state.bg_wallpapers.push(p);
+            state.bg_selected = Some(state.bg_wallpapers.len() - 1);
+        }
+        Message::BgBrowsed(None) => {}
+        Message::BgApply => apply_background(state),
     }
     Task::none()
+}
+
+/// Apply (and persist) the Background page's current selection via swaybg.
+fn apply_background(state: &Settings) {
+    let mode = state.bg_mode.swaybg();
+    match state.bg_source {
+        BgSource::Picture => {
+            if let Some(p) = state.bg_selected.and_then(|i| state.bg_wallpapers.get(i)) {
+                let _ = outputs::set_wallpaper(p, mode);
+            }
+        }
+        BgSource::Solid => {
+            // "Solid" = the themed desktop color (no separate color picker yet).
+            let _ = outputs::set_solid(&palette::hex(palette::BACKGROUND));
+        }
+        BgSource::Slideshow => {
+            let _ = outputs::set_slideshow(&state.bg_wallpapers, mode, 300);
+        }
+    }
 }
 
 /// Compute (once) whether the current Tool page's command is installed.
@@ -491,7 +564,7 @@ fn open_current(state: &mut Settings) {
         return;
     };
     match page.kind {
-        Kind::Deferred | Kind::Colors => {}
+        Kind::Deferred | Kind::Colors | Kind::Background => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
             let _ = Command::new(mde).arg(sub).spawn();
@@ -761,6 +834,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         .color(palette::color(palette::WINDOW_TEXT));
     let inner: Element<Message> = match page.kind {
         Kind::Colors => colors_page(state),
+        Kind::Background => background_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT))
@@ -824,6 +898,143 @@ fn colors_page(state: &Settings) -> Element<'_, Message> {
         swatches
     ]
     .spacing(8.0)
+    .into()
+}
+
+/// Personalization ▸ Background (E7.4): a live preview, a Picture/Solid/
+/// Slideshow source dropdown, a thumbnail strip + Browse + fit dropdown for
+/// Picture, and Apply — driving swaybg through the shared `crate::wallpaper`
+/// + `outputs` helpers.
+fn background_page(state: &Settings) -> Element<'_, Message> {
+    let sel = state
+        .bg_selected
+        .and_then(|i| state.bg_wallpapers.get(i))
+        .map(String::as_str);
+    // Solid previews the themed desktop color (no picture).
+    let preview_sel = if state.bg_source == BgSource::Solid {
+        None
+    } else {
+        sel
+    };
+    let preview = container(wallpaper::preview::<Message>(preview_sel))
+        .width(Length::Fixed(320.0))
+        .height(Length::Fixed(180.0))
+        .style(|_| container::Style {
+            border: Border {
+                color: palette::color(palette::WINDOW_FRAME),
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+            ..container::Style::default()
+        });
+
+    let source = Row::new()
+        .spacing(8.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(
+            text("Background")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            pick_list(
+                BgSource::ALL.to_vec(),
+                Some(state.bg_source),
+                Message::BgSource,
+            )
+            .text_size(metrics::UI_PX),
+        );
+
+    let mut col = Column::new().spacing(12.0).push(preview).push(source);
+
+    match state.bg_source {
+        BgSource::Picture => {
+            let mut strip = Row::new().spacing(8.0);
+            for (i, wp) in state.bg_wallpapers.iter().enumerate().take(24) {
+                strip = strip.push(thumb(wp, i, state.bg_selected == Some(i)));
+            }
+            col = col
+                .push(
+                    text("Choose your picture")
+                        .size(metrics::UI_PX)
+                        .color(palette::color(palette::WINDOW_TEXT)),
+                )
+                .push(scrollable(strip).style(mde_ui::scrollbar))
+                .push(fit_row("Browse", state.bg_mode, true));
+        }
+        BgSource::Solid => {
+            col = col.push(
+                text("Uses the themed desktop color.")
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+            );
+        }
+        BgSource::Slideshow => {
+            col = col
+                .push(
+                    text(format!(
+                        "Cycles {} pictures every 5 minutes.",
+                        state.bg_wallpapers.len()
+                    ))
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+                )
+                .push(fit_row("", state.bg_mode, false));
+        }
+    }
+
+    col.push(
+        button(text("Apply").size(metrics::UI_PX))
+            .on_press(Message::BgApply)
+            .padding(Padding::from([6.0, 18.0]))
+            .style(tile_style),
+    )
+    .into()
+}
+
+/// The "Browse … + fit dropdown" row shared by the Picture/Slideshow sources.
+/// `browse` controls whether the Browse button shows.
+fn fit_row<'a>(browse_label: &str, mode: BgMode, browse: bool) -> Element<'a, Message> {
+    let mut row = Row::new()
+        .spacing(8.0)
+        .align_y(iced::alignment::Vertical::Center);
+    if browse {
+        row = row.push(
+            button(text(browse_label.to_string()).size(metrics::UI_PX))
+                .on_press(Message::BgBrowse)
+                .padding(Padding::from([4.0, 12.0]))
+                .style(tile_style),
+        );
+    }
+    row.push(
+        text("Choose a fit")
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::WINDOW_TEXT)),
+    )
+    .push(pick_list(BgMode::ALL.to_vec(), Some(mode), Message::BgMode).text_size(metrics::UI_PX))
+    .into()
+}
+
+/// A clickable wallpaper thumbnail (accent border when selected).
+fn thumb(path: &str, i: usize, selected: bool) -> Element<'static, Message> {
+    let img = image(image::Handle::from_path(path))
+        .width(Length::Fixed(96.0))
+        .height(Length::Fixed(60.0))
+        .content_fit(iced::ContentFit::Cover);
+    let border_c = if selected {
+        palette::accent()
+    } else {
+        palette::color(palette::WINDOW_FRAME)
+    };
+    mouse_area(container(img).style(move |_| container::Style {
+        border: Border {
+            color: border_c,
+            width: if selected { 2.0 } else { 1.0 },
+            radius: 0.0.into(),
+        },
+        ..container::Style::default()
+    }))
+    .on_press(Message::BgSelect(i))
     .into()
 }
 
