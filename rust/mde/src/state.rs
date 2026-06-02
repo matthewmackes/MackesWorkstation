@@ -15,6 +15,62 @@ pub struct PinnedItem {
     pub command: String,
 }
 
+/// A Windows 10 Start tile size (the right tile area). Each maps to a grid span
+/// in base small-tile cells; see `metrics::TILE_*_PX`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum TileSize {
+    Small,
+    #[default]
+    Medium,
+    Wide,
+    Large,
+}
+
+impl TileSize {
+    /// (cols, rows) span in base small-tile cells.
+    pub fn span(self) -> (u16, u16) {
+        match self {
+            TileSize::Small => (1, 1),
+            TileSize::Medium => (2, 2),
+            TileSize::Wide => (4, 2),
+            TileSize::Large => (4, 4),
+        }
+    }
+    /// The lowercase token (round-trips with [`TileSize::from_token`]).
+    pub fn token(self) -> &'static str {
+        match self {
+            TileSize::Small => "small",
+            TileSize::Medium => "medium",
+            TileSize::Wide => "wide",
+            TileSize::Large => "large",
+        }
+    }
+    /// Parse a size token; anything unrecognized falls back to `Medium`.
+    pub fn from_token(s: &str) -> TileSize {
+        match s.to_ascii_lowercase().as_str() {
+            "small" => TileSize::Small,
+            "wide" => TileSize::Wide,
+            "large" => TileSize::Large,
+            _ => TileSize::Medium,
+        }
+    }
+}
+
+/// One Windows 10 Start tile. Optional fields tolerate missing/garbage to sane
+/// defaults (§2.6).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StartTile {
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub icon: String,
+    #[serde(default)]
+    pub size: TileSize,
+    #[serde(default)]
+    pub group: String,
+}
+
 fn def_theme() -> String {
     "carbon".into()
 }
@@ -54,6 +110,11 @@ pub struct MenuState {
     /// Icon accent hue: "neutral" (default), "blue", "orange", or "red".
     #[serde(default = "def_icon_color")]
     pub icon_color: String,
+    /// Windows 10 Start tiles (the right tile area). Empty on a fresh config;
+    /// the Win10 Start seeds it from `pinned` (see [`seed_start_tiles`]) so the
+    /// area is never blank. Garbage → empty (§2.6).
+    #[serde(default)]
+    pub start_tiles: Vec<StartTile>,
 }
 
 impl Default for MenuState {
@@ -65,8 +126,29 @@ impl Default for MenuState {
             theme: def_theme(),
             theme_mode: def_theme_mode(),
             icon_color: def_icon_color(),
+            start_tiles: Vec::new(),
         }
     }
+}
+
+/// The Start tiles to show: the persisted `start_tiles` if any, else seeded from
+/// the pinned items (first-run) so the Win10 Start tile area is never blank.
+/// Pure — the caller persists if it wants the seed to stick.
+pub fn seed_start_tiles(state: &MenuState) -> Vec<StartTile> {
+    if !state.start_tiles.is_empty() {
+        return state.start_tiles.clone();
+    }
+    state
+        .pinned
+        .iter()
+        .map(|p| StartTile {
+            name: p.name.clone(),
+            command: p.command.clone(),
+            icon: String::new(),
+            size: TileSize::Medium,
+            group: String::new(),
+        })
+        .collect()
 }
 
 /// `~/.config/mde/menu.json` (honouring `$XDG_CONFIG_HOME`).
@@ -128,9 +210,64 @@ mod tests {
             theme: "win2000".into(),
             theme_mode: "light".into(),
             icon_color: "blue".into(),
+            start_tiles: vec![StartTile {
+                name: "Firefox".into(),
+                command: "firefox".into(),
+                icon: "firefox".into(),
+                size: TileSize::Wide,
+                group: "Web".into(),
+            }],
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);
+    }
+
+    #[test]
+    fn tile_size_token_round_trips() {
+        for sz in [
+            TileSize::Small,
+            TileSize::Medium,
+            TileSize::Wide,
+            TileSize::Large,
+        ] {
+            assert_eq!(TileSize::from_token(sz.token()), sz);
+        }
+        assert_eq!(TileSize::from_token("nonsense"), TileSize::Medium); // §2.6 garbage → default
+        assert_eq!(TileSize::default(), TileSize::Medium);
+    }
+
+    #[test]
+    fn start_tiles_seed_from_pinned_when_empty() {
+        // E1.7: a fresh config (no start_tiles) seeds the tile area from pinned;
+        // once tiles exist, the seed is ignored.
+        let mut st = MenuState {
+            pinned: vec![PinnedItem {
+                name: "Files".into(),
+                command: "mde files".into(),
+            }],
+            ..Default::default()
+        };
+        let seeded = seed_start_tiles(&st);
+        assert_eq!(seeded.len(), 1);
+        assert_eq!(seeded[0].name, "Files");
+        assert_eq!(seeded[0].size, TileSize::Medium);
+        st.start_tiles = vec![StartTile {
+            name: "Term".into(),
+            command: "foot".into(),
+            icon: String::new(),
+            size: TileSize::Small,
+            group: String::new(),
+        }];
+        assert_eq!(seed_start_tiles(&st), st.start_tiles); // non-empty → no seeding
+    }
+
+    #[test]
+    fn tile_defaults_tolerate_partial_json() {
+        // §2.6: a tile with only name+command fills icon/size/group with defaults.
+        let st = parse(r#"{"start_tiles":[{"name":"X","command":"x"}]}"#);
+        assert_eq!(st.start_tiles.len(), 1);
+        assert_eq!(st.start_tiles[0].size, TileSize::Medium);
+        assert_eq!(st.start_tiles[0].group, "");
     }
 
     #[test]

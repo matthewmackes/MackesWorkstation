@@ -28,6 +28,7 @@ mod menu;
 mod outputs;
 mod panel;
 mod popup;
+mod start_win10;
 mod state;
 mod sysinfo;
 mod system_properties;
@@ -116,6 +117,7 @@ fn main() -> ExitCode {
     match cmd {
         "panel" => panel::run(rest),
         "menu" => menu::run(rest),
+        "start-win10" => start_win10::run(rest),
         "popup" => popup::run(rest),
         "files" => files::run(rest),
         "control-panel" => control_panel::run(rest),
