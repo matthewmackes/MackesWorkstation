@@ -25,12 +25,23 @@ use mde_ui::{frame, metrics, palette};
 
 /// One menu entry: a label and the shell command it runs (empty command = a
 /// separator).
-struct Item {
+pub(crate) struct Item {
     label: String,
     command: String,
 }
 
-fn sep() -> Item {
+impl Item {
+    /// Build a clickable entry (used by sibling popup surfaces, e.g.
+    /// `browser_jumplist`, that reuse this launcher).
+    pub(crate) fn new(label: impl Into<String>, command: impl Into<String>) -> Self {
+        Item {
+            label: label.into(),
+            command: command.into(),
+        }
+    }
+}
+
+pub(crate) fn sep() -> Item {
     Item {
         label: "".into(),
         command: String::new(),
@@ -295,7 +306,7 @@ fn launch(kind: String) -> Result<(), iced_layershell::Error> {
     launch_with(items_for(&kind))
 }
 
-fn launch_with(items: Vec<Item>) -> Result<(), iced_layershell::Error> {
+pub(crate) fn launch_with(items: Vec<Item>) -> Result<(), iced_layershell::Error> {
     application(namespace, update, view)
         .style(style)
         // Keyboard-only: the popup ignores mouse events in update, so filtering
