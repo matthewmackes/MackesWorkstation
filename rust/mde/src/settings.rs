@@ -39,6 +39,38 @@ enum BgSource {
 impl BgSource {
     const ALL: [BgSource; 3] = [BgSource::Picture, BgSource::Solid, BgSource::Slideshow];
 }
+
+/// Taskbar location (E7.9): the two horizontal edges the Win10 bar supports
+/// (left/right need a vertical bar — E7.9a).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TaskbarLoc {
+    Bottom,
+    Top,
+}
+impl TaskbarLoc {
+    const ALL: [TaskbarLoc; 2] = [TaskbarLoc::Bottom, TaskbarLoc::Top];
+    fn key(self) -> &'static str {
+        match self {
+            TaskbarLoc::Bottom => "bottom",
+            TaskbarLoc::Top => "top",
+        }
+    }
+    fn from_key(k: &str) -> Self {
+        if k == "top" {
+            TaskbarLoc::Top
+        } else {
+            TaskbarLoc::Bottom
+        }
+    }
+}
+impl std::fmt::Display for TaskbarLoc {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            TaskbarLoc::Bottom => "Bottom",
+            TaskbarLoc::Top => "Top",
+        })
+    }
+}
 impl std::fmt::Display for BgSource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
@@ -64,6 +96,8 @@ enum Kind {
     Themes,
     /// The native Personalization ▸ Start page (E7.8).
     Start,
+    /// The native Personalization ▸ Taskbar page (E7.9).
+    Taskbar,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -196,7 +230,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "Taskbar",
-                kind: Kind::Deferred,
+                kind: Kind::Taskbar,
             },
         ],
     },
@@ -329,6 +363,8 @@ struct Settings {
     start_more_tiles: bool,
     start_show_recent: bool,
     start_show_suggested: bool,
+    /// Taskbar location (E7.9), consumed by `panel.rs`'s Win10 anchor.
+    taskbar_loc: TaskbarLoc,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -358,6 +394,8 @@ enum Message {
     SetStartMore(bool),
     SetStartRecent(bool),
     SetStartSuggested(bool),
+    // Taskbar page (E7.9).
+    SetTaskbarLoc(TaskbarLoc),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -430,6 +468,7 @@ fn list() -> ExitCode {
                 Kind::Background => "(native: Background)".to_string(),
                 Kind::Themes => "(native: Themes)".to_string(),
                 Kind::Start => "(native: Start)".to_string(),
+                Kind::Taskbar => "(native: Taskbar)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
                 Kind::Cmd(c, _) => format!("cmd: {c}"),
@@ -465,6 +504,7 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 start_more_tiles: st.start_more_tiles,
                 start_show_recent: st.start_show_recent,
                 start_show_suggested: st.start_show_suggested,
+                taskbar_loc: TaskbarLoc::from_key(&st.taskbar_location),
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -535,6 +575,10 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         }
         Message::SetStartSuggested(v) => {
             state.start_show_suggested = v;
+            persist(state);
+        }
+        Message::SetTaskbarLoc(loc) => {
+            state.taskbar_loc = loc;
             persist(state);
         }
     }
@@ -619,7 +663,12 @@ fn open_current(state: &mut Settings) {
         return;
     };
     match page.kind {
-        Kind::Deferred | Kind::Colors | Kind::Background | Kind::Themes | Kind::Start => {}
+        Kind::Deferred
+        | Kind::Colors
+        | Kind::Background
+        | Kind::Themes
+        | Kind::Start
+        | Kind::Taskbar => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
             let _ = Command::new(mde).arg(sub).spawn();
@@ -664,6 +713,7 @@ fn persist(state: &Settings) {
     st.start_more_tiles = state.start_more_tiles;
     st.start_show_recent = state.start_show_recent;
     st.start_show_suggested = state.start_show_suggested;
+    st.taskbar_location = state.taskbar_loc.key().to_string();
     let _ = crate::state::save(&st);
 }
 
@@ -895,6 +945,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Background => background_page(state),
         Kind::Themes => themes_page(state),
         Kind::Start => start_page(state),
+        Kind::Taskbar => taskbar_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT))
@@ -1197,6 +1248,51 @@ fn start_page(state: &Settings) -> Element<'_, Message> {
             text("\"Use Start full screen\" and \"Choose which folders appear\" are part of a later milestone.")
                 .size(metrics::UI_PX)
                 .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .into()
+}
+
+/// Personalization ▸ Taskbar (E7.9): the location dropdown drives the panel
+/// anchor; lock / auto-hide are labwc-managed (greyed, present for fidelity).
+fn taskbar_page(state: &Settings) -> Element<'_, Message> {
+    let location = Row::new()
+        .spacing(8.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(
+            text("Taskbar location on screen")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            pick_list(
+                TaskbarLoc::ALL.to_vec(),
+                Some(state.taskbar_loc),
+                Message::SetTaskbarLoc,
+            )
+            .text_size(metrics::UI_PX),
+        );
+    // Greyed: labwc owns these (auto-hide / lock are compositor behaviours),
+    // present for fidelity but not enforced here — like taskbar_properties.rs.
+    let greyed = |label: &'static str| {
+        checkbox(label, false)
+            .size(metrics::UI_PX)
+            .text_size(metrics::UI_PX)
+            .spacing(8.0)
+            .style(mde_ui::checkbox_style)
+    };
+    Column::new()
+        .spacing(10.0)
+        .push(location)
+        .push(greyed("Lock the taskbar"))
+        .push(greyed("Automatically hide the taskbar"))
+        .push(
+            text(
+                "Lock / auto-hide are labwc-managed. Small buttons, the search box, and the Task \
+                 View button toggle arrive with the search/Task-View panel work; left/right \
+                 (vertical) location is a later milestone.",
+            )
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT)),
         )
         .into()
 }

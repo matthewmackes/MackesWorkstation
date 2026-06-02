@@ -154,10 +154,16 @@ fn launch() -> Result<(), iced_layershell::Error> {
             ..Default::default()
         }
     } else if palette::is_windows10() {
+        // The Win10 taskbar can sit at the bottom (default) or top per the
+        // Settings ▸ Personalization ▸ Taskbar location (E7.9); the horizontal
+        // bar's content is unchanged, only the anchored edge flips. (left/right
+        // need a vertical bar — E7.9a.)
+        let top = crate::state::load().taskbar_location == "top";
+        let edge = if top { Anchor::Top } else { Anchor::Bottom };
         LayerShellSettings {
             size: Some((0, WIN10_BAR_H as u32)),
             exclusive_zone: WIN10_BAR_H as i32,
-            anchor: Anchor::Bottom | Anchor::Left | Anchor::Right,
+            anchor: edge | Anchor::Left | Anchor::Right,
             ..Default::default()
         }
     } else {
@@ -1184,6 +1190,30 @@ fn clock_now(offset_secs: i32) -> String {
     format_clock(now, offset_secs)
 }
 
+/// Spawn this binary with `args`, returning the child handle so the panel can
+/// reap (and, for the menu, kill) it.
+fn spawn_child(args: &[&str]) -> Option<Child> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| Command::new(exe).args(args).spawn().ok())
+}
+
+/// Track a spawned child for later reaping (ignores a failed spawn).
+fn push_child(state: &mut Panel, child: Option<Child>) {
+    if let Some(c) = child {
+        state.children.push(c);
+    }
+}
+
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() > n {
+        let head: String = s.chars().take(n.saturating_sub(1)).collect();
+        format!("{head}\u{2026}")
+    } else {
+        s.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{format_clock, parse_utc_offset};
@@ -1206,29 +1236,5 @@ mod tests {
         assert_eq!(format_clock(12 * 3600, 0), "12:00 PM");
         // 00:30 UTC at -04:00 → previous day 20:30 → 8:30 PM
         assert_eq!(format_clock(30 * 60, -4 * 3600), "8:30 PM");
-    }
-}
-
-/// Spawn this binary with `args`, returning the child handle so the panel can
-/// reap (and, for the menu, kill) it.
-fn spawn_child(args: &[&str]) -> Option<Child> {
-    std::env::current_exe()
-        .ok()
-        .and_then(|exe| Command::new(exe).args(args).spawn().ok())
-}
-
-/// Track a spawned child for later reaping (ignores a failed spawn).
-fn push_child(state: &mut Panel, child: Option<Child>) {
-    if let Some(c) = child {
-        state.children.push(c);
-    }
-}
-
-fn truncate(s: &str, n: usize) -> String {
-    if s.chars().count() > n {
-        let head: String = s.chars().take(n.saturating_sub(1)).collect();
-        format!("{head}\u{2026}")
-    } else {
-        s.to_string()
     }
 }

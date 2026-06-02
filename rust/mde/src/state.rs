@@ -183,10 +183,17 @@ pub struct MenuState {
     /// Win10 Start ▸ "Show most used apps" (the Suggested band, E7.8). Default on.
     #[serde(default = "def_true")]
     pub start_show_suggested: bool,
+    /// Win10 taskbar location: "bottom" (default) or "top" — drives the
+    /// `panel.rs` layer anchor (E7.9). ("left"/"right" need a vertical bar, E7.9a.)
+    #[serde(default = "def_taskbar_location")]
+    pub taskbar_location: String,
 }
 
 fn def_true() -> bool {
     true
+}
+fn def_taskbar_location() -> String {
+    "bottom".into()
 }
 
 impl Default for MenuState {
@@ -207,6 +214,7 @@ impl Default for MenuState {
             start_more_tiles: false,
             start_show_recent: true,
             start_show_suggested: true,
+            taskbar_location: def_taskbar_location(),
         }
     }
 }
@@ -312,6 +320,7 @@ mod tests {
             start_more_tiles: true,
             start_show_recent: false,
             start_show_suggested: true,
+            taskbar_location: "top".into(),
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);
