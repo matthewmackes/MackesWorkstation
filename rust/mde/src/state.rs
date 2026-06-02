@@ -221,6 +221,12 @@ pub struct MenuState {
     pub update_active_start: u8,
     #[serde(default = "def_active_end")]
     pub update_active_end: u8,
+    /// Settings ▸ Update ▸ Advanced (E13.7): restart ASAP after updates (writes
+    /// the dnf-automatic `reboot` setting) + notify when a restart is required.
+    #[serde(default)]
+    pub update_restart_asap: bool,
+    #[serde(default)]
+    pub update_restart_notify: bool,
     /// Win10 Explorer ▸ Quick access user-pinned folders (E8.3): appended to the
     /// auto-pinned standard folders in the Frequent-folders list.
     #[serde(default)]
@@ -278,6 +284,8 @@ impl Default for MenuState {
             update_paused_until: 0,
             update_active_start: def_active_start(),
             update_active_end: def_active_end(),
+            update_restart_asap: false,
+            update_restart_notify: false,
             explorer_pins: Vec::new(),
             explorer_landing: def_explorer_landing(),
         }
@@ -393,6 +401,8 @@ mod tests {
             update_paused_until: 1_900_000_000,
             update_active_start: 9,
             update_active_end: 18,
+            update_restart_asap: true,
+            update_restart_notify: true,
             explorer_pins: vec![PathBuf::from("/home/me/Projects")],
             explorer_landing: "thispc".into(),
         };

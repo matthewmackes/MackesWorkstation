@@ -149,6 +149,8 @@ enum Kind {
     Update,
     /// The native Update & Security ▸ Update history page (E13.6).
     UpdateHistory,
+    /// The native Update & Security ▸ Advanced options page (E13.7).
+    UpdateAdvanced,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -377,6 +379,10 @@ const CATEGORIES: &[Category] = &[
                 kind: Kind::UpdateHistory,
             },
             Page {
+                title: "Advanced options",
+                kind: Kind::UpdateAdvanced,
+            },
+            Page {
                 title: "MackesDE Security",
                 kind: Kind::Tool("firewall-config"),
             },
@@ -447,6 +453,10 @@ struct Settings {
     history: Option<Result<Vec<HistoryEntry>, String>>,
     history_loading: bool,
     history_selected: Option<u32>,
+    /// Advanced options (E13.7): restart ASAP (writes automatic.conf) + notify on
+    /// restart-required. Mirror `state`.
+    restart_asap: bool,
+    restart_notify: bool,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -503,6 +513,9 @@ enum Message {
     SelectHistory(u32),
     UninstallHistory,
     OpenRecovery,
+    // Advanced options (E13.7).
+    SetRestartAsap(bool),
+    SetRestartNotify(bool),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -584,6 +597,7 @@ fn list() -> ExitCode {
                 Kind::Taskbar => "(native: Taskbar)".to_string(),
                 Kind::Update => "(native: Update)".to_string(),
                 Kind::UpdateHistory => "(native: Update history)".to_string(),
+                Kind::UpdateAdvanced => "(native: Advanced options)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -635,6 +649,8 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 history: None,
                 history_loading: false,
                 history_selected: None,
+                restart_asap: st.update_restart_asap,
+                restart_notify: st.update_restart_notify,
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -760,6 +776,20 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         }
         Message::UpdatesChecked(r) => {
             state.update_checking = false;
+            // Restart-required toast (E13.7): if enabled and the pending set brings
+            // a new kernel, notify (the E3 daemon renders it).
+            if state.restart_notify {
+                if let Ok(v) = &r {
+                    if v.iter().any(|u| u.package.starts_with("kernel")) {
+                        let _ = Command::new("notify-send")
+                            .args([
+                                "Restart required",
+                                "A kernel update needs a restart to finish installing.",
+                            ])
+                            .spawn();
+                    }
+                }
+            }
             state.update_status = Some(r);
         }
         Message::InstallUpdates => {
@@ -824,8 +854,31 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             // The existing System Restore / Timeshift path (best-effort launch).
             let _ = Command::new("timeshift-launcher").spawn();
         }
+        Message::SetRestartAsap(v) => {
+            state.restart_asap = v;
+            // Write the dnf-automatic reboot policy (when-needed vs never).
+            let _ = Command::new("pkexec")
+                .args(["sh", "-c", &reboot_command(v)])
+                .spawn();
+            persist(state);
+        }
+        Message::SetRestartNotify(v) => {
+            state.restart_notify = v;
+            persist(state);
+        }
     }
     Task::none()
+}
+
+/// The privileged script (`pkexec sh -c`) that sets the dnf-automatic `reboot`
+/// policy (E13.7): `when-needed` when restart-ASAP is on, else `never`. Pure for
+/// testing; the `sed` matches the same whitespace-tolerant key form as
+/// [`active_hours_override`].
+fn reboot_command(asap: bool) -> String {
+    let val = if asap { "when-needed" } else { "never" };
+    format!(
+        "sed -i -E 's/^[[:space:]]*reboot[[:space:]]*=.*/reboot = {val}/' /etc/dnf/automatic.conf"
+    )
 }
 
 /// One `dnf history list` transaction (E13.6): the id + command + date + action +
@@ -1127,6 +1180,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Taskbar
         | Kind::Update
         | Kind::UpdateHistory
+        | Kind::UpdateAdvanced
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1180,6 +1234,8 @@ fn persist(state: &Settings) {
     st.update_paused_until = state.update_paused_until;
     st.update_active_start = state.active_start;
     st.update_active_end = state.active_end;
+    st.update_restart_asap = state.restart_asap;
+    st.update_restart_notify = state.restart_notify;
     let _ = crate::state::save(&st);
 }
 
@@ -1414,6 +1470,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Taskbar => taskbar_page(state),
         Kind::Update => update_page(state),
         Kind::UpdateHistory => update_history_page(state),
+        Kind::UpdateAdvanced => update_advanced_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -1711,6 +1768,51 @@ fn update_history_page(state: &Settings) -> Element<'_, Message> {
         .spacing(12.0)
         .push(buttons)
         .push(container(body).height(Length::Fill))
+        .into()
+}
+
+/// Update & Security ▸ Advanced options (E13.7): restart-ASAP (writes the
+/// dnf-automatic reboot policy) + notify-on-restart-required (drives a toast on the
+/// next check that finds a kernel). The two Win10 toggles with no Linux backend —
+/// metered connections, other-products — are shown greyed/advisory per §3.
+fn update_advanced_page(state: &Settings) -> Element<'_, Message> {
+    let live = |label: &'static str, checked: bool, msg: fn(bool) -> Message| {
+        checkbox(label, checked)
+            .on_toggle(msg)
+            .size(metrics::UI_PX)
+            .text_size(metrics::UI_PX)
+            .spacing(8.0)
+            .style(mde_ui::checkbox_style)
+    };
+    let greyed = |label: &'static str| {
+        checkbox(label, false)
+            .size(metrics::UI_PX)
+            .text_size(metrics::UI_PX)
+            .spacing(8.0)
+            .style(mde_ui::checkbox_style)
+    };
+    Column::new()
+        .spacing(10.0)
+        .push(greyed("Download updates over metered connections"))
+        .push(live(
+            "Restart this device as soon as possible when a restart is required",
+            state.restart_asap,
+            Message::SetRestartAsap,
+        ))
+        .push(live(
+            "Show a notification when a restart is required to finish updating",
+            state.restart_notify,
+            Message::SetRestartNotify,
+        ))
+        .push(greyed("Receive updates for other MackesDE products"))
+        .push(
+            text(
+                "Metered-connection and other-products options have no Linux backend — \
+                 shown for fidelity, not enforced.",
+            )
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT)),
+        )
         .into()
 }
 
@@ -2195,6 +2297,13 @@ ID Command line                 Date and time       Action(s) Altered
         assert_eq!(h[1].action, "Upgrade");
         assert_eq!(h[1].altered, "6");
         assert!(parse_history("").is_empty());
+    }
+
+    #[test]
+    fn reboot_command_toggles_the_policy() {
+        assert!(reboot_command(true).contains("reboot = when-needed"));
+        assert!(reboot_command(false).contains("reboot = never"));
+        assert!(reboot_command(true).contains("/etc/dnf/automatic.conf"));
     }
 
     #[test]
