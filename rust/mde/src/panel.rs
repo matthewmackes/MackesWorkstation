@@ -173,6 +173,13 @@ fn launch() -> Result<(), iced_layershell::Error> {
         ..Default::default()
     })
     .run_with(|| {
+        // The shared freedesktop notification daemon is hosted in the long-lived
+        // panel process, Windows 10 era only (E3); it serves D-Bus + mirrors to
+        // notifications.json on its own thread. Detached: the action-center reads
+        // the mirror, so the panel needn't hold the store.
+        if palette::is_windows10() {
+            crate::notifyd::start();
+        }
         let panel = Panel {
             pinned: crate::state::load().pinned,
             tray: Some(crate::tray::start()),

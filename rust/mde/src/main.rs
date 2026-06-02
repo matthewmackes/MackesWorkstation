@@ -25,6 +25,7 @@ mod icons;
 mod install;
 mod installer;
 mod menu;
+mod notifyd;
 mod outputs;
 mod panel;
 mod popup;
