@@ -94,6 +94,8 @@ enum Kind {
     Background,
     /// The native Personalization ▸ Themes page (E7.7).
     Themes,
+    /// The native Personalization ▸ Lock screen page (E7.6).
+    LockScreen,
     /// The native Personalization ▸ Start page (E7.8).
     Start,
     /// The native Personalization ▸ Taskbar page (E7.9).
@@ -218,7 +220,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "Lock screen",
-                kind: Kind::Deferred,
+                kind: Kind::LockScreen,
             },
             Page {
                 title: "Themes",
@@ -365,6 +367,8 @@ struct Settings {
     start_show_suggested: bool,
     /// Taskbar location (E7.9), consumed by `panel.rs`'s Win10 anchor.
     taskbar_loc: TaskbarLoc,
+    /// Lock screen (greeter) picture selection (E7.6).
+    lock_selected: Option<usize>,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -396,11 +400,22 @@ enum Message {
     SetStartSuggested(bool),
     // Taskbar page (E7.9).
     SetTaskbarLoc(TaskbarLoc),
+    // Lock screen page (E7.6).
+    LockSelect(usize),
+    LockBrowse,
+    LockBrowsed(Option<String>),
+    LockApply,
 }
 
 pub fn run(args: &[String]) -> ExitCode {
     if args.iter().any(|a| a == "--list") {
         return list();
+    }
+    // Dry-run: print the LightDM-greeter write script (E7.6) so its logic can be
+    // verified without root — point MDE_LOCK_CONF at a temp file and run it.
+    if args.first().map(String::as_str) == Some("--lock-script") {
+        print!("{}", lock_script());
+        return ExitCode::SUCCESS;
     }
     // Parse a positional category name plus an optional `--page <name>` deep-link
     // (E7.3): `mde settings personalization --page taskbar`. A positional that
@@ -469,6 +484,7 @@ fn list() -> ExitCode {
                 Kind::Themes => "(native: Themes)".to_string(),
                 Kind::Start => "(native: Start)".to_string(),
                 Kind::Taskbar => "(native: Taskbar)".to_string(),
+                Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
                 Kind::Cmd(c, _) => format!("cmd: {c}"),
@@ -505,6 +521,7 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 start_show_recent: st.start_show_recent,
                 start_show_suggested: st.start_show_suggested,
                 taskbar_loc: TaskbarLoc::from_key(&st.taskbar_location),
+                lock_selected: None,
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -581,6 +598,20 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.taskbar_loc = loc;
             persist(state);
         }
+        Message::LockSelect(i) => state.lock_selected = Some(i),
+        Message::LockBrowse => {
+            return Task::perform(async { wallpaper::browse() }, Message::LockBrowsed);
+        }
+        Message::LockBrowsed(Some(p)) => {
+            state.bg_wallpapers.push(p);
+            state.lock_selected = Some(state.bg_wallpapers.len() - 1);
+        }
+        Message::LockBrowsed(None) => {}
+        Message::LockApply => {
+            if let Some(p) = state.lock_selected.and_then(|i| state.bg_wallpapers.get(i)) {
+                set_lock_background(p);
+            }
+        }
     }
     Task::none()
 }
@@ -617,6 +648,39 @@ fn apply_theme(state: &mut Settings, i: usize) {
     state.dark = t.dark;
     palette::set_dark(t.dark);
     persist(state);
+}
+
+/// The sh script that sets the LightDM greeter `background=` to `$1`, updating
+/// the value inside `[greeter]` without clobbering the rest of the conf. The
+/// path arrives as `$1` (never embedded in the program text) and the value is
+/// passed to awk via `-v`, so neither can inject. The conf path honours
+/// `$MDE_LOCK_CONF` so the logic is testable without root (E7.6).
+fn lock_script() -> String {
+    "set -e\n\
+     f=\"${MDE_LOCK_CONF:-/etc/lightdm/lightdm-gtk-greeter.conf}\"\n\
+     bg=\"$1\"\n\
+     mkdir -p \"$(dirname \"$f\")\"\n\
+     [ -f \"$f\" ] || printf '[greeter]\\n' > \"$f\"\n\
+     grep -q '^\\[greeter\\]' \"$f\" || printf '\\n[greeter]\\n' >> \"$f\"\n\
+     awk -v v=\"$bg\" '\n\
+     /^\\[greeter\\]/ { print; print \"background=\" v; ingreeter=1; next }\n\
+     /^\\[/ { ingreeter=0 }\n\
+     ingreeter && /^[[:space:]]*background=/ { next }\n\
+     { print }\n\
+     ' \"$f\" > \"$f.tmp\" && mv \"$f.tmp\" \"$f\"\n"
+        .to_string()
+}
+
+/// Set the LightDM greeter (lock-screen) background to `path` via pkexec (the
+/// only way to write `/etc`; needs an interactive auth agent — E7.6).
+fn set_lock_background(path: &str) {
+    let _ = Command::new("pkexec")
+        .arg("sh")
+        .arg("-c")
+        .arg(lock_script())
+        .arg("mde-lock")
+        .arg(path)
+        .status();
 }
 
 /// Apply (and persist) the Background page's current selection via swaybg.
@@ -668,7 +732,8 @@ fn open_current(state: &mut Settings) {
         | Kind::Background
         | Kind::Themes
         | Kind::Start
-        | Kind::Taskbar => {}
+        | Kind::Taskbar
+        | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
             let _ = Command::new(mde).arg(sub).spawn();
@@ -946,6 +1011,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Themes => themes_page(state),
         Kind::Start => start_page(state),
         Kind::Taskbar => taskbar_page(state),
+        Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT))
@@ -1062,7 +1128,11 @@ fn background_page(state: &Settings) -> Element<'_, Message> {
         BgSource::Picture => {
             let mut strip = Row::new().spacing(8.0);
             for (i, wp) in state.bg_wallpapers.iter().enumerate().take(24) {
-                strip = strip.push(thumb(wp, i, state.bg_selected == Some(i)));
+                strip = strip.push(thumb(
+                    wp,
+                    state.bg_selected == Some(i),
+                    Message::BgSelect(i),
+                ));
             }
             col = col
                 .push(
@@ -1127,7 +1197,7 @@ fn fit_row<'a>(browse_label: &str, mode: BgMode, browse: bool) -> Element<'a, Me
 }
 
 /// A clickable wallpaper thumbnail (accent border when selected).
-fn thumb(path: &str, i: usize, selected: bool) -> Element<'static, Message> {
+fn thumb(path: &str, selected: bool, on_press: Message) -> Element<'static, Message> {
     let img = image(image::Handle::from_path(path))
         .width(Length::Fixed(96.0))
         .height(Length::Fixed(60.0))
@@ -1145,7 +1215,7 @@ fn thumb(path: &str, i: usize, selected: bool) -> Element<'static, Message> {
         },
         ..container::Style::default()
     }))
-    .on_press(Message::BgSelect(i))
+    .on_press(on_press)
     .into()
 }
 
@@ -1290,6 +1360,80 @@ fn taskbar_page(state: &Settings) -> Element<'_, Message> {
                 "Lock / auto-hide are labwc-managed. Small buttons, the search box, and the Task \
                  View button toggle arrive with the search/Task-View panel work; left/right \
                  (vertical) location is a later milestone.",
+            )
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .into()
+}
+
+/// Personalization ▸ Lock screen (E7.6): pick a Picture for the LightDM greeter
+/// background. Apply writes it via pkexec. (Spotlight rotation / Slideshow don't
+/// map to LightDM's single static greeter background, so only Picture ships.)
+fn lock_page(state: &Settings) -> Element<'_, Message> {
+    let sel = state
+        .lock_selected
+        .and_then(|i| state.bg_wallpapers.get(i))
+        .map(String::as_str);
+    let preview = container(wallpaper::preview::<Message>(sel))
+        .width(Length::Fixed(320.0))
+        .height(Length::Fixed(180.0))
+        .style(|_| container::Style {
+            border: Border {
+                color: palette::color(palette::WINDOW_FRAME),
+                width: 1.0,
+                radius: 0.0.into(),
+            },
+            ..container::Style::default()
+        });
+    let mut strip = Row::new().spacing(8.0);
+    for (i, wp) in state.bg_wallpapers.iter().enumerate().take(24) {
+        strip = strip.push(thumb(
+            wp,
+            state.lock_selected == Some(i),
+            Message::LockSelect(i),
+        ));
+    }
+    let greyed = |label: &'static str| {
+        checkbox(label, true)
+            .size(metrics::UI_PX)
+            .text_size(metrics::UI_PX)
+            .spacing(8.0)
+            .style(mde_ui::checkbox_style)
+    };
+    Column::new()
+        .spacing(12.0)
+        .push(preview)
+        .push(
+            text("Background")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(scrollable(strip).style(mde_ui::scrollbar))
+        .push(
+            Row::new()
+                .spacing(8.0)
+                .push(
+                    button(text("Browse").size(metrics::UI_PX))
+                        .on_press(Message::LockBrowse)
+                        .padding(Padding::from([4.0, 12.0]))
+                        .style(tile_style),
+                )
+                .push(
+                    button(text("Apply").size(metrics::UI_PX))
+                        .on_press(Message::LockApply)
+                        .padding(Padding::from([4.0, 16.0]))
+                        .style(tile_style),
+                ),
+        )
+        .push(greyed(
+            "Show the lock screen background picture on the sign-in screen",
+        ))
+        .push(
+            text(
+                "Spotlight (rotating) and Slideshow aren't supported by the LightDM greeter \
+                 (single static background); the sign-in toggle is greeter-managed. Apply writes \
+                 the greeter background via pkexec (asks for your password).",
             )
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT)),
