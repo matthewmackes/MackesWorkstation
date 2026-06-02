@@ -107,12 +107,83 @@ enum Message {
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
+    // Keep labwc's desktop right-click menu (root-menu) in step with the active
+    // era before the bar comes up: Windows 10 shows "Personalize" (→ mde settings
+    // personalization), Win2000/Carbon show "Properties (Display)" (→ mde display).
+    // The shell restarts on a theme switch, so syncing here covers both login and
+    // theme changes from a single call site (E7.10a).
+    sync_root_menu(mde_ui::palette::is_windows10());
     match launch() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("mde panel: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// The labwc root menu (the desktop right-click). Everything matches the shipped
+/// skel byte-for-byte except the era-aware "Display" entry, so a non-Win10 desktop
+/// regenerates identically (no file churn / reconfigure). Windows 10 swaps it to
+/// the Settings "Personalize" deep-link; Win2000/Carbon keep the classic Display
+/// Properties applet.
+fn root_menu_xml(win10: bool) -> String {
+    let display_item = if win10 {
+        "    <item label=\"Personalize\">\n      <action name=\"Execute\"><command>mde settings personalization</command></action>\n    </item>"
+    } else {
+        "    <item label=\"Properties (Display)\">\n      <action name=\"Execute\"><command>mde display</command></action>\n    </item>"
+    };
+    format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!-- MDE-Retro labwc menus. The root menu is the desktop right-click (Win2000
+     desktop context menu); client-menu is the titlebar/window menu. -->
+<openbox_menu>
+  <menu id="root-menu" label="MDE-Retro">
+    <item label="Programs">
+      <action name="Execute"><command>mde menu</command></action>
+    </item>
+    <separator/>
+    <item label="Run...">
+      <action name="Execute"><command>mde run</command></action>
+    </item>
+    <item label="Files">
+      <action name="Execute"><command>mde files</command></action>
+    </item>
+    <separator/>
+    <item label="Set Up MDE-Retro...">
+      <action name="Execute"><command>mde setup</command></action>
+    </item>
+{display_item}
+    <separator/>
+    <item label="Reconfigure">
+      <action name="Reconfigure"/>
+    </item>
+    <item label="Log Off...">
+      <action name="Execute"><command>mde logoff</command></action>
+    </item>
+  </menu>
+</openbox_menu>
+"#
+    )
+}
+
+/// Write the era-aware root menu to `~/.config/labwc/menu.xml` and reconfigure
+/// labwc — but only when the content actually changes, so a steady desktop is a
+/// no-op (this runs on every panel start, and after every theme-switch restart).
+fn sync_root_menu(win10: bool) {
+    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
+        return;
+    };
+    let path = home.join(".config/labwc/menu.xml");
+    let want = root_menu_xml(win10);
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(want.as_str()) {
+        return; // already current — don't churn the file or reconfigure labwc
+    }
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if std::fs::write(&path, &want).is_ok() {
+        let _ = Command::new("labwc").arg("--reconfigure").spawn();
     }
 }
 
@@ -1369,7 +1440,44 @@ fn truncate(s: &str, n: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_clock, parse_utc_offset};
+    use super::{format_clock, parse_utc_offset, root_menu_xml};
+
+    #[test]
+    fn root_menu_matches_skel_for_classic_eras() {
+        // The non-Win10 menu must equal the shipped skel byte-for-byte: a
+        // Carbon/Win2000 desktop then regenerates identically (no churn / spurious
+        // labwc reconfigure), and the generator can't silently drift from the skel.
+        let skel = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/skel/.config/labwc/menu.xml"
+        ));
+        assert_eq!(root_menu_xml(false), skel);
+    }
+
+    #[test]
+    fn root_menu_is_era_aware() {
+        let win10 = root_menu_xml(true);
+        assert!(win10.contains("<item label=\"Personalize\">"));
+        assert!(win10.contains("mde settings personalization"));
+        assert!(!win10.contains("mde display"));
+
+        let classic = root_menu_xml(false);
+        assert!(classic.contains("<item label=\"Properties (Display)\">"));
+        assert!(classic.contains("mde display"));
+        assert!(!classic.contains("Personalize"));
+
+        // Only the Display entry varies — the rest of the menu is shared.
+        for item in [
+            "mde menu",
+            "mde run",
+            "mde files",
+            "mde setup",
+            "mde logoff",
+        ] {
+            assert!(win10.contains(item), "win10 menu missing {item}");
+            assert!(classic.contains(item), "classic menu missing {item}");
+        }
+    }
 
     #[test]
     fn utc_offset_parsing() {
