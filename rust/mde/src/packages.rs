@@ -10,7 +10,7 @@
 
 use std::process::ExitCode;
 
-use iced::widget::{button, container, scrollable, text, Column, Row};
+use iced::widget::{button, container, scrollable, text, text_input, Column, Row};
 use iced::{Element, Length, Padding, Task};
 
 use mde_ui::{frame, metrics, palette};
@@ -44,6 +44,8 @@ struct AddRemove {
     busy: Option<String>,
     /// Last result line, shown in the status bar.
     status: Option<String>,
+    /// Live filter (B.2a): name/package substring, case-insensitive. Empty = all.
+    search: String,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +54,8 @@ enum Message {
     Act(String, bool),
     /// The `pkexec dnf` transaction for a package finished.
     Done(String, bool),
+    /// Edit the search/filter box (B.2a).
+    SearchChanged(String),
 }
 
 fn load_rows() -> Vec<Pkg> {
@@ -85,6 +89,7 @@ fn launch() -> iced::Result {
                 rows: load_rows(),
                 busy: None,
                 status: None,
+                search: String::new(),
             },
             Task::none(),
         )
@@ -116,6 +121,7 @@ fn update(state: &mut AddRemove, message: Message) -> Task<Message> {
                 format!("'{package}' was not changed (cancelled or failed).")
             });
         }
+        Message::SearchChanged(s) => state.search = s,
     }
     Task::none()
 }
@@ -199,14 +205,34 @@ fn pkg_row(p: &Pkg, busy: bool) -> Element<'static, Message> {
         .into()
 }
 
+/// Case-insensitive substring match over a package's display name + its id
+/// (B.2a). `q` must already be trimmed + lowercased; empty matches everything.
+fn pkg_matches(p: &Pkg, q: &str) -> bool {
+    q.is_empty() || p.name.to_lowercase().contains(q) || p.package.to_lowercase().contains(q)
+}
+
 fn view(state: &AddRemove) -> Element<'_, Message> {
     let busy = state.busy.is_some();
+    // Live filter (B.2a): case-insensitive substring over the display name + the
+    // package id; empty query matches everything.
+    let q = state.search.trim().to_lowercase();
+    let matches = |p: &Pkg| pkg_matches(p, &q);
+    let shown = state.rows.iter().filter(|p| matches(p)).count();
+
     let mut list = Column::new().spacing(0.0).padding(pad(2.0, 8.0, 2.0, 8.0));
     for cat in catalogue::categories(
         &catalogue::catalogue(), // category order; cheap (static data)
     ) {
+        let cat_rows: Vec<&Pkg> = state
+            .rows
+            .iter()
+            .filter(|p| p.category == cat && matches(p))
+            .collect();
+        if cat_rows.is_empty() {
+            continue; // hide a category with no match under the current filter
+        }
         list = list.push(section_header(cat));
-        for p in state.rows.iter().filter(|p| p.category == cat) {
+        for p in cat_rows {
             list = list.push(pkg_row(p, busy));
         }
     }
@@ -218,28 +244,67 @@ fn view(state: &AddRemove) -> Element<'_, Message> {
             .height(Length::Fill),
     ];
 
-    let status = text(
-        state
-            .status
-            .clone()
-            .unwrap_or_else(|| format!("{} programs", state.rows.len())),
-    )
+    let status = text(state.status.clone().unwrap_or_else(|| {
+        if q.is_empty() {
+            format!("{} programs", state.rows.len())
+        } else {
+            format!("{} of {} programs", shown, state.rows.len())
+        }
+    }))
     .size(metrics::UI_PX)
     .color(palette::color(palette::WINDOW_TEXT));
+
+    // Title on the left, a live search box on the right.
+    let header = Row::new()
+        .spacing(8.0)
+        .align_y(iced::Alignment::Center)
+        .push(
+            text("Currently installed programs and available components")
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold())
+                .width(Length::Fill),
+        )
+        .push(
+            text_input("Search programs", &state.search)
+                .on_input(Message::SearchChanged)
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(220.0)),
+        );
 
     container(
         Column::new()
             .spacing(6.0)
             .padding(8.0)
-            .push(
-                text("Currently installed programs and available components")
-                    .size(metrics::UI_PX)
-                    .font(mde_ui::font::ui_bold()),
-            )
+            .push(header)
             .push(container(body).height(Length::Fill))
             .push(status),
     )
     .width(Length::Fill)
     .height(Length::Fill)
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pkg(name: &'static str, package: &'static str) -> Pkg {
+        Pkg {
+            package,
+            category: "Test",
+            name,
+            mandatory: false,
+            installed: false,
+        }
+    }
+
+    #[test]
+    fn pkg_matches_name_and_id_case_insensitively() {
+        let p = pkg("Web Browser (Firefox)", "firefox");
+        assert!(pkg_matches(&p, "")); // empty matches all
+        assert!(pkg_matches(&p, "browser")); // display name
+        assert!(pkg_matches(&p, "firefox")); // package id
+        assert!(pkg_matches(&p, "fire")); // substring of the id
+        assert!(!pkg_matches(&p, "chrome"));
+    }
 }
