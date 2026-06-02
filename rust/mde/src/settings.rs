@@ -147,6 +147,8 @@ enum Kind {
     Taskbar,
     /// The native Update & Security ▸ Update page (E13.2): status card + Check.
     Update,
+    /// The native Update & Security ▸ Update history page (E13.6).
+    UpdateHistory,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -371,6 +373,10 @@ const CATEGORIES: &[Category] = &[
                 kind: Kind::Update,
             },
             Page {
+                title: "Update history",
+                kind: Kind::UpdateHistory,
+            },
+            Page {
                 title: "MackesDE Security",
                 kind: Kind::Tool("firewall-config"),
             },
@@ -436,6 +442,11 @@ struct Settings {
     /// Update page (E13.5): active-hours window (hours 0–23), mirrors state.
     active_start: u8,
     active_end: u8,
+    /// Update history page (E13.6): the `dnf history list` transactions (None =
+    /// not loaded), whether a load is in flight, and the selected transaction id.
+    history: Option<Result<Vec<HistoryEntry>, String>>,
+    history_loading: bool,
+    history_selected: Option<u32>,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -487,6 +498,11 @@ enum Message {
     SetActiveStart(u8),
     SetActiveEnd(u8),
     SaveActiveHours,
+    // Update history page (E13.6).
+    HistoryFetched(Result<Vec<HistoryEntry>, String>),
+    SelectHistory(u32),
+    UninstallHistory,
+    OpenRecovery,
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -567,6 +583,7 @@ fn list() -> ExitCode {
                 Kind::Start => "(native: Start)".to_string(),
                 Kind::Taskbar => "(native: Taskbar)".to_string(),
                 Kind::Update => "(native: Update)".to_string(),
+                Kind::UpdateHistory => "(native: Update history)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -615,11 +632,14 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 update_paused_until: st.update_paused_until,
                 active_start: st.update_active_start,
                 active_end: st.update_active_end,
+                history: None,
+                history_loading: false,
+                history_selected: None,
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
             // Auto-check when we land directly on the Update page (E13.3).
-            let init = maybe_check_updates(&mut s);
+            let init = maybe_load(&mut s);
             (s, init)
         })
 }
@@ -637,12 +657,12 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.view = View::Category(i);
             state.page = 0;
             cache_install(state);
-            return maybe_check_updates(state);
+            return maybe_load(state);
         }
         Message::SelectPage(i) => {
             state.page = i;
             cache_install(state);
-            return maybe_check_updates(state);
+            return maybe_load(state);
         }
         Message::Back => {
             state.view = View::Home;
@@ -653,7 +673,7 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.view = View::Category(c);
             state.page = p;
             cache_install(state);
-            return maybe_check_updates(state);
+            return maybe_load(state);
         }
         Message::Open => open_current(state),
         Message::SetDark(d) => {
@@ -788,8 +808,104 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
                 .args(["sh", "-c", &active_hours_override(state.active_end)])
                 .spawn();
         }
+        Message::HistoryFetched(r) => {
+            state.history_loading = false;
+            state.history = Some(r);
+        }
+        Message::SelectHistory(id) => state.history_selected = Some(id),
+        Message::UninstallHistory => {
+            if let Some(id) = state.history_selected {
+                let _ = Command::new("pkexec")
+                    .args(["dnf", "history", "undo", &id.to_string(), "-y"])
+                    .spawn();
+            }
+        }
+        Message::OpenRecovery => {
+            // The existing System Restore / Timeshift path (best-effort launch).
+            let _ = Command::new("timeshift-launcher").spawn();
+        }
     }
     Task::none()
+}
+
+/// One `dnf history list` transaction (E13.6): the id + command + date + action +
+/// the count of packages altered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HistoryEntry {
+    id: u32,
+    command: String,
+    date: String,
+    action: String,
+    altered: String,
+}
+
+/// Whether `t` is a `YYYY-MM-DD` date token (the anchor for column-splitting).
+fn is_date(t: &str) -> bool {
+    t.len() == 10
+        && t.bytes().enumerate().all(|(i, b)| {
+            if i == 4 || i == 7 {
+                b == b'-'
+            } else {
+                b.is_ascii_digit()
+            }
+        })
+}
+
+/// Parse `dnf history list` output into transactions (E13.6). dnf5 prints
+/// whitespace-aligned columns `ID  Command line  Date and time  Action(s)
+/// Altered` where the command + action hold spaces, so split on the
+/// `YYYY-MM-DD HH:MM:SS` date: everything before is the command, the trailing
+/// number is Altered, the middle is Action(s). The "ID" header has no numeric id.
+fn parse_history(out: &str) -> Vec<HistoryEntry> {
+    let mut v = Vec::new();
+    for line in out.lines() {
+        let t: Vec<&str> = line.split_whitespace().collect();
+        if t.len() < 4 {
+            continue;
+        }
+        let Ok(id) = t[0].parse::<u32>() else {
+            continue; // skips the "ID …" header
+        };
+        let Some(d) = t.iter().position(|x| is_date(x)) else {
+            continue;
+        };
+        if d < 1 || d + 1 >= t.len() {
+            continue;
+        }
+        let date = format!("{} {}", t[d], t[d + 1]);
+        let (action, altered) = match t[(d + 2).min(t.len())..].split_last() {
+            Some((last, head)) => (head.join(" "), last.to_string()),
+            None => (String::new(), String::new()),
+        };
+        v.push(HistoryEntry {
+            id,
+            command: t[1..d].join(" "),
+            date,
+            action,
+            altered,
+        });
+    }
+    v
+}
+
+/// Run `dnf history list` off the UI thread (E13.6) and parse the transactions.
+fn fetch_history_task() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(|| {
+                match std::process::Command::new("dnf")
+                    .args(["history", "list"])
+                    .output()
+                {
+                    Ok(o) => Ok(parse_history(&String::from_utf8_lossy(&o.stdout))),
+                    Err(e) => Err(format!("dnf is not available: {e}")),
+                }
+            })
+            .await
+            .unwrap_or_else(|e| Err(format!("history task failed: {e}")))
+        },
+        Message::HistoryFetched,
+    )
 }
 
 /// The privileged script (run via `pkexec sh -c`) that overrides the dnf-automatic
@@ -820,16 +936,22 @@ fn next_pause(current_until: u64, now: u64) -> u64 {
     (current_until.max(now) + 7 * DAY).min(now + 35 * DAY)
 }
 
-/// Auto-run a `dnf check-update` when the Update page becomes visible and hasn't
-/// been checked this session (E13.3) — so opening it shows current status, like
-/// Windows 10. A no-op on any other page or once a check is in flight/done.
-fn maybe_check_updates(state: &mut Settings) -> Task<Message> {
-    let on_update = matches!(current_page(state).map(|p| p.kind), Some(Kind::Update));
-    if on_update && state.update_status.is_none() && !state.update_checking {
-        state.update_checking = true;
-        return check_updates_task();
+/// Auto-load a page's data when it first becomes visible (E13.3/E13.6) — a
+/// `dnf check-update` for the Update page, a `dnf history list` for the Update
+/// history page — so opening it shows current state like Windows 10. A no-op on
+/// any other page, or once the load is in flight/done.
+fn maybe_load(state: &mut Settings) -> Task<Message> {
+    match current_page(state).map(|p| p.kind) {
+        Some(Kind::Update) if state.update_status.is_none() && !state.update_checking => {
+            state.update_checking = true;
+            check_updates_task()
+        }
+        Some(Kind::UpdateHistory) if state.history.is_none() && !state.history_loading => {
+            state.history_loading = true;
+            fetch_history_task()
+        }
+        _ => Task::none(),
     }
-    Task::none()
 }
 
 /// Run `pkexec dnf upgrade -y` off the UI thread (E13.3 Install). Best-effort; the
@@ -1004,6 +1126,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Start
         | Kind::Taskbar
         | Kind::Update
+        | Kind::UpdateHistory
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1290,6 +1413,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Start => start_page(state),
         Kind::Taskbar => taskbar_page(state),
         Kind::Update => update_page(state),
+        Kind::UpdateHistory => update_history_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -1511,6 +1635,83 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
         col = col.push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill));
     }
     col.into()
+}
+
+/// Update & Security ▸ Update history (E13.6): the `dnf history list` transactions,
+/// each selectable (accent-tinted), with **Uninstall** (`dnf history undo`) for the
+/// selection + a **Recovery options** link to Timeshift. Auto-loaded on show
+/// (`maybe_load`). Feature/Quality grouping is deferred (E13.3a) — listed flat.
+fn update_history_page(state: &Settings) -> Element<'_, Message> {
+    let note = |s: String| {
+        text(s)
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT))
+    };
+    let body: Element<Message> = if state.history_loading {
+        note("Loading update history…".to_string()).into()
+    } else {
+        match &state.history {
+            None => note("Loading update history…".to_string()).into(),
+            Some(Err(e)) => note(format!("Couldn't read history: {e}")).into(),
+            Some(Ok(v)) if v.is_empty() => note("No update history.".to_string()).into(),
+            Some(Ok(v)) => {
+                let mut list = Column::new().spacing(0.0);
+                for h in v {
+                    let sel = state.history_selected == Some(h.id);
+                    let c = if sel {
+                        palette::accent()
+                    } else {
+                        palette::color(palette::WINDOW_TEXT)
+                    };
+                    let cell = |s: String, p: u16, gray: bool| {
+                        text(s)
+                            .size(metrics::UI_PX)
+                            .width(Length::FillPortion(p))
+                            .color(if gray && !sel {
+                                palette::color(palette::GRAY_TEXT)
+                            } else {
+                                c
+                            })
+                    };
+                    list = list.push(
+                        mouse_area(
+                            Row::new()
+                                .spacing(8.0)
+                                .push(cell(h.id.to_string(), 1, false))
+                                .push(cell(h.command.clone(), 4, false))
+                                .push(cell(h.date.clone(), 3, true))
+                                .push(cell(h.action.clone(), 2, true))
+                                .push(cell(h.altered.clone(), 1, true))
+                                .padding(Padding::from([2.0, 4.0])),
+                        )
+                        .on_press(Message::SelectHistory(h.id)),
+                    );
+                }
+                container(scrollable(list).style(mde_ui::scrollbar))
+                    .height(Length::Fill)
+                    .into()
+            }
+        }
+    };
+    let buttons = Row::new()
+        .spacing(8.0)
+        .push(
+            button(text("Uninstall selected").size(metrics::UI_PX))
+                .on_press_maybe(state.history_selected.map(|_| Message::UninstallHistory))
+                .padding(Padding::from([6.0, 16.0]))
+                .style(tile_style),
+        )
+        .push(
+            button(text("Recovery options").size(metrics::UI_PX))
+                .on_press(Message::OpenRecovery)
+                .padding(Padding::from([6.0, 16.0]))
+                .style(tile_style),
+        );
+    Column::new()
+        .spacing(12.0)
+        .push(buttons)
+        .push(container(body).height(Length::Fill))
+        .into()
 }
 
 /// Personalization ▸ Colors (E6.4): the Light/Dark choice (re-skins live + persists).
@@ -1972,6 +2173,29 @@ fn mode_button<'a>(label: &'a str, selected: bool, msg: Message) -> Element<'a, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_history_extracts_transactions() {
+        // dnf5's whitespace-aligned format: command + action hold spaces; split on
+        // the YYYY-MM-DD HH:MM:SS date. Action(s) is often empty.
+        let out = "\
+ID Command line                 Date and time       Action(s) Altered
+28 dnf install mc               2026-06-02 20:26:06                 1
+27 dnf upgrade -y               2026-06-01 21:46:17 Upgrade         6
+";
+        let h = parse_history(out);
+        assert_eq!(h.len(), 2, "header skipped, two rows parsed");
+        assert_eq!(h[0].id, 28);
+        assert_eq!(h[0].command, "dnf install mc");
+        assert_eq!(h[0].date, "2026-06-02 20:26:06");
+        assert_eq!(h[0].action, ""); // no Action(s) column value
+        assert_eq!(h[0].altered, "1");
+        assert_eq!(h[1].id, 27);
+        assert_eq!(h[1].command, "dnf upgrade -y");
+        assert_eq!(h[1].action, "Upgrade");
+        assert_eq!(h[1].altered, "6");
+        assert!(parse_history("").is_empty());
+    }
 
     #[test]
     fn active_hours_override_sets_oncalendar_and_reloads() {
