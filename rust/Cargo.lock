@@ -2219,6 +2219,7 @@ dependencies = [
  "ratatui",
  "serde",
  "serde_json",
+ "tokio",
  "toml",
  "wayland-client",
  "wayland-protocols",

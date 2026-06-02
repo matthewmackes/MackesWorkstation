@@ -118,8 +118,17 @@ enum Message {
     /// Show the Cloud devices pane (the paired-device list).
     ShowCloud,
     /// Mount a paired device over sftp and browse it (E8.8); on failure it selects
-    /// the device and shows the error on the Cloud pane.
+    /// the device and shows the error on the Cloud pane. The actual mount runs
+    /// off-thread (E8.8a) and reports back via [`Message::MountDone`].
     MountCloud(String),
+    /// An off-thread `mde mount` finished (E8.8a). `Ok(path)` → navigate into it;
+    /// `Err` → show the message (and, for a cloud mount, reselect the device on the
+    /// Cloud pane). `cloud_id` is `Some` for a paired-device mount, `None` for an
+    /// address-bar `smb://`/`sftp://` connect.
+    MountDone {
+        result: Result<PathBuf, String>,
+        cloud_id: Option<String>,
+    },
     /// Right-click a Cloud device: open its offline menu (E8.10).
     CloudContext(String),
     /// Copy a device's files down into its local mirror (E8.10).
@@ -403,12 +412,11 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
         Message::GoAddress => {
             let addr = state.address.trim().to_string();
             if addr.contains("://") {
-                // A remote URI (smb://, sftp://…): mount via `mde mount` (E8.6) and
-                // navigate into the local path it prints, else surface its error.
-                match mount_uri(&addr) {
-                    Ok(path) => state.navigate(path),
-                    Err(e) => state.error = Some(e),
-                }
+                // A remote URI (smb://, sftp://…): mount via `mde mount` (E8.6)
+                // off-thread (E8.8a — an unreachable peer can block ~15s) and, on
+                // MountDone, navigate into the path it prints or surface its error.
+                state.error = Some(format!("Connecting to {addr}…"));
+                return mount_task(addr, None);
             } else {
                 let p = PathBuf::from(&addr);
                 if p.is_dir() {
@@ -490,20 +498,33 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             state.pane = Pane::CloudDevice;
         }
         Message::MountCloud(id) => match cloud_devices().into_iter().find(|d| d.id == id) {
-            Some(d) if !d.address.is_empty() => match mount_uri(&format!("sftp://{}", d.address)) {
-                Ok(path) => state.navigate(path),
-                Err(e) => {
-                    state.cloud_device = Some(id);
-                    state.pane = Pane::CloudDevice;
-                    state.error = Some(e);
-                }
-            },
+            // The mount itself runs off-thread (E8.8a); MountDone navigates or, on
+            // error, reselects the device on the Cloud pane via `cloud_id`.
+            Some(d) if !d.address.is_empty() => {
+                state.cloud_device = Some(id.clone());
+                state.pane = Pane::CloudDevice;
+                state.error = Some(format!("Connecting to '{}'…", d.name));
+                return mount_task(format!("sftp://{}", d.address), Some(id));
+            }
             Some(d) => {
                 state.cloud_device = Some(id);
                 state.pane = Pane::CloudDevice;
                 state.error = Some(format!("No address configured for '{}'.", d.name));
             }
             None => {}
+        },
+        Message::MountDone { result, cloud_id } => match result {
+            Ok(path) => state.navigate(path),
+            Err(e) => {
+                // Surface the failure; for a cloud mount, land back on the Cloud
+                // pane with the device reselected (the in-flight handler set those,
+                // but an address-bar connect that errored leaves the pane as-is).
+                if let Some(id) = cloud_id {
+                    state.cloud_device = Some(id);
+                    state.pane = Pane::CloudDevice;
+                }
+                state.error = Some(e);
+            }
         },
         Message::CloudContext(id) => {
             state.cloud_ctx = Some(id);
@@ -1725,6 +1746,23 @@ fn network() -> Element<'static, Message> {
             .height(Length::Fill),
     ]
     .into()
+}
+
+/// Run [`mount_uri`] off the UI thread (E8.8a) and deliver its result as a
+/// [`Message::MountDone`]. `mde mount` shells out to `gio`/`sshfs` with bounded
+/// connect timeouts, so an unreachable peer can take ~15s — running it on tokio's
+/// blocking pool keeps the file manager responsive while it connects. `cloud_id`
+/// rides through so MountDone knows whether this was a paired-device mount.
+fn mount_task(uri: String, cloud_id: Option<String>) -> Task<Message> {
+    Task::perform(
+        async move {
+            let result = tokio::task::spawn_blocking(move || mount_uri(&uri))
+                .await
+                .unwrap_or_else(|e| Err(format!("mount task failed: {e}")));
+            (result, cloud_id)
+        },
+        |(result, cloud_id)| Message::MountDone { result, cloud_id },
+    )
 }
 
 /// Mount a remote URI by spawning `mde mount <uri>` (E8.6) and returning the local

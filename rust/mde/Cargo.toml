@@ -33,6 +33,12 @@ wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 # compositor already advertises). Same wayland-rs stack as above; the `staging`
 # feature is purely additive (it only turns on cfg already pulled transitively).
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+# Off-thread blocking work for remote mounts: `mde mount` shells out and can take
+# ~15s on an unreachable peer, so files.rs runs it on tokio's blocking pool
+# (Task::perform + spawn_blocking) instead of freezing the UI thread. iced already
+# pulls tokio in (its "tokio" feature); this only declares it directly. Same locked
+# version, so nothing new is fetched.
+tokio = { version = "1", features = ["rt"] }
 
 [dev-dependencies]
 # Accuracy harness (tests/accuracy.rs): decode grim PNG captures and parse the
