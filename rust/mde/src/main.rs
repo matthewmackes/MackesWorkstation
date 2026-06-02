@@ -12,6 +12,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 mod about;
+mod action_center;
 mod apps;
 mod catalogue;
 mod control_panel;
@@ -120,6 +121,7 @@ fn main() -> ExitCode {
         "panel" => panel::run(rest),
         "menu" => menu::run(rest),
         "start-win10" => start_win10::run(rest),
+        "action-center" => action_center::run_center(rest),
         // Per-era Start dispatcher for the labwc keybind: opens the right Start
         // for the active theme (the startup block above already set it).
         "start" => {

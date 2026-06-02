@@ -132,6 +132,16 @@ for era in "carbon:carbon::0,0 1280x40" \
         "$bin" start-win10 --resize Files wide >/dev/null 2>&1
         rm -f "$RT/mde-start-win10.pid" # a stale singleton would make Start exit blank
         shot "start-win10" --wait 2.6 start-win10
+        # Seed two notifications (swaync owns the live bus here, so the daemon
+        # can't run) to exercise the Action Center pane grouping + Clear x's.
+        now=$(date +%s)
+        cat > "$era_cfg/mde/notifications.json" <<JSON
+{"notifications":[
+ {"id":1,"app_name":"Files","app_icon":"folder","summary":"Copy complete","body":"3 items copied to Documents","actions":[],"hint_urgency":1,"timestamp":{"secs_since_epoch":$((now-120)),"nanos_since_epoch":0},"transient":false},
+ {"id":2,"app_name":"Files","app_icon":"folder","summary":"Download finished","body":"installer.rpm (4.2 MB)","actions":[],"hint_urgency":1,"timestamp":{"secs_since_epoch":$((now-20)),"nanos_since_epoch":0},"transient":false}
+],"last_read":{"secs_since_epoch":0,"nanos_since_epoch":0}}
+JSON
+        shot "action-center" --wait 2.6 action-center
     fi
 done
 unset XDG_CONFIG_HOME
