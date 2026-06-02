@@ -87,10 +87,17 @@ fn def_icon_color() -> String {
 /// The Win10 Action Center quick-action tiles, in order. The first four show
 /// collapsed; the rest appear on Expand (E3.5).
 fn def_quick_actions() -> Vec<String> {
-    ["wifi", "bluetooth", "airplane", "mute", "nightlight"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
+    [
+        "wifi",
+        "bluetooth",
+        "airplane",
+        "mute",
+        "focus",
+        "nightlight",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 /// The persisted menu/shell state. `#[serde(default)]` on every field keeps old
@@ -130,6 +137,10 @@ pub struct MenuState {
     /// Win10 Action Center quick-action tile order (E3.5).
     #[serde(default = "def_quick_actions")]
     pub quick_actions: Vec<String>,
+    /// Win10 Focus assist (Do Not Disturb): while true, notifyd collects history
+    /// but suppresses toasts (E3.7).
+    #[serde(default)]
+    pub focus_assist: bool,
 }
 
 impl Default for MenuState {
@@ -143,6 +154,7 @@ impl Default for MenuState {
             icon_color: def_icon_color(),
             start_tiles: Vec::new(),
             quick_actions: def_quick_actions(),
+            focus_assist: false,
         }
     }
 }
@@ -236,6 +248,7 @@ mod tests {
                 group: "Web".into(),
             }],
             quick_actions: vec!["wifi".into(), "mute".into()],
+            focus_assist: true,
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);

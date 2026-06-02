@@ -169,6 +169,7 @@ fn tile_label(id: &str) -> Option<(&'static str, &'static str)> {
         "bluetooth" => ("Bluetooth", "\u{f293}"),    // fa-bluetooth
         "airplane" => ("Airplane", "\u{f072}"),      // fa-plane
         "mute" => ("Mute", "\u{f6a9}"),              // fa-volume-mute
+        "focus" => ("Focus assist", "\u{f1f6}"),     // fa-bell-slash (Do Not Disturb)
         "nightlight" => ("Night light", "\u{f186}"), // fa-moon
         _ => return None,
     })
@@ -185,6 +186,8 @@ fn read_tile(id: &str) -> bool {
             !l.contains("Soft blocked: no") && l.contains("Soft blocked")
         }
         "mute" => sh("wpctl get-volume @DEFAULT_AUDIO_SINK@").contains("MUTED"),
+        // Focus assist is shell-free: it's our own persisted state (E3.7).
+        "focus" => crate::state::load().focus_assist,
         "nightlight" => !sh("pgrep -x wlsunset").trim().is_empty(),
         _ => false,
     }
@@ -209,6 +212,12 @@ fn toggle_tile(id: &str, on: bool) {
             "rfkill block all"
         }),
         "mute" => run("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"),
+        // Focus assist flips our persisted state (notifyd reads it per Notify).
+        "focus" => {
+            let mut st = crate::state::load();
+            st.focus_assist = !on;
+            let _ = crate::state::save(&st);
+        }
         "nightlight" => run(if on { "pkill -x wlsunset" } else { "wlsunset" }),
         _ => {}
     }

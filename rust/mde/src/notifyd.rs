@@ -155,8 +155,9 @@ impl Notifyd {
         }
         mirror(&self.store);
         // Pop a toast for the new notification (E3.8). Transient hints (e.g. a
-        // volume OSD) collect in history but don't toast.
-        if !transient {
+        // volume OSD) and Focus assist (E3.7) suppress the toast; history still
+        // collects.
+        if !transient && !crate::state::load().focus_assist {
             spawn_toast(id);
         }
         id
