@@ -19,3 +19,6 @@ home/.config/sway/resources/*.tgz
 *.swp
 *~
 .DS_Store
+
+# Claude Code transient runtime state (scheduling/loop locks)
+.claude/scheduled_tasks.lock
