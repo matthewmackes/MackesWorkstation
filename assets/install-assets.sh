@@ -13,7 +13,6 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SWAY_SCRIPTS="${XDG_CONFIG_HOME:-$HOME/.config}/sway/scripts"
 ONLY=""
 
 while [ $# -gt 0 ]; do
@@ -32,13 +31,14 @@ run_chicago95() {
 
 run_win2k() {
     echo "== Win2k icon theme =="
-    # The Win2k icon installer lives with the sway scripts (it generates the
-    # freedesktop aliases + index.theme and wires Inherits=Chicago95,...).
-    if [ -x "$SWAY_SCRIPTS/install-win2k-icons.py" ]; then
-        python3 "$SWAY_SCRIPTS/install-win2k-icons.py"
+    # The Win2k icon installer ships alongside this script (the RPM puts both under
+    # /usr/share/mde/scripts). It fetches the icon tarball, extracts it to
+    # ~/.local/share/icons/Win2k, and wires the freedesktop aliases +
+    # Inherits=Chicago95,… index.theme.
+    if [ -x "$HERE/install-win2k-icons.py" ]; then
+        python3 "$HERE/install-win2k-icons.py"
     else
-        echo "   skip: $SWAY_SCRIPTS/install-win2k-icons.py not found"
-        echo "   (run ../install.sh first so the sway config tree is deployed)"
+        echo "   skip: $HERE/install-win2k-icons.py not found"
     fi
 }
 
@@ -55,4 +55,4 @@ run_chicago95
 run_win2k
 
 echo ">> All requested assets installed."
-echo "   Reload the desktop with Win+Shift+C (or: swaymsg reload)."
+echo "   Log out and back in to pick up the new icons."

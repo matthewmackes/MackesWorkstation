@@ -63,7 +63,7 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   (`hint_urgency >= 2`): add an urgent role to `palette.rs` remapped in
   `win10()`/`carbon()`, applied in `action_center.rs::toast_view` (which today only
   suppresses auto-dismiss for critical). Verify via a windows10 toast capture.
-- [ ] **install-assets-sway-drift** `assets/install-assets.sh` (shipped to
+- [✓] **install-assets-sway-drift** `assets/install-assets.sh` (shipped to
   `/usr/share/mde/scripts/`, run live by `mde install --assets` → `install.rs`).
   **Investigated 2026-06-02 — a real broken-feature bug, not just cosmetic drift:**
   `run_win2k` shells out to `$SWAY_SCRIPTS/install-win2k-icons.py` with
@@ -76,7 +76,17 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   `/usr/share/mde/scripts/`), repoint `run_win2k` at `$HERE/install-win2k-icons.py`
   (drop `SWAY_SCRIPTS` + the "run ../install.sh first" message), and change the
   closing "swaymsg reload" → "labwc --reconfigure". (Touches `rust/mde/Cargo.toml`;
-  deferred past the in-flight E8.5/6/7 audit which reads that file.)
+  deferred past the in-flight E8.5/6/7 audit which reads that file.) — **Fixed:**
+  the RPM `assets` now ship `install-win2k-icons.py` to `/usr/share/mde/scripts/`
+  (co-located with `install-assets.sh`); `run_win2k` invokes
+  `$HERE/install-win2k-icons.py` (dropped `SWAY_SCRIPTS` + the "run ../install.sh
+  first" message); the closing "swaymsg reload" → "Log out and back in". Verified by
+  simulating the RPM co-location — `install-assets.sh --only win2k` finds + runs the
+  `.py`, installing the Win2k theme (157 aliases + index.theme + icon cache) to
+  `~/.local/share/icons/Win2k`; previously it always hit the skip branch. Cargo.toml
+  parses; `bash -n` clean; no sway refs remain. (Residual: the `.py`'s own tarball
+  *cache* path is still `~/.config/sway/resources/` — a dir it creates + downloads
+  into, harmless; a minor follow-up.)
 
 ## Backlog
 
