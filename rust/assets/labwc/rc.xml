@@ -55,9 +55,20 @@
     <keybind key="A-F4"><action name="Close"/></keybind>
     <keybind key="W-Up"><action name="ToggleMaximize"/></keybind>
     <keybind key="W-m"><action name="Iconify"/></keybind>
-    <!-- Win10 Snap: tile to a half (labwc performs the snap; mde never moves windows). -->
-    <keybind key="W-Left"><action name="SnapToEdge"><direction>left</direction></action></keybind>
-    <keybind key="W-Right"><action name="SnapToEdge"><direction>right</direction></action></keybind>
+    <!-- Win10 Snap + Snap Assist: labwc snaps the active window to a half, then
+         mde opens the half-screen picker for the OPPOSITE half so you can bring
+         another window forward beside it. labwc performs the snap; mde never
+         moves windows (the picker only focuses the pick). The snap-assist mode
+         self-gates to the Windows 10 theme, so under Carbon / Win2000 the
+         Execute is a fast no-op and these stay plain edge-snaps. -->
+    <keybind key="W-Left">
+      <action name="SnapToEdge"><direction>left</direction></action>
+      <action name="Execute"><command>mde task-view --snap-assist right</command></action>
+    </keybind>
+    <keybind key="W-Right">
+      <action name="SnapToEdge"><direction>right</direction></action>
+      <action name="Execute"><command>mde task-view --snap-assist left</command></action>
+    </keybind>
     <keybind key="W-Down"><action name="Iconify"/></keybind>
     <!-- Virtual-desktop switching (Win10 Ctrl+Win+Left/Right). labwc performs the
          switch; wrap around the ends. There is no create/close bind (see above). -->
