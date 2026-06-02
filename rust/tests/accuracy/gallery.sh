@@ -81,6 +81,15 @@ shot() {
 }
 
 # --- the gallery -------------------------------------------------------------
+# Clear any stale single-instance guards first: a leftover menu / Start process
+# from an earlier run holds its pid slot, which makes that capture come back
+# blank (the surface exits as a duplicate). Kill by the pid FILE (never pkill -f,
+# which would match this script's own command line).
+for s in mde-menu mde-start-win10; do
+    pf="$RT/$s.pid"
+    [ -f "$pf" ] && { kill "$(cat "$pf")" 2>/dev/null; rm -f "$pf"; }
+done
+
 echo "gallery: capturing components…"
 # The bar is a thin strip on a 1280x960 output. The default Carbon theme anchors
 # its UI Shell bar to the TOP; the Win2000/BeOS themes use the bottom/left. Crop

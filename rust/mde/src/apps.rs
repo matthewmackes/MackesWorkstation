@@ -16,6 +16,8 @@ pub struct App {
     /// `.desktop` file mtime (Unix seconds) — the Win10 "Recently Added" sort key
     /// (newest-installed apps); 0 if unknown.
     pub mtime: u64,
+    /// The `.desktop` file path — for the Start "Open file location" action.
+    pub path: String,
 }
 
 /// Programs grouped by folder, in menu order.
@@ -126,6 +128,7 @@ fn parse(path: &PathBuf) -> Option<(App, String)> {
             exec,
             terminal,
             mtime,
+            path: path.to_string_lossy().into_owned(),
         },
         category(&cats),
     ))

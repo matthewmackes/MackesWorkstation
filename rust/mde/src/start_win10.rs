@@ -23,7 +23,7 @@ use iced_layershell::reexport::{Anchor, KeyboardInteractivity};
 use iced_layershell::settings::LayerShellSettings;
 use iced_layershell::{to_layer_message, Appearance};
 
-use mde_ui::{metrics, palette};
+use mde_ui::{frame, metrics, palette};
 
 use crate::state::{self, MenuState, StartTile, TileSize};
 use crate::{apps, start_common};
@@ -155,6 +155,21 @@ struct AppEntry {
     exec: String,
     terminal: bool,
     mtime: u64,
+    path: String,
+}
+
+/// What a right-click context menu is acting on: an existing tile, or an app row
+/// (which can be pinned). Carries what the actions need.
+#[derive(Debug, Clone)]
+enum Ctx {
+    Tile {
+        name: String,
+    },
+    App {
+        name: String,
+        command: String,
+        path: String,
+    },
 }
 
 struct Start {
@@ -164,6 +179,8 @@ struct Start {
     /// Most-launched pins (by `launch_count`) — the "Suggested" section.
     suggested: Vec<(String, String)>,
     tiles: Vec<StartTile>,
+    /// The right-clicked target showing a context menu, if any.
+    context: Option<Ctx>,
 }
 
 #[to_layer_message]
@@ -171,6 +188,12 @@ struct Start {
 enum Message {
     Launch(String, bool), // shell command, run-in-terminal
     Mde(String),          // re-exec this binary with a subcommand (Power, …)
+    RightClick(Ctx),      // open a context menu on a tile / app
+    CtxPin,               // App: pin as a Start tile
+    CtxUnpin,             // Tile: remove it
+    CtxResize(TileSize),  // Tile: set its size
+    CtxOpenLocation,      // App: open the .desktop's folder in Explorer
+    CtxUninstall,         // open the package manager
     Close,
     Event(Event),
 }
@@ -201,6 +224,7 @@ fn all_apps() -> Vec<AppEntry> {
             exec: a.exec,
             terminal: a.terminal,
             mtime: a.mtime,
+            path: a.path,
         })
         .collect();
     v.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -255,6 +279,7 @@ fn launch() -> Result<(), iced_layershell::Error> {
                     suggested,
                     tiles: state::seed_start_tiles(&st),
                     apps,
+                    context: None,
                 },
                 Task::none(),
             )
@@ -293,7 +318,7 @@ fn bump_launch_count(cmd: &str) {
     }
 }
 
-fn update(_: &mut Start, message: Message) -> Task<Message> {
+fn update(start: &mut Start, message: Message) -> Task<Message> {
     match message {
         Message::Launch(cmd, terminal) => {
             bump_launch_count(&cmd);
@@ -304,12 +329,86 @@ fn update(_: &mut Start, message: Message) -> Task<Message> {
             start_common::mde_self(&sub);
             exit(0);
         }
-        Message::Close => exit(0),
+        Message::RightClick(ctx) => start.context = Some(ctx),
+        // App context: pin it as a Medium tile (no dup), persist, live-refresh.
+        Message::CtxPin => {
+            if let Some(Ctx::App { name, command, .. }) = start.context.take() {
+                let mut st = materialized();
+                if !st.start_tiles.iter().any(|t| t.name == name) {
+                    st.start_tiles.push(StartTile {
+                        name,
+                        command,
+                        icon: String::new(),
+                        size: TileSize::Medium,
+                        group: String::new(),
+                    });
+                    let _ = state::save(&st);
+                    start.tiles = state::seed_start_tiles(&st);
+                }
+            }
+        }
+        // Tile context: remove it.
+        Message::CtxUnpin => {
+            if let Some(Ctx::Tile { name }) = start.context.take() {
+                let mut st = materialized();
+                st.start_tiles.retain(|t| t.name != name);
+                let _ = state::save(&st);
+                start.tiles = state::seed_start_tiles(&st);
+            }
+        }
+        // Tile context: set its size.
+        Message::CtxResize(size) => {
+            if let Some(Ctx::Tile { name }) = start.context.take() {
+                let mut st = materialized();
+                for t in st.start_tiles.iter_mut().filter(|t| t.name == name) {
+                    t.size = size;
+                }
+                let _ = state::save(&st);
+                start.tiles = state::seed_start_tiles(&st);
+            }
+        }
+        // App context: open the .desktop's folder in Explorer.
+        Message::CtxOpenLocation => {
+            if let Some(Ctx::App { path, .. }) = &start.context {
+                let dir = std::path::Path::new(path)
+                    .parent()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                open_in_explorer(&dir);
+            }
+            exit(0);
+        }
+        // Open the package manager (the Linux "Uninstall" mapping).
+        Message::CtxUninstall => {
+            start_common::launch_cmd("dnfdragora", false);
+            exit(0);
+        }
+        // A backdrop click / Esc closes the context menu first, else the Start.
+        Message::Close => {
+            if start.context.take().is_none() {
+                exit(0);
+            }
+        }
         Message::Event(Event::Keyboard(keyboard::Event::KeyPressed {
             key: keyboard::Key::Named(keyboard::key::Named::Escape),
             ..
-        })) => exit(0),
-        _ => Task::none(),
+        })) => {
+            if start.context.take().is_none() {
+                exit(0);
+            }
+        }
+        _ => {}
+    }
+    Task::none()
+}
+
+/// Open a folder in the Explorer (`mde files <dir>`).
+fn open_in_explorer(dir: &str) {
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = std::process::Command::new(exe)
+            .arg("files")
+            .arg(dir)
+            .spawn();
     }
 }
 
@@ -343,7 +442,7 @@ fn view(start: &Start) -> Element<'_, Message> {
         });
 
     // Backdrop click-catcher closes Start; the panel sits bottom-left above the bar.
-    iced::widget::stack![
+    let mut layers = iced::widget::stack![
         mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close),
         container(panel)
             .width(Length::Fill)
@@ -356,7 +455,80 @@ fn view(start: &Start) -> Element<'_, Message> {
                 bottom: BAR_H + 2.0,
                 left: 2.0,
             }),
-    ]
+    ];
+    // A right-clicked tile / app shows a context menu (fixed offset, like menu.rs).
+    if let Some(ctx) = &start.context {
+        layers = layers.push(
+            container(context_menu_view(ctx))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(Horizontal::Left)
+                .align_y(Vertical::Bottom)
+                .padding(Padding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: BAR_H + 40.0,
+                    left: 90.0,
+                }),
+        );
+    }
+    layers.into()
+}
+
+/// The right-click context menu for a tile (Unpin / Resize / Uninstall) or an app
+/// (Pin / Open file location / Uninstall). Sized to its rows.
+fn context_menu_view(ctx: &Ctx) -> Element<'static, Message> {
+    let item = |label: String, msg: Message| {
+        button(text(label).size(metrics::UI_PX))
+            .on_press(msg)
+            .width(Length::Fill)
+            .padding(Padding {
+                top: 4.0,
+                right: 16.0,
+                bottom: 4.0,
+                left: 12.0,
+            })
+            .style(row_style())
+    };
+    let mut col = Column::new();
+    let rows: usize;
+    match ctx {
+        Ctx::Tile { .. } => {
+            col = col
+                .push(item("Unpin from Start".into(), Message::CtxUnpin))
+                .push(item(
+                    "Resize: Small".into(),
+                    Message::CtxResize(TileSize::Small),
+                ))
+                .push(item(
+                    "Resize: Medium".into(),
+                    Message::CtxResize(TileSize::Medium),
+                ))
+                .push(item(
+                    "Resize: Wide".into(),
+                    Message::CtxResize(TileSize::Wide),
+                ))
+                .push(item(
+                    "Resize: Large".into(),
+                    Message::CtxResize(TileSize::Large),
+                ))
+                .push(item("Uninstall".into(), Message::CtxUninstall));
+            rows = 6;
+        }
+        Ctx::App { .. } => {
+            col = col
+                .push(item("Pin to Start".into(), Message::CtxPin))
+                .push(item("Open file location".into(), Message::CtxOpenLocation))
+                .push(item("Uninstall".into(), Message::CtxUninstall));
+            rows = 3;
+        }
+    }
+    container(iced::widget::stack![
+        frame::raised().thickness(2),
+        container(col).padding(2.0)
+    ])
+    .width(Length::Fixed(184.0))
+    .height(Length::Fixed(rows as f32 * 24.0 + 6.0))
     .into()
 }
 
@@ -413,10 +585,16 @@ fn accent_header(label: String) -> Element<'static, Message> {
     .into()
 }
 
-/// A launchable app/pin row: icon + name, accent highlight on hover.
-fn app_row(name: String, exec: String, terminal: bool) -> Element<'static, Message> {
+/// A launchable app/pin row: icon + name, accent highlight on hover. `right`, when
+/// set, wires a right-click context menu.
+fn app_row(
+    name: String,
+    exec: String,
+    terminal: bool,
+    right: Option<Message>,
+) -> Element<'static, Message> {
     let icon = crate::icons::icon_any(&[name.to_lowercase().as_str()], 16);
-    button(
+    let btn = button(
         row![icon, text(name).size(metrics::UI_PX)]
             .spacing(8.0)
             .align_y(Vertical::Center),
@@ -429,8 +607,11 @@ fn app_row(name: String, exec: String, terminal: bool) -> Element<'static, Messa
         bottom: 3.0,
         left: 6.0,
     })
-    .style(row_style())
-    .into()
+    .style(row_style());
+    match right {
+        Some(r) => mouse_area(btn).on_right_press(r).into(),
+        None => btn.into(),
+    }
 }
 
 /// The center column: Recently added + Suggested (from real data, hidden when
@@ -440,13 +621,13 @@ fn center_column(start: &Start) -> Element<'static, Message> {
     if !start.recent.is_empty() {
         col = col.push(accent_header("Recently added".into()));
         for a in &start.recent {
-            col = col.push(app_row(a.name.clone(), a.exec.clone(), a.terminal));
+            col = col.push(app_row(a.name.clone(), a.exec.clone(), a.terminal, None));
         }
     }
     if !start.suggested.is_empty() {
         col = col.push(accent_header("Suggested".into()));
         for (name, cmd) in &start.suggested {
-            col = col.push(app_row(name.clone(), cmd.clone(), false));
+            col = col.push(app_row(name.clone(), cmd.clone(), false, None));
         }
     }
     let mut last = '\0';
@@ -467,7 +648,17 @@ fn center_column(start: &Start) -> Element<'static, Message> {
             last = initial;
             col = col.push(accent_header(initial.to_string()));
         }
-        col = col.push(app_row(a.name.clone(), a.exec.clone(), a.terminal));
+        let right = Message::RightClick(Ctx::App {
+            name: a.name.clone(),
+            command: a.exec.clone(),
+            path: a.path.clone(),
+        });
+        col = col.push(app_row(
+            a.name.clone(),
+            a.exec.clone(),
+            a.terminal,
+            Some(right),
+        ));
     }
     scrollable(col).style(mde_ui::scrollbar).into()
 }
@@ -521,7 +712,9 @@ fn tiles_view(tiles: &[StartTile]) -> Element<'_, Message> {
                 icon,
                 t.name.as_str(),
                 Message::Launch(t.command.clone(), false),
-                None,
+                Some(Message::RightClick(Ctx::Tile {
+                    name: t.name.clone(),
+                })),
                 w,
                 h,
             ));
