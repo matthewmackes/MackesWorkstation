@@ -99,6 +99,7 @@ shot start-menu       menu
 shot files            files "$HOME"
 shot control-panel    control-panel
 shot add-remove       --wait 3.0 add-remove
+shot add-remove-updates --wait 3.0 add-remove --updates
 shot system-properties --wait 3.0 system-properties
 shot run-dialog       run
 shot properties       properties "Command Prompt" "/usr/bin/foot"
