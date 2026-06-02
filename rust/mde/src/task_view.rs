@@ -14,7 +14,9 @@ use std::time::Duration;
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{container, mouse_area, scrollable, text, Column, Row, Space};
-use iced::{event, keyboard, Background, Border, Color, Element, Event, Length, Shadow, Task};
+use iced::{
+    event, keyboard, Background, Border, Color, Element, Event, Length, Padding, Shadow, Task,
+};
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity};
 use iced_layershell::settings::LayerShellSettings;
@@ -23,19 +25,25 @@ use iced_layershell::{to_layer_message, Appearance};
 use mde_ui::{metrics, palette};
 
 use crate::wlr;
+use crate::workspace;
 
 const COLS: usize = 4;
 
 struct TaskView {
     wm: Option<wlr::Wm>,
     windows: Vec<wlr::Window>,
+    ws: Option<workspace::Workspaces>,
+    workspaces: Vec<workspace::Workspace>,
 }
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
 enum Message {
-    Tick,       // re-read the window snapshot (it fills in asynchronously)
-    Focus(u64), // raise/focus the clicked window, then close
+    Tick,            // re-read the window + workspace snapshots (they fill in async)
+    Focus(u64),      // raise/focus the clicked window, then close
+    ActivateWs(u64), // switch to a virtual desktop, then close
+    NewWs,           // create a new virtual desktop (stay open)
+    RemoveWs(u64),   // remove a virtual desktop (stay open)
     Close,
     Event(Event),
 }
@@ -91,7 +99,17 @@ fn launch() -> Result<(), iced_layershell::Error> {
         .run_with(|| {
             let wm = wlr::start();
             let windows = wm.as_ref().map(|w| w.windows()).unwrap_or_default();
-            (TaskView { wm, windows }, Task::none())
+            let ws = workspace::start();
+            let workspaces = ws.as_ref().map(|w| w.list()).unwrap_or_default();
+            (
+                TaskView {
+                    wm,
+                    windows,
+                    ws,
+                    workspaces,
+                },
+                Task::none(),
+            )
         })
 }
 
@@ -101,12 +119,31 @@ fn update(state: &mut TaskView, message: Message) -> Task<Message> {
             if let Some(wm) = &state.wm {
                 state.windows = wm.windows();
             }
+            if let Some(ws) = &state.ws {
+                state.workspaces = ws.list();
+            }
         }
         Message::Focus(id) => {
             if let Some(wm) = &state.wm {
                 wm.focus(id);
             }
             exit(0)
+        }
+        Message::ActivateWs(id) => {
+            if let Some(ws) = &state.ws {
+                ws.activate(id);
+            }
+            exit(0)
+        }
+        Message::NewWs => {
+            if let Some(ws) = &state.ws {
+                ws.create(&format!("Desktop {}", state.workspaces.len() + 1));
+            }
+        }
+        Message::RemoveWs(id) => {
+            if let Some(ws) = &state.ws {
+                ws.remove(id);
+            }
         }
         Message::Close => exit(0),
         Message::Event(Event::Keyboard(keyboard::Event::KeyPressed {
@@ -140,16 +177,103 @@ fn view(state: &TaskView) -> Element<'_, Message> {
             .into()
     };
 
-    // Backdrop catches clicks/Esc to close; the grid floats centered.
+    // Backdrop catches clicks/Esc to close; the virtual-desktop band sits along
+    // the top (when the compositor advertises ext-workspace), the window grid
+    // floats centered below it.
+    let body = Column::new()
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .push(desktop_band(&state.workspaces))
+        .push(
+            container(content)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .padding(40.0),
+        );
     iced::widget::stack![
         mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close),
-        container(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .padding(40.0),
+        body,
     ]
+    .into()
+}
+
+/// The virtual-desktop band: a centered row of workspace chips (the active one
+/// accent-filled, each with a remove ×) plus a trailing "+ New desktop" chip.
+/// Empty when no ext-workspace compositor is present — the fixed-strip fallback
+/// is E4.5.
+fn desktop_band(workspaces: &[workspace::Workspace]) -> Element<'_, Message> {
+    if workspaces.is_empty() {
+        return Space::new(Length::Fill, Length::Shrink).into();
+    }
+    let mut row = Row::new().spacing(10.0).align_y(Vertical::Center);
+    for w in workspaces {
+        row = row.push(ws_chip(w));
+    }
+    row = row.push(new_ws_chip());
+    container(row)
+        .width(Length::Fill)
+        .align_x(Horizontal::Center)
+        .padding(16.0)
+        .into()
+}
+
+/// One workspace chip: name + a remove ×; accent-filled when it's the active
+/// desktop. Clicking the chip switches to it; clicking the × removes it.
+fn ws_chip(w: &workspace::Workspace) -> Element<'_, Message> {
+    let (bg, fg) = if w.active {
+        (palette::accent(), palette::color(palette::HIGHLIGHT_TEXT))
+    } else {
+        (
+            palette::color(palette::MENU),
+            palette::color(palette::TITLE_TEXT),
+        )
+    };
+    let label = text(w.name.clone()).size(metrics::UI_PX).color(fg);
+    let close = mouse_area(text("\u{2715}").size(metrics::UI_PX).color(fg))
+        .on_press(Message::RemoveWs(w.id));
+    let inner = Row::new()
+        .spacing(8.0)
+        .align_y(Vertical::Center)
+        .push(label)
+        .push(close);
+    mouse_area(
+        container(inner)
+            .padding(Padding::from([6.0, 12.0]))
+            .style(move |_| container::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    color: palette::color(palette::WINDOW_FRAME),
+                    width: 1.0,
+                    radius: 2.0.into(),
+                },
+                ..container::Style::default()
+            }),
+    )
+    .on_press(Message::ActivateWs(w.id))
+    .into()
+}
+
+/// The "+ New desktop" chip at the end of the band.
+fn new_ws_chip<'a>() -> Element<'a, Message> {
+    let label = text("+ New desktop")
+        .size(metrics::UI_PX)
+        .color(palette::color(palette::TITLE_TEXT));
+    mouse_area(
+        container(label)
+            .padding(Padding::from([6.0, 12.0]))
+            .style(|_| container::Style {
+                background: Some(Background::Color(palette::color(palette::MENU))),
+                border: Border {
+                    color: palette::color(palette::WINDOW_FRAME),
+                    width: 1.0,
+                    radius: 2.0.into(),
+                },
+                ..container::Style::default()
+            }),
+    )
+    .on_press(Message::NewWs)
     .into()
 }
 

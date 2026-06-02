@@ -29,6 +29,10 @@ zbus = "4"
 # already locked via iced_layershell, so nothing new is fetched.
 wayland-client = "0.31"
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+# Virtual desktops on labwc (ext-workspace-v1, a stabilised staging protocol the
+# compositor already advertises). Same wayland-rs stack as above; the `staging`
+# feature is purely additive (it only turns on cfg already pulled transitively).
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 
 [dev-dependencies]
 # Accuracy harness (tests/accuracy.rs): decode grim PNG captures and parse the

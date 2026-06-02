@@ -40,6 +40,7 @@ mod taskbar_properties;
 mod tray;
 mod tui_setup;
 mod wlr;
+mod workspace;
 
 const USAGE: &str = "\
 mde — Windows 2000 desktop shell for Sway (MDE-Retro)
@@ -147,6 +148,10 @@ fn main() -> ExitCode {
         "taskbar-properties" => taskbar_properties::run(rest),
         "__wlr-list" => {
             wlr::debug_list();
+            ExitCode::SUCCESS
+        }
+        "__ws-list" => {
+            workspace::debug_list();
             ExitCode::SUCCESS
         }
         "logoff" => dialogs::logoff(),
