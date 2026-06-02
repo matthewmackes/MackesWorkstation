@@ -88,6 +88,9 @@
          classic Start menu. -->
     <keybind key="W-s"><action name="Execute"><command>mde search</command></action></keybind>
     <keybind key="W-x"><action name="Execute"><command>mde popup quickaccess</command></action></keybind>
+    <!-- Win10 Settings (Win+I). `mde settings` is the modern Settings app; under
+         non-Win10 eras `mde control-panel` is the gear target instead. -->
+    <keybind key="W-i"><action name="Execute"><command>mde settings</command></action></keybind>
     <keybind key="W-r"><action name="Execute"><command>mde run</command></action></keybind>
     <keybind key="W-Return"><action name="Execute"><command>foot</command></action></keybind>
 
