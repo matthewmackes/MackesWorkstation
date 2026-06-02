@@ -29,6 +29,7 @@ mod install;
 mod installer;
 mod menu;
 mod mount;
+mod nm;
 mod notifyd;
 mod outputs;
 mod packages;
@@ -175,6 +176,10 @@ fn main() -> ExitCode {
         "taskbar-properties" => taskbar_properties::run(rest),
         "__wlr-list" => {
             wlr::debug_list();
+            ExitCode::SUCCESS
+        }
+        "__nm-list" => {
+            nm::debug_list();
             ExitCode::SUCCESS
         }
         "__ws-list" => {
