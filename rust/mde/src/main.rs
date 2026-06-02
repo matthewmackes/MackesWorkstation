@@ -30,6 +30,7 @@ mod notifyd;
 mod outputs;
 mod panel;
 mod popup;
+mod search;
 mod start_common;
 mod start_win10;
 mod state;
@@ -126,6 +127,7 @@ fn main() -> ExitCode {
         "action-center" => action_center::run_center(rest),
         "toast" => action_center::run_toast(rest),
         "task-view" => task_view::run(rest),
+        "search" => search::run(rest),
         // Per-era Start dispatcher for the labwc keybind: opens the right Start
         // for the active theme (the startup block above already set it).
         "start" => {
