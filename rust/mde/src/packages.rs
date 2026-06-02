@@ -48,9 +48,9 @@ struct Pkg {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Update {
     /// The dnf package id, e.g. `bash.x86_64`.
-    package: String,
+    pub(crate) package: String,
     /// The candidate new version, e.g. `5.2.21-1.fc40`.
-    version: String,
+    pub(crate) version: String,
 }
 
 /// Which tab of the window is showing.

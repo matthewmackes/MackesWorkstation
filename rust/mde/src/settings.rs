@@ -416,9 +416,11 @@ struct Settings {
     lock_selected: Option<usize>,
     /// Update page (E13.2): a `dnf check-update` is in flight.
     update_checking: bool,
-    /// Update page (E13.2): the last check — None = not checked this session,
-    /// Ok(n) = n pending updates (0 = up to date), Err = the check failed.
-    update_status: Option<Result<usize, String>>,
+    /// Update page: the last check — None = not checked this session, Ok(list) =
+    /// the pending updates (empty = up to date), Err = the check failed (E13.2/3).
+    update_status: Option<Result<Vec<crate::packages::Update>, String>>,
+    /// Update page (E13.3): a `pkexec dnf upgrade` install is in flight.
+    update_installing: bool,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -460,9 +462,11 @@ enum Message {
     LockBrowse,
     LockBrowsed(Option<String>),
     LockApply,
-    // Update page (E13.2).
+    // Update page (E13.2 / E13.3).
     CheckUpdates,
-    UpdatesChecked(Result<usize, String>),
+    UpdatesChecked(Result<Vec<crate::packages::Update>, String>),
+    InstallUpdates,
+    UpdatesInstalled(bool),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -587,10 +591,13 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 lock_selected: None,
                 update_checking: false,
                 update_status: None,
+                update_installing: false,
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
-            (s, Task::none())
+            // Auto-check when we land directly on the Update page (E13.3).
+            let init = maybe_check_updates(&mut s);
+            (s, init)
         })
 }
 
@@ -607,10 +614,12 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.view = View::Category(i);
             state.page = 0;
             cache_install(state);
+            return maybe_check_updates(state);
         }
         Message::SelectPage(i) => {
             state.page = i;
             cache_install(state);
+            return maybe_check_updates(state);
         }
         Message::Back => {
             state.view = View::Home;
@@ -621,6 +630,7 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.view = View::Category(c);
             state.page = p;
             cache_install(state);
+            return maybe_check_updates(state);
         }
         Message::Open => open_current(state),
         Message::SetDark(d) => {
@@ -700,7 +710,7 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             }
         }
         Message::CheckUpdates => {
-            if !state.update_checking {
+            if !state.update_checking && !state.update_installing {
                 state.update_checking = true;
                 return check_updates_task();
             }
@@ -709,8 +719,55 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.update_checking = false;
             state.update_status = Some(r);
         }
+        Message::InstallUpdates => {
+            let has = matches!(&state.update_status, Some(Ok(v)) if !v.is_empty());
+            if has && !state.update_installing && !state.update_checking {
+                state.update_installing = true;
+                return install_updates_task();
+            }
+        }
+        Message::UpdatesInstalled(ok) => {
+            state.update_installing = false;
+            if ok {
+                // Re-check so the list reflects the post-upgrade state (→ empty).
+                state.update_status = None;
+                state.update_checking = true;
+                return check_updates_task();
+            }
+        }
     }
     Task::none()
+}
+
+/// Auto-run a `dnf check-update` when the Update page becomes visible and hasn't
+/// been checked this session (E13.3) — so opening it shows current status, like
+/// Windows 10. A no-op on any other page or once a check is in flight/done.
+fn maybe_check_updates(state: &mut Settings) -> Task<Message> {
+    let on_update = matches!(current_page(state).map(|p| p.kind), Some(Kind::Update));
+    if on_update && state.update_status.is_none() && !state.update_checking {
+        state.update_checking = true;
+        return check_updates_task();
+    }
+    Task::none()
+}
+
+/// Run `pkexec dnf upgrade -y` off the UI thread (E13.3 Install). Best-effort; the
+/// result drives a re-check so the list reflects what actually installed.
+fn install_updates_task() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(|| {
+                std::process::Command::new("pkexec")
+                    .args(["dnf", "upgrade", "-y"])
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false)
+            })
+            .await
+            .unwrap_or(false)
+        },
+        Message::UpdatesInstalled,
+    )
 }
 
 /// Run `dnf check-update` off the UI thread for the Update page (E13.2), reusing
@@ -728,11 +785,10 @@ fn check_updates_task() -> Task<Message> {
                     Err(e) => return Err(format!("dnf is not available: {e}")),
                 };
                 match out.status.code() {
-                    Some(0) => Ok(0),
-                    Some(100) => Ok(
-                        crate::packages::parse_check_update(&String::from_utf8_lossy(&out.stdout))
-                            .len(),
-                    ),
+                    Some(0) => Ok(Vec::new()),
+                    Some(100) => Ok(crate::packages::parse_check_update(
+                        &String::from_utf8_lossy(&out.stdout),
+                    )),
                     _ => {
                         let err = String::from_utf8_lossy(&out.stderr);
                         Err(if err.trim().is_empty() {
@@ -1194,12 +1250,23 @@ fn open_button<'a>(title: &str, present: bool) -> Element<'a, Message> {
 /// same in every era rather than gating to Win10 (best-choice §6, recorded). The
 /// pending-update list + Install lands in E13.3.
 fn update_page(state: &Settings) -> Element<'_, Message> {
-    let (glyph, headline, sub) = if state.update_checking {
+    let pending: &[crate::packages::Update] = match &state.update_status {
+        Some(Ok(v)) => v,
+        _ => &[],
+    };
+    let busy = state.update_checking || state.update_installing;
+    let (glyph, headline, sub) = if state.update_installing {
+        (
+            "\u{f021}", // fa-sync
+            "Installing updates…".to_string(),
+            "MackesDE Update is applying the updates.".to_string(),
+        )
+    } else if state.update_checking {
         (
             "\u{f021}",
             "Checking for updates…".to_string(),
             String::new(),
-        ) // fa-sync
+        )
     } else {
         match &state.update_status {
             None => (
@@ -1207,14 +1274,18 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
                 "Check for updates".to_string(),
                 "Updates are installed by MackesDE Update.".to_string(),
             ),
-            Some(Ok(0)) => (
+            Some(Ok(v)) if v.is_empty() => (
                 "\u{f00c}", // fa-check
                 "You're up to date".to_string(),
                 "Last checked: just now".to_string(),
             ),
-            Some(Ok(n)) => (
+            Some(Ok(v)) => (
                 "\u{f0f3}", // fa-bell
-                format!("{n} update{} available", if *n == 1 { "" } else { "s" }),
+                format!(
+                    "{} update{} available",
+                    v.len(),
+                    if v.len() == 1 { "" } else { "s" }
+                ),
                 "Last checked: just now".to_string(),
             ),
             Some(Err(e)) => (
@@ -1246,11 +1317,46 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
                 .color(palette::color(palette::WINDOW_TEXT)),
         )
         .push(lines);
-    let check = button(text("Check for updates").size(metrics::UI_PX))
-        .on_press_maybe((!state.update_checking).then_some(Message::CheckUpdates))
-        .padding(Padding::from([6.0, 16.0]))
-        .style(tile_style);
-    Column::new().spacing(16.0).push(card).push(check).into()
+    let mut buttons = Row::new().spacing(8.0).push(
+        button(text("Check for updates").size(metrics::UI_PX))
+            .on_press_maybe((!busy).then_some(Message::CheckUpdates))
+            .padding(Padding::from([6.0, 16.0]))
+            .style(tile_style),
+    );
+    if !pending.is_empty() {
+        buttons = buttons.push(
+            button(text("Install updates").size(metrics::UI_PX))
+                .on_press_maybe((!busy).then_some(Message::InstallUpdates))
+                .padding(Padding::from([6.0, 16.0]))
+                .style(tile_style),
+        );
+    }
+    let mut col = Column::new().spacing(16.0).push(card).push(buttons);
+    // The pending-update list (E13.3): package + candidate version, scrollable.
+    if !pending.is_empty() {
+        let mut list = Column::new().spacing(0.0);
+        for u in pending {
+            list = list.push(
+                Row::new()
+                    .spacing(8.0)
+                    .push(
+                        text(u.package.clone())
+                            .size(metrics::UI_PX)
+                            .width(Length::FillPortion(3))
+                            .color(palette::color(palette::WINDOW_TEXT)),
+                    )
+                    .push(
+                        text(u.version.clone())
+                            .size(metrics::UI_PX)
+                            .width(Length::FillPortion(2))
+                            .color(palette::color(palette::GRAY_TEXT)),
+                    )
+                    .padding(Padding::from([2.0, 4.0])),
+            );
+        }
+        col = col.push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill));
+    }
+    col.into()
 }
 
 /// Personalization ▸ Colors (E6.4): the Light/Dark choice (re-skins live + persists).
