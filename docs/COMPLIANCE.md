@@ -127,3 +127,22 @@ hardcodes `SWAY_SCRIPTS=$HOME/.config/sway/scripts` + "swaymsg reload" — a she
 script, not Rust; lifted to worklist `install-assets-sway-drift` rather than edited
 blind (the root `install.sh` is the OLD sway installer per §7, so the script's live
 status needs confirming first).
+
+---
+
+# Third sweep — E8 focused (2026-06-02, workflow, adversarially verified)
+
+After E8.2–E8.6 (Win10 File Explorer: Quick access, pins, This PC, navigation
+pane, `mde mount`), a focused adversarial workflow audited ONLY that diff (the
+rest of the repo was the second sweep's scope). **9 raw → 5 confirmed**, all
+low-severity **doc-drift** — no unreachable/stub/mockup code, no §2.1 hex or §2.3
+metric leaks, no §2.6 state gaps, no reachability holes in the new Explorer code.
+The 5 stale comments the E8 work introduced, all fixed in the same commit:
+
+| Location | Stale claim → fix |
+|---|---|
+| `state.rs` explorer_pins doc | "`explorer_landing` lands with E8.4" (it has) → dropped the forward-reference |
+| `files.rs` Pane enum doc | omitted `ThisPc`; "QuickAccess is *the* Win10 landing" → documents both, "the default" |
+| `files.rs` module doc | "Client area" listed only classic chrome → added the Win10 command-bar + nav-pane layout |
+| `files.rs` `folder_body` doc | "Every non-QuickAccess view uses this" (false under Win10) → "Non-Win10 eras use this" |
+| `files.rs` `nav_node` doc | active node "navy" (Win10 remaps HIGHLIGHT→accent) → "accent-filled" |

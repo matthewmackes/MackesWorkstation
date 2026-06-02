@@ -5,6 +5,10 @@
 //! a raised toolbar (Back/Forward/Up/Refresh/Home), an editable Address bar,
 //! the sunken details list (Name/Size/Type, navigates on click), and a status
 //! bar ("N object(s)"). Directory reads use std::fs; files open via xdg-open.
+//!
+//! Under the Win10 era the classic chrome is replaced by a flat command bar and a
+//! left navigation pane (Quick access / This PC) beside the active view — the
+//! Quick access landing, the This PC pane, or the details list (E8.1–E8.4).
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -25,9 +29,11 @@ struct Entry {
     size: u64,
 }
 
-/// Which landing the main area shows. `Folder` is the directory listing (every
-/// era's default); `QuickAccess` is the Win10 landing — Frequent folders +
-/// Recent files — shown when `mde files` is launched with no path under Win10.
+/// Which view the main area shows. `Folder` is the directory listing (every
+/// era's default). Under Win10 the no-path landing is configurable
+/// (`explorer_landing`): `QuickAccess` (the default — Frequent folders + Recent
+/// files) or `ThisPc` (the known user folders + mounted drives); both are also
+/// reachable any time from the navigation pane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Pane {
     Folder,
@@ -1453,8 +1459,8 @@ fn this_pc() -> Element<'static, Message> {
     .into()
 }
 
-/// A Win10 nav-pane root node (Quick access / This PC): icon + bold label, navy
-/// when it's the active pane.
+/// A Win10 nav-pane root node (Quick access / This PC): icon + bold label,
+/// accent-filled when it's the active pane.
 fn nav_node(
     label: &'static str,
     icons: &'static [&'static str],
@@ -1528,7 +1534,7 @@ fn nav_pane(state: &Files) -> Element<'_, Message> {
 }
 
 /// The folder body: the left pane (web-view info band or folder tree) beside the
-/// details list. Every non-QuickAccess view uses this.
+/// details list. Non-Win10 eras use this; Win10 renders its own nav pane + view.
 fn folder_body(state: &Files) -> Element<'_, Message> {
     let left: Element<'_, Message> = if state.show_tree {
         tree_pane(state)

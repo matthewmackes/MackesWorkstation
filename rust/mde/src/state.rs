@@ -195,8 +195,7 @@ pub struct MenuState {
     #[serde(default = "def_search_mode")]
     pub win10_search_mode: String,
     /// Win10 Explorer ▸ Quick access user-pinned folders (E8.3): appended to the
-    /// auto-pinned standard folders in the Frequent-folders list. (The landing
-    /// choice `explorer_landing` lands with E8.4, alongside its This-PC consumer.)
+    /// auto-pinned standard folders in the Frequent-folders list.
     #[serde(default)]
     pub explorer_pins: Vec<PathBuf>,
     /// Win10 Explorer default landing when launched with no path: "quick" (Quick
