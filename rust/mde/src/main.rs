@@ -149,6 +149,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "popup" => popup::run(rest),
+        "jumplist" => popup::run_jumplist(rest),
         "files" => files::run(rest),
         "control-panel" => control_panel::run(rest),
         "display" => display::run(rest),

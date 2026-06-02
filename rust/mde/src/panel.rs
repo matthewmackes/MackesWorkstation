@@ -102,6 +102,7 @@ enum Message {
     ActionCenter,
     TaskView,
     Search,
+    JumpList(String), // app_id, for the Win10 right-click jump list (E2.6)
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
@@ -277,6 +278,8 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
         Message::TaskView => push_child(state, spawn_child(&["task-view"])),
         // Open the Search flyout (E2.9 search affordance — same surface as W-s).
         Message::Search => push_child(state, spawn_child(&["search"])),
+        // Right-click jump list for a taskbar app button (E2.6).
+        Message::JumpList(app_id) => push_child(state, spawn_child(&["jumplist", &app_id])),
         // Toggle the Start menu: open it if closed, close it if already open.
         // Owning the child (instead of fire-and-forget spawning) is what stops
         // rapid clicks during the menu's start-up from stacking duplicate
@@ -864,7 +867,7 @@ fn win10_task_button(w: &wlr::Window) -> Element<'_, Message> {
         );
     mouse_area(col)
         .on_press(Message::TaskButton(w.id))
-        .on_right_press(Message::MinimizeToggle(w.id))
+        .on_right_press(Message::JumpList(w.app_id.clone()))
         .into()
 }
 

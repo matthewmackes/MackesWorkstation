@@ -26,13 +26,13 @@ use mde_ui::{frame, metrics, palette};
 /// One menu entry: a label and the shell command it runs (empty command = a
 /// separator).
 struct Item {
-    label: &'static str,
+    label: String,
     command: String,
 }
 
 fn sep() -> Item {
     Item {
-        label: "",
+        label: "".into(),
         command: String::new(),
     }
 }
@@ -67,61 +67,61 @@ fn items_for(kind: &str) -> Vec<Item> {
         // optional, so the item still works on a minimal install).
         "quickaccess" => vec![
             Item {
-                label: "System",
+                label: "System".into(),
                 command: format!("'{mde}' system-properties --info"),
             },
             Item {
-                label: "Device Manager",
+                label: "Device Manager".into(),
                 command: format!("'{mde}' system-properties --devices"),
             },
             Item {
-                label: "Disk Management",
+                label: "Disk Management".into(),
                 command: "sh -c 'gnome-disks || gparted || blivet-gui'".into(),
             },
             Item {
-                label: "Network Connections",
+                label: "Network Connections".into(),
                 command: "foot -e sh -c 'nmtui || nmcli device'".into(),
             },
             sep(),
             Item {
-                label: "Event Viewer",
+                label: "Event Viewer".into(),
                 command: "foot -e sh -c 'journalctl -e || journalctl'".into(),
             },
             Item {
-                label: "Task Manager",
+                label: "Task Manager".into(),
                 command: "foot -o font=monospace:size=12 sh -c 'btop || htop || top'".into(),
             },
             sep(),
             Item {
-                label: "Terminal",
+                label: "Terminal".into(),
                 command: "foot".into(),
             },
             Item {
-                label: "Terminal (Admin)",
+                label: "Terminal (Admin)".into(),
                 command: "foot -e sh -c 'pkexec bash || sudo -i'".into(),
             },
             Item {
-                label: "Power Options",
+                label: "Power Options".into(),
                 command: format!("'{mde}' shutdown"),
             },
             sep(),
             Item {
-                label: "Run\u{2026}",
+                label: "Run\u{2026}".into(),
                 command: format!("'{mde}' run"),
             },
         ],
         "start" => vec![
             Item {
-                label: "Open",
+                label: "Open".into(),
                 command: format!("'{mde}' files"),
             },
             Item {
-                label: "Search\u{2026}",
+                label: "Search\u{2026}".into(),
                 command: format!("'{mde}' files \"$HOME\""),
             },
             sep(),
             Item {
-                label: "Properties",
+                label: "Properties".into(),
                 command: format!("'{mde}' taskbar-properties"),
             },
         ],
@@ -132,24 +132,24 @@ fn items_for(kind: &str) -> Vec<Item> {
         "desktop" => {
             let mut v = vec![
                 Item {
-                    label: "Refresh",
+                    label: "Refresh".into(),
                     command: "labwc --reconfigure".into(),
                 },
                 sep(),
                 Item {
-                    label: "New Folder",
+                    label: "New Folder".into(),
                     command: format!("'{mde}' files \"$HOME/Desktop\""),
                 },
                 sep(),
             ];
             v.push(if mde_ui::palette::is_windows10() {
                 Item {
-                    label: "Personalize",
+                    label: "Personalize".into(),
                     command: format!("'{mde}' settings personalization"),
                 }
             } else {
                 Item {
-                    label: "Properties",
+                    label: "Properties".into(),
                     command: format!("'{mde}' display"),
                 }
             });
@@ -162,19 +162,19 @@ fn items_for(kind: &str) -> Vec<Item> {
         _ => {
             let mut v = vec![
                 Item {
-                    label: "Task Manager",
+                    label: "Task Manager".into(),
                     command: "foot -o font=monospace:size=12 sh -c 'btop || htop || top'".into(),
                 },
                 sep(),
             ];
             v.push(if mde_ui::palette::is_windows10() {
                 Item {
-                    label: "Taskbar settings",
+                    label: "Taskbar settings".into(),
                     command: format!("'{mde}' settings personalization --page taskbar"),
                 }
             } else {
                 Item {
-                    label: "Properties",
+                    label: "Properties".into(),
                     command: format!("'{mde}' taskbar-properties"),
                 }
             });
@@ -203,7 +203,129 @@ pub fn run(args: &[String]) -> ExitCode {
     }
 }
 
+/// `mde jumplist <app_id>` — the Win10 taskbar jump list: app-specific Tasks
+/// plus a Recent-files section, in the same bottom-left popup (E2.6).
+pub fn run_jumplist(args: &[String]) -> ExitCode {
+    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
+        return ExitCode::SUCCESS;
+    }
+    let app_id = args.first().cloned().unwrap_or_default();
+    match launch_with(items_for_jumplist(&app_id)) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("mde jumplist: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Jump-list entries for `app_id`: app-specific Tasks (Firefox new/private
+/// window), then the system Recent files, then Open. Tasks the app doesn't
+/// define are simply absent — no dead rows (§3).
+fn items_for_jumplist(app_id: &str) -> Vec<Item> {
+    let mut v = Vec::new();
+    let low = app_id.to_lowercase();
+    if low.contains("firefox") {
+        v.push(Item {
+            label: "New Window".into(),
+            command: "firefox --new-window".into(),
+        });
+        v.push(Item {
+            label: "New Private Window".into(),
+            command: "firefox --private-window".into(),
+        });
+        v.push(sep());
+    }
+    let recents = recent_files(6);
+    if !recents.is_empty() {
+        v.extend(recents);
+        v.push(sep());
+    }
+    if !app_id.is_empty() {
+        // Open a fresh instance (best-effort: the app_id is usually the exec).
+        v.push(Item {
+            label: format!("Open {app_id}"),
+            command: shell_quote(app_id),
+        });
+    }
+    if v.is_empty() {
+        v.push(Item {
+            label: "(no recent items)".into(),
+            command: String::new(),
+        });
+    }
+    v
+}
+
+/// The system's recent files (`~/.local/share/recently-used.xbel`), newest
+/// first, capped at `n`; each opens via `xdg-open`. Empty if the file is absent.
+fn recent_files(n: usize) -> Vec<Item> {
+    let Some(home) = std::env::var_os("HOME") else {
+        return Vec::new();
+    };
+    let path = std::path::PathBuf::from(home).join(".local/share/recently-used.xbel");
+    let Ok(xml) = std::fs::read_to_string(&path) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<String> = Vec::new();
+    let mut rest = xml.as_str();
+    while let Some(i) = rest.find("href=\"file://") {
+        rest = &rest[i + "href=\"file://".len()..];
+        if let Some(end) = rest.find('"') {
+            paths.push(percent_decode(&rest[..end]));
+            rest = &rest[end..];
+        } else {
+            break;
+        }
+    }
+    paths.reverse(); // xbel appends, so the tail is newest
+    paths.dedup();
+    paths
+        .into_iter()
+        .filter(|p| std::path::Path::new(p).exists())
+        .take(n)
+        .filter_map(|p| {
+            let name = std::path::Path::new(&p)
+                .file_name()?
+                .to_string_lossy()
+                .into_owned();
+            Some(Item {
+                label: name,
+                command: format!("xdg-open {}", shell_quote(&p)),
+            })
+        })
+        .collect()
+}
+
+/// Decode `%XX` percent-escapes in a recently-used URI path.
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Ok(byte) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Single-quote a path for embedding in a shell command (handles spaces/quotes).
+fn shell_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
 fn launch(kind: String) -> Result<(), iced_layershell::Error> {
+    launch_with(items_for(&kind))
+}
+
+fn launch_with(items: Vec<Item>) -> Result<(), iced_layershell::Error> {
     application(namespace, update, view)
         .style(style)
         // Keyboard-only: the popup ignores mouse events in update, so filtering
@@ -231,14 +353,7 @@ fn launch(kind: String) -> Result<(), iced_layershell::Error> {
             },
             ..Default::default()
         })
-        .run_with(move || {
-            (
-                Popup {
-                    items: items_for(&kind),
-                },
-                Task::none(),
-            )
-        })
+        .run_with(move || (Popup { items }, Task::none()))
 }
 
 fn namespace(_: &Popup) -> String {
@@ -304,7 +419,7 @@ fn view(state: &Popup) -> Element<'_, Message> {
             );
         } else {
             col = col.push(
-                button(iced::widget::text(item.label).size(metrics::UI_PX))
+                button(iced::widget::text(item.label.clone()).size(metrics::UI_PX))
                     .on_press(Message::Click(i))
                     .width(Length::Fill)
                     .padding(pad(3.0, 24.0, 3.0, 12.0))
