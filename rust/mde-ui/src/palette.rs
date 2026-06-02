@@ -380,14 +380,35 @@ pub const WIN10_ACCENTS: &[Rgb] = &[
 pub fn win10_accent() -> Rgb {
     let idx = win10_accent_idx() as usize;
     if idx == 0 {
-        if is_dark() {
-            (0x28, 0x99, 0xf5) // brighter blue on dark
-        } else {
-            (0x00, 0x78, 0xd4) // Windows 10 stock accent on light
-        }
+        win10_stock()
     } else {
         WIN10_ACCENTS.get(idx).copied().unwrap_or(WIN10_ACCENTS[0])
     }
+}
+
+/// The stock Win10 accent for the active mode — index 0's mode-shaded blue (the
+/// one place the era's signature hue lives).
+fn win10_stock() -> Rgb {
+    if is_dark() {
+        (0x28, 0x99, 0xf5) // brighter blue on dark
+    } else {
+        (0x00, 0x78, 0xd4) // Windows 10 stock accent on light
+    }
+}
+
+/// The Windows 10 preset accent `idx` as an `iced::Color` for the Colors swatch
+/// grid (E7.5) — index 0 is the stock mode-shaded blue. Returns the literal
+/// preset (no role remap), so a swatch shows its own color.
+pub fn win10_accent_swatch(idx: u8) -> iced::Color {
+    let rgb = if idx == 0 {
+        win10_stock()
+    } else {
+        WIN10_ACCENTS
+            .get(idx as usize)
+            .copied()
+            .unwrap_or(WIN10_ACCENTS[0])
+    };
+    iced::Color::from_rgb8(rgb.0, rgb.1, rgb.2)
 }
 
 /// Map a Win2000 role color to its Windows 10 token. Per D2 the Win10 look is a

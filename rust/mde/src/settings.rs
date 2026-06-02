@@ -309,7 +309,9 @@ struct Settings {
     view: View,
     page: usize, // selected rail page within the current category
     dark: bool,
-    accent: u8,
+    /// Windows 10 UI accent index (E7.5) — into `palette::WIN10_ACCENTS`; drives
+    /// selection/highlight via the `win10()` slot, persisted as `win10_accent`.
+    win10_accent: u8,
     /// Home-screen search query (E6.6): filters the flat (category, page) list.
     search: String,
     /// Background page (E7.4): source mode, scanned pictures, selection, fit.
@@ -329,7 +331,7 @@ enum Message {
     Open, // activate the current page's backend
     Back,
     SetDark(bool),
-    SetAccent(u8),
+    SetWin10Accent(u8),
     Search(String),
     Jump(usize, usize), // (category, page) from a search result
     // Background page (E7.4).
@@ -434,7 +436,7 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 view: initial.map(View::Category).unwrap_or(View::Home),
                 page: initial_page,
                 dark: st.theme_mode != "light",
-                accent: accent_index(&st.icon_color),
+                win10_accent: st.win10_accent,
                 search: initial_search,
                 bg_source: BgSource::Picture,
                 bg_wallpapers: wallpaper::scan(),
@@ -445,24 +447,6 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
             cache_install(&mut s);
             (s, Task::none())
         })
-}
-
-fn accent_index(key: &str) -> u8 {
-    match key {
-        "blue" => 0,
-        "orange" => 1,
-        "red" => 2,
-        _ => 3,
-    }
-}
-
-fn accent_key(idx: u8) -> &'static str {
-    match idx {
-        0 => "blue",
-        1 => "orange",
-        2 => "red",
-        _ => "neutral",
-    }
 }
 
 fn current_page(state: &Settings) -> Option<&'static Page> {
@@ -499,9 +483,9 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             palette::set_dark(d);
             persist(state);
         }
-        Message::SetAccent(a) => {
-            state.accent = a;
-            palette::set_accent(a);
+        Message::SetWin10Accent(a) => {
+            state.win10_accent = a;
+            palette::set_win10_accent(a);
             persist(state);
         }
         Message::BgSource(s) => state.bg_source = s,
@@ -605,7 +589,7 @@ fn mde_path() -> String {
 fn persist(state: &Settings) {
     let mut st = crate::state::load();
     st.theme_mode = if state.dark { "dark" } else { "light" }.to_string();
-    st.icon_color = accent_key(state.accent).to_string();
+    st.win10_accent = state.win10_accent;
     let _ = crate::state::save(&st);
 }
 
@@ -886,8 +870,8 @@ fn colors_page(state: &Settings) -> Element<'_, Message> {
         .size(metrics::UI_PX)
         .color(palette::color(palette::WINDOW_TEXT));
     let mut swatches = Row::new().spacing(8.0);
-    for idx in 0u8..4 {
-        swatches = swatches.push(accent_swatch(idx, idx == state.accent, state.dark));
+    for idx in 0..palette::WIN10_ACCENTS.len() as u8 {
+        swatches = swatches.push(win10_swatch(idx, idx == state.win10_accent));
     }
 
     column![
@@ -1070,8 +1054,8 @@ fn mode_button<'a>(label: &'a str, selected: bool, msg: Message) -> Element<'a, 
         .into()
 }
 
-fn accent_swatch<'a>(idx: u8, selected: bool, dark: bool) -> Element<'a, Message> {
-    let color = palette::color(palette::icon_accent(idx, dark));
+fn win10_swatch<'a>(idx: u8, selected: bool) -> Element<'a, Message> {
+    let color = palette::win10_accent_swatch(idx);
     let sw = container(Space::new(Length::Fixed(34.0), Length::Fixed(34.0))).style(move |_t| {
         container::Style {
             background: Some(Background::Color(color)),
@@ -1087,7 +1071,7 @@ fn accent_swatch<'a>(idx: u8, selected: bool, dark: bool) -> Element<'a, Message
             ..container::Style::default()
         }
     });
-    mouse_area(sw).on_press(Message::SetAccent(idx)).into()
+    mouse_area(sw).on_press(Message::SetWin10Accent(idx)).into()
 }
 
 #[cfg(test)]
@@ -1095,9 +1079,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn accent_key_index_round_trip() {
-        for idx in 0u8..4 {
-            assert_eq!(accent_index(accent_key(idx)), idx);
+    fn win10_accent_indices_in_range() {
+        // The Colors swatch grid offers exactly the palette's preset accents.
+        assert!(palette::WIN10_ACCENTS.len() >= 2);
+        for idx in 0..palette::WIN10_ACCENTS.len() as u8 {
+            let _ = palette::win10_accent_swatch(idx);
         }
     }
 
