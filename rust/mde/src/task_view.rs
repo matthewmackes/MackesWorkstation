@@ -29,6 +29,15 @@ use crate::workspace;
 
 const COLS: usize = 4;
 
+/// Which empty half the Snap-Assist picker fills (E4.7). After labwc snaps the
+/// active window to one half, the picker offers the other windows for the
+/// opposite half.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Side {
+    Left,
+    Right,
+}
+
 struct TaskView {
     wm: Option<wlr::Wm>,
     windows: Vec<wlr::Window>,
@@ -37,6 +46,10 @@ struct TaskView {
     /// Fallback desktop count (E4.5): >0 only when ext-workspace is absent and
     /// `state.virtual_desktops` > 1, so the band shows a fixed strip instead.
     fixed_desktops: u32,
+    /// Snap-Assist mode (E4.7): when `Some(side)`, render the half-screen picker
+    /// of the *other* windows instead of the full Task View. mde never snaps —
+    /// labwc already snapped the active window; the picker only focuses.
+    snap_assist: Option<Side>,
 }
 
 #[to_layer_message]
@@ -51,13 +64,29 @@ enum Message {
     Event(Event),
 }
 
-pub fn run(_args: &[String]) -> ExitCode {
+pub fn run(args: &[String]) -> ExitCode {
+    // `--snap-assist <left|right>` opens the half-screen Snap-Assist picker for
+    // that side (E4.7); the Win10 rc.xml fires it after a labwc edge-snap, and
+    // it self-gates to the Windows 10 theme (E4.8).
+    let snap_assist = match args.first().map(String::as_str) {
+        Some("--snap-assist") => {
+            if crate::state::load().theme != "windows10" {
+                return ExitCode::SUCCESS; // Snap Assist is a Win10-era affordance.
+            }
+            match args.get(1).map(String::as_str) {
+                Some("left") => Some(Side::Left),
+                Some("right") => Some(Side::Right),
+                _ => return ExitCode::SUCCESS,
+            }
+        }
+        _ => None,
+    };
     // No compositor → nothing to show; exit cleanly rather than panic in the
     // layer-shell init.
     if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         return ExitCode::SUCCESS;
     }
-    match launch() {
+    match launch(snap_assist) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("mde task-view: {e}");
@@ -66,7 +95,7 @@ pub fn run(_args: &[String]) -> ExitCode {
     }
 }
 
-fn launch() -> Result<(), iced_layershell::Error> {
+fn launch(snap_assist: Option<Side>) -> Result<(), iced_layershell::Error> {
     application(|_: &TaskView| "mde-task-view".to_string(), update, view)
         .style(|_: &TaskView, _: &iced::Theme| Appearance {
             // A dimmed scrim over the desktop.
@@ -99,14 +128,19 @@ fn launch() -> Result<(), iced_layershell::Error> {
             },
             ..Default::default()
         })
-        .run_with(|| {
+        .run_with(move || {
             let wm = wlr::start();
             let windows = wm.as_ref().map(|w| w.windows()).unwrap_or_default();
-            let ws = workspace::start();
+            // Snap Assist doesn't need the workspace band.
+            let ws = if snap_assist.is_none() {
+                workspace::start()
+            } else {
+                None
+            };
             let workspaces = ws.as_ref().map(|w| w.list()).unwrap_or_default();
             // Fallback ladder: with no ext-workspace, fall back to the configured
             // fixed desktop count; a single desktop means no band at all.
-            let fixed_desktops = if ws.is_none() {
+            let fixed_desktops = if ws.is_none() && snap_assist.is_none() {
                 crate::state::load().virtual_desktops
             } else {
                 0
@@ -118,6 +152,7 @@ fn launch() -> Result<(), iced_layershell::Error> {
                     ws,
                     workspaces,
                     fixed_desktops,
+                    snap_assist,
                 },
                 Task::none(),
             )
@@ -167,6 +202,9 @@ fn update(state: &mut TaskView, message: Message) -> Task<Message> {
 }
 
 fn view(state: &TaskView) -> Element<'_, Message> {
+    if let Some(side) = state.snap_assist {
+        return snap_assist_view(state, side);
+    }
     let content: Element<Message> = if state.windows.is_empty() {
         text("No open windows")
             .size(metrics::INFO_TITLE_PX)
@@ -206,6 +244,55 @@ fn view(state: &TaskView) -> Element<'_, Message> {
     iced::widget::stack![
         mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close),
         body,
+    ]
+    .into()
+}
+
+/// Snap-Assist picker (E4.7): labwc has already snapped the active window to one
+/// half; this fills the *other* half (`side`) with the remaining windows so the
+/// user can pick what goes beside it. Picking focuses that window (mde performs
+/// **no** snap — see the module docs); Esc / clicking the empty area dismisses.
+fn snap_assist_view(state: &TaskView, side: Side) -> Element<'_, Message> {
+    // The just-snapped window is the focused one; offer the rest.
+    let others: Vec<&wlr::Window> = state.windows.iter().filter(|w| !w.focused).collect();
+    let picker: Element<Message> = if others.is_empty() {
+        text("No other windows")
+            .size(metrics::INFO_TITLE_PX)
+            .color(palette::color(palette::TITLE_TEXT))
+            .into()
+    } else {
+        // Two columns fit a half-screen comfortably.
+        const HALF_COLS: usize = 2;
+        let mut grid = Column::new().spacing(16.0);
+        let mut row = Row::new().spacing(16.0);
+        for (i, w) in others.iter().enumerate() {
+            row = row.push(tile(w));
+            if (i + 1) % HALF_COLS == 0 {
+                grid = grid.push(row);
+                row = Row::new().spacing(16.0);
+            }
+        }
+        grid = grid.push(row);
+        scrollable(container(grid).center_x(Length::Shrink))
+            .style(mde_ui::scrollbar)
+            .into()
+    };
+    let half = container(picker)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .padding(40.0);
+    // Place the picker in the empty half; the snapped window shows through the
+    // scrim on the other half.
+    let spacer = Space::new(Length::Fill, Length::Fill);
+    let halves: Element<Message> = match side {
+        Side::Left => Row::new().push(half).push(spacer).into(),
+        Side::Right => Row::new().push(spacer).push(half).into(),
+    };
+    iced::widget::stack![
+        mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close),
+        halves,
     ]
     .into()
 }
@@ -427,6 +514,7 @@ mod tests {
             ws: None,
             workspaces: Vec::new(),
             fixed_desktops: fixed,
+            snap_assist: None,
         }
     }
 
@@ -460,5 +548,28 @@ mod tests {
             }],
         );
         let _el: Element<Message> = view(&st);
+    }
+
+    #[test]
+    fn snap_assist_builds_both_sides() {
+        // E4.7: the picker builds a valid Element for either side, with and
+        // without candidate windows.
+        let win = |focused| wlr::Window {
+            id: if focused { 1 } else { 2 },
+            title: "foot".into(),
+            app_id: "foot".into(),
+            focused,
+            minimized: false,
+            maximized: false,
+        };
+        for side in [Side::Left, Side::Right] {
+            let mut st = overlay(0, vec![win(true), win(false)]);
+            st.snap_assist = Some(side);
+            let _el: Element<Message> = view(&st);
+            // And with no other windows (only the snapped one).
+            let mut empty = overlay(0, vec![win(true)]);
+            empty.snap_assist = Some(side);
+            let _e2: Element<Message> = view(&empty);
+        }
     }
 }
