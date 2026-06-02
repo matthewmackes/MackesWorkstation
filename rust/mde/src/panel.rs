@@ -23,6 +23,11 @@ const START_ICON: &[u8] = include_bytes!("start_icon.png");
 
 /// Width of the vertical BeOS Deskbar (px).
 const BEOS_BAR_W: f32 = 115.0;
+
+/// Height of the Windows 10 taskbar (px) — taller than the Win2000 bar, matching
+/// Win10's stock 40px bottom bar. E0 anchors it; the Win10-specific content
+/// (search box, Task View button, jump lists) layers on in E2.
+const WIN10_BAR_H: f32 = 40.0;
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::Anchor;
 use iced_layershell::settings::LayerShellSettings;
@@ -129,8 +134,9 @@ fn launch() -> Result<(), iced_layershell::Error> {
         app = app.font(bytes);
     }
     // Carbon: a flat UI Shell bar anchored to the TOP edge. BeOS: a vertical
-    // Deskbar on the left. Windows 2000: the horizontal taskbar along the bottom.
-    // Either way the bar reserves its strip via the exclusive zone.
+    // Deskbar on the left. Windows 10: a taller bottom bar. Windows 2000: the
+    // horizontal taskbar along the bottom. Either way the bar reserves its strip
+    // via the exclusive zone.
     let layer_settings = if palette::is_carbon() {
         LayerShellSettings {
             size: Some((0, CARBON_BAR_H as u32)),
@@ -143,6 +149,13 @@ fn launch() -> Result<(), iced_layershell::Error> {
             size: Some((BEOS_BAR_W as u32, 0)),
             exclusive_zone: BEOS_BAR_W as i32,
             anchor: Anchor::Top | Anchor::Left | Anchor::Bottom,
+            ..Default::default()
+        }
+    } else if palette::is_windows10() {
+        LayerShellSettings {
+            size: Some((0, WIN10_BAR_H as u32)),
+            exclusive_zone: WIN10_BAR_H as i32,
+            anchor: Anchor::Bottom | Anchor::Left | Anchor::Right,
             ..Default::default()
         }
     } else {

@@ -11,6 +11,18 @@
 
 use mde_ui::metrics;
 use mde_ui::palette::{self, Rgb};
+use std::sync::Mutex;
+
+// The active theme/mode live in process-global atomics. cargo runs tests in
+// parallel threads of one process, so any test that switches the theme and any
+// test that reads `color()` expecting a specific theme must serialize through
+// this guard, and switchers must restore the Win2000 default before releasing.
+static THEME_GUARD: Mutex<()> = Mutex::new(());
+
+/// An `iced::Color` channel back to its 0-255 byte, for remap assertions.
+fn ch(v: f32) -> u8 {
+    (v * 255.0).round() as u8
+}
 
 // --- Palette ---------------------------------------------------------------
 
@@ -78,10 +90,45 @@ fn bevel_endpoints_match_checklist() {
 /// `color()` must round-trip an 8-bit channel exactly (no gamma surprises).
 #[test]
 fn color_conversion_is_exact_8bit() {
+    let _g = THEME_GUARD.lock().unwrap(); // pin the default theme for this read
     let c = palette::color(palette::BACKGROUND);
-    assert_eq!((c.r * 255.0).round() as u8, 0x3a);
-    assert_eq!((c.g * 255.0).round() as u8, 0x6e);
-    assert_eq!((c.b * 255.0).round() as u8, 0xa5);
+    assert_eq!(ch(c.r), 0x3a);
+    assert_eq!(ch(c.g), 0x6e);
+    assert_eq!(ch(c.b), 0xa5);
+}
+
+/// E0.8 — pin the Windows 10 era remap (§2.2): the accent value, the sentinel
+/// passthroughs, and a neutral. The atomics are process-global, so this holds
+/// THEME_GUARD and restores the Win2000/dark default before releasing.
+#[test]
+fn windows10_remap_pins() {
+    use mde_ui::palette::Theme;
+    let _g = THEME_GUARD.lock().unwrap();
+    palette::set_theme(Theme::Windows10);
+
+    // The stock Win10 accent, pinned in both modes.
+    palette::set_dark(false);
+    assert_eq!(palette::win10_accent(), (0x00, 0x78, 0xd4));
+    let hi = palette::color(palette::HIGHLIGHT); // selection routes to the accent
+    assert_eq!((ch(hi.r), ch(hi.g), ch(hi.b)), (0x00, 0x78, 0xd4));
+    palette::set_dark(true);
+    assert_eq!(palette::win10_accent(), (0x28, 0x99, 0xf5));
+
+    // Sentinel passthrough: white title text stays light; the frame sentinel
+    // becomes a border gray, never black text.
+    let tt = palette::color(palette::TITLE_TEXT);
+    assert!(ch(tt.r) > 0xf0 && ch(tt.g) > 0xf0 && ch(tt.b) > 0xf0);
+    let fr = palette::color(palette::WINDOW_FRAME);
+    assert!(ch(fr.r) > 0x10 && (ch(fr.r), ch(fr.g), ch(fr.b)) != (0x00, 0x00, 0x00));
+
+    // A neutral: the WINDOW field surface stays white in light mode.
+    palette::set_dark(false);
+    let w = palette::color(palette::WINDOW);
+    assert_eq!((ch(w.r), ch(w.g), ch(w.b)), (0xff, 0xff, 0xff));
+
+    // Restore the process-global default for other tests.
+    palette::set_theme(Theme::Win2000);
+    palette::set_dark(true);
 }
 
 /// App-chrome colors live in the palette too, so nothing outside it names a

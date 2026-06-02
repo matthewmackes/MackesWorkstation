@@ -28,6 +28,11 @@ pub const TASKBAR_BUTTON_MIN: u16 = 160;
 /// this records the original so the gap is named, not hidden. The renderer
 /// never requests this string — see `font.rs` for what actually ships.
 pub const UI_FONT_TARGET: &str = "Tahoma";
+/// The Windows 10 era's UI font TARGET — Segoe UI, likewise not redistributable.
+/// Per §2.4 the gap is named, not laundered: the Win10 era ships the already-
+/// bundled IBM Plex Sans (`font::PLEX_FAMILY`) as its humanist-sans substitute,
+/// so no new TTF/licence is added. The renderer never requests this string.
+pub const UI_FONT_TARGET_WIN10: &str = "Segoe UI";
 /// UI font size in points (Tahoma 8pt) — the transcribed system value.
 pub const UI_FONT_PT: f32 = 8.0;
 /// `UI_FONT_PT` in device pixels at 96 DPI (8pt → 10.67px, rounded to 11): the

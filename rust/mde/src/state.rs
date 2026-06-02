@@ -42,7 +42,9 @@ pub struct MenuState {
     /// classic icons; "haiku" ⇒ the Haiku OS icon theme. Distinct from `theme`.
     #[serde(default)]
     pub icon_set: String,
-    /// Look-and-feel theme: "carbon" (default) or "win2000".
+    /// Look-and-feel theme: "carbon" (default), "win2000", "beos", or
+    /// "windows10". Free-form; `main.rs` maps it to a `palette::Theme` and falls
+    /// back to Carbon for anything unrecognized.
     #[serde(default = "def_theme")]
     pub theme: String,
     /// Carbon light/dark mode: "dark" (default) or "light".
@@ -139,6 +141,15 @@ mod tests {
         assert_eq!(parse(""), MenuState::default());
         assert_eq!(parse("not json"), MenuState::default());
         assert_eq!(parse("{}"), MenuState::default()); // empty object → empty pinned
+    }
+
+    #[test]
+    fn windows10_theme_round_trips() {
+        // E0.4: the Win10 era is selected by a free-form theme string; it must
+        // round-trip, while an empty/garbage file still yields the Carbon default
+        // (D1: Carbon stays default; main.rs maps unknown themes back to Carbon).
+        assert_eq!(parse(r#"{"theme":"windows10"}"#).theme, "windows10");
+        assert_eq!(parse("{}").theme, "carbon");
     }
 
     #[test]

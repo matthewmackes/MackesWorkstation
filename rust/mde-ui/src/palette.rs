@@ -77,8 +77,8 @@ pub const SHELL_HEADER: Rgb = (0xd4, 0xd0, 0xc7);
 // themes are applied by remapping those role colors at the `color()` edge — so
 // no call site changes and every surface retints together. The active shell
 // binary selects the theme at startup from persisted state (see mde state.rs /
-// main.rs). Three themes exist: Windows 2000 (identity), BeOS, and IBM Carbon
-// (with a light/dark mode and a selectable accent hue).
+// main.rs). Four themes exist: Windows 2000 (identity), BeOS, IBM Carbon, and
+// Windows 10 (Carbon and Windows 10 share a light/dark mode + accent hue).
 use std::sync::atomic::{AtomicU8, Ordering};
 
 /// The active shell theme.
@@ -87,10 +87,12 @@ pub enum Theme {
     Win2000,
     Beos,
     Carbon,
+    Windows10,
 }
 
 // Packed active theme + Carbon mode/accent in plain atomics (read on the draw
-// hot path, so lock-free). THEME: 0=Win2000 1=Beos 2=Carbon. DARK: Carbon mode.
+// hot path, so lock-free). THEME: 0=Win2000 1=Beos 2=Carbon 3=Windows10.
+// DARK + ACCENT are shared (Carbon and Windows10 both honor light/dark).
 static THEME: AtomicU8 = AtomicU8::new(0);
 static DARK: AtomicU8 = AtomicU8::new(1); // Carbon default mode = dark
 static ACCENT: AtomicU8 = AtomicU8::new(0); // 0=blue 1=orange 2=red 3=neutral (icon accent)
@@ -105,6 +107,7 @@ pub fn theme() -> Theme {
     match THEME.load(Ordering::Relaxed) {
         1 => Theme::Beos,
         2 => Theme::Carbon,
+        3 => Theme::Windows10,
         _ => Theme::Win2000,
     }
 }
@@ -138,6 +141,11 @@ pub fn is_beos() -> bool {
 /// Whether the Carbon theme is active.
 pub fn is_carbon() -> bool {
     theme() == Theme::Carbon
+}
+
+/// Whether the Windows 10 theme is active.
+pub fn is_windows10() -> bool {
+    theme() == Theme::Windows10
 }
 
 /// Map a Win2000 role color to its BeOS equivalent (light-gray panels, softer
@@ -225,12 +233,51 @@ fn carbon(rgb: Rgb) -> Rgb {
     }
 }
 
+/// The default Windows 10 interactive accent for the active mode (UI accent —
+/// selection, focus, Start tile highlight, Action Center toggles). A brighter,
+/// cyan-er blue than Carbon Blue 60 — that hue shift is the era's main tell.
+/// E0 ships only this stock value; the user-selectable Colors picker is a later
+/// epic, exactly as [`carbon_accent`] is a fixed value today.
+pub fn win10_accent() -> Rgb {
+    if is_dark() {
+        (0x28, 0x99, 0xf5) // brighter blue on dark
+    } else {
+        (0x00, 0x78, 0xd4) // Windows 10 stock accent on light
+    }
+}
+
+/// Map a Win2000 role color to its Windows 10 token. Per D2 the Win10 look is a
+/// Carbon *variant*: it shares Carbon's flat-neutral skeleton and differs only in
+/// (a) the accent hue ([`win10_accent`] instead of Carbon Blue) and (b) a few
+/// cooler neutral temperatures (panels, desktop, header). Everything else —
+/// sentinel passthrough, text invert, danger red, border grays — delegates to
+/// [`carbon`] verbatim, so the two eras can never drift apart on the skeleton.
+fn win10(rgb: Rgb) -> Rgb {
+    let dark = is_dark();
+    let accent = win10_accent();
+    match rgb {
+        // Accent family -> the Win10 accent.
+        (0x0a, 0x24, 0x6a) => accent, // HIGHLIGHT + ACTIVE_TITLE
+        (0xa6, 0xca, 0xf0) => accent, // ACTIVE_TITLE_GRADIENT
+        (0x1d, 0x5c, 0xa8) => accent, // INFO_BAND (web-view accent/links)
+        (0x16, 0x3a, 0xa8) => accent, // SETUP_PROGRESS
+        (0x1c, 0x4a, 0x8f) => accent, // setup-wizard blue (top)
+        // Cooler Win10 neutrals (the secondary era tell).
+        (0xd4, 0xd0, 0xc8) => if dark { (0x2b, 0x2b, 0x2b) } else { (0xf3, 0xf3, 0xf3) }, // panel / menu / face
+        (0x3a, 0x6e, 0xa5) => if dark { (0x1f, 0x1f, 0x1f) } else { (0xe6, 0xe6, 0xe6) }, // desktop
+        (0xd4, 0xd0, 0xc7) => if dark { (0x1f, 0x1f, 0x1f) } else { (0xff, 0xff, 0xff) }, // shell header
+        // Everything else shares the Carbon flat-neutral skeleton verbatim.
+        other => carbon(other),
+    }
+}
+
 /// Convert a palette [`Rgb`] into an `iced::Color`, applying the active theme.
 pub fn color(rgb: Rgb) -> iced::Color {
     let rgb = match theme() {
         Theme::Win2000 => rgb,
         Theme::Beos => beos(rgb),
         Theme::Carbon => carbon(rgb),
+        Theme::Windows10 => win10(rgb),
     };
     iced::Color::from_rgb8(rgb.0, rgb.1, rgb.2)
 }

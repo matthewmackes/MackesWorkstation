@@ -21,11 +21,12 @@ pub const PLEX_REGULAR_BYTES: &[u8] = include_bytes!("../fonts/IBMPlexSans-Regul
 pub const PLEX_BOLD_BYTES: &[u8] = include_bytes!("../fonts/IBMPlexSans-Bold.ttf");
 pub const PLEX_FAMILY: &str = "IBM Plex Sans";
 
-/// The active UI font family — IBM Plex Sans under the BeOS and Carbon themes
-/// (Carbon's type family is IBM Plex), else Droid Sans. Both are registered at
-/// startup, so switching is just the family name.
+/// The active UI font family — IBM Plex Sans under the BeOS, Carbon, and Windows
+/// 10 themes (Win10's Segoe UI target is unshippable, so it reuses the already-
+/// bundled Plex face per §2.4 — see `metrics::UI_FONT_TARGET_WIN10`), else Droid
+/// Sans. Both are registered at startup, so switching is just the family name.
 fn family() -> &'static str {
-    if crate::palette::is_beos() || crate::palette::is_carbon() {
+    if crate::palette::is_beos() || crate::palette::is_carbon() || crate::palette::is_windows10() {
         PLEX_FAMILY
     } else {
         FAMILY

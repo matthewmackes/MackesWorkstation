@@ -82,6 +82,7 @@ fn main() -> ExitCode {
             } else {
                 Theme::Win2000
             }),
+            "windows10" => palette::set_theme(Theme::Windows10),
             _ => palette::set_theme(Theme::Carbon),
         }
         palette::set_dark(st.theme_mode != "light");
