@@ -134,6 +134,17 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
 - [ ] Carbon polish (from the theme survey): primary-blue / ghost button variants
   (current Carbon buttons are flat secondary); explicit accent-tinted labwc
   titlebar buttons; popup.rs context menus still bottom-anchored under the top bar.
+  — **popup-anchoring sub-item ✓ done:** `popup::view` now anchors the menu to the
+  edge the taskbar occupies via a new `bar_at_bottom()` (§7 per-era anchor): Win2000
+  + Win10-bottom → bottom-left, **Carbon (the default top bar)** / BeOS-left /
+  Win10-top → top-left. Previously every popup floated bottom-left, so under the
+  Carbon top bar the taskbar right-click menu appeared at the *opposite* edge,
+  disconnected from the bar. Verified by captures: Carbon now anchors top-left
+  (flat chrome), Win2000 stays bottom-left (silver 3D) — both correct. **Remaining
+  (still open):** primary-blue / ghost Carbon button variants. (The "accent-tinted
+  labwc titlebar buttons" sub-item is **superseded by the MackesDE rebrand** —
+  commit `92bc4e4` made the Win10 labwc titlebar match Carbon and `895f53c` retired
+  the per-era accent, so there's no separate accent tint to apply.)
 
 ## 2.0 — Windows 10 era
 

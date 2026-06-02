@@ -418,16 +418,41 @@ fn view(state: &Popup) -> Element<'_, Message> {
     .width(Length::Fixed(220.0))
     .height(Length::Fixed(h));
 
-    // Bottom-left; a full-screen catcher closes it. The overlay surface is
-    // already clipped above the taskbar's exclusive zone, so the menu only needs
-    // a 2px lift to rest on the bar (not a second TASKBAR_HEIGHT offset).
-    let positioned = Column::new()
-        .push(Space::with_height(Length::Fill))
-        .push(Row::new().push(menu).push(Space::with_width(Length::Fill)))
-        .push(Space::with_height(Length::Fixed(2.0)));
+    // Anchor the menu to whichever screen edge the taskbar occupies, so it rests
+    // against the bar instead of floating at the opposite edge. The overlay is
+    // already clipped to the bar's exclusive zone, so the menu just needs a 2px
+    // lift off the bar edge (not a TASKBAR_HEIGHT offset). Bottom bar (Win2000 /
+    // Win10-bottom) → bottom-left; top bar (Carbon, the default) / left bar (BeOS)
+    // / Win10-top → top-left, which used to float at the bottom of the screen.
+    let menu_row = Row::new().push(menu).push(Space::with_width(Length::Fill));
+    let positioned = if bar_at_bottom() {
+        Column::new()
+            .push(Space::with_height(Length::Fill))
+            .push(menu_row)
+            .push(Space::with_height(Length::Fixed(2.0)))
+    } else {
+        Column::new()
+            .push(Space::with_height(Length::Fixed(2.0)))
+            .push(menu_row)
+            .push(Space::with_height(Length::Fill))
+    };
 
     mouse_area(container(positioned).padding(pad(0.0, 0.0, 0.0, 2.0)))
         .on_press(Message::Close)
         .on_right_press(Message::Close)
         .into()
+}
+
+/// Which screen edge the taskbar occupies, for the menu anchor (§7 per-era
+/// anchor). Win2000's bottom bar and Win10's default-bottom bar anchor to the
+/// bottom; Carbon's top bar, BeOS's left bar, and a Win10 top-located bar anchor
+/// to the top instead — so a taskbar right-click menu rests against the bar.
+fn bar_at_bottom() -> bool {
+    use mde_ui::palette;
+    if palette::is_windows10() {
+        crate::state::load().taskbar_location != "top"
+    } else {
+        // Win2000 → bottom; Carbon (top) + BeOS (left) → top-left.
+        !palette::is_carbon() && !palette::is_beos()
+    }
 }
