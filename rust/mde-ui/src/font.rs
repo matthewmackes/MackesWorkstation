@@ -35,12 +35,19 @@ fn family() -> &'static str {
 
 /// The default UI font.
 pub fn ui() -> Font {
-    Font { family: Family::Name(family()), ..Font::DEFAULT }
+    Font {
+        family: Family::Name(family()),
+        ..Font::DEFAULT
+    }
 }
 
 /// Bold UI font (title bars, menu section headers).
 pub fn ui_bold() -> Font {
-    Font { family: Family::Name(family()), weight: Weight::Bold, ..Font::DEFAULT }
+    Font {
+        family: Family::Name(family()),
+        weight: Weight::Bold,
+        ..Font::DEFAULT
+    }
 }
 
 /// The Nerd Font family used for notification-area glyph icons (volume,

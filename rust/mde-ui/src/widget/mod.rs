@@ -35,7 +35,11 @@ pub fn scrollbar(_theme: &iced::Theme, _status: scrollable::Status) -> scrollabl
             border: Border::default(),
             scroller: scrollable::Scroller {
                 color: palette::color(palette::BUTTON_SHADOW),
-                border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 0.0.into() },
+                border: Border {
+                    color: Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: 0.0.into(),
+                },
             },
         }
     } else {
@@ -63,7 +67,11 @@ pub fn scrollbar(_theme: &iced::Theme, _status: scrollable::Status) -> scrollabl
 /// Corner radius for fields/controls under the active theme (Carbon = 2px,
 /// Win2000/BeOS = square).
 fn ctl_radius() -> iced::border::Radius {
-    if palette::is_carbon() { 2.0.into() } else { 0.0.into() }
+    if palette::is_carbon() {
+        2.0.into()
+    } else {
+        0.0.into()
+    }
 }
 
 /// The Win2000 sunken-white dropdown (closed `pick_list` control): `COLOR_WINDOW`
@@ -136,7 +144,12 @@ pub(crate) fn fill<R: renderer::Renderer>(r: &mut R, x: f32, y: f32, w: f32, h: 
     }
     r.fill_quad(
         renderer::Quad {
-            bounds: Rectangle { x, y, width: w, height: h },
+            bounds: Rectangle {
+                x,
+                y,
+                width: w,
+                height: h,
+            },
             border: Border::default(),
             shadow: Shadow::default(),
         },
@@ -186,9 +199,37 @@ pub(crate) fn draw_edge<R: renderer::Renderer>(
     fill(r, x + w - 1.0, y, 1.0, h, palette::color(bevel.outer_br));
     if thickness >= 2 {
         // Inner edge.
-        fill(r, x + 1.0, y + 1.0, w - 2.0, 1.0, palette::color(bevel.inner_tl));
-        fill(r, x + 1.0, y + 1.0, 1.0, h - 2.0, palette::color(bevel.inner_tl));
-        fill(r, x + 1.0, y + h - 2.0, w - 2.0, 1.0, palette::color(bevel.inner_br));
-        fill(r, x + w - 2.0, y + 1.0, 1.0, h - 2.0, palette::color(bevel.inner_br));
+        fill(
+            r,
+            x + 1.0,
+            y + 1.0,
+            w - 2.0,
+            1.0,
+            palette::color(bevel.inner_tl),
+        );
+        fill(
+            r,
+            x + 1.0,
+            y + 1.0,
+            1.0,
+            h - 2.0,
+            palette::color(bevel.inner_tl),
+        );
+        fill(
+            r,
+            x + 1.0,
+            y + h - 2.0,
+            w - 2.0,
+            1.0,
+            palette::color(bevel.inner_br),
+        );
+        fill(
+            r,
+            x + w - 2.0,
+            y + 1.0,
+            1.0,
+            h - 2.0,
+            palette::color(bevel.inner_br),
+        );
     }
 }

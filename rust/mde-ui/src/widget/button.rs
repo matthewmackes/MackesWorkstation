@@ -111,7 +111,12 @@ where
         Size::new(self.width, self.height)
     }
 
-    fn layout(&self, tree: &mut Tree, renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
+    fn layout(
+        &self,
+        tree: &mut Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
         layout::padded(limits, self.width, self.height, self.padding, |limits| {
             self.content
                 .as_widget()
@@ -152,7 +157,12 @@ where
             fill(renderer, b.x + b.width - 1.0, b.y, 1.0, b.height, black);
             draw_edge(
                 renderer,
-                Rectangle { x: b.x + 1.0, y: b.y + 1.0, width: b.width - 2.0, height: b.height - 2.0 },
+                Rectangle {
+                    x: b.x + 1.0,
+                    y: b.y + 1.0,
+                    width: b.width - 2.0,
+                    height: b.height - 2.0,
+                },
                 bevel,
                 2,
                 Some(self.face),
@@ -171,7 +181,11 @@ where
                 palette::GRAY_TEXT
             }),
         };
-        let offset = if down { Vector::new(1.0, 1.0) } else { Vector::ZERO };
+        let offset = if down {
+            Vector::new(1.0, 1.0)
+        } else {
+            Vector::ZERO
+        };
         renderer.with_translation(offset, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],
@@ -205,16 +219,15 @@ where
                     return event::Status::Captured;
                 }
             }
-            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left))
-                if state.is_pressed => {
-                    state.is_pressed = false;
-                    if cursor.is_over(layout.bounds()) {
-                        if let Some(message) = self.on_press.clone() {
-                            shell.publish(message);
-                        }
-                        return event::Status::Captured;
+            Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) if state.is_pressed => {
+                state.is_pressed = false;
+                if cursor.is_over(layout.bounds()) {
+                    if let Some(message) = self.on_press.clone() {
+                        shell.publish(message);
                     }
+                    return event::Status::Captured;
                 }
+            }
             _ => {}
         }
         event::Status::Ignored

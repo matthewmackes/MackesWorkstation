@@ -133,5 +133,9 @@ fn rendered_components_match_win2000_palette() {
         eprintln!("accuracy: no captures present — run tests/accuracy/capture.sh first. Skipping.");
         return;
     }
-    assert!(failures.is_empty(), "accuracy mismatches:\n  {}", failures.join("\n  "));
+    assert!(
+        failures.is_empty(),
+        "accuracy mismatches:\n  {}",
+        failures.join("\n  ")
+    );
 }

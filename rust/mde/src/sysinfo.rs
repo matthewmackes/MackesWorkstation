@@ -79,21 +79,38 @@ pub struct Advanced {
 
 /// Whether a binary is resolvable on `$PATH`.
 fn on_path(bin: &str) -> bool {
-    cmd_line("sh", &["-c", &format!("command -v {bin}")]).map(|s| !s.is_empty()).unwrap_or(false)
+    cmd_line("sh", &["-c", &format!("command -v {bin}")])
+        .map(|s| !s.is_empty())
+        .unwrap_or(false)
 }
 
 /// Collect the Advanced/Updates/Remote/Restore facts (best-effort).
 pub fn advanced() -> Advanced {
-    let read = |p: &str| std::fs::read_to_string(p).unwrap_or_default().trim().to_string();
+    let read = |p: &str| {
+        std::fs::read_to_string(p)
+            .unwrap_or_default()
+            .trim()
+            .to_string()
+    };
     let grub = std::fs::read_to_string("/etc/default/grub").unwrap_or_default();
     let grub_val = |key: &str| {
         grub.lines()
-            .find_map(|l| l.trim().strip_prefix(key).map(|v| v.trim_matches(['=', '"', ' ']).to_string()))
+            .find_map(|l| {
+                l.trim()
+                    .strip_prefix(key)
+                    .map(|v| v.trim_matches(['=', '"', ' ']).to_string())
+            })
             .unwrap_or_default()
     };
-    let zram = cmd_line("sh", &["-c", "zramctl --noheadings --output DISKSIZE 2>/dev/null | head -1"])
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "none".to_string());
+    let zram = cmd_line(
+        "sh",
+        &[
+            "-c",
+            "zramctl --noheadings --output DISKSIZE 2>/dev/null | head -1",
+        ],
+    )
+    .filter(|s| !s.is_empty())
+    .unwrap_or_else(|| "none".to_string());
     let timer_enabled = cmd_line("systemctl", &["is-enabled", "dnf-automatic.timer"])
         .map(|s| s.trim() == "enabled")
         .unwrap_or(false);
@@ -115,7 +132,9 @@ pub fn advanced() -> Advanced {
         auto_updates,
         timeshift_installed: on_path("timeshift") || on_path("timeshift-launcher"),
         remote_available: on_path("wayvnc"),
-        remote_running: cmd_line("pgrep", &["-x", "wayvnc"]).map(|s| !s.trim().is_empty()).unwrap_or(false),
+        remote_running: cmd_line("pgrep", &["-x", "wayvnc"])
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false),
     }
 }
 
@@ -175,7 +194,13 @@ pub fn parse_cpu_model(s: &str) -> Option<String> {
 
 /// Count logical processors (number of `processor` records).
 pub fn count_cores(s: &str) -> usize {
-    s.lines().filter(|l| l.split_once(':').map(|(k, _)| k.trim() == "processor").unwrap_or(false)).count()
+    s.lines()
+        .filter(|l| {
+            l.split_once(':')
+                .map(|(k, _)| k.trim() == "processor")
+                .unwrap_or(false)
+        })
+        .count()
 }
 
 /// `MemTotal` in kB from /proc/meminfo.
@@ -199,7 +224,12 @@ fn cmd_line(bin: &str, args: &[&str]) -> Option<String> {
 
 fn lines_of(bin: &str, args: &[&str]) -> Vec<String> {
     cmd_line(bin, args)
-        .map(|s| s.lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect())
+        .map(|s| {
+            s.lines()
+                .map(|l| l.trim().to_string())
+                .filter(|l| !l.is_empty())
+                .collect()
+        })
         .unwrap_or_default()
 }
 
@@ -244,7 +274,8 @@ pub fn run(args: &[String]) -> ExitCode {
 mod tests {
     use super::*;
 
-    const OS_RELEASE: &str = "NAME=\"Fedora Linux\"\nVERSION=\"44 (Workstation Edition)\"\nID=fedora\n";
+    const OS_RELEASE: &str =
+        "NAME=\"Fedora Linux\"\nVERSION=\"44 (Workstation Edition)\"\nID=fedora\n";
     const CPUINFO: &str = "processor\t: 0\nmodel name\t: AMD Ryzen 7 5800X\ncores\t: 8\n\nprocessor\t: 1\nmodel name\t: AMD Ryzen 7 5800X\n";
     const MEMINFO: &str = "MemTotal:       16307712 kB\nMemFree:         1234567 kB\n";
 
@@ -252,20 +283,29 @@ mod tests {
     fn os_release_name_and_version() {
         assert_eq!(
             parse_os_release(OS_RELEASE),
-            ("Fedora Linux".to_string(), "44 (Workstation Edition)".to_string())
+            (
+                "Fedora Linux".to_string(),
+                "44 (Workstation Edition)".to_string()
+            )
         );
     }
 
     #[test]
     fn cpu_model_and_core_count() {
-        assert_eq!(parse_cpu_model(CPUINFO).as_deref(), Some("AMD Ryzen 7 5800X"));
+        assert_eq!(
+            parse_cpu_model(CPUINFO).as_deref(),
+            Some("AMD Ryzen 7 5800X")
+        );
         assert_eq!(count_cores(CPUINFO), 2);
     }
 
     #[test]
     fn meminfo_total_parsed() {
         assert_eq!(parse_meminfo_total(MEMINFO), 16_307_712);
-        let g = General { mem_total_kb: 16_307_712, ..Default::default() };
+        let g = General {
+            mem_total_kb: 16_307_712,
+            ..Default::default()
+        };
         assert_eq!(g.mem_human(), "15.6 GB");
     }
 

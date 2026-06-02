@@ -13,7 +13,12 @@ use iced::{event, keyboard, Background, Element, Event, Length, Padding, Task};
 use mde_ui::{button, metrics, palette};
 
 fn pad(top: f32, right: f32, bottom: f32, left: f32) -> Padding {
-    Padding { top, right, bottom, left }
+    Padding {
+        top,
+        right,
+        bottom,
+        left,
+    }
 }
 
 /// The silver (COLOR_3DFACE) dialog body shared by every dialog here.
@@ -69,14 +74,20 @@ fn is_escape(e: &Event) -> bool {
 struct LogOff;
 
 pub fn logoff() -> ExitCode {
-    let r = iced::application(|_: &LogOff| "Log Off Windows".to_string(), logoff_update, logoff_view)
-        .window_size(iced::Size::new(320.0, 140.0))
-        .resizable(false)
-        .subscription(key_subscription)
-        .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
-        .default_font(mde_ui::font::ui())
-        .run();
+    let r = iced::application(
+        |_: &LogOff| "Log Off Windows".to_string(),
+        logoff_update,
+        logoff_view,
+    )
+    .window_size(iced::Size::new(320.0, 140.0))
+    .resizable(false)
+    .subscription(key_subscription)
+    .font(mde_ui::font::REGULAR_BYTES)
+    .font(mde_ui::font::BOLD_BYTES)
+    .font(mde_ui::font::PLEX_REGULAR_BYTES)
+    .font(mde_ui::font::PLEX_BOLD_BYTES)
+    .default_font(mde_ui::font::ui())
+    .run();
     match r {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
@@ -118,7 +129,11 @@ fn logoff_view(_: &LogOff) -> Element<'_, M> {
                 .default(true)
                 .width(Length::Fixed(76.0)),
         )
-        .push(button(text("No").size(metrics::UI_PX)).on_press(M::Cancel).width(Length::Fixed(76.0)));
+        .push(
+            button(text("No").size(metrics::UI_PX))
+                .on_press(M::Cancel)
+                .width(Length::Fixed(76.0)),
+        );
 
     let body = Column::new()
         .spacing(16.0)
@@ -163,9 +178,18 @@ pub fn shutdown() -> ExitCode {
     .resizable(false)
     .subscription(key_subscription)
     .font(mde_ui::font::REGULAR_BYTES)
-    .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+    .font(mde_ui::font::BOLD_BYTES)
+    .font(mde_ui::font::PLEX_REGULAR_BYTES)
+    .font(mde_ui::font::PLEX_BOLD_BYTES)
     .default_font(mde_ui::font::ui())
-    .run_with(|| (Shutdown { sel: Choice::ShutDown }, Task::none()));
+    .run_with(|| {
+        (
+            Shutdown {
+                sel: Choice::ShutDown,
+            },
+            Task::none(),
+        )
+    });
     match r {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
@@ -212,7 +236,12 @@ fn shutdown_update(state: &mut Shutdown, m: M) -> Task<M> {
 }
 
 fn shutdown_view(state: &Shutdown) -> Element<'_, M> {
-    let choices = vec![Choice::LogOff, Choice::ShutDown, Choice::Restart, Choice::StandBy];
+    let choices = vec![
+        Choice::LogOff,
+        Choice::ShutDown,
+        Choice::Restart,
+        Choice::StandBy,
+    ];
     let drop = pick_list(choices, Some(state.sel.clone()), M::Pick)
         .text_size(metrics::UI_PX)
         .style(mde_ui::sunken_picklist);
@@ -226,7 +255,11 @@ fn shutdown_view(state: &Shutdown) -> Element<'_, M> {
                 .default(true)
                 .width(Length::Fixed(76.0)),
         )
-        .push(button(text("Cancel").size(metrics::UI_PX)).on_press(M::Cancel).width(Length::Fixed(76.0)));
+        .push(
+            button(text("Cancel").size(metrics::UI_PX))
+                .on_press(M::Cancel)
+                .width(Length::Fixed(76.0)),
+        );
 
     let body = Column::new()
         .spacing(14.0)
@@ -261,7 +294,9 @@ pub fn run_dialog() -> ExitCode {
         .theme(|_| iced::Theme::Light)
         .subscription(|_: &Run| event::listen().map(RunMsg::Event))
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .font(mde_ui::font::PLEX_REGULAR_BYTES)
+        .font(mde_ui::font::PLEX_BOLD_BYTES)
         .default_font(mde_ui::font::ui())
         .run_with(|| (Run { cmd: String::new() }, Task::none()));
     match r {
@@ -307,7 +342,11 @@ fn run_view(state: &Run) -> Element<'_, RunMsg> {
                 .default(true)
                 .width(Length::Fixed(76.0)),
         )
-        .push(button(text("Cancel").size(metrics::UI_PX)).on_press(RunMsg::Cancel).width(Length::Fixed(76.0)));
+        .push(
+            button(text("Cancel").size(metrics::UI_PX))
+                .on_press(RunMsg::Cancel)
+                .width(Length::Fixed(76.0)),
+        );
 
     let body = Column::new()
         .spacing(12.0)
@@ -353,7 +392,9 @@ pub fn properties(name: String, target: String) -> ExitCode {
     .theme(|_| iced::Theme::Light)
     .subscription(|_: &Properties| event::listen().map(PropMsg::Event))
     .font(mde_ui::font::REGULAR_BYTES)
-    .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+    .font(mde_ui::font::BOLD_BYTES)
+    .font(mde_ui::font::PLEX_REGULAR_BYTES)
+    .font(mde_ui::font::PLEX_BOLD_BYTES)
     .default_font(mde_ui::font::ui())
     .run_with(move || (Properties { name, target }, Task::none()));
     match r {
@@ -373,7 +414,12 @@ fn prop_update(_: &mut Properties, m: PropMsg) -> Task<PropMsg> {
 fn prop_field<'a>(label: &'a str, value: String) -> Element<'a, PropMsg> {
     Row::new()
         .spacing(8.0)
-        .push(text(label).size(metrics::UI_PX).font(mde_ui::font::ui_bold()).width(Length::Fixed(64.0)))
+        .push(
+            text(label)
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold())
+                .width(Length::Fixed(64.0)),
+        )
         .push(text(value).size(metrics::UI_PX))
         .into()
 }
@@ -386,7 +432,11 @@ fn prop_view(state: &Properties) -> Element<'_, PropMsg> {
     };
     let body = Column::new()
         .spacing(10.0)
-        .push(text(format!("{} — General", state.name)).size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
+        .push(
+            text(format!("{} — General", state.name))
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold()),
+        )
         .push(prop_field("Name:", state.name.clone()))
         .push(prop_field("Type:", kind.to_string()))
         .push(prop_field("Target:", state.target.clone()))

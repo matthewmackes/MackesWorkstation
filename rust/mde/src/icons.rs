@@ -72,7 +72,9 @@ fn walk(dir: &Path, rank: u8, depth: u8, out: &mut HashMap<String, Vec<(u8, Path
     if depth == 0 {
         return;
     }
-    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in rd.flatten() {
         let path = entry.path();
         let Ok(ft) = entry.file_type() else { continue };
@@ -81,7 +83,9 @@ fn walk(dir: &Path, rank: u8, depth: u8, out: &mut HashMap<String, Vec<(u8, Path
         } else if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
             if ext == "png" || ext == "svg" {
                 if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    out.entry(stem.to_string()).or_default().push((rank, path.clone()));
+                    out.entry(stem.to_string())
+                        .or_default()
+                        .push((rank, path.clone()));
                 }
             }
         }
@@ -181,7 +185,10 @@ pub fn icon_any<'a, Message: 'a>(names: &[&str], size: u16) -> Element<'a, Messa
             return if is_svg {
                 tinted(svg::Handle::from_path(path))
             } else {
-                image(image::Handle::from_path(path)).width(len).height(len).into()
+                image(image::Handle::from_path(path))
+                    .width(len)
+                    .height(len)
+                    .into()
             };
         }
     }
@@ -219,15 +226,29 @@ mod tests {
 
     #[test]
     fn embedded_map_is_well_formed() {
-        let names: Vec<&str> = crate::embedded_icons::ICONS.iter().map(|(n, _)| *n).collect();
-        assert!(names.len() >= 68, "expected the full mapped set, got {}", names.len());
+        let names: Vec<&str> = crate::embedded_icons::ICONS
+            .iter()
+            .map(|(n, _)| *n)
+            .collect();
+        assert!(
+            names.len() >= 68,
+            "expected the full mapped set, got {}",
+            names.len()
+        );
         let mut sorted = names.clone();
         sorted.sort_unstable();
         sorted.dedup();
-        assert_eq!(sorted.len(), names.len(), "embedded icon names must be unique");
+        assert_eq!(
+            sorted.len(),
+            names.len(),
+            "embedded icon names must be unique"
+        );
         for (name, bytes) in crate::embedded_icons::ICONS {
             assert!(!bytes.is_empty(), "{name} has empty SVG bytes");
-            assert!(bytes.starts_with(b"<") || bytes.starts_with(b"\xEF\xBB\xBF"), "{name} is not SVG/XML");
+            assert!(
+                bytes.starts_with(b"<") || bytes.starts_with(b"\xEF\xBB\xBF"),
+                "{name} is not SVG/XML"
+            );
         }
     }
 
@@ -235,7 +256,15 @@ mod tests {
     fn embedded_wins_for_core_shell_icons() {
         // A sampling across every UI surface the shell draws from. These must be
         // baked in so the Carbon set renders regardless of any installed theme.
-        for name in ["folder", "computer", "firefox", "printer", "text-html", "user-home", "drive-harddisk"] {
+        for name in [
+            "folder",
+            "computer",
+            "firefox",
+            "printer",
+            "text-html",
+            "user-home",
+            "drive-harddisk",
+        ] {
             assert!(embedded(name).is_some(), "{name} should be embedded");
         }
         assert!(embedded("definitely-not-mapped-xyzzy").is_none());

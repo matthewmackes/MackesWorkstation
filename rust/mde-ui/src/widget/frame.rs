@@ -94,7 +94,13 @@ where
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
-        draw_edge(renderer, layout.bounds(), self.bevel, self.thickness, self.face);
+        draw_edge(
+            renderer,
+            layout.bounds(),
+            self.bevel,
+            self.thickness,
+            self.face,
+        );
     }
 }
 

@@ -95,13 +95,20 @@ fn view(state: &About) -> Element<'_, Message> {
                 .spacing(2.0)
                 .push(text(PRODUCT).size(metrics::INFO_TITLE_PX).font(bold))
                 .push(label(format!("Version {}", env!("CARGO_PKG_VERSION"))))
-                .push(label(format!("Built on Fedora {}", fedora_version(&g.version)))),
+                .push(label(format!(
+                    "Built on Fedora {}",
+                    fedora_version(&g.version)
+                ))),
         );
 
     let specs = Column::new()
         .spacing(3.0)
         .push(label("This product is registered to:".into()))
-        .push(text(state.registered.clone()).size(metrics::UI_PX).font(bold))
+        .push(
+            text(state.registered.clone())
+                .size(metrics::UI_PX)
+                .font(bold),
+        )
         .push(Space::with_height(Length::Fixed(8.0)))
         .push(label(format!("Processor: {} ({} cores)", g.cpu, g.cores)))
         .push(label(format!("Memory: {}", g.mem_human())))
@@ -111,7 +118,12 @@ fn view(state: &About) -> Element<'_, Message> {
     let ok = container(
         button(text("OK").size(metrics::UI_PX))
             .on_press(Message::Ok)
-            .padding(Padding { top: 2.0, right: 18.0, bottom: 2.0, left: 18.0 }),
+            .padding(Padding {
+                top: 2.0,
+                right: 18.0,
+                bottom: 2.0,
+                left: 18.0,
+            }),
     )
     .width(Length::Fill)
     .align_x(iced::alignment::Horizontal::Right);
@@ -146,5 +158,9 @@ fn rule() -> Element<'static, Message> {
 /// Pull a short Fedora version number out of the os-release VERSION string
 /// (e.g. "44 (Workstation Edition)" → "44"); falls back to the whole string.
 fn fedora_version(version: &str) -> String {
-    version.split_whitespace().next().unwrap_or(version).to_string()
+    version
+        .split_whitespace()
+        .next()
+        .unwrap_or(version)
+        .to_string()
 }

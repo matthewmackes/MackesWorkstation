@@ -44,24 +44,30 @@ pub fn run(_args: &[String]) -> ExitCode {
 }
 
 fn gui() -> iced::Result {
-    iced::application(|_: &TaskbarProps| "Taskbar and Start Menu Properties".to_string(), update, view)
-        .window_size(iced::Size::new(380.0, 430.0))
-        .resizable(false)
-        .theme(|_| iced::Theme::Light)
-        .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
-        .default_font(mde_ui::font::ui())
-        .run_with(|| {
-            let st = crate::state::load();
-            (
-                TaskbarProps {
-                    tab: 0,
-                    small_icons: st.start_small_icons,
-                    always_on_top: true,
-                },
-                Task::none(),
-            )
-        })
+    iced::application(
+        |_: &TaskbarProps| "Taskbar and Start Menu Properties".to_string(),
+        update,
+        view,
+    )
+    .window_size(iced::Size::new(380.0, 430.0))
+    .resizable(false)
+    .theme(|_| iced::Theme::Light)
+    .font(mde_ui::font::REGULAR_BYTES)
+    .font(mde_ui::font::BOLD_BYTES)
+    .font(mde_ui::font::PLEX_REGULAR_BYTES)
+    .font(mde_ui::font::PLEX_BOLD_BYTES)
+    .default_font(mde_ui::font::ui())
+    .run_with(|| {
+        let st = crate::state::load();
+        (
+            TaskbarProps {
+                tab: 0,
+                small_icons: st.start_small_icons,
+                always_on_top: true,
+            },
+            Task::none(),
+        )
+    })
 }
 
 /// Write the wired settings back to the shell state.
@@ -86,16 +92,28 @@ fn update(state: &mut TaskbarProps, message: Message) -> Task<Message> {
 }
 
 fn pad(t: f32, r: f32, b: f32, l: f32) -> Padding {
-    Padding { top: t, right: r, bottom: b, left: l }
+    Padding {
+        top: t,
+        right: r,
+        bottom: b,
+        left: l,
+    }
 }
 
 fn cbox<'a>(label: &str, on: bool, msg: fn(bool) -> Message) -> Element<'a, Message> {
-    checkbox(label.to_string(), on).on_toggle(msg).style(mde_ui::checkbox_style).text_size(metrics::UI_PX).into()
+    checkbox(label.to_string(), on)
+        .on_toggle(msg)
+        .style(mde_ui::checkbox_style)
+        .text_size(metrics::UI_PX)
+        .into()
 }
 
 /// A disabled (greyed) checkbox — present for fidelity, not enforced here.
 fn cbox_disabled<'a>(label: &str, on: bool) -> Element<'a, Message> {
-    checkbox(label.to_string(), on).style(mde_ui::checkbox_style).text_size(metrics::UI_PX).into()
+    checkbox(label.to_string(), on)
+        .style(mde_ui::checkbox_style)
+        .text_size(metrics::UI_PX)
+        .into()
 }
 
 /// A small mock of the taskbar (Start button + clock), the General-tab preview.
@@ -104,12 +122,13 @@ fn taskbar_preview() -> Element<'static, Message> {
         .spacing(4.0)
         .align_y(iced::Alignment::Center)
         .padding(pad(2.0, 4.0, 2.0, 4.0))
-        .push(button(text("Start").size(metrics::UI_PX).font(mde_ui::font::ui_bold())))
+        .push(button(
+            text("Start")
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold()),
+        ))
         .push(Space::with_width(Length::Fill))
-        .push(
-            container(text("3:14 PM").size(metrics::UI_PX))
-                .padding(pad(1.0, 6.0, 1.0, 6.0)),
-        );
+        .push(container(text("3:14 PM").size(metrics::UI_PX)).padding(pad(1.0, 6.0, 1.0, 6.0)));
     container(iced::widget::stack![frame::raised(), bar])
         .width(Length::Fixed(220.0))
         .height(Length::Fixed(28.0))
@@ -119,14 +138,21 @@ fn taskbar_preview() -> Element<'static, Message> {
 fn general_tab(state: &TaskbarProps) -> Element<'_, Message> {
     let taskbar = Column::new()
         .spacing(6.0)
-        .push(cbox_disabled("Always keep the taskbar on top of other windows", state.always_on_top))
+        .push(cbox_disabled(
+            "Always keep the taskbar on top of other windows",
+            state.always_on_top,
+        ))
         .push(cbox_disabled("Auto hide the taskbar", false))
         // The panel always draws the clock; greyed (not a discarded toggle).
         .push(cbox_disabled("Show clock", true));
 
     let start_menu = Column::new()
         .spacing(6.0)
-        .push(cbox("Show small icons in Start menu", state.small_icons, Message::ToggleSmallIcons))
+        .push(cbox(
+            "Show small icons in Start menu",
+            state.small_icons,
+            Message::ToggleSmallIcons,
+        ))
         // Personalized Menus isn't implemented; greyed for fidelity.
         .push(cbox_disabled("Use Personalized Menus", true));
 
@@ -166,15 +192,31 @@ fn tab_content(state: &TaskbarProps) -> Element<'_, Message> {
 fn view(state: &TaskbarProps) -> Element<'_, Message> {
     let panel = iced::widget::stack![
         frame::raised(),
-        container(tab_content(state)).padding(12.0).width(Length::Fill).height(Length::Fill),
+        container(tab_content(state))
+            .padding(12.0)
+            .width(Length::Fill)
+            .height(Length::Fill),
     ];
 
     let buttons = Row::new()
         .spacing(8.0)
         .push(Space::with_width(Length::Fill))
-        .push(button(text("OK").size(metrics::UI_PX)).on_press(Message::Ok).default(true).width(Length::Fixed(80.0)))
-        .push(button(text("Cancel").size(metrics::UI_PX)).on_press(Message::Cancel).width(Length::Fixed(80.0)))
-        .push(button(text("Apply").size(metrics::UI_PX)).on_press(Message::Apply).width(Length::Fixed(80.0)));
+        .push(
+            button(text("OK").size(metrics::UI_PX))
+                .on_press(Message::Ok)
+                .default(true)
+                .width(Length::Fixed(80.0)),
+        )
+        .push(
+            button(text("Cancel").size(metrics::UI_PX))
+                .on_press(Message::Cancel)
+                .width(Length::Fixed(80.0)),
+        )
+        .push(
+            button(text("Apply").size(metrics::UI_PX))
+                .on_press(Message::Apply)
+                .width(Length::Fixed(80.0)),
+        );
 
     let body = Column::new()
         .spacing(6.0)

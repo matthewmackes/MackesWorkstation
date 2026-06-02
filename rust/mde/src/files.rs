@@ -10,7 +10,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-use iced::widget::{button, container, mouse_area, scrollable, text, text_input, Column, Row, Space};
+use iced::widget::{
+    button, container, mouse_area, scrollable, text, text_input, Column, Row, Space,
+};
 use iced::{event, Background, Border, Element, Event, Length, Padding, Point, Shadow, Task};
 
 use mde_ui::{frame, metrics, palette};
@@ -110,7 +112,9 @@ fn launch(start: PathBuf) -> iced::Result {
         .theme(|_| iced::Theme::Light)
         .subscription(|_: &Files| event::listen().map(Message::Event))
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .font(mde_ui::font::PLEX_REGULAR_BYTES)
+        .font(mde_ui::font::PLEX_BOLD_BYTES)
         .default_font(mde_ui::font::ui())
         .run_with(move || {
             let mut f = Files {
@@ -236,7 +240,9 @@ impl Files {
     /// Paste the clipboard entry into the current folder (move if it was cut,
     /// else copy). Folder *copy* is not yet supported (surfaced, not silent).
     fn paste(&mut self) {
-        let Some((src, cut)) = self.clipboard.clone() else { return };
+        let Some((src, cut)) = self.clipboard.clone() else {
+            return;
+        };
         let Some(fname) = src.file_name() else { return };
         let dst = self.cwd.join(fname);
         if dst == src {
@@ -270,7 +276,9 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             let now = std::time::Instant::now();
             let is_double = state
                 .last_click
-                .map(|(li, lt)| li == i && now.duration_since(lt) < std::time::Duration::from_millis(400))
+                .map(|(li, lt)| {
+                    li == i && now.duration_since(lt) < std::time::Duration::from_millis(400)
+                })
                 .unwrap_or(false);
             if is_double {
                 state.last_click = None;
@@ -319,7 +327,11 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             }
         }
         Message::ToggleMenu(i) => {
-            state.open_menu = if state.open_menu == Some(i) { None } else { Some(i) };
+            state.open_menu = if state.open_menu == Some(i) {
+                None
+            } else {
+                Some(i)
+            };
         }
         Message::CloseMenu => state.open_menu = None,
         Message::NewFolder => {
@@ -360,7 +372,10 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 state.sort_col = col;
                 state.sort_desc = false;
             }
-            let sel = state.selected.and_then(|i| state.entries.get(i)).map(|e| e.path.clone());
+            let sel = state
+                .selected
+                .and_then(|i| state.entries.get(i))
+                .map(|e| e.path.clone());
             state.sort_entries();
             // Keep the selection on the same item after re-sorting.
             state.selected = sel.and_then(|p| state.entries.iter().position(|e| e.path == p));
@@ -400,7 +415,8 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                     }
                     Key::Named(Named::ArrowUp) => {
                         if !state.entries.is_empty() {
-                            state.selected = Some(state.selected.map_or(0, |i| i.saturating_sub(1)));
+                            state.selected =
+                                Some(state.selected.map_or(0, |i| i.saturating_sub(1)));
                         }
                     }
                     Key::Named(Named::Escape) => state.selected = None,
@@ -423,14 +439,22 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             }
         }
         Message::CtxCut => {
-            let p = state.ctx.or(state.selected).and_then(|i| state.entries.get(i)).map(|e| e.path.clone());
+            let p = state
+                .ctx
+                .or(state.selected)
+                .and_then(|i| state.entries.get(i))
+                .map(|e| e.path.clone());
             if let Some(p) = p {
                 state.clipboard = Some((p, true));
             }
             state.ctx = None;
         }
         Message::CtxCopy => {
-            let p = state.ctx.or(state.selected).and_then(|i| state.entries.get(i)).map(|e| e.path.clone());
+            let p = state
+                .ctx
+                .or(state.selected)
+                .and_then(|i| state.entries.get(i))
+                .map(|e| e.path.clone());
             if let Some(p) = p {
                 state.clipboard = Some((p, false));
             }
@@ -448,7 +472,11 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             }
         }
         Message::CtxProperties => {
-            if let Some(e) = state.ctx.or(state.selected).and_then(|i| state.entries.get(i)) {
+            if let Some(e) = state
+                .ctx
+                .or(state.selected)
+                .and_then(|i| state.entries.get(i))
+            {
                 let exe = std::env::current_exe()
                     .ok()
                     .and_then(|p| p.to_str().map(String::from))
@@ -469,7 +497,12 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
 // --- styling helpers -------------------------------------------------------
 
 fn pad(top: f32, right: f32, bottom: f32, left: f32) -> Padding {
-    Padding { top, right, bottom, left }
+    Padding {
+        top,
+        right,
+        bottom,
+        left,
+    }
 }
 
 /// Flat item that highlights navy on hover (menubar entries).
@@ -520,7 +553,12 @@ fn icon_names(e: &Entry) -> &'static [&'static str] {
     if e.is_dir {
         return &["folder"];
     }
-    let ext = e.path.extension().and_then(|x| x.to_str()).unwrap_or("").to_ascii_lowercase();
+    let ext = e
+        .path
+        .extension()
+        .and_then(|x| x.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
     match ext.as_str() {
         "txt" | "md" | "log" | "rst" | "ini" | "conf" | "cfg" | "toml" | "yaml" | "yml" => {
             &["text-x-generic", "text-plain"]
@@ -529,9 +567,11 @@ fn icon_names(e: &Entry) -> &'static [&'static str] {
         "mp3" | "flac" | "ogg" | "wav" | "m4a" => &["audio-x-generic"],
         "mp4" | "mkv" | "webm" | "avi" | "mov" => &["video-x-generic"],
         "pdf" => &["application-pdf", "text-x-generic"],
-        "zip" | "gz" | "xz" | "bz2" | "tar" | "tgz" | "zst" | "7z" | "rpm" => {
-            &["package-x-generic", "application-x-archive", "text-x-generic"]
-        }
+        "zip" | "gz" | "xz" | "bz2" | "tar" | "tgz" | "zst" | "7z" | "rpm" => &[
+            "package-x-generic",
+            "application-x-archive",
+            "text-x-generic",
+        ],
         "sh" | "bash" | "zsh" | "py" | "rs" | "c" | "cpp" | "h" | "js" | "ts" => {
             &["text-x-script", "text-x-generic"]
         }
@@ -567,7 +607,10 @@ fn menu_items(state: &Files, i: usize) -> Vec<(&'static str, Message, bool)> {
     let has_sel = state.selected.is_some();
     let has_clip = state.clipboard.is_some();
     match i {
-        0 => vec![("New Folder", Message::NewFolder, true), ("Close", Message::CloseWindow, true)],
+        0 => vec![
+            ("New Folder", Message::NewFolder, true),
+            ("Close", Message::CloseWindow, true),
+        ],
         1 => vec![
             ("Cut", Message::CtxCut, has_sel),
             ("Copy", Message::CtxCopy, has_sel),
@@ -594,12 +637,19 @@ fn menu_x(i: usize) -> f32 {
 fn command_menu(items: Vec<(&'static str, Message, bool)>) -> Element<'static, Message> {
     // Bound the panel height to its content. Without this the `frame::raised()`
     // base (Fill height) stretches the dropdown down the whole screen.
-    let h: f32 = items.iter().map(|(l, _, _)| if l.is_empty() { 9.0 } else { 20.0 }).sum::<f32>() + 4.0;
+    let h: f32 = items
+        .iter()
+        .map(|(l, _, _)| if l.is_empty() { 9.0 } else { 20.0 })
+        .sum::<f32>()
+        + 4.0;
     let mut col = Column::new().spacing(0.0);
     for (label, msg, enabled) in items {
         if label.is_empty() {
             // A separator entry.
-            col = col.push(container(Space::new(Length::Fill, Length::Fixed(5.0))).padding(pad(2.0, 6.0, 2.0, 6.0)));
+            col = col.push(
+                container(Space::new(Length::Fill, Length::Fixed(5.0)))
+                    .padding(pad(2.0, 6.0, 2.0, 6.0)),
+            );
             continue;
         }
         let color = if enabled {
@@ -615,9 +665,12 @@ fn command_menu(items: Vec<(&'static str, Message, bool)>) -> Element<'static, M
                 .style(flat),
         );
     }
-    container(iced::widget::stack![frame::raised(), container(col).padding(2.0)])
-        .height(Length::Fixed(h))
-        .into()
+    container(iced::widget::stack![
+        frame::raised(),
+        container(col).padding(2.0)
+    ])
+    .height(Length::Fixed(h))
+    .into()
 }
 
 /// The dropdown panel for menubar menu `i`.
@@ -730,9 +783,13 @@ fn list(state: &Files) -> Element<'_, Message> {
         let row = Row::new()
             .push(name_cell)
             .push(
-                text(if e.is_dir { String::new() } else { human(e.size) })
-                    .size(metrics::UI_PX)
-                    .width(size_w),
+                text(if e.is_dir {
+                    String::new()
+                } else {
+                    human(e.size)
+                })
+                .size(metrics::UI_PX)
+                .width(size_w),
             )
             .push(text(kind(e)).size(metrics::UI_PX).width(type_w));
         rows = rows.push(
@@ -747,9 +804,12 @@ fn list(state: &Files) -> Element<'_, Message> {
         );
     }
 
-    let inner = Column::new()
-        .push(header)
-        .push(scrollable(rows).width(Length::Fill).height(Length::Fill).style(mde_ui::scrollbar));
+    let inner = Column::new().push(header).push(
+        scrollable(rows)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(mde_ui::scrollbar),
+    );
 
     iced::widget::stack![
         frame::sunken().face(palette::color(palette::WINDOW)),
@@ -792,7 +852,12 @@ fn tree_label(path: &Path) -> String {
 }
 
 /// Recursive tree rows for `path` at `depth`; expands children when in the set.
-fn tree_rows(state: &Files, path: &Path, label: String, depth: u16) -> Vec<Element<'static, Message>> {
+fn tree_rows(
+    state: &Files,
+    path: &Path,
+    label: String,
+    depth: u16,
+) -> Vec<Element<'static, Message>> {
     let expanded = state.tree_expanded.contains(path);
     // "+"/"-" — the Win2000 tree control, and always-rendering (Droid Sans has
     // no ▶/▼ glyphs, which would show as tofu boxes).
@@ -865,16 +930,20 @@ fn band_title(state: &Files) -> String {
 
 /// A "See also" hyperlink: blue, underlined-by-convention text that navigates.
 fn see_also(label: &str, target: PathBuf) -> Element<'_, Message> {
-    button(text(label.to_string()).size(metrics::UI_PX).color(mde_ui::infoband::accent()))
-        .on_press(Message::TreeNav(target))
-        .padding(pad(0.0, 0.0, 0.0, 0.0))
-        .style(|_t, _s| iced::widget::button::Style {
-            background: None,
-            text_color: mde_ui::infoband::accent(),
-            border: Border::default(),
-            shadow: Shadow::default(),
-        })
-        .into()
+    button(
+        text(label.to_string())
+            .size(metrics::UI_PX)
+            .color(mde_ui::infoband::accent()),
+    )
+    .on_press(Message::TreeNav(target))
+    .padding(pad(0.0, 0.0, 0.0, 0.0))
+    .style(|_t, _s| iced::widget::button::Style {
+        background: None,
+        text_color: mde_ui::infoband::accent(),
+        border: Border::default(),
+        shadow: Shadow::default(),
+    })
+    .into()
 }
 
 /// The Win2000 "web view" info band: the folder title over a fading rule, the
@@ -957,7 +1026,12 @@ fn view(state: &Files) -> Element<'_, Message> {
                 .height(Length::Fill)
                 .padding(pad(2.0, 1.0, 2.0, 2.0)),
         )
-        .push(container(list(state)).width(Length::Fill).height(Length::Fill).padding(2.0));
+        .push(
+            container(list(state))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(2.0),
+        );
 
     let content = Column::new()
         .push(menubar(state))
@@ -990,7 +1064,8 @@ fn view(state: &Files) -> Element<'_, Message> {
             );
         iced::widget::stack![base, catcher, positioned].into()
     } else if let Some(i) = state.open_menu {
-        let catcher = mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::CloseMenu);
+        let catcher =
+            mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::CloseMenu);
         let positioned = Column::new()
             .push(Space::with_height(Length::Fixed(20.0)))
             .push(

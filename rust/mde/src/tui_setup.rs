@@ -169,15 +169,40 @@ pub fn run(dry_run: bool, packages: Option<Vec<String>>) -> ExitCode {
     let rows = build_rows(&cat);
 
     let mut app = App {
-        screen: if dry_run || is_root() { Screen::Welcome } else { Screen::NotRoot },
+        screen: if dry_run || is_root() {
+            Screen::Welcome
+        } else {
+            Screen::NotRoot
+        },
         steps: vec![
-            Step { label: "Collecting information", done: false },
-            Step { label: "Installing packages", done: false },
-            Step { label: "Deploying configuration", done: false },
-            Step { label: "Installing visual assets", done: false },
-            Step { label: "Registering session and login manager", done: false },
-            Step { label: "Finalizing installation", done: false },
-            Step { label: "Applying MDE Retro branding", done: false },
+            Step {
+                label: "Collecting information",
+                done: false,
+            },
+            Step {
+                label: "Installing packages",
+                done: false,
+            },
+            Step {
+                label: "Deploying configuration",
+                done: false,
+            },
+            Step {
+                label: "Installing visual assets",
+                done: false,
+            },
+            Step {
+                label: "Registering session and login manager",
+                done: false,
+            },
+            Step {
+                label: "Finalizing installation",
+                done: false,
+            },
+            Step {
+                label: "Applying MDE Retro branding",
+                done: false,
+            },
         ],
         current: 0,
         dry_run,
@@ -251,7 +276,11 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> ExitCod
                 (Screen::NotRoot, _) => return ExitCode::from(1),
                 (Screen::Welcome, KeyCode::Enter) => app.screen = Screen::Summary,
                 (Screen::Summary, KeyCode::Enter) => {
-                    app.screen = if app.interactive { Screen::Components } else { Screen::Progress };
+                    app.screen = if app.interactive {
+                        Screen::Components
+                    } else {
+                        Screen::Progress
+                    };
                 }
                 (Screen::Components, KeyCode::Enter) => {
                     app.commit_selection();
@@ -387,7 +416,10 @@ fn ui(f: &mut Frame, app: &App) {
 
     let title = Paragraph::new(Line::from(Span::styled(
         TITLE,
-        Style::default().fg(Color::White).bg(BLUE).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::White)
+            .bg(BLUE)
+            .add_modifier(Modifier::BOLD),
     )))
     .alignment(Alignment::Center);
     f.render_widget(title, rows[0]);
@@ -437,7 +469,11 @@ fn render_components(f: &mut Frame, app: &App, area: Rect) {
     let h = area.height.max(1) as usize;
     let total = app.rows.len();
     // Keep the cursor in view: scroll so it sits within [start, start+h).
-    let start = if app.cursor + 1 > h { app.cursor + 1 - h } else { 0 };
+    let start = if app.cursor + 1 > h {
+        app.cursor + 1 - h
+    } else {
+        0
+    };
     let end = (start + h).min(total);
 
     let mut lines: Vec<Line> = Vec::with_capacity(end - start);
@@ -446,15 +482,25 @@ fn render_components(f: &mut Frame, app: &App, area: Rect) {
         let (text, mut style) = match app.rows[ri] {
             CompRow::Header(cat) => (
                 format!("  {cat}"),
-                Style::default().fg(Color::Rgb(0xFF, 0xFF, 0x66)).bg(BLUE).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Rgb(0xFF, 0xFF, 0x66))
+                    .bg(BLUE)
+                    .add_modifier(Modifier::BOLD),
             ),
             CompRow::Item(i) => {
                 let c = &app.cat[i];
                 let mark = if app.checked[i] { "[X]" } else { "[ ]" };
                 let (suffix, st) = if !app.avail[i] {
-                    (" (unavailable)", Style::default().fg(Color::DarkGray).bg(BLUE))
+                    (
+                        " (unavailable)",
+                        Style::default().fg(Color::DarkGray).bg(BLUE),
+                    )
                 } else if app.locked[i] {
-                    let tag = if c.mandatory { " (required)" } else { " (installed)" };
+                    let tag = if c.mandatory {
+                        " (required)"
+                    } else {
+                        " (installed)"
+                    };
                     (tag, Style::default().fg(Color::Gray).bg(BLUE))
                 } else {
                     ("", Style::default().fg(Color::White).bg(BLUE))
@@ -478,7 +524,12 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
     let h = height.min(area.height);
     let x = area.x + (area.width.saturating_sub(w)) / 2;
     let y = area.y + (area.height.saturating_sub(h)) / 2;
-    Rect { x, y, width: w, height: h }
+    Rect {
+        x,
+        y,
+        width: w,
+        height: h,
+    }
 }
 
 fn not_root_body() -> ratatui::text::Text<'static> {

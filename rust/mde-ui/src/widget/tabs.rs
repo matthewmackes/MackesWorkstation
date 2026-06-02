@@ -38,7 +38,12 @@ where
         Size::new(Length::Fill, Length::Fill)
     }
 
-    fn layout(&self, _tree: &mut Tree, _renderer: &Renderer, limits: &layout::Limits) -> layout::Node {
+    fn layout(
+        &self,
+        _tree: &mut Tree,
+        _renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> layout::Node {
         layout::Node::new(limits.resolve(Length::Fill, Length::Fill, Size::ZERO))
     }
 
@@ -69,7 +74,14 @@ where
         fill(renderer, b.x + 1.0, b.y + 1.0, 1.0, b.height - 1.0, lt);
         // Right edge: dark outer, gray inner.
         fill(renderer, b.x + b.width - 1.0, b.y, 1.0, b.height, dk);
-        fill(renderer, b.x + b.width - 2.0, b.y + 1.0, 1.0, b.height - 1.0, sh);
+        fill(
+            renderer,
+            b.x + b.width - 2.0,
+            b.y + 1.0,
+            1.0,
+            b.height - 1.0,
+            sh,
+        );
         // Base line: inactive tabs sit above the page (a shadow line); the
         // active tab omits it so it merges into the page body below.
         if !self.active {
@@ -93,13 +105,27 @@ where
 /// label nudges up 1px (it sits slightly proud, like the real control).
 fn tab<'a, Message: Clone + 'a>(label: &str, active: bool, msg: Message) -> Element<'a, Message> {
     let pad = if active {
-        Padding { top: 2.0, right: 10.0, bottom: 3.0, left: 10.0 }
+        Padding {
+            top: 2.0,
+            right: 10.0,
+            bottom: 3.0,
+            left: 10.0,
+        }
     } else {
-        Padding { top: 3.0, right: 10.0, bottom: 2.0, left: 10.0 }
+        Padding {
+            top: 3.0,
+            right: 10.0,
+            bottom: 2.0,
+            left: 10.0,
+        }
     };
-    let labelled = container(text(label.to_string()).size(metrics::UI_PX).font(font::ui()))
-        .padding(pad)
-        .height(Length::Fixed(TAB_H));
+    let labelled = container(
+        text(label.to_string())
+            .size(metrics::UI_PX)
+            .font(font::ui()),
+    )
+    .padding(pad)
+    .height(Length::Fixed(TAB_H));
     mouse_area(iced::widget::stack![TabEdge { active }, labelled])
         .on_press(msg)
         .into()
@@ -113,7 +139,12 @@ pub fn tab_strip<'a, Message: Clone + 'a>(
     selected: usize,
     on_select: impl Fn(usize) -> Message,
 ) -> Element<'a, Message> {
-    let mut row = Row::new().spacing(2.0).padding(Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 4.0 });
+    let mut row = Row::new().spacing(2.0).padding(Padding {
+        top: 0.0,
+        right: 0.0,
+        bottom: 0.0,
+        left: 4.0,
+    });
     for (i, l) in labels.iter().enumerate() {
         row = row.push(tab(l, i == selected, on_select(i)));
     }

@@ -53,9 +53,15 @@ pub fn dispatch(args: &[String]) -> ExitCode {
     // `--packages=pkg1,pkg2` — an explicit set (e.g. handed over from the GUI
     // component picker). When absent, the TUI shows its own Choose-Components
     // screen and falls back to the curated catalogue default.
-    let packages = args.iter().find_map(|a| a.strip_prefix("--packages=")).map(|s| {
-        s.split(',').filter(|p| !p.is_empty()).map(str::to_string).collect::<Vec<String>>()
-    });
+    let packages = args
+        .iter()
+        .find_map(|a| a.strip_prefix("--packages="))
+        .map(|s| {
+            s.split(',')
+                .filter(|p| !p.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<String>>()
+        });
     let headless = std::env::var_os("WAYLAND_DISPLAY").is_none();
     if gui {
         run(args) // themed component picker (explicit opt-in)
@@ -80,12 +86,19 @@ fn launch_tui_terminal(dry: bool, packages: Option<Vec<String>>) -> ExitCode {
         _ => String::new(),
     };
     let inner = if dry {
-        format!("'{exe}' setup --tui --dry-run{pkgs_arg}; printf '\\nPress Enter to close… '; read _")
+        format!(
+            "'{exe}' setup --tui --dry-run{pkgs_arg}; printf '\\nPress Enter to close… '; read _"
+        )
     } else {
         format!("pkexec '{exe}' setup --tui{pkgs_arg}")
     };
     let status = std::process::Command::new("foot")
-        .args(["--title", "MDE-Retro Setup", "-o", "colors.background=0a246a"])
+        .args([
+            "--title",
+            "MDE-Retro Setup",
+            "-o",
+            "colors.background=0a246a",
+        ])
         .arg("sh")
         .arg("-c")
         .arg(inner)
@@ -108,9 +121,17 @@ fn handoff(packages: &[String]) {
         .ok()
         .and_then(|p| p.to_str().map(String::from))
         .unwrap_or_else(|| "mde".to_string());
-    let inner = format!("pkexec '{exe}' setup --tui --packages='{}'", packages.join(","));
+    let inner = format!(
+        "pkexec '{exe}' setup --tui --packages='{}'",
+        packages.join(",")
+    );
     let _ = std::process::Command::new("foot")
-        .args(["--title", "MDE-Retro Setup", "-o", "colors.background=0a246a"])
+        .args([
+            "--title",
+            "MDE-Retro Setup",
+            "-o",
+            "colors.background=0a246a",
+        ])
         .arg("sh")
         .arg("-c")
         .arg(inner)
@@ -142,7 +163,17 @@ pub fn run(_args: &[String]) -> ExitCode {
         .font(font::PLEX_REGULAR_BYTES)
         .font(font::PLEX_BOLD_BYTES)
         .default_font(font::ui())
-        .run_with(move || (Setup { cat, checked, locked, avail }, Task::none()));
+        .run_with(move || {
+            (
+                Setup {
+                    cat,
+                    checked,
+                    locked,
+                    avail,
+                },
+                Task::none(),
+            )
+        });
     match r {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
@@ -181,7 +212,12 @@ fn update(state: &mut Setup, msg: Msg) -> Task<Msg> {
 }
 
 fn pad(t: f32, r: f32, b: f32, l: f32) -> Padding {
-    Padding { top: t, right: r, bottom: b, left: l }
+    Padding {
+        top: t,
+        right: r,
+        bottom: b,
+        left: l,
+    }
 }
 
 fn bg_gradient() -> Background {
@@ -193,26 +229,35 @@ fn bg_gradient() -> Background {
 }
 
 fn status_bar<'a>() -> Element<'a, Msg> {
-    container(text("MDE-Retro Professional Setup").size(metrics::WIZARD_STATUS_PX).color(dim()))
-        .width(Length::Fill)
-        .padding(pad(2.0, 8.0, 2.0, 8.0))
-        .style(|_| container::Style {
-            background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.35))),
-            ..container::Style::default()
-        })
-        .into()
+    container(
+        text("MDE-Retro Professional Setup")
+            .size(metrics::WIZARD_STATUS_PX)
+            .color(dim()),
+    )
+    .width(Length::Fill)
+    .padding(pad(2.0, 8.0, 2.0, 8.0))
+    .style(|_| container::Style {
+        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.35))),
+        ..container::Style::default()
+    })
+    .into()
 }
 
 /// The scrollable category tree of component rows.
 fn tree(state: &Setup) -> Element<'_, Msg> {
-    let mut col = Column::new().spacing(2.0).padding(pad(0.0, 24.0, 0.0, 24.0));
+    let mut col = Column::new()
+        .spacing(2.0)
+        .padding(pad(0.0, 24.0, 0.0, 24.0));
     let mut last_cat = "";
     for (i, c) in state.cat.iter().enumerate() {
         if c.category != last_cat {
             last_cat = c.category;
             col = col.push(Space::new(Length::Fixed(1.0), Length::Fixed(6.0)));
             col = col.push(
-                text(c.category).size(metrics::UI_PX).font(font::ui_bold()).color(white()),
+                text(c.category)
+                    .size(metrics::UI_PX)
+                    .font(font::ui_bold())
+                    .color(white()),
             );
         }
         let (label, color, toggleable) = if !state.avail[i] {
@@ -231,13 +276,21 @@ fn tree(state: &Setup) -> Element<'_, Msg> {
             col = col.push(row);
         }
     }
-    scrollable(col).height(Length::Fill).style(mde_ui::scrollbar).into()
+    scrollable(col)
+        .height(Length::Fill)
+        .style(mde_ui::scrollbar)
+        .into()
 }
 
 fn view(state: &Setup) -> Element<'_, Msg> {
-    let mut header = Column::new().spacing(4.0).padding(pad(16.0, 24.0, 8.0, 24.0));
+    let mut header = Column::new()
+        .spacing(4.0)
+        .padding(pad(16.0, 24.0, 8.0, 24.0));
     header = header.push(
-        text("Choose Components").size(metrics::WIZARD_HEADING_PX).font(font::ui_bold()).color(white()),
+        text("Choose Components")
+            .size(metrics::WIZARD_HEADING_PX)
+            .font(font::ui_bold())
+            .color(white()),
     );
     header = header.push(
         text("Select the software to install. Installed items are locked; unavailable ones are dimmed.")

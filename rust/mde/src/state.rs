@@ -113,8 +113,14 @@ mod tests {
     fn roundtrip_through_json() {
         let s = MenuState {
             pinned: vec![
-                PinnedItem { name: "Files".into(), command: "mde files".into() },
-                PinnedItem { name: "Terminal".into(), command: "foot".into() },
+                PinnedItem {
+                    name: "Files".into(),
+                    command: "mde files".into(),
+                },
+                PinnedItem {
+                    name: "Terminal".into(),
+                    command: "foot".into(),
+                },
             ],
             start_small_icons: true,
             icon_set: "haiku".into(),
@@ -158,6 +164,12 @@ mod tests {
         // extra keys, both load cleanly.
         assert_eq!(parse(r#"{"renames":{"a":"b"}}"#).pinned.len(), 0);
         let s = parse(r#"{"pinned":[{"name":"X","command":"x"}],"future":true}"#);
-        assert_eq!(s.pinned, vec![PinnedItem { name: "X".into(), command: "x".into() }]);
+        assert_eq!(
+            s.pinned,
+            vec![PinnedItem {
+                name: "X".into(),
+                command: "x".into()
+            }]
+        );
     }
 }

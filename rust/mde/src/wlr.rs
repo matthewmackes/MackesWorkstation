@@ -82,7 +82,6 @@ impl Wm {
             self.flush();
         }
     }
-
 }
 
 /// Start the background foreign-toplevel listener; `None` if there's no Wayland
@@ -211,10 +210,20 @@ impl Dispatch<WlRegistry, ()> for AppState {
         _: &Connection,
         qh: &QueueHandle<Self>,
     ) {
-        if let wl_registry::Event::Global { name, interface, version } = event {
+        if let wl_registry::Event::Global {
+            name,
+            interface,
+            version,
+        } = event
+        {
             match interface.as_str() {
                 "zwlr_foreign_toplevel_manager_v1" => {
-                    registry.bind::<ZwlrForeignToplevelManagerV1, _, _>(name, version.min(3), qh, ());
+                    registry.bind::<ZwlrForeignToplevelManagerV1, _, _>(
+                        name,
+                        version.min(3),
+                        qh,
+                        (),
+                    );
                 }
                 "wl_seat" => {
                     let s = registry.bind::<WlSeat, _, _>(name, version.min(1), qh, ());
@@ -229,7 +238,15 @@ impl Dispatch<WlRegistry, ()> for AppState {
 }
 
 impl Dispatch<WlSeat, ()> for AppState {
-    fn event(_: &mut Self, _: &WlSeat, _: wl_seat::Event, _: &(), _: &Connection, _: &QueueHandle<Self>) {}
+    fn event(
+        _: &mut Self,
+        _: &WlSeat,
+        _: wl_seat::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
 }
 
 impl Dispatch<ZwlrForeignToplevelManagerV1, ()> for AppState {
@@ -285,7 +302,10 @@ impl Dispatch<ZwlrForeignToplevelHandleV1, ()> for AppState {
                     it.p_focused = false;
                     it.p_minimized = false;
                     it.p_maximized = false;
-                    for v in bytes.chunks_exact(4).map(|c| u32::from_ne_bytes([c[0], c[1], c[2], c[3]])) {
+                    for v in bytes
+                        .chunks_exact(4)
+                        .map(|c| u32::from_ne_bytes([c[0], c[1], c[2], c[3]]))
+                    {
                         match v {
                             STATE_MAXIMIZED => it.p_maximized = true,
                             STATE_MINIMIZED => it.p_minimized = true,

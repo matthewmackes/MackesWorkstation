@@ -69,7 +69,9 @@ pub fn run(args: &[String]) -> ExitCode {
         .resizable(false)
         .theme(|_| iced::Theme::Light)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .font(mde_ui::font::PLEX_REGULAR_BYTES)
+        .font(mde_ui::font::PLEX_BOLD_BYTES)
         .default_font(mde_ui::font::ui())
         .run_with(|| {
             // The General facts are cheap (/proc + os-release), so load them now;
@@ -126,7 +128,12 @@ fn update(state: &mut SysProps, message: Message) -> Task<Message> {
 }
 
 fn pad(t: f32, r: f32, b: f32, l: f32) -> Padding {
-    Padding { top: t, right: r, bottom: b, left: l }
+    Padding {
+        top: t,
+        right: r,
+        bottom: b,
+        left: l,
+    }
 }
 
 // --- view ------------------------------------------------------------------
@@ -136,7 +143,11 @@ fn tab_strip(current: usize) -> Element<'static, Message> {
     // without overflowing the dialog width — now drawn with the authentic
     // property-sheet tab control (active tab merges into the page).
     let row1 = mde_ui::tab_strip(&TABS[0..4], current, Message::SelectTab);
-    let sel2 = if current >= 4 { current - 4 } else { usize::MAX };
+    let sel2 = if current >= 4 {
+        current - 4
+    } else {
+        usize::MAX
+    };
     let row2 = mde_ui::tab_strip(&TABS[4..], sel2, |i| Message::SelectTab(i + 4));
     Column::new().spacing(0.0).push(row1).push(row2).into()
 }
@@ -145,7 +156,12 @@ fn tab_strip(current: usize) -> Element<'static, Message> {
 fn field<'a>(label: &'a str, value: String) -> Element<'a, Message> {
     Row::new()
         .spacing(6.0)
-        .push(text(label).size(metrics::UI_PX).font(mde_ui::font::ui_bold()).width(Length::Fixed(120.0)))
+        .push(
+            text(label)
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold())
+                .width(Length::Fixed(120.0)),
+        )
         .push(text(value).size(metrics::UI_PX))
         .into()
 }
@@ -153,14 +169,26 @@ fn field<'a>(label: &'a str, value: String) -> Element<'a, Message> {
 fn general_tab(g: &General) -> Element<'static, Message> {
     Column::new()
         .spacing(8.0)
-        .push(text("System:").size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
+        .push(
+            text("System:")
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold()),
+        )
         .push(field("", format!("{} {}", g.product, g.version)))
         .push(field("Kernel", g.kernel.clone()))
         .push(Space::new(Length::Fill, Length::Fixed(6.0)))
-        .push(text("Registered to:").size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
+        .push(
+            text("Registered to:")
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold()),
+        )
         .push(field("", g.user.clone()))
         .push(Space::new(Length::Fill, Length::Fixed(6.0)))
-        .push(text("Computer:").size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
+        .push(
+            text("Computer:")
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold()),
+        )
         .push(field("Processor", g.cpu.clone()))
         .push(field("Processors", format!("{} logical", g.cores)))
         .push(field("Memory", g.mem_human()))
@@ -170,7 +198,12 @@ fn general_tab(g: &General) -> Element<'static, Message> {
 fn computer_name_tab(g: &General) -> Element<'static, Message> {
     Column::new()
         .spacing(8.0)
-        .push(text("Windows uses the following information to identify your computer on the network.").size(metrics::UI_PX))
+        .push(
+            text(
+                "Windows uses the following information to identify your computer on the network.",
+            )
+            .size(metrics::UI_PX),
+        )
         .push(Space::new(Length::Fill, Length::Fixed(6.0)))
         .push(field("Full computer name", g.hostname.clone()))
         .push(field("Workgroup", "WORKGROUP".to_string()))
@@ -179,8 +212,14 @@ fn computer_name_tab(g: &General) -> Element<'static, Message> {
 
 /// Flat tree-row button: navy HIGHLIGHT on hover, white hot text (the Win2000
 /// tree-view row look — not a 3D bevel).
-fn tree_row_style(_t: &iced::Theme, status: iced::widget::button::Status) -> iced::widget::button::Style {
-    let hot = matches!(status, iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed);
+fn tree_row_style(
+    _t: &iced::Theme,
+    status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    let hot = matches!(
+        status,
+        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed
+    );
     iced::widget::button::Style {
         background: hot.then(|| Background::Color(palette::color(palette::HIGHLIGHT))),
         text_color: if hot {
@@ -209,7 +248,9 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
         let marker = if open { "- " } else { "+ " };
         tree = tree.push(
             iced::widget::button(
-                text(format!("{marker}{}", cat.name)).size(metrics::UI_PX).font(mde_ui::font::ui_bold()),
+                text(format!("{marker}{}", cat.name))
+                    .size(metrics::UI_PX)
+                    .font(mde_ui::font::ui_bold()),
             )
             .on_press(Message::ToggleCategory(i))
             .width(Length::Fill)
@@ -219,7 +260,8 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
         if open {
             for d in &cat.devices {
                 tree = tree.push(
-                    container(text(d.clone()).size(metrics::UI_PX)).padding(pad(0.0, 4.0, 0.0, 22.0)),
+                    container(text(d.clone()).size(metrics::UI_PX))
+                        .padding(pad(0.0, 4.0, 0.0, 22.0)),
                 );
             }
         }
@@ -230,13 +272,18 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
     ];
     Column::new()
         .spacing(8.0)
-        .push(text("Device Manager lists the hardware devices installed on your computer.").size(metrics::UI_PX))
+        .push(
+            text("Device Manager lists the hardware devices installed on your computer.")
+                .size(metrics::UI_PX),
+        )
         .push(container(well).height(Length::Fill))
         .into()
 }
 
 fn loading() -> Element<'static, Message> {
-    Column::new().push(text("Loading\u{2026}").size(metrics::UI_PX)).into()
+    Column::new()
+        .push(text("Loading\u{2026}").size(metrics::UI_PX))
+        .into()
 }
 
 /// A small raised button that runs `cmd` when pressed.
@@ -264,12 +311,17 @@ fn advanced_tab(state: &SysProps) -> Element<'static, Message> {
         .spacing(10.0)
         .push(group_box("Performance", perf))
         .push(group_box("Startup and Recovery", boot))
-        .push(field("Environment variables", format!("{} set", a.env_count)))
+        .push(field(
+            "Environment variables",
+            format!("{} set", a.env_count),
+        ))
         .push(
-            Row::new().push(Space::with_width(Length::Fill)).push(launch_button(
-                "Environment Variables\u{2026}",
-                "foot sh -c 'env | sort | less'".to_string(),
-            )),
+            Row::new()
+                .push(Space::with_width(Length::Fill))
+                .push(launch_button(
+                    "Environment Variables\u{2026}",
+                    "foot sh -c 'env | sort | less'".to_string(),
+                )),
         )
         .into()
 }
@@ -280,20 +332,30 @@ fn restore_tab(state: &SysProps) -> Element<'static, Message> {
     }
     let installed = state.advanced.timeshift_installed;
     // A read-only checkbox (no on_toggle ⇒ disabled) reflecting real state.
-    let status = checkbox("Timeshift snapshot tool is installed", installed).style(mde_ui::checkbox_style);
+    let status =
+        checkbox("Timeshift snapshot tool is installed", installed).style(mde_ui::checkbox_style);
     let body = Column::new()
         .spacing(8.0)
-        .push(text("System Restore rolls the system back using Timeshift snapshots.").size(metrics::UI_PX))
+        .push(
+            text("System Restore rolls the system back using Timeshift snapshots.")
+                .size(metrics::UI_PX),
+        )
         .push(status)
         .push(
-            Row::new().push(Space::with_width(Length::Fill)).push(launch_button(
-                if installed { "Open Timeshift\u{2026}" } else { "Install Timeshift\u{2026}" },
-                if installed {
-                    "timeshift-launcher".to_string()
-                } else {
-                    "pkexec dnf install -y timeshift".to_string()
-                },
-            )),
+            Row::new()
+                .push(Space::with_width(Length::Fill))
+                .push(launch_button(
+                    if installed {
+                        "Open Timeshift\u{2026}"
+                    } else {
+                        "Install Timeshift\u{2026}"
+                    },
+                    if installed {
+                        "timeshift-launcher".to_string()
+                    } else {
+                        "pkexec dnf install -y timeshift".to_string()
+                    },
+                )),
         );
     Column::new().push(group_box("System Restore", body)).into()
 }
@@ -303,12 +365,23 @@ fn updates_tab(state: &SysProps) -> Element<'static, Message> {
         return loading();
     }
     let opt = |label: &str, mode: AutoMode| {
-        radio(label.to_string(), mode, Some(state.auto_sel), Message::SetAuto).style(mde_ui::radio_style).size(13.0).text_size(metrics::UI_PX)
+        radio(
+            label.to_string(),
+            mode,
+            Some(state.auto_sel),
+            Message::SetAuto,
+        )
+        .style(mde_ui::radio_style)
+        .size(13.0)
+        .text_size(metrics::UI_PX)
     };
     let group = Column::new()
         .spacing(6.0)
         .push(opt("Turn off automatic updates", AutoMode::Off))
-        .push(opt("Download updates automatically, notify before installing", AutoMode::DownloadOnly))
+        .push(opt(
+            "Download updates automatically, notify before installing",
+            AutoMode::DownloadOnly,
+        ))
         .push(opt("Install updates automatically", AutoMode::Install));
     // Apply via the dnf-automatic timer (privileged; the radios pick the posture).
     let apply_cmd = match state.auto_sel {
@@ -318,7 +391,11 @@ fn updates_tab(state: &SysProps) -> Element<'static, Message> {
     Column::new()
         .spacing(10.0)
         .push(group_box("Keep my computer up to date", group))
-        .push(Row::new().push(Space::with_width(Length::Fill)).push(launch_button("Apply", apply_cmd)))
+        .push(
+            Row::new()
+                .push(Space::with_width(Length::Fill))
+                .push(launch_button("Apply", apply_cmd)),
+        )
         .into()
 }
 
@@ -337,15 +414,23 @@ fn remote_tab(state: &SysProps) -> Element<'static, Message> {
     };
     let body = Column::new()
         .spacing(8.0)
-        .push(text("Remote Desktop lets you connect to this computer over VNC (wayvnc).").size(metrics::UI_PX))
+        .push(
+            text("Remote Desktop lets you connect to this computer over VNC (wayvnc).")
+                .size(metrics::UI_PX),
+        )
         .push(check)
         .push(field("Listen address", "0.0.0.0:5900".to_string()))
         .push(
-            Row::new().push(Space::with_width(Length::Fill)).push(if avail {
-                launch_button("Apply", apply_cmd)
-            } else {
-                launch_button("Install wayvnc\u{2026}", "pkexec dnf install -y wayvnc".to_string())
-            }),
+            Row::new()
+                .push(Space::with_width(Length::Fill))
+                .push(if avail {
+                    launch_button("Apply", apply_cmd)
+                } else {
+                    launch_button(
+                        "Install wayvnc\u{2026}",
+                        "pkexec dnf install -y wayvnc".to_string(),
+                    )
+                }),
         );
     Column::new().push(group_box("Remote Desktop", body)).into()
 }
@@ -366,7 +451,10 @@ fn tab_content(state: &SysProps) -> Element<'static, Message> {
 fn view(state: &SysProps) -> Element<'_, Message> {
     let panel = iced::widget::stack![
         frame::raised(),
-        container(tab_content(state)).padding(12.0).width(Length::Fill).height(Length::Fill),
+        container(tab_content(state))
+            .padding(12.0)
+            .width(Length::Fill)
+            .height(Length::Fill),
     ];
 
     let buttons = Row::new()
@@ -378,7 +466,11 @@ fn view(state: &SysProps) -> Element<'_, Message> {
                 .default(true)
                 .width(Length::Fixed(80.0)),
         )
-        .push(button(text("Cancel").size(metrics::UI_PX)).on_press(Message::Close).width(Length::Fixed(80.0)));
+        .push(
+            button(text("Cancel").size(metrics::UI_PX))
+                .on_press(Message::Close)
+                .width(Length::Fixed(80.0)),
+        );
 
     let body = Column::new()
         .spacing(6.0)

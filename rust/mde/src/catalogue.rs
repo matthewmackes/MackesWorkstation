@@ -76,9 +76,18 @@ pub const VIRT_CATEGORY: &str = "Virtualization (Xen/XCP-ng guest)";
 /// Package providing the guest agent (used to gate service enablement).
 pub const GUEST_AGENT_PKG: &str = "xe-guest-utilities-latest";
 const VIRT: &[(&str, &str)] = &[
-    ("xe-guest-utilities-latest", "XCP-ng / XenServer guest agent — IP & memory report, clean shutdown/reboot, time sync"),
-    ("mesa-dri-drivers", "Software OpenGL (llvmpipe) — renders the desktop in a GPU-less VM"),
-    ("mesa-vulkan-drivers", "Software Vulkan (lavapipe) — the iced shell's wgpu backend in a VM"),
+    (
+        "xe-guest-utilities-latest",
+        "XCP-ng / XenServer guest agent — IP & memory report, clean shutdown/reboot, time sync",
+    ),
+    (
+        "mesa-dri-drivers",
+        "Software OpenGL (llvmpipe) — renders the desktop in a GPU-less VM",
+    ),
+    (
+        "mesa-vulkan-drivers",
+        "Software Vulkan (lavapipe) — the iced shell's wgpu backend in a VM",
+    ),
 ];
 
 /// Packages that are part of `fedora::TOOLS` but are base/always-present, so we
@@ -87,8 +96,14 @@ const TOOLS_SKIP: &[&str] = &["mde", "systemd", "systemd-resolved"];
 
 /// Extras left UNCHECKED by default (heavyweight or niche).
 const DEFAULT_OFF: &[&str] = &[
-    "cockpit", "wireshark", "timeshift", "setroubleshoot-server", "mediawriter",
-    "stacer", "blivet-gui", "nvtop",
+    "cockpit",
+    "wireshark",
+    "timeshift",
+    "setroubleshoot-server",
+    "mediawriter",
+    "stacer",
+    "blivet-gui",
+    "nvtop",
 ];
 
 /// True if running as a Xen guest (XCP-ng/XenServer), so the guest tools are
@@ -112,17 +127,35 @@ pub fn catalogue() -> Vec<Component> {
 
     for &(package, name) in BASE {
         if seen.insert(package) {
-            out.push(Component { package, category: "Base System", name, mandatory: true, default_on: true });
+            out.push(Component {
+                package,
+                category: "Base System",
+                name,
+                mandatory: true,
+                default_on: true,
+            });
         }
     }
     for &(package, name) in SESSION {
         if seen.insert(package) {
-            out.push(Component { package, category: "Session", name, mandatory: false, default_on: true });
+            out.push(Component {
+                package,
+                category: "Session",
+                name,
+                mandatory: false,
+                default_on: true,
+            });
         }
     }
     for &(package, name) in APPS {
         if seen.insert(package) {
-            out.push(Component { package, category: "Applications", name, mandatory: false, default_on: true });
+            out.push(Component {
+                package,
+                category: "Applications",
+                name,
+                mandatory: false,
+                default_on: true,
+            });
         }
     }
     // Control Panel tools, in their existing category order; default-on unless
@@ -143,7 +176,13 @@ pub fn catalogue() -> Vec<Component> {
     }
     for &(package, name) in VIRT {
         if seen.insert(package) {
-            out.push(Component { package, category: VIRT_CATEGORY, name, mandatory: false, default_on: xen });
+            out.push(Component {
+                package,
+                category: VIRT_CATEGORY,
+                name,
+                mandatory: false,
+                default_on: xen,
+            });
         }
     }
     out
@@ -176,7 +215,11 @@ pub fn is_installed(package: &str) -> bool {
 /// available so we never hide something spuriously. Installed packages are
 /// always considered available.
 pub fn available(packages: &[&str]) -> BTreeSet<String> {
-    let mut set: BTreeSet<String> = packages.iter().filter(|p| is_installed(p)).map(|p| p.to_string()).collect();
+    let mut set: BTreeSet<String> = packages
+        .iter()
+        .filter(|p| is_installed(p))
+        .map(|p| p.to_string())
+        .collect();
     let out = Command::new("dnf")
         .args(["-q", "repoquery", "--qf", "%{name}"])
         .args(packages)

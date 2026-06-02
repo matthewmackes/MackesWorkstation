@@ -11,10 +11,10 @@ pub type Rgb = (u8, u8, u8);
 // --- Core Win2000 Classic colors (COLOR_* / GetSysColor defaults) ----------
 pub const BACKGROUND: Rgb = (0x3a, 0x6e, 0xa5); // desktop
 pub const ACTIVE_TITLE: Rgb = (0x0a, 0x24, 0x6a); // focused title bar / Highlight
-// Recorded ground truth, but NOT rendered by mde: sway draws title bars as a
-// flat `client.focused` color, so the navy→blue gradient caption is the known
-// casualty of the mde↔sway boundary (see ACCURACY.md §0). Kept so the value is
-// transcribed; it only returns if mde ever draws client-side title rows.
+                                                  // Recorded ground truth, but NOT rendered by mde: sway draws title bars as a
+                                                  // flat `client.focused` color, so the navy→blue gradient caption is the known
+                                                  // casualty of the mde↔sway boundary (see ACCURACY.md §0). Kept so the value is
+                                                  // transcribed; it only returns if mde ever draws client-side title rows.
 pub const ACTIVE_TITLE_GRADIENT: Rgb = (0xa6, 0xca, 0xf0); // title gradient end (sway-owned)
 pub const INACTIVE_TITLE: Rgb = (0x80, 0x80, 0x80);
 // (0xff,0xff,0xfe) is a SENTINEL — visually pure white in Win2000/BeOS, but a
@@ -43,8 +43,8 @@ pub const BUTTON_DK_SHADOW: Rgb = (0x40, 0x40, 0x40); // darkest bevel
 pub const BUTTON_TEXT: Rgb = (0x00, 0x00, 0x00);
 
 pub const HIGHLIGHT: Rgb = (0x0a, 0x24, 0x6a); // selection
-// SENTINEL white text (see TITLE_TEXT) — selection text stays white on the
-// accent fill in both Carbon light and dark.
+                                               // SENTINEL white text (see TITLE_TEXT) — selection text stays white on the
+                                               // accent fill in both Carbon light and dark.
 pub const HIGHLIGHT_TEXT: Rgb = (0xff, 0xff, 0xfe);
 pub const GRAY_TEXT: Rgb = (0x80, 0x80, 0x80); // disabled
 
@@ -160,7 +160,7 @@ fn beos(rgb: Rgb) -> Rgb {
         (0x0a, 0x24, 0x6a) => (0x33, 0x55, 0x9c), // selection / accent (BeOS blue)
         (0x3a, 0x6e, 0xa5) => (0x33, 0x66, 0x98), // desktop
         (0x1d, 0x5c, 0xa8) => (0x46, 0x7a, 0xbe), // web-view info band
-        other => other,                            // white, black, brand art, etc.
+        other => other,                           // white, black, brand art, etc.
     }
 }
 
@@ -180,10 +180,34 @@ pub fn carbon_accent() -> Rgb {
 /// (§2.1: no raw hex outside palette.rs). Returns the Carbon token `Rgb`.
 pub fn icon_accent(idx: u8, dark: bool) -> Rgb {
     match idx {
-        0 => if dark { (0x78, 0xa9, 0xff) } else { (0x0f, 0x62, 0xfe) }, // blue
-        1 => if dark { (0xff, 0x83, 0x2b) } else { (0xba, 0x4e, 0x00) }, // orange
-        2 => if dark { (0xfa, 0x4d, 0x56) } else { (0xda, 0x1e, 0x28) }, // red
-        _ => if dark { (0xf4, 0xf4, 0xf4) } else { (0x16, 0x16, 0x16) }, // neutral
+        0 => {
+            if dark {
+                (0x78, 0xa9, 0xff)
+            } else {
+                (0x0f, 0x62, 0xfe)
+            }
+        } // blue
+        1 => {
+            if dark {
+                (0xff, 0x83, 0x2b)
+            } else {
+                (0xba, 0x4e, 0x00)
+            }
+        } // orange
+        2 => {
+            if dark {
+                (0xfa, 0x4d, 0x56)
+            } else {
+                (0xda, 0x1e, 0x28)
+            }
+        } // red
+        _ => {
+            if dark {
+                (0xf4, 0xf4, 0xf4)
+            } else {
+                (0x16, 0x16, 0x16)
+            }
+        } // neutral
     }
 }
 
@@ -202,32 +226,116 @@ fn carbon(rgb: Rgb) -> Rgb {
         // White TEXT on a colored/dark surface (sentinel) -> stays white.
         (0xff, 0xff, 0xfe) => (0xff, 0xff, 0xff), // TITLE_TEXT + HIGHLIGHT_TEXT
         // Window-frame / border (sentinel black) -> subtle border gray.
-        (0x00, 0x00, 0x01) => if dark { (0x52, 0x52, 0x52) } else { (0x8d, 0x8d, 0x8d) },
+        (0x00, 0x00, 0x01) => {
+            if dark {
+                (0x52, 0x52, 0x52)
+            } else {
+                (0x8d, 0x8d, 0x8d)
+            }
+        }
         // Black text roles -> text-primary (invert in dark).
-        (0x00, 0x00, 0x00) => if dark { (0xf4, 0xf4, 0xf4) } else { (0x16, 0x16, 0x16) },
+        (0x00, 0x00, 0x00) => {
+            if dark {
+                (0xf4, 0xf4, 0xf4)
+            } else {
+                (0x16, 0x16, 0x16)
+            }
+        }
         // White surfaces (WINDOW / BUTTON_HILIGHT) -> field / layer-01.
-        (0xff, 0xff, 0xff) => if dark { (0x39, 0x39, 0x39) } else { (0xff, 0xff, 0xff) },
+        (0xff, 0xff, 0xff) => {
+            if dark {
+                (0x39, 0x39, 0x39)
+            } else {
+                (0xff, 0xff, 0xff)
+            }
+        }
         // Silver panel / menu / button face / inactive title text -> layer.
-        (0xd4, 0xd0, 0xc8) => if dark { (0x39, 0x39, 0x39) } else { (0xf4, 0xf4, 0xf4) },
+        (0xd4, 0xd0, 0xc8) => {
+            if dark {
+                (0x39, 0x39, 0x39)
+            } else {
+                (0xf4, 0xf4, 0xf4)
+            }
+        }
         // Shell/UI-Shell header -> Gray 100 (dark) / white (light).
-        (0xd4, 0xd0, 0xc7) => if dark { (0x16, 0x16, 0x16) } else { (0xff, 0xff, 0xff) },
+        (0xd4, 0xd0, 0xc7) => {
+            if dark {
+                (0x16, 0x16, 0x16)
+            } else {
+                (0xff, 0xff, 0xff)
+            }
+        }
         // Inner bevel light -> hover layer (mostly unused once flattened).
-        (0xdf, 0xdf, 0xdf) => if dark { (0x47, 0x47, 0x47) } else { (0xe8, 0xe8, 0xe8) },
+        (0xdf, 0xdf, 0xdf) => {
+            if dark {
+                (0x47, 0x47, 0x47)
+            } else {
+                (0xe8, 0xe8, 0xe8)
+            }
+        }
         // Bevel shadow / disabled / inactive -> text-secondary / border-strong.
-        (0x80, 0x80, 0x80) => if dark { (0x6f, 0x6f, 0x6f) } else { (0x8d, 0x8d, 0x8d) },
+        (0x80, 0x80, 0x80) => {
+            if dark {
+                (0x6f, 0x6f, 0x6f)
+            } else {
+                (0x8d, 0x8d, 0x8d)
+            }
+        }
         // Dark bevel -> border-subtle.
-        (0x40, 0x40, 0x40) => if dark { (0x52, 0x52, 0x52) } else { (0x6f, 0x6f, 0x6f) },
+        (0x40, 0x40, 0x40) => {
+            if dark {
+                (0x52, 0x52, 0x52)
+            } else {
+                (0x6f, 0x6f, 0x6f)
+            }
+        }
         // Desktop background -> deepest gray (dark) / light gray (light).
-        (0x3a, 0x6e, 0xa5) => if dark { (0x16, 0x16, 0x16) } else { (0xd0, 0xd0, 0xd0) },
+        (0x3a, 0x6e, 0xa5) => {
+            if dark {
+                (0x16, 0x16, 0x16)
+            } else {
+                (0xd0, 0xd0, 0xd0)
+            }
+        }
         // Tooltip background -> layer.
-        (0xff, 0xff, 0xe1) => if dark { (0x39, 0x39, 0x39) } else { (0xff, 0xff, 0xff) },
+        (0xff, 0xff, 0xe1) => {
+            if dark {
+                (0x39, 0x39, 0x39)
+            } else {
+                (0xff, 0xff, 0xff)
+            }
+        }
         // Urgent / error -> Carbon danger red.
-        (0x80, 0x00, 0x00) => if dark { (0xfa, 0x4d, 0x56) } else { (0xda, 0x1e, 0x28) },
+        (0x80, 0x00, 0x00) => {
+            if dark {
+                (0xfa, 0x4d, 0x56)
+            } else {
+                (0xda, 0x1e, 0x28)
+            }
+        }
         // Setup-wizard blues -> accent family.
-        (0x1c, 0x4a, 0x8f) => if dark { (0x00, 0x43, 0xce) } else { (0x0f, 0x62, 0xfe) },
-        (0x08, 0x16, 0x40) => if dark { (0x00, 0x11, 0x41) } else { (0x00, 0x2d, 0x9c) },
+        (0x1c, 0x4a, 0x8f) => {
+            if dark {
+                (0x00, 0x43, 0xce)
+            } else {
+                (0x0f, 0x62, 0xfe)
+            }
+        }
+        (0x08, 0x16, 0x40) => {
+            if dark {
+                (0x00, 0x11, 0x41)
+            } else {
+                (0x00, 0x2d, 0x9c)
+            }
+        }
         (0x16, 0x3a, 0xa8) => accent,
-        (0x9e, 0xb2, 0xdb) => if dark { (0xa6, 0xc8, 0xff) } else { (0x52, 0x52, 0x52) },
+        (0x9e, 0xb2, 0xdb) => {
+            if dark {
+                (0xa6, 0xc8, 0xff)
+            } else {
+                (0x52, 0x52, 0x52)
+            }
+        }
         // Brand flag art and anything else -> unchanged.
         other => other,
     }
@@ -263,9 +371,27 @@ fn win10(rgb: Rgb) -> Rgb {
         (0x16, 0x3a, 0xa8) => accent, // SETUP_PROGRESS
         (0x1c, 0x4a, 0x8f) => accent, // setup-wizard blue (top)
         // Cooler Win10 neutrals (the secondary era tell).
-        (0xd4, 0xd0, 0xc8) => if dark { (0x2b, 0x2b, 0x2b) } else { (0xf3, 0xf3, 0xf3) }, // panel / menu / face
-        (0x3a, 0x6e, 0xa5) => if dark { (0x1f, 0x1f, 0x1f) } else { (0xe6, 0xe6, 0xe6) }, // desktop
-        (0xd4, 0xd0, 0xc7) => if dark { (0x1f, 0x1f, 0x1f) } else { (0xff, 0xff, 0xff) }, // shell header
+        (0xd4, 0xd0, 0xc8) => {
+            if dark {
+                (0x2b, 0x2b, 0x2b)
+            } else {
+                (0xf3, 0xf3, 0xf3)
+            }
+        } // panel / menu / face
+        (0x3a, 0x6e, 0xa5) => {
+            if dark {
+                (0x1f, 0x1f, 0x1f)
+            } else {
+                (0xe6, 0xe6, 0xe6)
+            }
+        } // desktop
+        (0xd4, 0xd0, 0xc7) => {
+            if dark {
+                (0x1f, 0x1f, 0x1f)
+            } else {
+                (0xff, 0xff, 0xff)
+            }
+        } // shell header
         // Everything else shares the Carbon flat-neutral skeleton verbatim.
         other => carbon(other),
     }

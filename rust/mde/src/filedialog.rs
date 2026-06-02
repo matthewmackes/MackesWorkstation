@@ -48,7 +48,11 @@ impl Filter {
         if self.exts.iter().any(|e| e == "*") {
             return true;
         }
-        let ext = Path::new(name).extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
+        let ext = Path::new(name)
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
         self.exts.contains(&ext)
     }
 
@@ -56,7 +60,11 @@ impl Filter {
         if self.exts.iter().any(|e| e == "*") {
             "*.*".to_string()
         } else {
-            self.exts.iter().map(|e| format!("*.{e}")).collect::<Vec<_>>().join(";")
+            self.exts
+                .iter()
+                .map(|e| format!("*.{e}"))
+                .collect::<Vec<_>>()
+                .join(";")
         }
     }
 }
@@ -140,7 +148,11 @@ pub fn run(args: &[String]) -> ExitCode {
         .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
         .unwrap_or_else(|| PathBuf::from("/"));
     let title = if title.is_empty() {
-        if save { "Save As".to_string() } else { "Open".to_string() }
+        if save {
+            "Save As".to_string()
+        } else {
+            "Open".to_string()
+        }
     } else {
         title
     };
@@ -160,25 +172,49 @@ fn parse_filters(spec: &str) -> Vec<Filter> {
     let mut out = Vec::new();
     for group in spec.split(';').filter(|s| !s.trim().is_empty()) {
         let (label, exts) = group.split_once(':').unwrap_or((group, "*"));
-        let exts: Vec<String> =
-            exts.split(',').map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase()).filter(|e| !e.is_empty()).collect();
-        let exts = if exts.is_empty() { vec!["*".to_string()] } else { exts };
-        let f = Filter { label: String::new(), exts };
+        let exts: Vec<String> = exts
+            .split(',')
+            .map(|e| e.trim().trim_start_matches('.').to_ascii_lowercase())
+            .filter(|e| !e.is_empty())
+            .collect();
+        let exts = if exts.is_empty() {
+            vec!["*".to_string()]
+        } else {
+            exts
+        };
+        let f = Filter {
+            label: String::new(),
+            exts,
+        };
         // Build the "Label (*.ext;…)" display string.
-        out.push(Filter { label: format!("{} ({})", label.trim(), f.pattern()), exts: f.exts });
+        out.push(Filter {
+            label: format!("{} ({})", label.trim(), f.pattern()),
+            exts: f.exts,
+        });
     }
     if out.is_empty() {
-        out.push(Filter { label: "All Files (*.*)".to_string(), exts: vec!["*".to_string()] });
+        out.push(Filter {
+            label: "All Files (*.*)".to_string(),
+            exts: vec!["*".to_string()],
+        });
     }
     out
 }
 
-fn gui(save: bool, title: String, current: PathBuf, filename: String, filters: Vec<Filter>) -> iced::Result {
+fn gui(
+    save: bool,
+    title: String,
+    current: PathBuf,
+    filename: String,
+    filters: Vec<Filter>,
+) -> iced::Result {
     iced::application(move |_: &FileDialog| title.clone(), update, view)
         .window_size(iced::Size::new(540.0, 380.0))
         .theme(|_| iced::Theme::Light)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .font(mde_ui::font::PLEX_REGULAR_BYTES)
+        .font(mde_ui::font::PLEX_BOLD_BYTES)
         .default_font(mde_ui::font::ui())
         .run_with(move || {
             let entries = read_entries(&current, &filters[0]);
@@ -217,9 +253,19 @@ fn read_entries(dir: &Path, filter: &Filter) -> Vec<Entry> {
             let is_dir = md.as_ref().map(|m| m.is_dir()).unwrap_or(false);
             let size = md.as_ref().map(|m| m.len()).unwrap_or(0);
             if is_dir {
-                dirs.push(Entry { name, path, is_dir, size });
+                dirs.push(Entry {
+                    name,
+                    path,
+                    is_dir,
+                    size,
+                });
             } else if filter.accepts(&name) {
-                files.push(Entry { name, path, is_dir, size });
+                files.push(Entry {
+                    name,
+                    path,
+                    is_dir,
+                    size,
+                });
             }
         }
     }
@@ -238,18 +284,26 @@ fn navigate(state: &mut FileDialog, dir: PathBuf) {
 
 /// Look-in dropdown options: the current folder, then each ancestor up to root.
 fn ancestors(dir: &Path) -> Vec<PathChoice> {
-    dir.ancestors().map(|p| PathChoice(p.to_path_buf())).collect()
+    dir.ancestors()
+        .map(|p| PathChoice(p.to_path_buf()))
+        .collect()
 }
 
 /// The places-bar destinations that exist, as (label, freedesktop-icon, path).
 fn places() -> Vec<(&'static str, &'static str, PathBuf)> {
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/"));
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("/"));
     let candidates = [
         ("History", "document-open-recent", home.clone()),
         ("Desktop", "user-desktop", home.join("Desktop")),
         ("My Documents", "folder-documents", home.join("Documents")),
         ("My Computer", "computer", PathBuf::from("/")),
-        ("My Network Places", "network-workgroup", PathBuf::from("/run/media")),
+        (
+            "My Network Places",
+            "network-workgroup",
+            PathBuf::from("/run/media"),
+        ),
     ];
     candidates
         .into_iter()
@@ -305,7 +359,10 @@ fn update(state: &mut FileDialog, message: Message) -> Task<Message> {
         Message::ToggleView => state.details = !state.details,
         Message::ClickEntry(i) => {
             let now = Instant::now();
-            let dbl = state.last_click.map(|(li, lt)| li == i && now.duration_since(lt) < Duration::from_millis(400)).unwrap_or(false);
+            let dbl = state
+                .last_click
+                .map(|(li, lt)| li == i && now.duration_since(lt) < Duration::from_millis(400))
+                .unwrap_or(false);
             state.selected = Some(i);
             if let Some(e) = state.entries.get(i) {
                 state.filename = e.name.clone();
@@ -330,7 +387,10 @@ fn update(state: &mut FileDialog, message: Message) -> Task<Message> {
         Message::Accept => {
             let name = state.filename.trim();
             let target = if name.is_empty() {
-                state.selected.and_then(|i| state.entries.get(i)).map(|e| e.path.clone())
+                state
+                    .selected
+                    .and_then(|i| state.entries.get(i))
+                    .map(|e| e.path.clone())
             } else if Path::new(name).is_absolute() {
                 Some(PathBuf::from(name))
             } else {
@@ -352,16 +412,30 @@ fn update(state: &mut FileDialog, message: Message) -> Task<Message> {
 // --- view -------------------------------------------------------------------
 
 fn pad(t: f32, r: f32, b: f32, l: f32) -> Padding {
-    Padding { top: t, right: r, bottom: b, left: l }
+    Padding {
+        top: t,
+        right: r,
+        bottom: b,
+        left: l,
+    }
 }
 
-fn row_style(selected: bool) -> impl Fn(&iced::Theme, iced::widget::button::Status) -> iced::widget::button::Style {
+fn row_style(
+    selected: bool,
+) -> impl Fn(&iced::Theme, iced::widget::button::Status) -> iced::widget::button::Style {
     move |_t, status| {
         let hot = selected
-            || matches!(status, iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed);
+            || matches!(
+                status,
+                iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed
+            );
         iced::widget::button::Style {
             background: hot.then(|| Background::Color(palette::color(palette::HIGHLIGHT))),
-            text_color: if hot { palette::color(palette::HIGHLIGHT_TEXT) } else { palette::color(palette::WINDOW_TEXT) },
+            text_color: if hot {
+                palette::color(palette::HIGHLIGHT_TEXT)
+            } else {
+                palette::color(palette::WINDOW_TEXT)
+            },
             border: Border::default(),
             shadow: Shadow::default(),
         }
@@ -375,13 +449,21 @@ fn human_size(bytes: u64) -> String {
 
 fn toolbar() -> Element<'static, Message> {
     let btn = |icons: &'static [&'static str], msg: Message| {
-        button(crate::icons::icon_any(icons, 16)).on_press(msg).padding(pad(2.0, 4.0, 2.0, 4.0))
+        button(crate::icons::icon_any(icons, 16))
+            .on_press(msg)
+            .padding(pad(2.0, 4.0, 2.0, 4.0))
     };
     Row::new()
         .spacing(2.0)
         .push(btn(&["go-up", "up"], Message::Up))
-        .push(btn(&["folder-new", "folder-new-symbolic"], Message::NewFolder))
-        .push(btn(&["view-list-details", "view-list", "view-more"], Message::ToggleView))
+        .push(btn(
+            &["folder-new", "folder-new-symbolic"],
+            Message::NewFolder,
+        ))
+        .push(btn(
+            &["view-list-details", "view-list", "view-more"],
+            Message::ToggleView,
+        ))
         .into()
 }
 
@@ -403,10 +485,13 @@ fn places_bar() -> Element<'static, Message> {
         );
     }
     // The navy/sunken places strip down the left of the dialog.
-    container(iced::widget::stack![frame::sunken().face(palette::color(palette::BUTTON_LIGHT)), col])
-        .width(Length::Fixed(88.0))
-        .height(Length::Fill)
-        .into()
+    container(iced::widget::stack![
+        frame::sunken().face(palette::color(palette::BUTTON_LIGHT)),
+        col
+    ])
+    .width(Length::Fixed(88.0))
+    .height(Length::Fill)
+    .into()
 }
 
 fn entry_row<'a>(state: &FileDialog, i: usize, e: &'a Entry) -> Element<'a, Message> {
@@ -421,9 +506,17 @@ fn entry_row<'a>(state: &FileDialog, i: usize, e: &'a Entry) -> Element<'a, Mess
         .spacing(5.0)
         .align_y(iced::Alignment::Center)
         .push(crate::icons::icon_any(icon, 16))
-        .push(text(e.name.clone()).size(metrics::UI_PX).width(Length::Fill));
+        .push(
+            text(e.name.clone())
+                .size(metrics::UI_PX)
+                .width(Length::Fill),
+        );
     if state.details {
-        let meta = if e.is_dir { "File Folder".to_string() } else { human_size(e.size) };
+        let meta = if e.is_dir {
+            "File Folder".to_string()
+        } else {
+            human_size(e.size)
+        };
         row = row.push(text(meta).size(metrics::UI_PX).width(Length::Fixed(90.0)));
     }
     iced::widget::button(row)
@@ -435,8 +528,15 @@ fn entry_row<'a>(state: &FileDialog, i: usize, e: &'a Entry) -> Element<'a, Mess
 }
 
 fn is_image(name: &str) -> bool {
-    let ext = Path::new(name).extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
-    matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "bmp" | "webp" | "gif")
+    let ext = Path::new(name)
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    matches!(
+        ext.as_str(),
+        "png" | "jpg" | "jpeg" | "bmp" | "webp" | "gif"
+    )
 }
 
 fn view(state: &FileDialog) -> Element<'_, Message> {
@@ -446,17 +546,22 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
         .align_y(iced::Alignment::Center)
         .push(text("Look in:").size(metrics::UI_PX))
         .push(
-            iced::widget::pick_list(ancestors(&state.current), Some(PathChoice(state.current.clone())), Message::LookIn)
-                .style(mde_ui::sunken_picklist)
-                .text_size(metrics::UI_PX)
-                .width(Length::Fill),
+            iced::widget::pick_list(
+                ancestors(&state.current),
+                Some(PathChoice(state.current.clone())),
+                Message::LookIn,
+            )
+            .style(mde_ui::sunken_picklist)
+            .text_size(metrics::UI_PX)
+            .width(Length::Fill),
         )
         .push(toolbar());
 
     // File list well.
     let mut list = Column::new().spacing(0.0);
     if state.entries.is_empty() {
-        list = list.push(container(text("(empty)").size(metrics::UI_PX)).padding(pad(2.0, 4.0, 2.0, 4.0)));
+        list = list
+            .push(container(text("(empty)").size(metrics::UI_PX)).padding(pad(2.0, 4.0, 2.0, 4.0)));
     }
     for (i, e) in state.entries.iter().enumerate() {
         list = list.push(entry_row(state, i, e));
@@ -475,7 +580,11 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
     let name_row = Row::new()
         .spacing(6.0)
         .align_y(iced::Alignment::Center)
-        .push(text("File name:").size(metrics::UI_PX).width(Length::Fixed(74.0)))
+        .push(
+            text("File name:")
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(74.0)),
+        )
         .push(
             text_input("", &state.filename)
                 .on_input(Message::FilenameChanged)
@@ -484,23 +593,45 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
                 .style(mde_ui::sunken_field)
                 .width(Length::Fill),
         )
-        .push(button(text(accept_label).size(metrics::UI_PX)).on_press(Message::Accept).width(Length::Fixed(80.0)));
+        .push(
+            button(text(accept_label).size(metrics::UI_PX))
+                .on_press(Message::Accept)
+                .width(Length::Fixed(80.0)),
+        );
 
     // Files of type row + Cancel button.
-    let cur_filter = FilterChoice { idx: state.filter_idx, label: state.filters[state.filter_idx].label.clone() };
-    let filter_opts: Vec<FilterChoice> =
-        state.filters.iter().enumerate().map(|(i, f)| FilterChoice { idx: i, label: f.label.clone() }).collect();
+    let cur_filter = FilterChoice {
+        idx: state.filter_idx,
+        label: state.filters[state.filter_idx].label.clone(),
+    };
+    let filter_opts: Vec<FilterChoice> = state
+        .filters
+        .iter()
+        .enumerate()
+        .map(|(i, f)| FilterChoice {
+            idx: i,
+            label: f.label.clone(),
+        })
+        .collect();
     let type_row = Row::new()
         .spacing(6.0)
         .align_y(iced::Alignment::Center)
-        .push(text("Files of type:").size(metrics::UI_PX).width(Length::Fixed(74.0)))
+        .push(
+            text("Files of type:")
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(74.0)),
+        )
         .push(
             iced::widget::pick_list(filter_opts, Some(cur_filter), Message::SetFilter)
                 .style(mde_ui::sunken_picklist)
                 .text_size(metrics::UI_PX)
                 .width(Length::Fill),
         )
-        .push(button(text("Cancel").size(metrics::UI_PX)).on_press(Message::Cancel).width(Length::Fixed(80.0)));
+        .push(
+            button(text("Cancel").size(metrics::UI_PX))
+                .on_press(Message::Cancel)
+                .width(Length::Fixed(80.0)),
+        );
 
     let body = Column::new()
         .spacing(8.0)

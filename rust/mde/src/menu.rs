@@ -9,7 +9,9 @@ use std::process::{exit, Command, ExitCode};
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, container, mouse_area, scrollable, text, Column, Row, Space};
-use iced::{event, keyboard, Background, Border, Color, Element, Event, Length, Padding, Shadow, Task};
+use iced::{
+    event, keyboard, Background, Border, Color, Element, Event, Length, Padding, Shadow, Task,
+};
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity};
 use iced_layershell::settings::LayerShellSettings;
@@ -29,9 +31,9 @@ enum Node {
 /// What a leaf does when activated.
 #[derive(Clone)]
 enum Act {
-    Tool(usize),         // fedora tool index
-    Cmd(String, bool),   // shell command, run-in-terminal
-    Mde(&'static str),   // re-exec this binary with a subcommand
+    Tool(usize),       // fedora tool index
+    Cmd(String, bool), // shell command, run-in-terminal
+    Mde(&'static str), // re-exec this binary with a subcommand
     Run,
     Help,
     LogOff,
@@ -121,7 +123,9 @@ fn pin(args: &[String]) -> ExitCode {
     let command = args[1..].join(" ");
     let mut state = crate::state::load();
     if !state.pinned.iter().any(|p| p.name == name) {
-        state.pinned.push(crate::state::PinnedItem { name, command });
+        state
+            .pinned
+            .push(crate::state::PinnedItem { name, command });
         if let Err(e) = crate::state::save(&state) {
             eprintln!("mde menu: could not save pins: {e}");
             return ExitCode::FAILURE;
@@ -157,7 +161,9 @@ fn launch() -> Result<(), iced_layershell::Error> {
         .style(style)
         .subscription(subscription)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .font(mde_ui::font::PLEX_REGULAR_BYTES)
+        .font(mde_ui::font::PLEX_BOLD_BYTES)
         .default_font(mde_ui::font::ui())
         .settings(MainSettings {
             layer_settings: LayerShellSettings {
@@ -221,16 +227,25 @@ fn build_root() -> Vec<Node> {
     let pinned = crate::state::load().pinned;
     if !pinned.is_empty() {
         for item in &pinned {
-            root.push(Node::Leaf(item.name.clone(), Act::Cmd(item.command.clone(), false)));
+            root.push(Node::Leaf(
+                item.name.clone(),
+                Act::Cmd(item.command.clone(), false),
+            ));
         }
         root.push(Node::Sep);
     }
     root.extend([
         // Quick-launch staples at the top of the menu, above Windows Update.
         Node::Leaf("File Explorer".into(), Act::Mde("files")),
-        Node::Leaf("Terminal (Terminator)".into(), Act::Cmd("terminator".into(), false)),
+        Node::Leaf(
+            "Terminal (Terminator)".into(),
+            Act::Cmd("terminator".into(), false),
+        ),
         Node::Leaf("Firefox".into(), Act::Cmd("firefox".into(), false)),
-        Node::Leaf("Windows Update".into(), Act::Cmd("dnfdragora --update-only".into(), false)),
+        Node::Leaf(
+            "Windows Update".into(),
+            Act::Cmd("dnfdragora --update-only".into(), false),
+        ),
         Node::Sep,
         Node::Sub("Programs".into(), programs_tree()),
         Node::Sub("Settings".into(), settings_tree()),
@@ -280,16 +295,28 @@ fn settings_tree() -> Vec<Node> {
     vec![
         Node::Leaf("Control Panel".into(), Act::Mde("control-panel")),
         Node::Leaf("Display".into(), Act::Mde("display")),
-        Node::Leaf("Network and Dial-up Connections".into(), Act::Cmd("nm-connection-editor".into(), false)),
-        Node::Leaf("Printers".into(), Act::Cmd("system-config-printer".into(), false)),
-        Node::Leaf("Taskbar & Start Menu".into(), Act::Mde("taskbar-properties")),
+        Node::Leaf(
+            "Network and Dial-up Connections".into(),
+            Act::Cmd("nm-connection-editor".into(), false),
+        ),
+        Node::Leaf(
+            "Printers".into(),
+            Act::Cmd("system-config-printer".into(), false),
+        ),
+        Node::Leaf(
+            "Taskbar & Start Menu".into(),
+            Act::Mde("taskbar-properties"),
+        ),
     ]
 }
 
 fn search_tree() -> Vec<Node> {
     vec![
         Node::Leaf("For Files or Folders...".into(), Act::Mde("files")),
-        Node::Leaf("On the Internet...".into(), Act::Cmd("xdg-open https://duckduckgo.com".into(), false)),
+        Node::Leaf(
+            "On the Internet...".into(),
+            Act::Cmd("xdg-open https://duckduckgo.com".into(), false),
+        ),
     ]
 }
 
@@ -463,7 +490,10 @@ fn update(menu: &mut Menu, message: Message) -> Task<Message> {
                 if let Some((name, command)) = node_meta(menu, c, i) {
                     let mut st = crate::state::load();
                     if !st.pinned.iter().any(|p| p.name == name) {
-                        st.pinned.push(crate::state::PinnedItem { name: name.clone(), command });
+                        st.pinned.push(crate::state::PinnedItem {
+                            name: name.clone(),
+                            command,
+                        });
                         let _ = crate::state::save(&st);
                         menu.pinned.push(name);
                         refresh_pins(menu);
@@ -524,12 +554,12 @@ fn update(menu: &mut Menu, message: Message) -> Task<Message> {
                 N::Enter => {
                     let act = {
                         let cols = columns(menu);
-                        menu.cursor.and_then(|c| cols[active_col(menu)].get(c)).and_then(|n| {
-                            match n {
+                        menu.cursor
+                            .and_then(|c| cols[active_col(menu)].get(c))
+                            .and_then(|n| match n {
                                 Node::Leaf(_, a) => Some(a.clone()),
                                 _ => None,
-                            }
-                        })
+                            })
                     };
                     match act {
                         Some(a) => {
@@ -604,7 +634,12 @@ fn launch_cmd(cmd: &str, terminal: bool) {
 // --- view ------------------------------------------------------------------
 
 fn pad(top: f32, right: f32, bottom: f32, left: f32) -> Padding {
-    Padding { top, right, bottom, left }
+    Padding {
+        top,
+        right,
+        bottom,
+        left,
+    }
 }
 
 fn item_style(selected: bool) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
@@ -648,7 +683,11 @@ fn menu_icon(label: &str) -> &'static [&'static str] {
     let l = label.to_ascii_lowercase();
     let has = |k: &str| l.contains(k);
     if has("program") {
-        &["applications-other", "folder-applications", "applications-all"]
+        &[
+            "applications-other",
+            "folder-applications",
+            "applications-all",
+        ]
     } else if has("document") {
         &["folder-documents", "folder"]
     } else if has("display") {
@@ -660,7 +699,11 @@ fn menu_icon(label: &str) -> &'static [&'static str] {
     } else if has("firefox") {
         &["firefox", "firefox-esr", "web-browser"]
     } else if has("on the internet") || has("internet") {
-        &["applications-internet", "web-browser", "internet-web-browser"]
+        &[
+            "applications-internet",
+            "web-browser",
+            "internet-web-browser",
+        ]
     } else if has("help") {
         &["help-browser", "system-help", "help-contents"]
     } else if has("run") {
@@ -757,7 +800,14 @@ fn item_list<'a>(
 ) -> Column<'a, Message> {
     let mut list = Column::new().spacing(0.0);
     for (idx, node) in nodes.iter().enumerate() {
-        list = list.push(render_item(node, col, idx, open == Some(idx), icon_px, row_h));
+        list = list.push(render_item(
+            node,
+            col,
+            idx,
+            open == Some(idx),
+            icon_px,
+            row_h,
+        ));
     }
     list
 }
@@ -792,12 +842,18 @@ fn banner<'a>(height: f32) -> Element<'a, Message> {
         .into()
 }
 
-fn render_column<'a>(nodes: &'a [Node], col: usize, open: Option<usize>, width: f32) -> Element<'a, Message> {
+fn render_column<'a>(
+    nodes: &'a [Node],
+    col: usize,
+    open: Option<usize>,
+    width: f32,
+) -> Element<'a, Message> {
     // Submenu columns always use the small-icon list.
     let h = (col_content_height(nodes, ITEM_H).min(MAX_COL_H)) + 4.0;
     let panel = iced::widget::stack![
         frame::raised().thickness(2),
-        container(scrollable(item_list(nodes, col, open, 16, ITEM_H)).style(mde_ui::scrollbar)).padding(2.0),
+        container(scrollable(item_list(nodes, col, open, 16, ITEM_H)).style(mde_ui::scrollbar))
+            .padding(2.0),
     ];
     container(panel)
         .width(Length::Fixed(width))
@@ -805,11 +861,18 @@ fn render_column<'a>(nodes: &'a [Node], col: usize, open: Option<usize>, width: 
         .into()
 }
 
-fn render_root_column<'a>(nodes: &'a [Node], open: Option<usize>, large: bool) -> Element<'a, Message> {
+fn render_root_column<'a>(
+    nodes: &'a [Node],
+    open: Option<usize>,
+    large: bool,
+) -> Element<'a, Message> {
     // The root column is the only one that grows large icons (the Win2000
     // default); "Show small icons in Start menu" collapses it back to 16px.
-    let (icon_px, row_h, inner_w, total_w) =
-        if large { (32, ITEM_H_LARGE, 200.0, 232.0) } else { (16, ITEM_H, 186.0, 218.0) };
+    let (icon_px, row_h, inner_w, total_w) = if large {
+        (32, ITEM_H_LARGE, 200.0, 232.0)
+    } else {
+        (16, ITEM_H, 186.0, 218.0)
+    };
     let h = (col_content_height(nodes, row_h).min(MAX_COL_H)) + 4.0;
     let inner = Row::new().push(banner(h)).push(
         container(scrollable(item_list(nodes, 0, open, icon_px, row_h)).style(mde_ui::scrollbar))
@@ -864,7 +927,13 @@ fn view(menu: &Menu) -> Element<'_, Message> {
         let item_top: f32 = TOP_PAD
             + cols[c - 1][..parent_idx]
                 .iter()
-                .map(|n| if matches!(n, Node::Sep) { SEP_H } else { parent_row_h })
+                .map(|n| {
+                    if matches!(n, Node::Sep) {
+                        SEP_H
+                    } else {
+                        parent_row_h
+                    }
+                })
                 .sum::<f32>();
         top[c] = top[c - 1] + item_top;
         left[c] = left[c - 1] + if c - 1 == 0 { root_w } else { SUB_W };
@@ -889,7 +958,12 @@ fn view(menu: &Menu) -> Element<'_, Message> {
                 .height(Length::Fill)
                 .align_x(Horizontal::Left)
                 .align_y(Vertical::Bottom)
-                .padding(Padding { top: 0.0, right: 0.0, bottom: bottom_y, left: left[c] }),
+                .padding(Padding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: bottom_y,
+                    left: left[c],
+                }),
         );
     }
     // A right-clicked launcher shows a context menu (Open / Pin / Properties)
@@ -987,7 +1061,10 @@ fn view_carbon(menu: &Menu) -> Element<'_, Message> {
                 radius: 2.0.into(),
             },
             shadow: Shadow {
-                color: Color { a: 0.35, ..Color::BLACK },
+                color: Color {
+                    a: 0.35,
+                    ..Color::BLACK
+                },
                 offset: iced::Vector::new(0.0, 2.0),
                 blur_radius: 12.0,
             },
@@ -1002,13 +1079,20 @@ fn view_carbon(menu: &Menu) -> Element<'_, Message> {
             .height(Length::Fill)
             .align_x(Horizontal::Left)
             .align_y(Vertical::Top)
-            .padding(Padding { top: BAR_H + 2.0, right: 0.0, bottom: 0.0, left: 4.0 }),
+            .padding(Padding {
+                top: BAR_H + 2.0,
+                right: 0.0,
+                bottom: 0.0,
+                left: 4.0
+            }),
     ];
 
     // Right-click context menu (Open / Pin / Properties), dropped near the top.
     if let Some((c, i)) = menu.context {
         if node_meta(menu, c, i).is_some() {
-            let pinned = node_meta(menu, c, i).map(|(n, _)| menu.pinned.contains(&n)).unwrap_or(false);
+            let pinned = node_meta(menu, c, i)
+                .map(|(n, _)| menu.pinned.contains(&n))
+                .unwrap_or(false);
             layers = layers.push(
                 container(context_menu(pinned))
                     .width(Length::Fill)
@@ -1063,7 +1147,11 @@ fn carbon_tile_style() -> impl Fn(&iced::Theme, button::Status) -> button::Style
         button::Style {
             background: hot.then_some(Background::Color(a)),
             text_color: palette::color(palette::MENU_TEXT),
-            border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 2.0.into() },
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 2.0.into(),
+            },
             shadow: Shadow::default(),
         }
     }
@@ -1089,10 +1177,13 @@ fn context_menu(pinned: bool) -> Element<'static, Message> {
         .push(item("Open", Message::CtxOpen))
         .push(item(pin_label, pin_msg))
         .push(item("Properties", Message::CtxProperties));
-    container(iced::widget::stack![frame::raised().thickness(2), container(col).padding(2.0)])
-        .width(Length::Fixed(168.0))
-        .height(Length::Fixed(3.0 * ITEM_H + 6.0))
-        .into()
+    container(iced::widget::stack![
+        frame::raised().thickness(2),
+        container(col).padding(2.0)
+    ])
+    .width(Length::Fixed(168.0))
+    .height(Length::Fixed(3.0 * ITEM_H + 6.0))
+    .into()
 }
 
 #[cfg(test)]

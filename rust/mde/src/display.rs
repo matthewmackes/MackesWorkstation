@@ -21,7 +21,13 @@ use mde_ui::{button, frame, group_box, metrics, palette};
 
 use crate::outputs::{self, Desired, DesiredOutput, Mode, Output, ScreenSaver, Wallpaper};
 
-const TABS: &[&str] = &["Background", "Screen Saver", "Appearance", "Effects", "Settings"];
+const TABS: &[&str] = &[
+    "Background",
+    "Screen Saver",
+    "Appearance",
+    "Effects",
+    "Settings",
+];
 const REVERT_SECS: u32 = 15;
 
 // --- pick-list option types (each needs Display + PartialEq + Clone) --------
@@ -38,7 +44,16 @@ impl std::fmt::Display for ResChoice {
 struct RefreshChoice(i32); // mHz
 impl std::fmt::Display for RefreshChoice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Mode { width: 0, height: 0, refresh_mhz: self.0 }.refresh_label())
+        write!(
+            f,
+            "{}",
+            Mode {
+                width: 0,
+                height: 0,
+                refresh_mhz: self.0
+            }
+            .refresh_label()
+        )
     }
 }
 
@@ -48,8 +63,13 @@ impl std::fmt::Display for RefreshChoice {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct ScaleChoice(u32);
 impl ScaleChoice {
-    const ALL: [ScaleChoice; 5] =
-        [ScaleChoice(100), ScaleChoice(125), ScaleChoice(150), ScaleChoice(175), ScaleChoice(200)];
+    const ALL: [ScaleChoice; 5] = [
+        ScaleChoice(100),
+        ScaleChoice(125),
+        ScaleChoice(150),
+        ScaleChoice(175),
+        ScaleChoice(200),
+    ];
     fn factor(self) -> f64 {
         self.0 as f64 / 100.0
     }
@@ -71,8 +91,12 @@ enum Orient {
     PortraitFlipped,
 }
 impl Orient {
-    const ALL: [Orient; 4] =
-        [Orient::Landscape, Orient::Portrait, Orient::LandscapeFlipped, Orient::PortraitFlipped];
+    const ALL: [Orient; 4] = [
+        Orient::Landscape,
+        Orient::Portrait,
+        Orient::LandscapeFlipped,
+        Orient::PortraitFlipped,
+    ];
     fn token(self) -> &'static str {
         match self {
             Orient::Landscape => "normal",
@@ -111,7 +135,13 @@ enum BgMode {
     Fill,
 }
 impl BgMode {
-    const ALL: [BgMode; 5] = [BgMode::Center, BgMode::Tile, BgMode::Stretch, BgMode::Fit, BgMode::Fill];
+    const ALL: [BgMode; 5] = [
+        BgMode::Center,
+        BgMode::Tile,
+        BgMode::Stretch,
+        BgMode::Fit,
+        BgMode::Fill,
+    ];
     fn swaybg(self) -> &'static str {
         match self {
             BgMode::Center => "center",
@@ -143,8 +173,12 @@ enum Scheme {
     Spruce,
 }
 impl Scheme {
-    const ALL: [Scheme; 4] =
-        [Scheme::Standard, Scheme::HighContrastBlack, Scheme::Brick, Scheme::Spruce];
+    const ALL: [Scheme; 4] = [
+        Scheme::Standard,
+        Scheme::HighContrastBlack,
+        Scheme::Brick,
+        Scheme::Spruce,
+    ];
     fn key(self) -> &'static str {
         match self {
             Scheme::Standard => "win2k-standard",
@@ -277,7 +311,12 @@ enum IconColor {
     Red,
 }
 impl IconColor {
-    const ALL: [IconColor; 4] = [IconColor::Neutral, IconColor::Blue, IconColor::Orange, IconColor::Red];
+    const ALL: [IconColor; 4] = [
+        IconColor::Neutral,
+        IconColor::Blue,
+        IconColor::Orange,
+        IconColor::Red,
+    ];
     fn key(self) -> &'static str {
         match self {
             IconColor::Neutral => "neutral",
@@ -449,9 +488,13 @@ fn gui() -> iced::Result {
         .window_size(iced::Size::new(440.0, 540.0))
         .resizable(false)
         .theme(|_| iced::Theme::Light)
-        .subscription(|_: &Display| iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::Tick))
+        .subscription(|_: &Display| {
+            iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::Tick)
+        })
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .font(mde_ui::font::PLEX_REGULAR_BYTES)
+        .font(mde_ui::font::PLEX_BOLD_BYTES)
         .default_font(mde_ui::font::ui())
         .run_with(|| {
             let live = outputs::query();
@@ -610,24 +653,35 @@ fn update(state: &mut Display, message: Message) -> Task<Message> {
 fn build_desired(state: &Display) -> Desired {
     Desired {
         outputs: state.desired.clone(),
-        wallpaper: state.wp_selected.and_then(|i| state.wallpapers.get(i)).map(|p| Wallpaper {
-            path: p.clone(),
-            mode: state.bg_mode.swaybg().to_string(),
+        wallpaper: state
+            .wp_selected
+            .and_then(|i| state.wallpapers.get(i))
+            .map(|p| Wallpaper {
+                path: p.clone(),
+                mode: state.bg_mode.swaybg().to_string(),
+            }),
+        screensaver: Some(ScreenSaver {
+            minutes: state.wait.0,
+            lock: state.lock,
         }),
-        screensaver: Some(ScreenSaver { minutes: state.wait.0, lock: state.lock }),
         scheme: Some(state.scheme.key().to_string()),
     }
 }
 
 /// The baseline state for revert (only geometry needs undoing live).
 fn baseline_desired(state: &Display) -> Desired {
-    Desired { outputs: state.baseline.clone(), ..Desired::default() }
+    Desired {
+        outputs: state.baseline.clone(),
+        ..Desired::default()
+    }
 }
 
 /// Place the selected non-primary output relative to the primary (focused) one,
 /// updating its logical position.
 fn place_selected(state: &mut Display, p: Place) {
-    let Some(primary) = state.live.iter().position(|o| o.focused) else { return };
+    let Some(primary) = state.live.iter().position(|o| o.focused) else {
+        return;
+    };
     if primary == state.selected {
         return;
     }
@@ -647,7 +701,11 @@ fn place_selected(state: &mut Display, p: Place) {
 /// Logical (x, y, w, h) of a desired output, accounting for rotation + scale.
 fn logical_rect(d: &DesiredOutput) -> (i32, i32, i32, i32) {
     let rotated = d.transform == "90" || d.transform == "270";
-    let (mut w, mut h) = if rotated { (d.height, d.width) } else { (d.width, d.height) };
+    let (mut w, mut h) = if rotated {
+        (d.height, d.width)
+    } else {
+        (d.width, d.height)
+    };
     if d.scale > 0.0 {
         w = (w as f64 / d.scale).round() as i32;
         h = (h as f64 / d.scale).round() as i32;
@@ -678,7 +736,11 @@ fn scan_wallpapers() -> Vec<String> {
         if let Ok(entries) = std::fs::read_dir(&dir) {
             for e in entries.flatten() {
                 let p = e.path();
-                let ext = p.extension().and_then(|s| s.to_str()).unwrap_or("").to_ascii_lowercase();
+                let ext = p
+                    .extension()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("")
+                    .to_ascii_lowercase();
                 if matches!(ext.as_str(), "png" | "jpg" | "jpeg" | "bmp" | "webp") {
                     if let Some(s) = p.to_str() {
                         out.push(s.to_string());
@@ -718,7 +780,12 @@ fn browse_file() -> Option<String> {
 // --- view helpers -----------------------------------------------------------
 
 fn pad(t: f32, r: f32, b: f32, l: f32) -> Padding {
-    Padding { top: t, right: r, bottom: b, left: l }
+    Padding {
+        top: t,
+        right: r,
+        bottom: b,
+        left: l,
+    }
 }
 
 fn label(s: &str) -> Element<'static, Message> {
@@ -726,7 +793,10 @@ fn label(s: &str) -> Element<'static, Message> {
 }
 
 fn bold(s: &str) -> Element<'static, Message> {
-    text(s.to_string()).size(metrics::UI_PX).font(mde_ui::font::ui_bold()).into()
+    text(s.to_string())
+        .size(metrics::UI_PX)
+        .font(mde_ui::font::ui_bold())
+        .into()
 }
 
 fn tab_strip(current: usize) -> Element<'static, Message> {
@@ -736,30 +806,49 @@ fn tab_strip(current: usize) -> Element<'static, Message> {
 /// The classic monitor graphic: a raised silver bezel around a "screen" filled
 /// with the wallpaper preview (or the desktop color), plus a small stand. Shows
 /// the output number when Identify is on.
-fn monitor_graphic<'a>(screen: Element<'a, Message>, number: Option<usize>) -> Element<'a, Message> {
-    let inner = container(screen).width(Length::Fixed(180.0)).height(Length::Fixed(135.0)).padding(2.0);
-    let mut screen_stack = Stack::new()
-        .push(iced::widget::stack![frame::sunken().thickness(2), inner]);
+fn monitor_graphic<'a>(
+    screen: Element<'a, Message>,
+    number: Option<usize>,
+) -> Element<'a, Message> {
+    let inner = container(screen)
+        .width(Length::Fixed(180.0))
+        .height(Length::Fixed(135.0))
+        .padding(2.0);
+    let mut screen_stack =
+        Stack::new().push(iced::widget::stack![frame::sunken().thickness(2), inner]);
     if let Some(n) = number {
         screen_stack = screen_stack.push(
-            container(text(format!("{}", n + 1)).size(metrics::IDENTIFY_PX).font(mde_ui::font::ui_bold()).color(Color::WHITE))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill),
+            container(
+                text(format!("{}", n + 1))
+                    .size(metrics::IDENTIFY_PX)
+                    .font(mde_ui::font::ui_bold())
+                    .color(Color::WHITE),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill),
         );
     }
-    let bezel = container(iced::widget::stack![frame::raised().thickness(2), container(screen_stack).padding(8.0)])
-        .style(|_| container::Style {
+    let bezel = container(iced::widget::stack![
+        frame::raised().thickness(2),
+        container(screen_stack).padding(8.0)
+    ])
+    .style(|_| container::Style {
+        background: Some(Background::Color(palette::color(palette::BUTTON_FACE))),
+        ..container::Style::default()
+    });
+    let stand = container(Space::new(Length::Fixed(60.0), Length::Fixed(10.0))).style(|_| {
+        container::Style {
             background: Some(Background::Color(palette::color(palette::BUTTON_FACE))),
+            border: Border {
+                color: palette::color(palette::BUTTON_SHADOW),
+                width: 1.0,
+                radius: 0.0.into(),
+            },
             ..container::Style::default()
-        });
-    let stand = container(Space::new(Length::Fixed(60.0), Length::Fixed(10.0)))
-        .style(|_| container::Style {
-            background: Some(Background::Color(palette::color(palette::BUTTON_FACE))),
-            border: Border { color: palette::color(palette::BUTTON_SHADOW), width: 1.0, radius: 0.0.into() },
-            ..container::Style::default()
-        });
+        }
+    });
     Column::new()
         .align_x(iced::Alignment::Center)
         .push(bezel)
@@ -791,14 +880,23 @@ fn screen_preview(state: &Display) -> Element<'static, Message> {
 // --- tabs -------------------------------------------------------------------
 
 fn background_tab(state: &Display) -> Element<'_, Message> {
-    let preview = monitor_graphic(screen_preview(state), state.identify.then_some(state.selected));
+    let preview = monitor_graphic(
+        screen_preview(state),
+        state.identify.then_some(state.selected),
+    );
 
     let mut list = Column::new().spacing(0.0);
     if state.wallpapers.is_empty() {
-        list = list.push(container(label("(no images found in Pictures / backgrounds)")).padding(pad(2.0, 4.0, 2.0, 4.0)));
+        list = list.push(
+            container(label("(no images found in Pictures / backgrounds)"))
+                .padding(pad(2.0, 4.0, 2.0, 4.0)),
+        );
     }
     for (i, wp) in state.wallpapers.iter().enumerate() {
-        let name = std::path::Path::new(wp).file_name().and_then(|s| s.to_str()).unwrap_or(wp);
+        let name = std::path::Path::new(wp)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(wp);
         list = list.push(
             iced::widget::button(text(name.to_string()).size(metrics::UI_PX))
                 .on_press(Message::SelectWallpaper(i))
@@ -814,7 +912,9 @@ fn background_tab(state: &Display) -> Element<'_, Message> {
 
     let controls = Column::new()
         .spacing(8.0)
-        .push(bold("Select a background picture or HTML document as Wallpaper:"))
+        .push(bold(
+            "Select a background picture or HTML document as Wallpaper:",
+        ))
         .push(container(well).height(Length::Fixed(150.0)))
         .push(
             Row::new()
@@ -823,12 +923,24 @@ fn background_tab(state: &Display) -> Element<'_, Message> {
                 .push(button(text("Browse\u{2026}").size(metrics::UI_PX)).on_press(Message::Browse))
                 .push(Space::with_width(Length::Fill))
                 .push(label("Picture Position:"))
-                .push(pick_list(BgMode::ALL.to_vec(), Some(state.bg_mode), Message::SetBgMode).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
+                .push(
+                    pick_list(
+                        BgMode::ALL.to_vec(),
+                        Some(state.bg_mode),
+                        Message::SetBgMode,
+                    )
+                    .style(mde_ui::sunken_picklist)
+                    .text_size(metrics::UI_PX),
+                ),
         );
 
     Column::new()
         .spacing(12.0)
-        .push(container(preview).width(Length::Fill).center_x(Length::Fill))
+        .push(
+            container(preview)
+                .width(Length::Fill)
+                .center_x(Length::Fill),
+        )
         .push(controls)
         .into()
 }
@@ -842,7 +954,11 @@ fn screensaver_tab(state: &Display) -> Element<'_, Message> {
                 .spacing(8.0)
                 .align_y(iced::Alignment::Center)
                 .push(label("Wait:"))
-                .push(pick_list(WAIT_OPTIONS.to_vec(), Some(state.wait), Message::SetWait).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
+                .push(
+                    pick_list(WAIT_OPTIONS.to_vec(), Some(state.wait), Message::SetWait)
+                        .style(mde_ui::sunken_picklist)
+                        .text_size(metrics::UI_PX),
+                ),
         )
         .push(
             checkbox("On resume, password protect (swaylock)", state.lock)
@@ -858,7 +974,11 @@ fn screensaver_tab(state: &Display) -> Element<'_, Message> {
 
     Column::new()
         .spacing(12.0)
-        .push(container(preview).width(Length::Fill).center_x(Length::Fill))
+        .push(
+            container(preview)
+                .width(Length::Fill)
+                .center_x(Length::Fill),
+        )
         .push(group_box("Energy saving / screen saver", group))
         .into()
 }
@@ -899,7 +1019,9 @@ fn restart_shell() {
         let _ = std::process::Command::new("setsid")
             .arg("sh")
             .arg("-c")
-            .arg(format!("sleep 0.3; pkill -x mde; sleep 0.4; exec '{exe}' panel"))
+            .arg(format!(
+                "sleep 0.3; pkill -x mde; sleep 0.4; exec '{exe}' panel"
+            ))
             .spawn();
     }
 }
@@ -925,16 +1047,24 @@ fn apply_icon_set(set: IconSet) {
 /// Recolor the labwc active title bar for the theme — BeOS yellow tab with black
 /// text, or the Windows 2000 navy with white text — then reconfigure labwc live.
 fn set_labwc_title(beos: bool) {
-    let (bg, fg) = if beos { ("#ffd700", "#000000") } else { ("#0a246a", "#ffffff") };
+    let (bg, fg) = if beos {
+        ("#ffd700", "#000000")
+    } else {
+        ("#0a246a", "#ffffff")
+    };
     set_labwc_title_colors(bg, fg);
 }
 
 /// Rewrite the labwc active-title bg/text colors in the themerc and reconfigure
 /// labwc live. Shared by the icon-set (BeOS/Win2000) and Carbon appliers.
 fn set_labwc_title_colors(bg: &str, fg: &str) {
-    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
+    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
+        return;
+    };
     let path = home.join(".local/share/themes/Win2000-MDE/openbox-3/themerc");
-    let Ok(text) = std::fs::read_to_string(&path) else { return };
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return;
+    };
     let mut out = String::new();
     for line in text.lines() {
         let t = line.trim_start();
@@ -948,14 +1078,18 @@ fn set_labwc_title_colors(bg: &str, fg: &str) {
         }
     }
     if std::fs::write(&path, out).is_ok() {
-        let _ = std::process::Command::new("labwc").arg("--reconfigure").spawn();
+        let _ = std::process::Command::new("labwc")
+            .arg("--reconfigure")
+            .spawn();
     }
 }
 
 /// Set (`Some`) or remove (`None`) a key in the GTK 3 + GTK 4 settings.ini,
 /// so GTK apps follow the shell's icon theme and font.
 fn gtk_settings(key: &str, value: Option<&str>) {
-    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
+    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
+        return;
+    };
     for ver in ["gtk-3.0", "gtk-4.0"] {
         let path = home.join(".config").join(ver).join("settings.ini");
         let existing = std::fs::read_to_string(&path).unwrap_or_default();
@@ -993,7 +1127,9 @@ fn gtk_settings(key: &str, value: Option<&str>) {
 /// Write the embedded IBM Plex Sans faces to `~/.local/share/fonts` (if absent)
 /// so GTK/fontconfig apps can resolve "IBM Plex Sans", then refresh the cache.
 fn ensure_plex_installed() {
-    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else { return };
+    let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
+        return;
+    };
     let dir = home.join(".local/share/fonts");
     let _ = std::fs::create_dir_all(&dir);
     let faces: [(&str, &[u8]); 2] = [
@@ -1008,7 +1144,10 @@ fn ensure_plex_installed() {
         }
     }
     if wrote {
-        let _ = std::process::Command::new("fc-cache").arg("-f").arg(&dir).spawn();
+        let _ = std::process::Command::new("fc-cache")
+            .arg("-f")
+            .arg(&dir)
+            .spawn();
     }
 }
 
@@ -1016,20 +1155,27 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
     // A mock window preview, recolored by the chosen scheme.
     let (border_hex, _bg, _txt) = outputs::scheme_colors(state.scheme.key());
     let title_color = parse_hex(border_hex);
-    let title = container(text("Active Window").size(metrics::UI_PX).font(mde_ui::font::ui_bold()).color(Color::WHITE))
-        .width(Length::Fill)
-        .padding(pad(2.0, 6.0, 2.0, 6.0))
-        .style(move |_| container::Style {
-            background: Some(Background::Color(title_color)),
-            ..container::Style::default()
-        });
+    let title = container(
+        text("Active Window")
+            .size(metrics::UI_PX)
+            .font(mde_ui::font::ui_bold())
+            .color(Color::WHITE),
+    )
+    .width(Length::Fill)
+    .padding(pad(2.0, 6.0, 2.0, 6.0))
+    .style(move |_| container::Style {
+        background: Some(Background::Color(title_color)),
+        ..container::Style::default()
+    });
     let mock = iced::widget::stack![
         frame::raised().thickness(2),
         Column::new()
             .push(title)
             .push(container(label("Window Text")).padding(8.0))
     ];
-    let preview = container(mock).width(Length::Fixed(220.0)).height(Length::Fixed(90.0));
+    let preview = container(mock)
+        .width(Length::Fixed(220.0))
+        .height(Length::Fixed(90.0));
 
     let group = Column::new()
         .spacing(8.0)
@@ -1072,7 +1218,11 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
 
     Column::new()
         .spacing(12.0)
-        .push(container(preview).width(Length::Fill).center_x(Length::Fill))
+        .push(
+            container(preview)
+                .width(Length::Fill)
+                .center_x(Length::Fill),
+        )
         .push(group_box("Appearance", group))
         .into()
 }
@@ -1082,7 +1232,9 @@ fn effects_tab(_state: &Display) -> Element<'_, Message> {
     // aren't persisted. Render them greyed (no on_toggle) for fidelity rather
     // than as enabled toggles that silently discard their state.
     let fx = |text: &str, on: bool| {
-        checkbox(text.to_string(), on).style(mde_ui::checkbox_style).text_size(metrics::UI_PX)
+        checkbox(text.to_string(), on)
+            .style(mde_ui::checkbox_style)
+            .text_size(metrics::UI_PX)
     };
     let group = Column::new()
         .spacing(8.0)
@@ -1090,16 +1242,25 @@ fn effects_tab(_state: &Display) -> Element<'_, Message> {
         .push(fx("Show window contents while dragging", true))
         .push(fx("Use large icons", false))
         .push(label("Note: labwc has no compositor effect engine, so these are shown greyed for fidelity — no live visual effect."));
-    Column::new().spacing(12.0).push(group_box("Visual effects", group)).into()
+    Column::new()
+        .spacing(12.0)
+        .push(group_box("Visual effects", group))
+        .into()
 }
 
 fn settings_tab(state: &Display) -> Element<'_, Message> {
-    let preview = monitor_graphic(screen_preview(state), state.identify.then_some(state.selected));
+    let preview = monitor_graphic(
+        screen_preview(state),
+        state.identify.then_some(state.selected),
+    );
 
     // Output picker (the "Display:" dropdown), when more than one.
     let mut head = Column::new().spacing(8.0);
     if state.desired.len() > 1 {
-        let mut row = Row::new().spacing(4.0).align_y(iced::Alignment::Center).push(label("Display:"));
+        let mut row = Row::new()
+            .spacing(4.0)
+            .align_y(iced::Alignment::Center)
+            .push(label("Display:"));
         for (i, o) in state.live.iter().enumerate() {
             row = row.push(
                 button(text(format!("{}. {}", i + 1, o.name)).size(metrics::UI_PX))
@@ -1110,35 +1271,68 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
         head = head.push(row);
     }
 
-    let controls: Element<Message> = match (state.live.get(state.selected), state.desired.get(state.selected)) {
+    let controls: Element<Message> = match (
+        state.live.get(state.selected),
+        state.desired.get(state.selected),
+    ) {
         (Some(o), Some(d)) => {
-            let res_opts: Vec<ResChoice> = o.resolutions().into_iter().map(|(w, h)| ResChoice(w, h)).collect();
+            let res_opts: Vec<ResChoice> = o
+                .resolutions()
+                .into_iter()
+                .map(|(w, h)| ResChoice(w, h))
+                .collect();
             let cur_res = ResChoice(d.width, d.height);
-            let refresh_opts: Vec<RefreshChoice> =
-                o.refreshes_at(d.width, d.height).into_iter().map(|m| RefreshChoice(m.refresh_mhz)).collect();
+            let refresh_opts: Vec<RefreshChoice> = o
+                .refreshes_at(d.width, d.height)
+                .into_iter()
+                .map(|m| RefreshChoice(m.refresh_mhz))
+                .collect();
 
             let area = Row::new()
                 .spacing(8.0)
                 .align_y(iced::Alignment::Center)
                 .push(label("Screen area:"))
-                .push(pick_list(res_opts, Some(cur_res), Message::SetResolution).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX));
+                .push(
+                    pick_list(res_opts, Some(cur_res), Message::SetResolution)
+                        .style(mde_ui::sunken_picklist)
+                        .text_size(metrics::UI_PX),
+                );
 
             let refresh = Row::new()
                 .spacing(8.0)
                 .align_y(iced::Alignment::Center)
                 .push(label("Refresh rate:"))
-                .push(pick_list(refresh_opts, Some(RefreshChoice(d.refresh_mhz)), Message::SetRefresh).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX));
+                .push(
+                    pick_list(
+                        refresh_opts,
+                        Some(RefreshChoice(d.refresh_mhz)),
+                        Message::SetRefresh,
+                    )
+                    .style(mde_ui::sunken_picklist)
+                    .text_size(metrics::UI_PX),
+                );
 
             let orient = Row::new()
                 .spacing(8.0)
                 .align_y(iced::Alignment::Center)
                 .push(label("Orientation:"))
-                .push(pick_list(Orient::ALL.to_vec(), Some(Orient::from_token(&d.transform)), Message::SetOrient).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX));
+                .push(
+                    pick_list(
+                        Orient::ALL.to_vec(),
+                        Some(Orient::from_token(&d.transform)),
+                        Message::SetOrient,
+                    )
+                    .style(mde_ui::sunken_picklist)
+                    .text_size(metrics::UI_PX),
+                );
 
             // Scale: the effective "screen area" on a fixed panel. Show the
             // resulting logical resolution next to the percentage.
             let (eff_w, eff_h) = if d.scale > 0.0 {
-                ((d.width as f64 / d.scale).round() as i32, (d.height as f64 / d.scale).round() as i32)
+                (
+                    (d.width as f64 / d.scale).round() as i32,
+                    (d.height as f64 / d.scale).round() as i32,
+                )
             } else {
                 (d.width, d.height)
             };
@@ -1146,7 +1340,15 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                 .spacing(8.0)
                 .align_y(iced::Alignment::Center)
                 .push(label("Scale:"))
-                .push(pick_list(ScaleChoice::ALL.to_vec(), Some(ScaleChoice::from_factor(d.scale)), Message::SetScale).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX))
+                .push(
+                    pick_list(
+                        ScaleChoice::ALL.to_vec(),
+                        Some(ScaleChoice::from_factor(d.scale)),
+                        Message::SetScale,
+                    )
+                    .style(mde_ui::sunken_picklist)
+                    .text_size(metrics::UI_PX),
+                )
                 .push(label(&format!("\u{2192} {eff_w} x {eff_h}")));
 
             // Colors: present but fixed at True Color (Wayland is always 32-bit).
@@ -1158,14 +1360,26 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                     container(label("True Color (32 bit)"))
                         .padding(pad(1.0, 6.0, 1.0, 6.0))
                         .style(|_| container::Style {
-                            background: Some(Background::Color(palette::color(palette::BUTTON_FACE))),
+                            background: Some(Background::Color(palette::color(
+                                palette::BUTTON_FACE,
+                            ))),
                             text_color: Some(palette::color(palette::GRAY_TEXT)),
-                            border: Border { color: palette::color(palette::BUTTON_SHADOW), width: 1.0, radius: 0.0.into() },
+                            border: Border {
+                                color: palette::color(palette::BUTTON_SHADOW),
+                                width: 1.0,
+                                radius: 0.0.into(),
+                            },
                             ..container::Style::default()
                         }),
                 );
 
-            let mut col = Column::new().spacing(8.0).push(area).push(refresh).push(orient).push(scale).push(colors);
+            let mut col = Column::new()
+                .spacing(8.0)
+                .push(area)
+                .push(refresh)
+                .push(orient)
+                .push(scale)
+                .push(colors);
 
             // Multi-monitor placement of the selected (non-primary) output.
             if state.desired.len() > 1 && !o.focused {
@@ -1174,7 +1388,11 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                         .spacing(8.0)
                         .align_y(iced::Alignment::Center)
                         .push(label("Position:"))
-                        .push(pick_list(Place::ALL.to_vec(), None::<Place>, Message::SetPlace).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
+                        .push(
+                            pick_list(Place::ALL.to_vec(), None::<Place>, Message::SetPlace)
+                                .style(mde_ui::sunken_picklist)
+                                .text_size(metrics::UI_PX),
+                        ),
                 );
             }
             col.into()
@@ -1186,10 +1404,18 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
 
     Column::new()
         .spacing(12.0)
-        .push(container(preview).width(Length::Fill).center_x(Length::Fill))
+        .push(
+            container(preview)
+                .width(Length::Fill)
+                .center_x(Length::Fill),
+        )
         .push(head)
         .push(group_box("Display", controls))
-        .push(Row::new().push(Space::with_width(Length::Fill)).push(identify))
+        .push(
+            Row::new()
+                .push(Space::with_width(Length::Fill))
+                .push(identify),
+        )
         .into()
 }
 
@@ -1204,13 +1430,22 @@ fn tab_content(state: &Display) -> Element<'_, Message> {
     }
 }
 
-fn row_style(selected: bool) -> impl Fn(&iced::Theme, iced::widget::button::Status) -> iced::widget::button::Style {
+fn row_style(
+    selected: bool,
+) -> impl Fn(&iced::Theme, iced::widget::button::Status) -> iced::widget::button::Style {
     move |_t, status| {
         let hot = selected
-            || matches!(status, iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed);
+            || matches!(
+                status,
+                iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed
+            );
         iced::widget::button::Style {
             background: hot.then(|| Background::Color(palette::color(palette::HIGHLIGHT))),
-            text_color: if hot { palette::color(palette::HIGHLIGHT_TEXT) } else { palette::color(palette::WINDOW_TEXT) },
+            text_color: if hot {
+                palette::color(palette::HIGHLIGHT_TEXT)
+            } else {
+                palette::color(palette::WINDOW_TEXT)
+            },
             border: Border::default(),
             shadow: Shadow::default(),
         }
@@ -1228,15 +1463,31 @@ fn parse_hex(s: &str) -> Color {
 fn view(state: &Display) -> Element<'_, Message> {
     let panel = iced::widget::stack![
         frame::raised(),
-        container(tab_content(state)).padding(12.0).width(Length::Fill).height(Length::Fill),
+        container(tab_content(state))
+            .padding(12.0)
+            .width(Length::Fill)
+            .height(Length::Fill),
     ];
 
     let buttons = Row::new()
         .spacing(8.0)
         .push(Space::with_width(Length::Fill))
-        .push(button(text("OK").size(metrics::UI_PX)).on_press(Message::Ok).default(true).width(Length::Fixed(80.0)))
-        .push(button(text("Cancel").size(metrics::UI_PX)).on_press(Message::Cancel).width(Length::Fixed(80.0)))
-        .push(button(text("Apply").size(metrics::UI_PX)).on_press(Message::Apply).width(Length::Fixed(80.0)));
+        .push(
+            button(text("OK").size(metrics::UI_PX))
+                .on_press(Message::Ok)
+                .default(true)
+                .width(Length::Fixed(80.0)),
+        )
+        .push(
+            button(text("Cancel").size(metrics::UI_PX))
+                .on_press(Message::Cancel)
+                .width(Length::Fixed(80.0)),
+        )
+        .push(
+            button(text("Apply").size(metrics::UI_PX))
+                .on_press(Message::Apply)
+                .width(Length::Fixed(80.0)),
+        );
 
     let body = Column::new()
         .spacing(6.0)
@@ -1268,12 +1519,22 @@ fn revert_dialog(secs: u32) -> Element<'static, Message> {
         .padding(pad(16.0, 16.0, 12.0, 16.0))
         .push(bold("Display Settings"))
         .push(label("Your desktop has been reconfigured."))
-        .push(label(&format!("Do you want to keep these settings? Reverting in {secs} seconds\u{2026}")))
+        .push(label(&format!(
+            "Do you want to keep these settings? Reverting in {secs} seconds\u{2026}"
+        )))
         .push(
             Row::new()
                 .spacing(8.0)
-                .push(button(text("Yes").size(metrics::UI_PX)).on_press(Message::KeepSettings).width(Length::Fixed(70.0)))
-                .push(button(text("No").size(metrics::UI_PX)).on_press(Message::RevertNow).width(Length::Fixed(70.0))),
+                .push(
+                    button(text("Yes").size(metrics::UI_PX))
+                        .on_press(Message::KeepSettings)
+                        .width(Length::Fixed(70.0)),
+                )
+                .push(
+                    button(text("No").size(metrics::UI_PX))
+                        .on_press(Message::RevertNow)
+                        .width(Length::Fixed(70.0)),
+                ),
         );
     let panel = container(iced::widget::stack![frame::raised(), container(body)])
         .width(Length::Fixed(340.0))
@@ -1282,10 +1543,21 @@ fn revert_dialog(secs: u32) -> Element<'static, Message> {
     Stack::new()
         .push(
             container(Space::new(Length::Fill, Length::Fill)).style(|_| container::Style {
-                background: Some(Background::Color(Color { r: 0.0, g: 0.0, b: 0.0, a: 0.35 })),
+                background: Some(Background::Color(Color {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 0.0,
+                    a: 0.35,
+                })),
                 ..container::Style::default()
             }),
         )
-        .push(container(panel).width(Length::Fill).height(Length::Fill).center_x(Length::Fill).center_y(Length::Fill))
+        .push(
+            container(panel)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill),
+        )
         .into()
 }

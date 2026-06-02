@@ -76,15 +76,27 @@ enum Message {
 }
 
 fn gui() -> iced::Result {
-    iced::application(|_: &ControlPanel| "Control Panel - mde".to_string(), update, view)
-        .theme(|_| iced::Theme::Light)
-        .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
-        .default_font(mde_ui::font::ui())
-        .run_with(|| {
-            let installed = fedora::TOOLS.iter().map(fedora::is_installed).collect();
-            (ControlPanel { installed, ..ControlPanel::default() }, Task::none())
-        })
+    iced::application(
+        |_: &ControlPanel| "Control Panel - mde".to_string(),
+        update,
+        view,
+    )
+    .theme(|_| iced::Theme::Light)
+    .font(mde_ui::font::REGULAR_BYTES)
+    .font(mde_ui::font::BOLD_BYTES)
+    .font(mde_ui::font::PLEX_REGULAR_BYTES)
+    .font(mde_ui::font::PLEX_BOLD_BYTES)
+    .default_font(mde_ui::font::ui())
+    .run_with(|| {
+        let installed = fedora::TOOLS.iter().map(fedora::is_installed).collect();
+        (
+            ControlPanel {
+                installed,
+                ..ControlPanel::default()
+            },
+            Task::none(),
+        )
+    })
 }
 
 fn update(state: &mut ControlPanel, message: Message) -> Task<Message> {
@@ -129,7 +141,12 @@ fn update(state: &mut ControlPanel, message: Message) -> Task<Message> {
 }
 
 fn pad(top: f32, right: f32, bottom: f32, left: f32) -> Padding {
-    Padding { top, right, bottom, left }
+    Padding {
+        top,
+        right,
+        bottom,
+        left,
+    }
 }
 
 fn flat(theme: &iced::Theme, status: button::Status) -> button::Style {
@@ -168,9 +185,21 @@ fn menu_items(i: usize, view: CpView) -> Vec<(&'static str, Message, bool)> {
             ("Paste", Message::Noop, false),
         ],
         2 => vec![
-            (mark(CpView::LargeIcons, "\u{2022} Large Icons", "  Large Icons"), Message::SetView(CpView::LargeIcons), true),
-            (mark(CpView::List, "\u{2022} List", "  List"), Message::SetView(CpView::List), true),
-            (mark(CpView::Details, "\u{2022} Details", "  Details"), Message::SetView(CpView::Details), true),
+            (
+                mark(CpView::LargeIcons, "\u{2022} Large Icons", "  Large Icons"),
+                Message::SetView(CpView::LargeIcons),
+                true,
+            ),
+            (
+                mark(CpView::List, "\u{2022} List", "  List"),
+                Message::SetView(CpView::List),
+                true,
+            ),
+            (
+                mark(CpView::Details, "\u{2022} Details", "  Details"),
+                Message::SetView(CpView::Details),
+                true,
+            ),
             ("Refresh", Message::Refresh, true),
         ],
         3 => vec![("Add to Favorites\u{2026}", Message::Noop, false)],
@@ -224,19 +253,30 @@ fn dropdown(i: usize, view: CpView) -> Element<'static, Message> {
                 .padding(pad(2.0, 24.0, 2.0, 12.0))
                 .style(item_style(false))
         } else {
-            button(text(*label).size(metrics::UI_PX).color(palette::color(palette::GRAY_TEXT)))
-                .width(Length::Fill)
-                .padding(pad(2.0, 24.0, 2.0, 12.0))
-                .style(disabled_item)
+            button(
+                text(*label)
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+            )
+            .width(Length::Fill)
+            .padding(pad(2.0, 24.0, 2.0, 12.0))
+            .style(disabled_item)
         });
     }
-    let panel = container(iced::widget::stack![frame::raised().thickness(2), container(col).padding(2.0)])
-        .width(Length::Fixed(168.0))
-        .height(Length::Fixed(items.len() as f32 * 20.0 + 6.0));
+    let panel = container(iced::widget::stack![
+        frame::raised().thickness(2),
+        container(col).padding(2.0)
+    ])
+    .width(Length::Fixed(168.0))
+    .height(Length::Fixed(items.len() as f32 * 20.0 + 6.0));
     // Push it to MENU_LEFT[i] / below the menubar via leading spacers.
     Column::new()
         .push(Space::with_height(Length::Fixed(MENUBAR_H)))
-        .push(Row::new().push(Space::with_width(Length::Fixed(MENU_LEFT[i]))).push(panel))
+        .push(
+            Row::new()
+                .push(Space::with_width(Length::Fixed(MENU_LEFT[i])))
+                .push(panel),
+        )
         .into()
 }
 
@@ -257,7 +297,11 @@ fn about_box() -> Element<'static, Message> {
         .spacing(8.0)
         .align_x(iced::Alignment::Center)
         .padding(pad(16.0, 20.0, 12.0, 20.0))
-        .push(text("Control Panel").size(metrics::INFO_TITLE_PX).font(bold))
+        .push(
+            text("Control Panel")
+                .size(metrics::INFO_TITLE_PX)
+                .font(bold),
+        )
         .push(text("MDE-Retro — a Windows 2000 desktop for Fedora").size(metrics::UI_PX))
         .push(text("Native Rust shell (iced)").size(metrics::UI_PX))
         .push(Space::with_height(Length::Fixed(6.0)))
@@ -287,8 +331,16 @@ fn sidebar<'a>() -> Element<'a, Message> {
             Row::new()
                 .spacing(8.0)
                 .align_y(iced::Alignment::Center)
-                .push(crate::icons::icon_any(&["preferences-system", "gnome-control-center", "computer"], 32))
-                .push(text("Control Panel").size(metrics::INFO_TITLE_PX).font(bold).color(accent)),
+                .push(crate::icons::icon_any(
+                    &["preferences-system", "gnome-control-center", "computer"],
+                    32,
+                ))
+                .push(
+                    text("Control Panel")
+                        .size(metrics::INFO_TITLE_PX)
+                        .font(bold)
+                        .color(accent),
+                ),
         )
         .push(container(Space::new(Length::Fill, Length::Fixed(2.0))).style(mde_ui::infoband::rule))
         .push(text("Select an item to view its description.").size(metrics::UI_PX))
@@ -303,7 +355,11 @@ fn sidebar<'a>() -> Element<'a, Message> {
         )
         .push(Space::new(Length::Fill, Length::Fixed(6.0)))
         .push(text("See also:").size(metrics::UI_PX))
-        .push(text("Administrative Tools").size(metrics::UI_PX).color(accent))
+        .push(
+            text("Administrative Tools")
+                .size(metrics::UI_PX)
+                .color(accent),
+        )
         .push(text("Windows Update").size(metrics::UI_PX).color(accent));
 
     container(col)
@@ -339,9 +395,13 @@ fn grid(state: &ControlPanel) -> Element<'_, Message> {
 
 /// A bold category section heading.
 fn cat_header(category: &'static str) -> Element<'static, Message> {
-    container(text(category).size(metrics::UI_PX).font(mde_ui::font::ui_bold()))
-        .padding(pad(5.0, 6.0, 1.0, 4.0))
-        .into()
+    container(
+        text(category)
+            .size(metrics::UI_PX)
+            .font(mde_ui::font::ui_bold()),
+    )
+    .padding(pad(5.0, 6.0, 1.0, 4.0))
+    .into()
 }
 
 /// The list label, with a "(install)" hint for tools not yet present.
@@ -355,7 +415,11 @@ fn tool_label(state: &ControlPanel, i: usize, tool: &fedora::Tool) -> String {
 
 /// Grey a label when the tool isn't installed (it stays clickable → installs on
 /// click via pkexec dnf), so present vs. installable reads at a glance.
-fn dim_missing(state: &ControlPanel, i: usize, t: iced::widget::Text<'static>) -> iced::widget::Text<'static> {
+fn dim_missing(
+    state: &ControlPanel,
+    i: usize,
+    t: iced::widget::Text<'static>,
+) -> iced::widget::Text<'static> {
     if state.installed.get(i).copied().unwrap_or(true) {
         t
     } else {
@@ -365,7 +429,10 @@ fn dim_missing(state: &ControlPanel, i: usize, t: iced::widget::Text<'static>) -
 
 /// List view: one row per applet, 16px icon + name, grouped by category.
 fn grid_list(state: &ControlPanel) -> Element<'_, Message> {
-    let mut col = Column::new().spacing(0.0).padding(pad(4.0, 4.0, 4.0, 6.0)).width(Length::Fill);
+    let mut col = Column::new()
+        .spacing(0.0)
+        .padding(pad(4.0, 4.0, 4.0, 6.0))
+        .width(Length::Fill);
     for category in fedora::categories() {
         col = col.push(cat_header(category));
         for (i, tool) in fedora::TOOLS.iter().enumerate() {
@@ -376,7 +443,11 @@ fn grid_list(state: &ControlPanel) -> Element<'_, Message> {
                 .spacing(5.0)
                 .align_y(iced::Alignment::Center)
                 .push(crate::icons::icon_any(tool.icons, 16))
-                .push(dim_missing(state, i, text(tool_label(state, i, tool)).size(metrics::UI_PX)));
+                .push(dim_missing(
+                    state,
+                    i,
+                    text(tool_label(state, i, tool)).size(metrics::UI_PX),
+                ));
             col = col.push(
                 button(row)
                     .on_press(Message::Activate(i))
@@ -395,11 +466,17 @@ const LARGE_COLS: usize = 4;
 /// Large Icons view: 32px icons with the name beneath, flowing in rows under
 /// each category heading (the classic Control Panel default).
 fn grid_large(state: &ControlPanel) -> Element<'_, Message> {
-    let mut col = Column::new().spacing(2.0).padding(pad(4.0, 4.0, 4.0, 6.0)).width(Length::Fill);
+    let mut col = Column::new()
+        .spacing(2.0)
+        .padding(pad(4.0, 4.0, 4.0, 6.0))
+        .width(Length::Fill);
     for category in fedora::categories() {
         col = col.push(cat_header(category));
-        let items: Vec<(usize, &fedora::Tool)> =
-            fedora::TOOLS.iter().enumerate().filter(|(_, t)| t.category == category).collect();
+        let items: Vec<(usize, &fedora::Tool)> = fedora::TOOLS
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| t.category == category)
+            .collect();
         for chunk in items.chunks(LARGE_COLS) {
             let mut row = Row::new().spacing(4.0);
             for (i, tool) in chunk {
@@ -438,13 +515,36 @@ fn grid_details(state: &ControlPanel) -> Element<'_, Message> {
     let bold = mde_ui::font::ui_bold();
     let header = Row::new()
         .padding(pad(2.0, 6.0, 3.0, 6.0))
-        .push(text("Name").size(metrics::UI_PX).font(bold).width(Length::Fill))
-        .push(text("Category").size(metrics::UI_PX).font(bold).width(Length::Fixed(150.0)))
-        .push(text("Status").size(metrics::UI_PX).font(bold).width(Length::Fixed(96.0)));
-    let mut col = Column::new().spacing(0.0).padding(pad(2.0, 4.0, 4.0, 4.0)).width(Length::Fill).push(header);
+        .push(
+            text("Name")
+                .size(metrics::UI_PX)
+                .font(bold)
+                .width(Length::Fill),
+        )
+        .push(
+            text("Category")
+                .size(metrics::UI_PX)
+                .font(bold)
+                .width(Length::Fixed(150.0)),
+        )
+        .push(
+            text("Status")
+                .size(metrics::UI_PX)
+                .font(bold)
+                .width(Length::Fixed(96.0)),
+        );
+    let mut col = Column::new()
+        .spacing(0.0)
+        .padding(pad(2.0, 4.0, 4.0, 4.0))
+        .width(Length::Fill)
+        .push(header);
     for (i, tool) in fedora::TOOLS.iter().enumerate() {
         let installed = state.installed.get(i).copied().unwrap_or(true);
-        let status = if installed { "Installed" } else { "Not installed" };
+        let status = if installed {
+            "Installed"
+        } else {
+            "Not installed"
+        };
         let name = Row::new()
             .spacing(5.0)
             .align_y(iced::Alignment::Center)
@@ -454,8 +554,16 @@ fn grid_details(state: &ControlPanel) -> Element<'_, Message> {
         let row = Row::new()
             .align_y(iced::Alignment::Center)
             .push(name)
-            .push(text(tool.category.to_string()).size(metrics::UI_PX).width(Length::Fixed(150.0)))
-            .push(text(status.to_string()).size(metrics::UI_PX).width(Length::Fixed(96.0)));
+            .push(
+                text(tool.category.to_string())
+                    .size(metrics::UI_PX)
+                    .width(Length::Fixed(150.0)),
+            )
+            .push(
+                text(status.to_string())
+                    .size(metrics::UI_PX)
+                    .width(Length::Fixed(96.0)),
+            );
         col = col.push(
             button(row)
                 .on_press(Message::Activate(i))
@@ -481,9 +589,12 @@ fn status_bar(state: &ControlPanel) -> Element<'_, Message> {
 }
 
 fn view(state: &ControlPanel) -> Element<'_, Message> {
-    let body = Row::new()
-        .push(sidebar())
-        .push(container(grid(state)).width(Length::Fill).height(Length::Fill).padding(2.0));
+    let body = Row::new().push(sidebar()).push(
+        container(grid(state))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(2.0),
+    );
 
     let content = Column::new()
         .push(menubar(state.menu_open))
@@ -528,7 +639,13 @@ fn list() {
             } else {
                 "MISSING  "
             };
-            println!("  {:>2}. [{}]  {:<32}  ({})", n, status, tool.name, fedora::binary(tool.command));
+            println!(
+                "  {:>2}. [{}]  {:<32}  ({})",
+                n,
+                status,
+                tool.name,
+                fedora::binary(tool.command)
+            );
         }
         println!();
     }

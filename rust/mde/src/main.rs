@@ -18,8 +18,8 @@ mod control_panel;
 mod dialogs;
 mod display;
 mod embedded_icons;
-mod filedialog;
 mod fedora;
+mod filedialog;
 mod files;
 mod icons;
 mod install;
@@ -30,9 +30,9 @@ mod panel;
 mod popup;
 mod state;
 mod sysinfo;
-mod tray;
 mod system_properties;
 mod taskbar_properties;
+mod tray;
 mod tui_setup;
 mod wlr;
 
@@ -97,7 +97,12 @@ fn main() -> ExitCode {
     // Resolve the subcommand from argv[0] basename if it looks like `mde-foo`.
     let argv0 = args
         .first()
-        .map(|p| Path::new(p).file_name().and_then(|s| s.to_str()).unwrap_or(""))
+        .map(|p| {
+            Path::new(p)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+        })
         .unwrap_or("");
     let (cmd, rest): (&str, &[String]) = if let Some(sub) = argv0.strip_prefix("mde-") {
         (sub, &args[1..])

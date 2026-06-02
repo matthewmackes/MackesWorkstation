@@ -70,7 +70,12 @@ impl Watcher {
 
     #[zbus(property)]
     fn registered_status_notifier_items(&self) -> Vec<String> {
-        self.registered.lock().unwrap().iter().map(|(s, p)| format!("{s}{p}")).collect()
+        self.registered
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(s, p)| format!("{s}{p}"))
+            .collect()
     }
 
     #[zbus(property)]
@@ -100,7 +105,9 @@ pub fn start() -> Tray {
 }
 
 fn serve(tray: Tray, registered: Registered) -> zbus::Result<()> {
-    let watcher = Watcher { registered: registered.clone() };
+    let watcher = Watcher {
+        registered: registered.clone(),
+    };
     let conn = connection::Builder::session()?
         .serve_at("/StatusNotifierWatcher", watcher)?
         .build()?;
@@ -116,7 +123,9 @@ fn serve(tray: Tray, registered: Registered) -> zbus::Result<()> {
         thread::sleep(Duration::from_millis(500));
     }
     if !claimed {
-        return Err(zbus::Error::Failure("StatusNotifierWatcher name unavailable".into()));
+        return Err(zbus::Error::Failure(
+            "StatusNotifierWatcher name unavailable".into(),
+        ));
     }
 
     // Refresh loop: prune dead services, then read each item's icon + tooltip.
@@ -128,11 +137,18 @@ fn serve(tray: Tray, registered: Registered) -> zbus::Result<()> {
 
 /// Whether `service` still has an owner on the bus.
 fn has_owner(conn: &Connection, service: &str) -> bool {
-    let Ok(name) = BusName::try_from(service.to_string()) else { return false };
-    Proxy::new(conn, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus")
-        .ok()
-        .and_then(|p| p.call::<_, _, bool>("NameHasOwner", &(name)).ok())
-        .unwrap_or(false)
+    let Ok(name) = BusName::try_from(service.to_string()) else {
+        return false;
+    };
+    Proxy::new(
+        conn,
+        "org.freedesktop.DBus",
+        "/org/freedesktop/DBus",
+        "org.freedesktop.DBus",
+    )
+    .ok()
+    .and_then(|p| p.call::<_, _, bool>("NameHasOwner", &(name)).ok())
+    .unwrap_or(false)
 }
 
 fn refresh(conn: &Connection, registered: &Registered, tray: &Tray) {
@@ -144,13 +160,26 @@ fn refresh(conn: &Connection, registered: &Registered, tray: &Tray) {
     let items: Vec<(String, String)> = registered.lock().unwrap().clone();
     let mut out = Vec::new();
     for (service, path) in items {
-        let proxy = match Proxy::new(conn, service.clone(), path.clone(), "org.kde.StatusNotifierItem") {
+        let proxy = match Proxy::new(
+            conn,
+            service.clone(),
+            path.clone(),
+            "org.kde.StatusNotifierItem",
+        ) {
             Ok(p) => p,
             Err(_) => continue,
         };
         let icon_name: String = proxy.get_property("IconName").unwrap_or_default();
-        let icon_name = if icon_name.is_empty() { "application-x-executable".to_string() } else { icon_name };
-        out.push(TrayItem { service, path, icon_name });
+        let icon_name = if icon_name.is_empty() {
+            "application-x-executable".to_string()
+        } else {
+            icon_name
+        };
+        out.push(TrayItem {
+            service,
+            path,
+            icon_name,
+        });
     }
     *tray.lock().unwrap() = out;
 }

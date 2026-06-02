@@ -23,7 +23,12 @@ where
     // The engraved frame: a 1px shadow border, content inset (top inset leaves
     // room for the caption to overlap the line).
     let framed = container(content)
-        .padding(Padding { top: 12.0, right: 10.0, bottom: 10.0, left: 10.0 })
+        .padding(Padding {
+            top: 12.0,
+            right: 10.0,
+            bottom: 10.0,
+            left: 10.0,
+        })
         .width(Length::Fill)
         .style(|_: &iced::Theme| container::Style {
             background: None,
@@ -41,7 +46,12 @@ where
             .size(crate::metrics::UI_PX)
             .color(palette::color(palette::WINDOW_TEXT)),
     )
-    .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 4.0 })
+    .padding(Padding {
+        top: 0.0,
+        right: 4.0,
+        bottom: 0.0,
+        left: 4.0,
+    })
     .style(|_: &iced::Theme| container::Style {
         background: Some(Background::Color(palette::color(palette::MENU))),
         ..container::Style::default()
@@ -49,7 +59,11 @@ where
 
     // Float the caption at the top-left, slightly indented, over the frame.
     let overlay = Column::new()
-        .push(Row::new().push(Space::with_width(Length::Fixed(8.0))).push(caption))
+        .push(
+            Row::new()
+                .push(Space::with_width(Length::Fixed(8.0)))
+                .push(caption),
+        )
         .push(Space::with_height(Length::Fill));
 
     Stack::new().push(framed).push(overlay).into()

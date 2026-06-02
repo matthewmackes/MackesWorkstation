@@ -127,7 +127,9 @@ fn launch() -> Result<(), iced_layershell::Error> {
         .style(style)
         .subscription(subscription)
         .font(mde_ui::font::REGULAR_BYTES)
-        .font(mde_ui::font::BOLD_BYTES).font(mde_ui::font::PLEX_REGULAR_BYTES).font(mde_ui::font::PLEX_BOLD_BYTES)
+        .font(mde_ui::font::BOLD_BYTES)
+        .font(mde_ui::font::PLEX_REGULAR_BYTES)
+        .font(mde_ui::font::PLEX_BOLD_BYTES)
         .default_font(mde_ui::font::ui());
     // Register the Nerd Font for glyph icons if present on the system.
     if let Some(bytes) = nerd_font_bytes() {
@@ -166,18 +168,21 @@ fn launch() -> Result<(), iced_layershell::Error> {
             ..Default::default()
         }
     };
-    app.settings(MainSettings { layer_settings, ..Default::default() })
-        .run_with(|| {
-            let panel = Panel {
-                pinned: crate::state::load().pinned,
-                tray: Some(crate::tray::start()),
-                wm: wlr::start(),
-                has_backlight: backlight_dir().is_some(),
-                clock_offset: utc_offset_secs(),
-                ..Panel::default()
-            };
-            (panel, Task::done(Message::Tick))
-        })
+    app.settings(MainSettings {
+        layer_settings,
+        ..Default::default()
+    })
+    .run_with(|| {
+        let panel = Panel {
+            pinned: crate::state::load().pinned,
+            tray: Some(crate::tray::start()),
+            wm: wlr::start(),
+            has_backlight: backlight_dir().is_some(),
+            clock_offset: utc_offset_secs(),
+            ..Panel::default()
+        };
+        (panel, Task::done(Message::Tick))
+    })
 }
 
 fn namespace(_state: &Panel) -> String {
@@ -226,7 +231,9 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
                     state.menu = None;
                 }
             }
-            state.children.retain_mut(|c| matches!(c.try_wait(), Ok(None)));
+            state
+                .children
+                .retain_mut(|c| matches!(c.try_wait(), Ok(None)));
         }
         Message::TrayActivate(i) => {
             if let Some(it) = state.tray_items.get(i) {
@@ -277,7 +284,12 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
         // Right-click a taskbar button to minimize/restore it. (Full
         // Restore/Maximize/Close live on the labwc titlebar + its right-click menu.)
         Message::MinimizeToggle(id) => {
-            let minimized = state.windows.iter().find(|w| w.id == id).map(|w| w.minimized).unwrap_or(false);
+            let minimized = state
+                .windows
+                .iter()
+                .find(|w| w.id == id)
+                .map(|w| w.minimized)
+                .unwrap_or(false);
             if let Some(w) = &state.wm {
                 w.set_minimized(id, !minimized);
             }
@@ -310,7 +322,11 @@ fn start_button(state: &Panel, w: Length, h: Length) -> Element<'_, Message> {
                         .width(Length::Fixed(16.0))
                         .height(Length::Fixed(16.0)),
                 )
-                .push(text("Start").size(metrics::UI_PX).font(mde_ui::font::ui_bold())),
+                .push(
+                    text("Start")
+                        .size(metrics::UI_PX)
+                        .font(mde_ui::font::ui_bold()),
+                ),
         )
         .on_press(Message::Start)
         .active(state.menu.is_some())
@@ -329,7 +345,10 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
         if is_network_icon(&item.icon_name) {
             continue;
         }
-        v.push(glyph_button(sni_glyph(&item.icon_name), Message::TrayActivate(i)));
+        v.push(glyph_button(
+            sni_glyph(&item.icon_name),
+            Message::TrayActivate(i),
+        ));
     }
     if state.has_backlight {
         v.push(
@@ -342,7 +361,9 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
     if let Some((pct, muted)) = state.volume {
         v.push(
             mouse_area(glyph_el(volume_glyph(pct, muted)))
-                .on_press(Message::Launch("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle".into()))
+                .on_press(Message::Launch(
+                    "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle".into(),
+                ))
                 .on_right_press(Message::Launch("pavucontrol".into()))
                 .on_scroll(|d| {
                     if scroll_up(&d) {
@@ -354,7 +375,10 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
                 .into(),
         );
     }
-    v.push(glyph_button(net_glyph(state.net), Message::Launch("nm-connection-editor".into())));
+    v.push(glyph_button(
+        net_glyph(state.net),
+        Message::Launch("nm-connection-editor".into()),
+    ));
     if let Some((pct, charging)) = state.battery {
         v.push(glyph_button(
             battery_glyph(pct, charging),
@@ -393,12 +417,27 @@ fn view_carbon(state: &Panel) -> Element<'_, Message> {
             Row::new()
                 .spacing(6.0)
                 .align_y(iced::Alignment::Center)
-                .push(text("\u{f0c9}").size(15.0).font(mde_ui::font::NERD).color(text_c)) // fa-bars (≡)
-                .push(text("MDE").size(metrics::UI_PX).font(mde_ui::font::ui_bold()).color(text_c)),
+                .push(
+                    text("\u{f0c9}")
+                        .size(15.0)
+                        .font(mde_ui::font::NERD)
+                        .color(text_c),
+                ) // fa-bars (≡)
+                .push(
+                    text("MDE")
+                        .size(metrics::UI_PX)
+                        .font(mde_ui::font::ui_bold())
+                        .color(text_c),
+                ),
         )
         .height(Length::Fill)
         .center_y(Length::Fill)
-        .padding(Padding { top: 0.0, right: 12.0, bottom: 0.0, left: 12.0 }),
+        .padding(Padding {
+            top: 0.0,
+            right: 12.0,
+            bottom: 0.0,
+            left: 12.0,
+        }),
     )
     .on_press(Message::Start)
     .on_right_press(Message::StartContext);
@@ -413,10 +452,19 @@ fn view_carbon(state: &Panel) -> Element<'_, Message> {
     for item in &state.pinned {
         bar = bar.push(
             mouse_area(
-                container(text(truncate(&item.name, 12)).size(metrics::UI_PX).color(text_c))
-                    .height(Length::Fill)
-                    .center_y(Length::Fill)
-                    .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 10.0 }),
+                container(
+                    text(truncate(&item.name, 12))
+                        .size(metrics::UI_PX)
+                        .color(text_c),
+                )
+                .height(Length::Fill)
+                .center_y(Length::Fill)
+                .padding(Padding {
+                    top: 0.0,
+                    right: 10.0,
+                    bottom: 0.0,
+                    left: 10.0,
+                }),
             )
             .on_press(Message::Launch(item.command.clone())),
         );
@@ -448,21 +496,30 @@ fn view_carbon(state: &Panel) -> Element<'_, Message> {
         )
         .height(Length::Fill)
         .center_y(Length::Fill)
-        .padding(Padding { top: 0.0, right: 12.0, bottom: 0.0, left: 6.0 }),
+        .padding(Padding {
+            top: 0.0,
+            right: 12.0,
+            bottom: 0.0,
+            left: 6.0,
+        }),
     );
 
     // A 1px Carbon border-subtle divider along the bottom edge of the header.
     Stack::new()
         .push(container(bar).width(Length::Fill).height(Length::Fill))
         .push(
-            Column::new().push(Space::new(Length::Fill, Length::Fill)).push(
-                container(Space::new(Length::Fill, Length::Fixed(1.0))).width(Length::Fill).style(|_| {
-                    container::Style {
-                        background: Some(iced::Background::Color(palette::color(palette::WINDOW_FRAME))),
-                        ..container::Style::default()
-                    }
-                }),
-            ),
+            Column::new()
+                .push(Space::new(Length::Fill, Length::Fill))
+                .push(
+                    container(Space::new(Length::Fill, Length::Fixed(1.0)))
+                        .width(Length::Fill)
+                        .style(|_| container::Style {
+                            background: Some(iced::Background::Color(palette::color(
+                                palette::WINDOW_FRAME,
+                            ))),
+                            ..container::Style::default()
+                        }),
+                ),
         )
         .into()
 }
@@ -474,9 +531,20 @@ fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
     let label = Row::new()
         .spacing(6.0)
         .align_y(iced::Alignment::Center)
-        .push(crate::icons::icon_any(&[w.app_id.as_str(), "application-x-executable"], 16))
-        .push(text(truncate(&w.title, 18)).size(metrics::UI_PX).color(text_c));
-    let underline = if w.focused { palette::accent() } else { Color::TRANSPARENT };
+        .push(crate::icons::icon_any(
+            &[w.app_id.as_str(), "application-x-executable"],
+            16,
+        ))
+        .push(
+            text(truncate(&w.title, 18))
+                .size(metrics::UI_PX)
+                .color(text_c),
+        );
+    let underline = if w.focused {
+        palette::accent()
+    } else {
+        Color::TRANSPARENT
+    };
     let col = Column::new()
         .width(Length::Fixed(metrics::TASKBAR_BUTTON_MIN as f32))
         .height(Length::Fill)
@@ -484,12 +552,19 @@ fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
             container(label)
                 .height(Length::Fill)
                 .center_y(Length::Fill)
-                .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 10.0 }),
+                .padding(Padding {
+                    top: 0.0,
+                    right: 10.0,
+                    bottom: 0.0,
+                    left: 10.0,
+                }),
         )
         .push(
-            container(Space::new(Length::Fill, Length::Fixed(2.0))).style(move |_| container::Style {
-                background: Some(iced::Background::Color(underline)),
-                ..container::Style::default()
+            container(Space::new(Length::Fill, Length::Fixed(2.0))).style(move |_| {
+                container::Style {
+                    background: Some(iced::Background::Color(underline)),
+                    ..container::Style::default()
+                }
             }),
         );
     mouse_area(col)
@@ -523,7 +598,10 @@ fn view_horizontal(state: &Panel) -> Element<'_, Message> {
         let label = Row::new()
             .spacing(4.0)
             .align_y(iced::Alignment::Center)
-            .push(crate::icons::icon_any(&[w.app_id.as_str(), "application-x-executable"], 16))
+            .push(crate::icons::icon_any(
+                &[w.app_id.as_str(), "application-x-executable"],
+                16,
+            ))
             .push(text(truncate(&w.title, 20)).size(metrics::UI_PX));
         bar = bar.push(
             mouse_area(
@@ -563,7 +641,12 @@ fn view_horizontal(state: &Panel) -> Element<'_, Message> {
                     .push(text(state.clock.clone()).size(metrics::UI_PX)),
             )
             .center_y(Length::Fill)
-            .padding(Padding { top: 0.0, right: 8.0, bottom: 0.0, left: 6.0 }),
+            .padding(Padding {
+                top: 0.0,
+                right: 8.0,
+                bottom: 0.0,
+                left: 6.0,
+            }),
         )
         .push(frame::sunken().no_face())
         .width(Length::Shrink);
@@ -585,7 +668,9 @@ fn vbar_sep<'a>() -> Element<'a, Message> {
     container(Space::new(Length::Fill, Length::Fixed(1.0)))
         .width(Length::Fill)
         .style(|_| container::Style {
-            background: Some(iced::Background::Color(palette::color(palette::BUTTON_SHADOW))),
+            background: Some(iced::Background::Color(palette::color(
+                palette::BUTTON_SHADOW,
+            ))),
             ..container::Style::default()
         })
         .into()
@@ -594,14 +679,22 @@ fn vbar_sep<'a>() -> Element<'a, Message> {
 /// The BeOS Deskbar: a vertical strip on the left — clock + tray glyphs, then
 /// the running-window list, with the Start button pinned at the very bottom.
 fn view_vertical(state: &Panel) -> Element<'_, Message> {
-    let mut col = Column::new().spacing(3.0).width(Length::Fill).height(Length::Fill);
+    let mut col = Column::new()
+        .spacing(3.0)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
     // Clock, then the tray glyphs in a centred row (BeOS keeps these near the top).
     col = col.push(
         container(text(state.clock.clone()).size(metrics::UI_PX))
             .width(Length::Fill)
             .center_x(Length::Fill)
-            .padding(Padding { top: 2.0, right: 0.0, bottom: 2.0, left: 0.0 }),
+            .padding(Padding {
+                top: 2.0,
+                right: 0.0,
+                bottom: 2.0,
+                left: 0.0,
+            }),
     );
     let mut tray = Row::new().spacing(2.0).align_y(iced::Alignment::Center);
     for g in tray_glyphs(state) {
@@ -624,7 +717,10 @@ fn view_vertical(state: &Panel) -> Element<'_, Message> {
         let label = Row::new()
             .spacing(4.0)
             .align_y(iced::Alignment::Center)
-            .push(crate::icons::icon_any(&[w.app_id.as_str(), "application-x-executable"], 16))
+            .push(crate::icons::icon_any(
+                &[w.app_id.as_str(), "application-x-executable"],
+                16,
+            ))
             .push(text(truncate(&w.title, 11)).size(metrics::UI_PX));
         col = col.push(
             mouse_area(
@@ -648,7 +744,12 @@ fn view_vertical(state: &Panel) -> Element<'_, Message> {
 
     Stack::new()
         .push(frame::raised())
-        .push(container(col).padding(2.0).width(Length::Fill).height(Length::Fill))
+        .push(
+            container(col)
+                .padding(2.0)
+                .width(Length::Fill)
+                .height(Length::Fill),
+        )
         .into()
 }
 
@@ -656,21 +757,38 @@ fn view_vertical(state: &Panel) -> Element<'_, Message> {
 
 /// Default-sink volume as (percent, muted), via wpctl (PipeWire) then pactl.
 fn poll_volume() -> Option<(u8, bool)> {
-    if let Ok(o) = Command::new("wpctl").args(["get-volume", "@DEFAULT_AUDIO_SINK@"]).output() {
+    if let Ok(o) = Command::new("wpctl")
+        .args(["get-volume", "@DEFAULT_AUDIO_SINK@"])
+        .output()
+    {
         if o.status.success() {
             // "Volume: 0.45 [MUTED]"
             let s = String::from_utf8_lossy(&o.stdout);
             let muted = s.contains("MUTED");
-            if let Some(v) = s.split_whitespace().nth(1).and_then(|t| t.parse::<f32>().ok()) {
+            if let Some(v) = s
+                .split_whitespace()
+                .nth(1)
+                .and_then(|t| t.parse::<f32>().ok())
+            {
                 return Some(((v * 100.0).round() as u8, muted));
             }
         }
     }
-    if let Ok(o) = Command::new("pactl").args(["get-sink-mute", "@DEFAULT_SINK@"]).output() {
+    if let Ok(o) = Command::new("pactl")
+        .args(["get-sink-mute", "@DEFAULT_SINK@"])
+        .output()
+    {
         let muted = String::from_utf8_lossy(&o.stdout).contains("yes");
-        if let Ok(v) = Command::new("pactl").args(["get-sink-volume", "@DEFAULT_SINK@"]).output() {
+        if let Ok(v) = Command::new("pactl")
+            .args(["get-sink-volume", "@DEFAULT_SINK@"])
+            .output()
+        {
             let s = String::from_utf8_lossy(&v.stdout);
-            if let Some(pct) = s.split('/').nth(1).and_then(|t| t.trim().trim_end_matches('%').parse::<u8>().ok()) {
+            if let Some(pct) = s
+                .split('/')
+                .nth(1)
+                .and_then(|t| t.trim().trim_end_matches('%').parse::<u8>().ok())
+            {
                 return Some((pct, muted));
             }
         }
@@ -680,7 +798,10 @@ fn poll_volume() -> Option<(u8, bool)> {
 
 /// Network state from nmcli: wired beats wifi beats disconnected.
 fn poll_net() -> NetState {
-    let Ok(o) = Command::new("nmcli").args(["-t", "-f", "TYPE,STATE", "device"]).output() else {
+    let Ok(o) = Command::new("nmcli")
+        .args(["-t", "-f", "TYPE,STATE", "device"])
+        .output()
+    else {
         return NetState::Disconnected;
     };
     let s = String::from_utf8_lossy(&o.stdout);
@@ -708,7 +829,11 @@ fn poll_net() -> NetState {
 
 /// The first laptop backlight device directory, if any.
 fn backlight_dir() -> Option<std::path::PathBuf> {
-    std::fs::read_dir("/sys/class/backlight").ok()?.flatten().map(|e| e.path()).next()
+    std::fs::read_dir("/sys/class/backlight")
+        .ok()?
+        .flatten()
+        .map(|e| e.path())
+        .next()
 }
 
 /// Step the backlight up/down via logind's SetBrightness (no root). Returns the
@@ -716,11 +841,23 @@ fn backlight_dir() -> Option<std::path::PathBuf> {
 fn step_brightness(up: bool) -> Option<Child> {
     let dir = backlight_dir()?;
     let dev = dir.file_name()?.to_str()?.to_string();
-    let cur: u32 = std::fs::read_to_string(dir.join("brightness")).ok()?.trim().parse().ok()?;
-    let max: u32 = std::fs::read_to_string(dir.join("max_brightness")).ok()?.trim().parse().ok()?;
+    let cur: u32 = std::fs::read_to_string(dir.join("brightness"))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
+    let max: u32 = std::fs::read_to_string(dir.join("max_brightness"))
+        .ok()?
+        .trim()
+        .parse()
+        .ok()?;
     let step = (max * 7 / 100).max(1);
     let floor = max * 5 / 100;
-    let new = if up { (cur + step).min(max) } else { cur.saturating_sub(step).max(floor) };
+    let new = if up {
+        (cur + step).min(max)
+    } else {
+        cur.saturating_sub(step).max(floor)
+    };
     Command::new("busctl")
         .args([
             "call",
@@ -816,27 +953,50 @@ fn sni_glyph(icon_name: &str) -> char {
 /// now renders natively (so we don't show it twice).
 fn is_network_icon(icon_name: &str) -> bool {
     let n = icon_name.to_ascii_lowercase();
-    ["network", "wifi", "wireless", "signal", "nm-", "wired", "ethernet", "vpn"]
-        .iter()
-        .any(|k| n.contains(k))
+    [
+        "network", "wifi", "wireless", "signal", "nm-", "wired", "ethernet", "vpn",
+    ]
+    .iter()
+    .any(|k| n.contains(k))
 }
 
 /// A bare notification-area glyph (no button chrome) for wrapping in a
 /// `mouse_area` that wants click + scroll handling.
 fn glyph_el(g: char) -> Element<'static, Message> {
-    container(text(g.to_string()).font(mde_ui::font::NERD).size(15.0).color(palette::color(palette::WINDOW_TEXT)))
-        .padding(Padding { top: 1.0, right: 3.0, bottom: 1.0, left: 3.0 })
-        .into()
+    container(
+        text(g.to_string())
+            .font(mde_ui::font::NERD)
+            .size(15.0)
+            .color(palette::color(palette::WINDOW_TEXT)),
+    )
+    .padding(Padding {
+        top: 1.0,
+        right: 3.0,
+        bottom: 1.0,
+        left: 3.0,
+    })
+    .into()
 }
 
 /// A flat (chromeless) notification-area glyph button.
 fn glyph_button(g: char, msg: Message) -> Element<'static, Message> {
     iced::widget::button(
-        text(g.to_string()).font(mde_ui::font::NERD).size(15.0).color(palette::color(palette::WINDOW_TEXT)),
+        text(g.to_string())
+            .font(mde_ui::font::NERD)
+            .size(15.0)
+            .color(palette::color(palette::WINDOW_TEXT)),
     )
     .on_press(msg)
-    .padding(Padding { top: 1.0, right: 3.0, bottom: 1.0, left: 3.0 })
-    .style(|_, _| iced::widget::button::Style { background: None, ..Default::default() })
+    .padding(Padding {
+        top: 1.0,
+        right: 3.0,
+        bottom: 1.0,
+        left: 3.0,
+    })
+    .style(|_, _| iced::widget::button::Style {
+        background: None,
+        ..Default::default()
+    })
     .into()
 }
 
@@ -912,7 +1072,9 @@ mod tests {
 /// Spawn this binary with `args`, returning the child handle so the panel can
 /// reap (and, for the menu, kill) it.
 fn spawn_child(args: &[&str]) -> Option<Child> {
-    std::env::current_exe().ok().and_then(|exe| Command::new(exe).args(args).spawn().ok())
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| Command::new(exe).args(args).spawn().ok())
 }
 
 /// Track a spawned child for later reaping (ignores a failed spawn).
