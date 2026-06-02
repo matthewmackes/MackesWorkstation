@@ -457,6 +457,9 @@ struct Settings {
     /// restart-required. Mirror `state`.
     restart_asap: bool,
     restart_notify: bool,
+    /// Automatic-updates posture (E13.8), read live from the timer/config — the
+    /// same source the System Properties radios use, so the two surfaces agree.
+    auto_mode: crate::sysinfo::AutoMode,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -516,6 +519,8 @@ enum Message {
     // Advanced options (E13.7).
     SetRestartAsap(bool),
     SetRestartNotify(bool),
+    // Automatic-updates posture (E13.8).
+    SetAutoMode(crate::sysinfo::AutoMode),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -651,6 +656,7 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 history_selected: None,
                 restart_asap: st.update_restart_asap,
                 restart_notify: st.update_restart_notify,
+                auto_mode: crate::sysinfo::auto_mode(),
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -865,6 +871,14 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         Message::SetRestartNotify(v) => {
             state.restart_notify = v;
             persist(state);
+        }
+        Message::SetAutoMode(m) => {
+            // Write the posture to the timer + automatic.conf via the SAME helper
+            // System Properties uses (E13.8), then re-read so both surfaces agree.
+            let _ = Command::new("sh")
+                .args(["-c", &crate::sysinfo::set_auto_command(m)])
+                .spawn();
+            state.auto_mode = m;
         }
     }
     Task::none()
@@ -1791,8 +1805,27 @@ fn update_advanced_page(state: &Settings) -> Element<'_, Message> {
             .spacing(8.0)
             .style(mde_ui::checkbox_style)
     };
+    // Automatic-updates posture (E13.8) — reads/writes the same dnf-automatic
+    // timer + config the System Properties radios use, so the two surfaces agree.
+    let posture = Row::new()
+        .spacing(8.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(
+            text("Automatic updates")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            pick_list(
+                crate::sysinfo::AutoMode::ALL.to_vec(),
+                Some(state.auto_mode),
+                Message::SetAutoMode,
+            )
+            .text_size(metrics::UI_PX),
+        );
     Column::new()
         .spacing(10.0)
+        .push(posture)
         .push(greyed("Download updates over metered connections"))
         .push(live(
             "Restart this device as soon as possible when a restart is required",

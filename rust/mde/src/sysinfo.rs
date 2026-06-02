@@ -61,6 +61,38 @@ pub enum AutoMode {
     Install,
 }
 
+impl AutoMode {
+    /// All postures, for a picker (E13.8).
+    pub const ALL: [AutoMode; 3] = [AutoMode::Off, AutoMode::DownloadOnly, AutoMode::Install];
+}
+impl std::fmt::Display for AutoMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            AutoMode::Off => "Off",
+            AutoMode::DownloadOnly => "Download only, notify before installing",
+            AutoMode::Install => "Install automatically",
+        })
+    }
+}
+
+/// Read the live automatic-updates posture from the dnf-automatic timer +
+/// `automatic.conf` (E13.8) — the authoritative source both the System Properties
+/// radios and the Win10 Update page read, so they agree without a duplicated store.
+pub fn auto_mode() -> AutoMode {
+    let timer_enabled = cmd_line("systemctl", &["is-enabled", "dnf-automatic.timer"])
+        .map(|s| s.trim() == "enabled")
+        .unwrap_or(false);
+    let applies = std::fs::read_to_string("/etc/dnf/automatic.conf")
+        .unwrap_or_default()
+        .lines()
+        .any(|l| l.replace(' ', "").starts_with("apply_updates=yes"));
+    match (timer_enabled, applies) {
+        (false, _) => AutoMode::Off,
+        (true, false) => AutoMode::DownloadOnly,
+        (true, true) => AutoMode::Install,
+    }
+}
+
 /// Live facts for the Advanced / System Restore / Automatic Updates / Remote
 /// tabs. Read-only — the tabs display real system state (the Win2000 layout)
 /// rather than pretending to change settings a preview shouldn't touch.
@@ -111,25 +143,13 @@ pub fn advanced() -> Advanced {
     )
     .filter(|s| !s.is_empty())
     .unwrap_or_else(|| "none".to_string());
-    let timer_enabled = cmd_line("systemctl", &["is-enabled", "dnf-automatic.timer"])
-        .map(|s| s.trim() == "enabled")
-        .unwrap_or(false);
-    let applies = std::fs::read_to_string("/etc/dnf/automatic.conf")
-        .unwrap_or_default()
-        .lines()
-        .any(|l| l.replace(' ', "").starts_with("apply_updates=yes"));
-    let auto_updates = match (timer_enabled, applies) {
-        (false, _) => AutoMode::Off,
-        (true, false) => AutoMode::DownloadOnly,
-        (true, true) => AutoMode::Install,
-    };
     Advanced {
         swappiness: read("/proc/sys/vm/swappiness"),
         zram,
         grub_default: grub_val("GRUB_DEFAULT"),
         grub_timeout: grub_val("GRUB_TIMEOUT"),
         env_count: std::env::vars().count(),
-        auto_updates,
+        auto_updates: auto_mode(),
         timeshift_installed: on_path("timeshift") || on_path("timeshift-launcher"),
         remote_available: on_path("wayvnc"),
         remote_running: cmd_line("pgrep", &["-x", "wayvnc"])
