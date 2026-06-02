@@ -316,15 +316,15 @@ const CATEGORIES: &[Category] = &[
     },
     Category {
         title: "Update & Security",
-        caption: "Windows Update, recovery, backup",
+        caption: "MackesDE Update, recovery, backup",
         icons: &["system-software-update", "security-high"],
         pages: &[
             Page {
-                title: "Windows Security",
+                title: "MackesDE Security",
                 kind: Kind::Tool("firewall-config"),
             },
             Page {
-                title: "Windows Update",
+                title: "MackesDE Update",
                 kind: Kind::Cmd("dnfdragora --update-only", false),
             },
             Page {

@@ -30,7 +30,7 @@ pub const TOOLS: &[Tool] = &[
     // --- Control Panel (classic applets) -----------------------------------
     Tool { category: "Control Panel", name: "Add/Remove Programs", command: "dnfdragora", terminal: false, package: "dnfdragora", detect_bin: "dnfdragora", icons: &["system-software-install"] },
     Tool { category: "Control Panel", name: "Automatic Updates", command: "dnfdragora-updater", terminal: false, package: "dnfdragora", detect_bin: "dnfdragora-updater", icons: &["system-software-update"] },
-    Tool { category: "Control Panel", name: "Windows Firewall", command: "firewall-config", terminal: false, package: "firewall-config", detect_bin: "firewall-config", icons: &["security-high"] },
+    Tool { category: "Control Panel", name: "MackesDE Firewall", command: "firewall-config", terminal: false, package: "firewall-config", detect_bin: "firewall-config", icons: &["security-high"] },
     Tool { category: "Control Panel", name: "Network and Dial-up Connections", command: "nm-connection-editor", terminal: false, package: "nm-connection-editor", detect_bin: "nm-connection-editor", icons: &["network-wired"] },
     Tool { category: "Control Panel", name: "Sounds and Multimedia", command: "pavucontrol", terminal: false, package: "pavucontrol", detect_bin: "pavucontrol", icons: &["multimedia-volume-control"] },
     Tool { category: "Control Panel", name: "Disk Management", command: "gnome-disks", terminal: false, package: "gnome-disk-utility", detect_bin: "gnome-disks", icons: &["drive-harddisk"] },

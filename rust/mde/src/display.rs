@@ -155,7 +155,7 @@ impl Scheme {
 impl std::fmt::Display for Scheme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let s = match self {
-            Scheme::Standard => "Windows Standard",
+            Scheme::Standard => "MackesDE Standard",
             Scheme::HighContrastBlack => "High Contrast Black",
             Scheme::Brick => "Brick",
             Scheme::Spruce => "Spruce",
@@ -196,7 +196,7 @@ impl IconSet {
 impl std::fmt::Display for IconSet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
-            IconSet::Win2000 => "Windows 2000 (Classic)",
+            IconSet::Win2000 => "MackesDE 2000 (Classic)",
             IconSet::Haiku => "Haiku",
         })
     }
@@ -230,8 +230,8 @@ impl std::fmt::Display for Theme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Theme::Carbon => "IBM Carbon",
-            Theme::Win2000 => "Windows 2000 (Classic)",
-            Theme::Windows10 => "Windows 10",
+            Theme::Win2000 => "MackesDE 2000 (Classic)",
+            Theme::Windows10 => "MackesDE 10",
         })
     }
 }
@@ -1109,7 +1109,7 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
                 .push(label("Icon colour:"))
                 .push(pick_list(IconColor::ALL.to_vec(), Some(state.icon_color), Message::SetIconColor).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
         )
-        .push(label("Theme sets the look-and-feel: IBM Carbon (flat, Plex font, light/dark) or Windows 2000 (classic 3D). Mode picks Carbon's light/dark. Icon colour tints the shell icons (each hue auto-shades for the mode). Changing any of these restarts the shell. The Scheme/Icon set above pair with the classic theme."));
+        .push(label("Theme sets the look-and-feel: IBM Carbon (flat, Plex font, light/dark) or MackesDE 2000 (classic 3D). Mode picks Carbon's light/dark. Icon colour tints the shell icons (each hue auto-shades for the mode). Changing any of these restarts the shell. The Scheme/Icon set above pair with the classic theme."));
 
     Column::new()
         .spacing(12.0)

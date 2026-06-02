@@ -200,7 +200,7 @@ fn computer_name_tab(g: &General) -> Element<'static, Message> {
         .spacing(8.0)
         .push(
             text(
-                "Windows uses the following information to identify your computer on the network.",
+                "MackesDE uses the following information to identify your computer on the network.",
             )
             .size(metrics::UI_PX),
         )

@@ -391,7 +391,7 @@ fn run_step(i: usize, dry_run: bool, selection: &[String]) -> Result<(), String>
 
 fn register_session() -> Result<(), String> {
     let e = |x: std::io::Error| x.to_string();
-    let session = "[Desktop Entry]\nName=MDE-Retro\nComment=Windows 2000 desktop\nExec=labwc\nType=Application\n";
+    let session = "[Desktop Entry]\nName=MDE-Retro\nComment=MackesDE 2000 desktop\nExec=labwc\nType=Application\n";
     std::fs::create_dir_all("/usr/share/wayland-sessions").map_err(e)?;
     std::fs::write("/usr/share/wayland-sessions/mde-retro.desktop", session).map_err(e)?;
     let greetd = "[terminal]\nvt = 1\n\n[default_session]\ncommand = \"tuigreet --remember --sessions /usr/share/wayland-sessions\"\nuser = \"greetd\"\n";
@@ -533,11 +533,11 @@ fn not_root_body() -> ratatui::text::Text<'static> {
 }
 
 fn welcome_body() -> ratatui::text::Text<'static> {
-    "Welcome to Setup.\n\nThis portion of Setup prepares MDE-Retro -- a Windows 2000 desktop for Fedora -- to run on your computer.\n\n  - To set up MDE-Retro now, press ENTER.\n  - To quit Setup without installing, press F3.".into()
+    "Welcome to Setup.\n\nThis portion of Setup prepares MDE-Retro -- a MackesDE 2000 desktop for Fedora -- to run on your computer.\n\n  - To set up MDE-Retro now, press ENTER.\n  - To quit Setup without installing, press F3.".into()
 }
 
 fn summary_body() -> ratatui::text::Text<'static> {
-    "Setup will perform the following on this computer:\n\n  - Install the components you choose (desktop, apps, system tools, and\n    Xen/XCP-ng guest tools when running in a VM)\n  - Deploy the MDE-Retro configuration (system-wide and per user)\n  - Install the Windows 2000 icons, cursors, sounds and fonts\n  - Register the MDE-Retro session and the login manager\n  - Switch the system to graphical startup\n\n  To choose which components to install, press ENTER.".into()
+    "Setup will perform the following on this computer:\n\n  - Install the components you choose (desktop, apps, system tools, and\n    Xen/XCP-ng guest tools when running in a VM)\n  - Deploy the MDE-Retro configuration (system-wide and per user)\n  - Install the MackesDE 2000 icons, cursors, sounds and fonts\n  - Register the MDE-Retro session and the login manager\n  - Switch the system to graphical startup\n\n  To choose which components to install, press ENTER.".into()
 }
 
 fn progress_body(app: &App) -> ratatui::text::Text<'static> {

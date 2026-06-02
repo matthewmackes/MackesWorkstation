@@ -106,7 +106,7 @@ struct LogOff;
 
 pub fn logoff() -> ExitCode {
     let r = iced::application(
-        |_: &LogOff| "Log Off Windows".to_string(),
+        |_: &LogOff| "Log Off MackesDE".to_string(),
         logoff_update,
         logoff_view,
     )
@@ -216,7 +216,7 @@ struct Shutdown {
 
 pub fn shutdown() -> ExitCode {
     let r = iced::application(
-        |_: &Shutdown| "Shut Down Windows".to_string(),
+        |_: &Shutdown| "Shut Down MackesDE".to_string(),
         shutdown_update,
         shutdown_view,
     )
@@ -433,7 +433,7 @@ fn run_view(state: &Run) -> Element<'_, RunMsg> {
     let body = Column::new()
         .spacing(12.0)
         .push(
-            text("Type the name of a program, folder, or document, and Windows will open it for you.")
+            text("Type the name of a program, folder, or document, and MackesDE will open it for you.")
                 .size(metrics::UI_PX),
         )
         .push(

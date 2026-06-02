@@ -318,7 +318,7 @@ fn about_box() -> Element<'static, Message> {
                 .size(metrics::INFO_TITLE_PX)
                 .font(bold),
         )
-        .push(text("MDE-Retro — a Windows 2000 desktop for Fedora").size(metrics::UI_PX))
+        .push(text("MDE-Retro — a MackesDE 2000 desktop for Fedora").size(metrics::UI_PX))
         .push(text("Native Rust shell (iced)").size(metrics::UI_PX))
         .push(Space::with_height(Length::Fixed(6.0)))
         .push(
@@ -376,7 +376,7 @@ fn sidebar<'a>() -> Element<'a, Message> {
                 .size(metrics::UI_PX)
                 .color(accent),
         )
-        .push(text("Windows Update").size(metrics::UI_PX).color(accent));
+        .push(text("MackesDE Update").size(metrics::UI_PX).color(accent));
 
     container(col)
         .width(Length::Fixed(190.0))

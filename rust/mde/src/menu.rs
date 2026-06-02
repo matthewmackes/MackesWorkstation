@@ -219,7 +219,7 @@ fn build_root() -> Vec<Node> {
         root.push(Node::Sep);
     }
     root.extend([
-        // Quick-launch staples at the top of the menu, above Windows Update.
+        // Quick-launch staples at the top of the menu, above MackesDE Update.
         Node::Leaf("File Explorer".into(), Act::Mde("files")),
         Node::Leaf(
             "Terminal (Terminator)".into(),
@@ -227,7 +227,7 @@ fn build_root() -> Vec<Node> {
         ),
         Node::Leaf("Firefox".into(), Act::Cmd("firefox".into(), false)),
         Node::Leaf(
-            "Windows Update".into(),
+            "MackesDE Update".into(),
             Act::Cmd("dnfdragora --update-only".into(), false),
         ),
         Node::Sep,
