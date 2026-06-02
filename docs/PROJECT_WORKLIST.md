@@ -109,8 +109,10 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   (RSA-2048 identity keygen via the `rsa` crate, sign/verify via the proto's
   ring-backed `PairingKeyPair`, `devices.toml` atomic persistence, and a
   `mde_kdc_proto::crypto::KeyStore` impl), all standalone-unit-tested (7 tests, incl.
-  the rsa→ring PKCS#8 interop; proto's 181 still green). Remaining: [ ] host increment 2
-  — the `Transport` trait + in-process loopback; [ ] host increment 3 — the LAN transport
+  the rsa→ring PKCS#8 interop; proto's 181 still green). **✓ host increment 2** (commit
+  `9c1268f`): the object-safe `Transport`/`Connection` traits (async-trait) + an
+  in-process `LoopbackTransport` that round-trips packets through the real frame codec
+  (9 tests). Remaining: [ ] host increment 3 — the LAN transport
   (UDP 1716 discovery + rustls TCP) + router; [ ] push MDE-KDECnt-Rust + rewire MDE-Retro
   to depend on it (git dep); [ ] `mde connect`
   systemd user daemon + pairing modal/tray; [ ] capability surfaces (notifications
