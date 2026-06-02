@@ -161,3 +161,36 @@ Two more loop-driven focused sweeps over the post-E8.4 work:
   writes `Inherits=hicolor,Adwaita` (Chicago95 is the de-facto base via the icon
   search path, not the `Inherits` line). Fixed the comment. The packaging fix itself
   verified sound (the `.py` ships co-located, `$HERE` resolves, all sway refs gone).
+
+---
+
+# Sixth sweep — recent-features focus (2026-06-02, workflow, adversarially verified)
+
+A focused adversarial audit (6 dimensions: async/races, parser panics, §3
+reachability, §2 conventions, the labwc menu generation, host 3a discovery) over
+the recent work — E8.8a async mount, E3.6a action-center extras, E7.10a era menu,
+E8.5a SMB browse, and the `mde-kdc-host` UDP discovery. **42 raw → 14 confirmed
+(2 FIX, 12 NOTE).** Every finding was verified by an independent refute-first agent.
+
+**Fixed now (commit `d31cd4b`):**
+
+| Location | Defect → fix |
+|---|---|
+| `files.rs` SMB browse (`net_shares`/`network()`) | `net_shares` had no record of the browsed host; rows/header/status used the LIVE `net_host`, so editing the box after a browse made the rows lie and click-mount the wrong host → snapshot `net_browsed_host` at `NetBrowse`, drive the view off it; ignore a 2nd Browse while busy |
+| `files.rs` `parse_smb_shares` | whitespace-split took token 0 as the name, dropping multi-word share names ("Shared Documents") → locate the Type column (first `Disk`/`IPC`/`Printer` token), name = everything before it; new test pins it |
+
+**Recorded as follow-ups (NOTE — real but acceptable/deferrable; lifted to the worklist):**
+- **E8.8b** — async completion guards: `MountDone`/`NetBrowsed` write `navigate()`/`state.error`
+  unconditionally, so a late result can yank the user away or clobber a newer error after they
+  moved on (a generation/in-flight token fixes it).
+- **E3.6c** — the brightness slider spawns `brightnessctl set` per drag tick and `let _`-drops the
+  child (debounce + reap).
+- **§2.3 glyph sizes** — scattered `.size()` literals on Nerd-glyph/badge text in
+  `action_center.rs:600` + `panel.rs` win10 tiles/search/AC button/unread badge (name them as metrics).
+- **E7.10b** — `sync_root_menu` overwrites a hand-customised `~/.config/labwc/menu.xml` wholesale
+  (add a "generated" marker / skip if the user edited it).
+- `MakeOffline` sync mount+copy is already tracked as **E8.10a**.
+
+VERIFIED-GOOD (the audit confirmed these are correct): the host 3a discovery loop (ingest/prune
+edges, self-skip, the loopback round-trip), the E7.10a menu byte-match + idempotency, and the
+E3.6a brightness parse. No stubs, mockups, dead code, or §2.1 hex leaks in the new code.
