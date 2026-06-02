@@ -63,10 +63,20 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   (`hint_urgency >= 2`): add an urgent role to `palette.rs` remapped in
   `win10()`/`carbon()`, applied in `action_center.rs::toast_view` (which today only
   suppresses auto-dismiss for critical). Verify via a windows10 toast capture.
-- [ ] **install-assets-sway-drift** `assets/install-assets.sh` still hardcodes
-  `SWAY_SCRIPTS=$HOME/.config/sway/scripts` + "swaymsg reload" — stale sway-era
-  shell (the root `install.sh` is the OLD sway installer, §7). Audit whether the
-  script is still on the labwc install path; update or retire its sway references.
+- [ ] **install-assets-sway-drift** `assets/install-assets.sh` (shipped to
+  `/usr/share/mde/scripts/`, run live by `mde install --assets` → `install.rs`).
+  **Investigated 2026-06-02 — a real broken-feature bug, not just cosmetic drift:**
+  `run_win2k` shells out to `$SWAY_SCRIPTS/install-win2k-icons.py` with
+  `SWAY_SCRIPTS=~/.config/sway/scripts`, but (a) the labwc path deploys
+  `~/.config/labwc`, never `~/.config/sway`, and (b) the RPM `assets` list ships only
+  `install-assets.sh` + `install-chicago95.sh`, NOT `install-win2k-icons.py` (which
+  lives only in the repo's old sway skel `home/.config/sway/scripts/`). So on the
+  RPM/labwc path `run_win2k` ALWAYS hits the skip branch → the Win2k icon theme never
+  installs. **Fix:** add `install-win2k-icons.py` to the RPM `assets` (→
+  `/usr/share/mde/scripts/`), repoint `run_win2k` at `$HERE/install-win2k-icons.py`
+  (drop `SWAY_SCRIPTS` + the "run ../install.sh first" message), and change the
+  closing "swaymsg reload" → "labwc --reconfigure". (Touches `rust/mde/Cargo.toml`;
+  deferred past the in-flight E8.5/6/7 audit which reads that file.)
 
 ## Backlog
 
