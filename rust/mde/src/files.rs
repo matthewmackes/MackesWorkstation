@@ -82,6 +82,8 @@ struct Files {
     qctx: Option<PathBuf>,
     /// The selected Cloud device id (E8.7), when the CloudDevice pane is active.
     cloud_device: Option<String>,
+    /// The Cloud device whose right-click offline menu is open, if any (E8.10).
+    cloud_ctx: Option<String>,
 }
 
 /// The menubar titles (indices used by `open_menu` / ToggleMenu).
@@ -114,6 +116,12 @@ enum Message {
     /// Mount a paired device over sftp and browse it (E8.8); on failure it selects
     /// the device and shows the error on the Cloud pane.
     MountCloud(String),
+    /// Right-click a Cloud device: open its offline menu (E8.10).
+    CloudContext(String),
+    /// Copy a device's files down into its local mirror (E8.10).
+    MakeOffline(String),
+    /// Delete a device's local mirror (E8.10).
+    FreeUp(String),
     ToggleFolders,
     HeaderClick(usize),
     ToggleMenu(usize),
@@ -195,6 +203,7 @@ fn launch(start: PathBuf, pane: Pane, pins: Vec<PathBuf>) -> iced::Result {
                 pins,
                 qctx: None,
                 cloud_device: None,
+                cloud_ctx: None,
             };
             f.load();
             (f, Task::none())
@@ -487,6 +496,49 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             }
             None => {}
         },
+        Message::CloudContext(id) => {
+            state.cloud_ctx = Some(id);
+            state.ctx = None;
+            state.qctx = None;
+            state.open_menu = None;
+        }
+        Message::MakeOffline(id) => {
+            state.cloud_ctx = None;
+            let dev = cloud_devices().into_iter().find(|d| d.id == id);
+            match (dev, cloud_mirror(&id)) {
+                (Some(d), Some(mirror)) if !d.address.is_empty() => {
+                    match mount_uri(&format!("sftp://{}", d.address)) {
+                        Ok(src) => match copy_tree(&src, &mirror) {
+                            Ok(n) => {
+                                state.error = Some(format!(
+                                    "'{}' is now available offline ({n} file(s)).",
+                                    d.name
+                                ))
+                            }
+                            Err(e) => {
+                                state.error =
+                                    Some(format!("Could not copy '{}' offline: {e}", d.name))
+                            }
+                        },
+                        Err(e) => state.error = Some(e),
+                    }
+                }
+                (Some(d), _) => {
+                    state.error = Some(format!("No address configured for '{}'.", d.name))
+                }
+                _ => {}
+            }
+        }
+        Message::FreeUp(id) => {
+            state.cloud_ctx = None;
+            if let Some(mirror) = cloud_mirror(&id) {
+                match std::fs::remove_dir_all(&mirror) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(e) => state.error = Some(format!("Could not free up space: {e}")),
+                }
+            }
+        }
         Message::ToggleFolders => state.show_tree = !state.show_tree,
         Message::HeaderClick(col) => {
             if state.sort_col == col {
@@ -556,6 +608,7 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
         Message::CloseCtx => {
             state.ctx = None;
             state.qctx = None;
+            state.cloud_ctx = None;
         }
         Message::CtxOpen => {
             let target = state.ctx.or(state.selected);
@@ -1721,6 +1774,24 @@ fn cloud_status(id: &str) -> &'static str {
     }
 }
 
+/// Recursively copy `src` into `dst` (creating `dst`) via std::fs — the offline
+/// mirror copy-down (E8.10). Returns the number of files copied.
+fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<usize> {
+    std::fs::create_dir_all(dst)?;
+    let mut n = 0;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let to = dst.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            n += copy_tree(&entry.path(), &to)?;
+        } else {
+            std::fs::copy(entry.path(), &to)?;
+            n += 1;
+        }
+    }
+    Ok(n)
+}
+
 /// One Cloud-device row: a phone glyph, the device name, its sftp address, and its
 /// offline Status (E8.9). Clicking it mounts the device over sftp and browses it
 /// (E8.8); a connect error re-selects the row and shows the reason in the status bar.
@@ -1780,7 +1851,9 @@ fn cloud_pane(state: &Files) -> Element<'_, Message> {
     } else {
         for d in &devices {
             let sel = state.cloud_device.as_deref() == Some(d.id.as_str());
-            col = col.push(cloud_row(d, sel));
+            col = col.push(
+                mouse_area(cloud_row(d, sel)).on_right_press(Message::CloudContext(d.id.clone())),
+            );
         }
     }
     iced::widget::stack![
@@ -1791,6 +1864,22 @@ fn cloud_pane(state: &Files) -> Element<'_, Message> {
             .height(Length::Fill),
     ]
     .into()
+}
+
+/// The right-click menu for a Cloud device row: Open, plus Make-available-offline
+/// or Free-up-space depending on its current Status (E8.10).
+fn cloud_context_menu(state: &Files) -> Element<'static, Message> {
+    let id = state.cloud_ctx.clone().unwrap_or_default();
+    let mut items = vec![
+        ("Open", Message::MountCloud(id.clone()), true),
+        ("", Message::Noop, false),
+    ];
+    if cloud_status(&id) == "Available offline" {
+        items.push(("Free up space", Message::FreeUp(id), true));
+    } else {
+        items.push(("Make available offline", Message::MakeOffline(id), true));
+    }
+    command_menu(items)
 }
 
 /// An indented cloud-device child node under "Cloud Files": phone glyph + name.
@@ -1988,7 +2077,19 @@ fn view(state: &Files) -> Element<'_, Message> {
     // A right-click row context menu takes precedence; otherwise an open menubar
     // menu overlays its dropdown. Each adds a transparent full-window catcher so
     // a click (or right-click) anywhere else dismisses it.
-    if state.qctx.is_some() {
+    if state.cloud_ctx.is_some() {
+        let catcher = mouse_area(Space::new(Length::Fill, Length::Fill))
+            .on_press(Message::CloseCtx)
+            .on_right_press(Message::CloseCtx);
+        let positioned = Column::new()
+            .push(Space::with_height(Length::Fixed(state.cursor.y)))
+            .push(
+                Row::new()
+                    .push(Space::with_width(Length::Fixed(state.cursor.x)))
+                    .push(container(cloud_context_menu(state)).width(Length::Fixed(180.0))),
+            );
+        iced::widget::stack![base, catcher, positioned].into()
+    } else if state.qctx.is_some() {
         let catcher = mouse_area(Space::new(Length::Fill, Length::Fill))
             .on_press(Message::CloseCtx)
             .on_right_press(Message::CloseCtx);
@@ -2031,6 +2132,21 @@ fn view(state: &Files) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn copy_tree_mirrors_a_directory() {
+        let tmp = std::env::temp_dir().join(format!("mde-e810-{}", std::process::id()));
+        let (src, dst) = (tmp.join("src"), tmp.join("dst"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("a.txt"), b"a").unwrap();
+        std::fs::write(src.join("sub/b.txt"), b"b").unwrap();
+        let n = copy_tree(&src, &dst).unwrap();
+        assert_eq!(n, 2);
+        assert!(dst.join("a.txt").is_file());
+        assert!(dst.join("sub/b.txt").is_file());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     #[test]
     fn network_label_decodes_gvfs_names() {
