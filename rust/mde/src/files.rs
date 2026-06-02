@@ -13,11 +13,16 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 use iced::widget::{
     button, container, mouse_area, scrollable, text, text_input, Column, Row, Space,
 };
-use iced::{event, Background, Border, Element, Event, Length, Padding, Point, Shadow, Task};
+use iced::{
+    event, Background, Border, Element, Event, Length, Padding, Point, Shadow, Subscription, Task,
+};
 
 use mde_ui::{frame, metrics, palette};
 
@@ -101,6 +106,17 @@ struct Files {
     /// generation is still current, so a late result can't navigate the user away
     /// or clobber a newer status after they've moved on.
     op_gen: u64,
+    /// An in-flight "Make available offline" copy (E8.10a), if any — drives the
+    /// device row's live "Syncing…" status and gates a second concurrent copy.
+    sync: Option<SyncJob>,
+}
+
+/// An in-flight offline copy (E8.10a): which device, and a counter the blocking
+/// copy bumps per file (read on a periodic tick for live progress). The op
+/// generation that guards a stale completion rides on the `OfflineDone` message.
+struct SyncJob {
+    id: String,
+    copied: Arc<AtomicUsize>,
 }
 
 /// The menubar titles (indices used by `open_menu` / ToggleMenu).
@@ -155,8 +171,17 @@ enum Message {
     },
     /// Right-click a Cloud device: open its offline menu (E8.10).
     CloudContext(String),
-    /// Copy a device's files down into its local mirror (E8.10).
+    /// Copy a device's files down into its local mirror (E8.10), off-thread (E8.10a).
     MakeOffline(String),
+    /// A periodic tick while an offline copy runs, to refresh its progress (E8.10a).
+    SyncTick,
+    /// An offline copy finished (E8.10a): the file count or an error, with the op
+    /// generation it was dispatched under (E8.8b) so a stale result can't clobber.
+    OfflineDone {
+        id: String,
+        result: Result<usize, String>,
+        gen: u64,
+    },
     /// Delete a device's local mirror (E8.10).
     FreeUp(String),
     ToggleFolders,
@@ -212,7 +237,19 @@ pub fn run(args: &[String]) -> ExitCode {
 fn launch(start: PathBuf, pane: Pane, pins: Vec<PathBuf>) -> iced::Result {
     iced::application(title, update, view)
         .theme(|_| mde_ui::palette::iced_theme())
-        .subscription(|_: &Files| event::listen().map(Message::Event))
+        .subscription(|s: &Files| {
+            let ev = event::listen().map(Message::Event);
+            // While an offline copy runs, tick a few times a second so the row's
+            // "Syncing… (N)" progress refreshes from the shared counter (E8.10a).
+            if s.sync.is_some() {
+                Subscription::batch([
+                    ev,
+                    iced::time::every(Duration::from_millis(300)).map(|_| Message::SyncTick),
+                ])
+            } else {
+                ev
+            }
+        })
         .font(mde_ui::font::REGULAR_BYTES)
         .font(mde_ui::font::BOLD_BYTES)
         .font(mde_ui::font::PLEX_REGULAR_BYTES)
@@ -247,6 +284,7 @@ fn launch(start: PathBuf, pane: Pane, pins: Vec<PathBuf>) -> iced::Result {
                 net_shares: Vec::new(),
                 net_busy: false,
                 op_gen: 0,
+                sync: None,
             };
             f.load();
             (f, Task::none())
@@ -638,29 +676,58 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
         }
         Message::MakeOffline(id) => {
             state.cloud_ctx = None;
+            // One offline copy at a time — a second would fight over progress + the
+            // mirror dir.
+            if state.sync.is_some() {
+                state.error = Some("An offline copy is already running.".into());
+                return Task::none();
+            }
             let dev = cloud_devices().into_iter().find(|d| d.id == id);
             match (dev, cloud_mirror(&id)) {
                 (Some(d), Some(mirror)) if !d.address.is_empty() => {
-                    match mount_uri(&format!("sftp://{}", d.address)) {
-                        Ok(src) => match copy_tree(&src, &mirror) {
-                            Ok(n) => {
-                                state.error = Some(format!(
-                                    "'{}' is now available offline ({n} file(s)).",
-                                    d.name
-                                ))
-                            }
-                            Err(e) => {
-                                state.error =
-                                    Some(format!("Could not copy '{}' offline: {e}", d.name))
-                            }
-                        },
-                        Err(e) => state.error = Some(e),
-                    }
+                    // Run the mount + recursive copy off the UI thread (E8.10a): the
+                    // sync copy used to freeze the whole file manager. Keep the
+                    // device selected and show a live "Syncing…" status meanwhile.
+                    state.bump_gen();
+                    let copied = Arc::new(AtomicUsize::new(0));
+                    state.sync = Some(SyncJob {
+                        id: id.clone(),
+                        copied: copied.clone(),
+                    });
+                    state.cloud_device = Some(id.clone());
+                    state.error = Some(format!("Syncing '{}'…", d.name));
+                    return offline_task(
+                        format!("sftp://{}", d.address),
+                        mirror,
+                        copied,
+                        id,
+                        state.op_gen,
+                    );
                 }
                 (Some(d), _) => {
                     state.error = Some(format!("No address configured for '{}'.", d.name))
                 }
                 _ => {}
+            }
+        }
+        // A tick only forces a re-render so the row's live "Syncing… (N)" updates.
+        Message::SyncTick => {}
+        Message::OfflineDone { id, result, gen } => {
+            // Always clear the in-flight job (even a stale one) so the row stops
+            // showing "Syncing"; only set the status if this op is still current.
+            if state.sync.as_ref().is_some_and(|j| j.id == id) {
+                state.sync = None;
+            }
+            if gen == state.op_gen {
+                let name = cloud_devices()
+                    .into_iter()
+                    .find(|d| d.id == id)
+                    .map(|d| d.name)
+                    .unwrap_or_else(|| id.clone());
+                state.error = Some(match result {
+                    Ok(n) => format!("'{name}' is now available offline ({n} file(s))."),
+                    Err(e) => format!("Could not copy '{name}' offline: {e}"),
+                });
             }
         }
         Message::FreeUp(id) => {
@@ -1953,6 +2020,31 @@ fn mount_task(uri: String, cloud_id: Option<String>, gen: u64) -> Task<Message> 
     )
 }
 
+/// Mount a device over sftp and copy its files into the local mirror, off the UI
+/// thread (E8.10a) — the sync mount+copy used to freeze the file manager. `copied`
+/// is bumped per file so the row shows live progress; the terminal `OfflineDone`
+/// carries the file count (or a clean error) + its op generation (E8.8b).
+fn offline_task(
+    uri: String,
+    mirror: PathBuf,
+    copied: Arc<AtomicUsize>,
+    id: String,
+    gen: u64,
+) -> Task<Message> {
+    Task::perform(
+        async move {
+            let result = tokio::task::spawn_blocking(move || {
+                let src = mount_uri(&uri)?;
+                copy_tree_counting(&src, &mirror, &copied).map_err(|e| format!("copy failed: {e}"))
+            })
+            .await
+            .unwrap_or_else(|e| Err(format!("offline task failed: {e}")));
+            (id, result)
+        },
+        move |(id, result)| Message::OfflineDone { id, result, gen },
+    )
+}
+
 /// Browse an SMB server's shares off the UI thread (E8.5a): runs `smbclient -L`
 /// on tokio's blocking pool and delivers the parsed Disk shares (or a clean
 /// error) as [`Message::NetBrowsed`], so a slow/unreachable server never freezes
@@ -2136,18 +2228,21 @@ fn cloud_status(id: &str) -> &'static str {
 }
 
 /// Recursively copy `src` into `dst` (creating `dst`) via std::fs — the offline
-/// mirror copy-down (E8.10). Returns the number of files copied.
-fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<usize> {
+/// mirror copy-down (E8.10). Returns the number of files copied, bumping `copied`
+/// after each one so the in-flight copy can report live progress on a periodic
+/// tick (E8.10a).
+fn copy_tree_counting(src: &Path, dst: &Path, copied: &Arc<AtomicUsize>) -> std::io::Result<usize> {
     std::fs::create_dir_all(dst)?;
     let mut n = 0;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let to = dst.join(entry.file_name());
         if entry.file_type()?.is_dir() {
-            n += copy_tree(&entry.path(), &to)?;
+            n += copy_tree_counting(&entry.path(), &to, copied)?;
         } else {
             std::fs::copy(entry.path(), &to)?;
             n += 1;
+            copied.fetch_add(1, Ordering::Relaxed);
         }
     }
     Ok(n)
@@ -2156,7 +2251,7 @@ fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<usize> {
 /// One Cloud-device row: a phone glyph, the device name, its sftp address, and its
 /// offline Status (E8.9). Clicking it mounts the device over sftp and browses it
 /// (E8.8); a connect error re-selects the row and shows the reason in the status bar.
-fn cloud_row(d: &CloudDevice, selected: bool) -> Element<'static, Message> {
+fn cloud_row(d: &CloudDevice, selected: bool, syncing: Option<usize>) -> Element<'static, Message> {
     button(
         Row::new()
             .spacing(6.0)
@@ -2181,10 +2276,13 @@ fn cloud_row(d: &CloudDevice, selected: bool) -> Element<'static, Message> {
                 .color(palette::color(palette::GRAY_TEXT)),
             )
             .push(
-                text(cloud_status(&d.id))
-                    .size(metrics::UI_PX)
-                    .width(Length::FillPortion(3))
-                    .color(palette::color(palette::GRAY_TEXT)),
+                text(match syncing {
+                    Some(n) => format!("Syncing… ({n})"),
+                    None => cloud_status(&d.id).to_string(),
+                })
+                .size(metrics::UI_PX)
+                .width(Length::FillPortion(3))
+                .color(palette::color(palette::GRAY_TEXT)),
             ),
     )
     .on_press(Message::MountCloud(d.id.clone()))
@@ -2212,8 +2310,14 @@ fn cloud_pane(state: &Files) -> Element<'_, Message> {
     } else {
         for d in &devices {
             let sel = state.cloud_device.as_deref() == Some(d.id.as_str());
+            let syncing = state
+                .sync
+                .as_ref()
+                .filter(|j| j.id == d.id)
+                .map(|j| j.copied.load(Ordering::Relaxed));
             col = col.push(
-                mouse_area(cloud_row(d, sel)).on_right_press(Message::CloudContext(d.id.clone())),
+                mouse_area(cloud_row(d, sel, syncing))
+                    .on_right_press(Message::CloudContext(d.id.clone())),
             );
         }
     }
@@ -2560,10 +2664,29 @@ Anonymous login successful
         std::fs::create_dir_all(src.join("sub")).unwrap();
         std::fs::write(src.join("a.txt"), b"a").unwrap();
         std::fs::write(src.join("sub/b.txt"), b"b").unwrap();
-        let n = copy_tree(&src, &dst).unwrap();
+        let n = copy_tree_counting(&src, &dst, &Arc::new(AtomicUsize::new(0))).unwrap();
         assert_eq!(n, 2);
         assert!(dst.join("a.txt").is_file());
         assert!(dst.join("sub/b.txt").is_file());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn copy_tree_counting_bumps_the_progress_counter() {
+        // The offline copy (E8.10a) reports live progress by bumping a shared
+        // counter per file — the count must equal the files copied.
+        let tmp = std::env::temp_dir().join(format!("mde-e810a-{}", std::process::id()));
+        let (src, dst) = (tmp.join("src"), tmp.join("dst"));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(src.join("sub")).unwrap();
+        std::fs::write(src.join("a.txt"), b"a").unwrap();
+        std::fs::write(src.join("b.txt"), b"b").unwrap();
+        std::fs::write(src.join("sub/c.txt"), b"c").unwrap();
+        let copied = Arc::new(AtomicUsize::new(0));
+        let n = copy_tree_counting(&src, &dst, &copied).unwrap();
+        assert_eq!(n, 3);
+        assert_eq!(copied.load(Ordering::Relaxed), 3);
+        assert!(dst.join("sub/c.txt").is_file());
         let _ = std::fs::remove_dir_all(&tmp);
     }
 
