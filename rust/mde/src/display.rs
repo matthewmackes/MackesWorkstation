@@ -890,17 +890,15 @@ fn apply_appearance(state: &Display) {
     st.theme_mode = state.theme_mode.key().to_string();
     st.icon_color = state.icon_color.key().to_string();
     let _ = crate::state::save(&st);
-    // Window-frame color: Carbon uses a flat header (Gray 100 dark / white light),
-    // Win2000 keeps navy, Windows 10 a flat neutral header (#1f1f1f dark / white
-    // light; accent-on-titlebar is E2/E7). These are labwc themerc config strings,
-    // not iced colors — the same §2.1-exempt precedent as the arms above. Reuse
-    // the labwc themerc rewriter.
+    // Window-frame (labwc titlebar) color: Carbon uses a flat header (Gray 100
+    // dark / white light), Win2000 keeps navy. The MackesDE 10 era now shares
+    // Carbon's header verbatim (the rebrand makes it a Carbon-skinned layout).
+    // These are labwc themerc config strings, not iced colors — the same
+    // §2.1-exempt precedent as the arms above. Reuse the labwc themerc rewriter.
     let (bg, fg) = match (state.theme, state.theme_mode) {
-        (Theme::Carbon, ThemeMode::Dark) => ("#161616", "#f4f4f4"),
-        (Theme::Carbon, ThemeMode::Light) => ("#ffffff", "#161616"),
+        (Theme::Carbon | Theme::Windows10, ThemeMode::Dark) => ("#161616", "#f4f4f4"),
+        (Theme::Carbon | Theme::Windows10, ThemeMode::Light) => ("#ffffff", "#161616"),
         (Theme::Win2000, _) => ("#0a246a", "#ffffff"),
-        (Theme::Windows10, ThemeMode::Dark) => ("#1f1f1f", "#ffffff"),
-        (Theme::Windows10, ThemeMode::Light) => ("#ffffff", "#1f1f1f"),
     };
     set_labwc_title_colors(bg, fg);
     restart_shell();
