@@ -60,6 +60,56 @@ fn mde() -> String {
 fn items_for(kind: &str) -> Vec<Item> {
     let mde = mde();
     match kind {
+        // Win10 "power-user" menu (Win+X): a flat, separator-grouped single
+        // column of admin shortcuts, each mapped to a concrete backend. System
+        // facts + Device Manager reuse mde's own surfaces; the rest shell out to
+        // the matching system tool (best-effort `||` chains where a GUI tool is
+        // optional, so the item still works on a minimal install).
+        "quickaccess" => vec![
+            Item {
+                label: "System",
+                command: format!("'{mde}' system-properties --info"),
+            },
+            Item {
+                label: "Device Manager",
+                command: format!("'{mde}' system-properties --devices"),
+            },
+            Item {
+                label: "Disk Management",
+                command: "sh -c 'gnome-disks || gparted || blivet-gui'".into(),
+            },
+            Item {
+                label: "Network Connections",
+                command: "foot -e sh -c 'nmtui || nmcli device'".into(),
+            },
+            sep(),
+            Item {
+                label: "Event Viewer",
+                command: "foot -e sh -c 'journalctl -e || journalctl'".into(),
+            },
+            Item {
+                label: "Task Manager",
+                command: "foot -o font=monospace:size=12 sh -c 'btop || htop || top'".into(),
+            },
+            sep(),
+            Item {
+                label: "Terminal",
+                command: "foot".into(),
+            },
+            Item {
+                label: "Terminal (Admin)",
+                command: "foot -e sh -c 'pkexec bash || sudo -i'".into(),
+            },
+            Item {
+                label: "Power Options",
+                command: format!("'{mde}' shutdown"),
+            },
+            sep(),
+            Item {
+                label: "Run\u{2026}",
+                command: format!("'{mde}' run"),
+            },
+        ],
         "start" => vec![
             Item {
                 label: "Open",
@@ -111,6 +161,11 @@ fn items_for(kind: &str) -> Vec<Item> {
 }
 
 pub fn run(args: &[String]) -> ExitCode {
+    // No compositor → nothing to anchor to; exit cleanly rather than panic in
+    // the layer-shell init (popups are normally spawned from labwc/the panel).
+    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
+        return ExitCode::SUCCESS;
+    }
     let kind = args
         .first()
         .map(String::as_str)
