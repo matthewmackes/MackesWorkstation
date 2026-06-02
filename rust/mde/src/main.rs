@@ -28,6 +28,7 @@ mod menu;
 mod outputs;
 mod panel;
 mod popup;
+mod start_common;
 mod start_win10;
 mod state;
 mod sysinfo;

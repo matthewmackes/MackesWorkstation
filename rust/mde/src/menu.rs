@@ -19,7 +19,7 @@ use iced_layershell::{to_layer_message, Appearance};
 
 use mde_ui::{frame, metrics, palette};
 
-use crate::{apps, fedora};
+use crate::{apps, fedora, start_common};
 
 /// A node in the menu tree.
 enum Node {
@@ -83,7 +83,7 @@ pub fn run(args: &[String]) -> ExitCode {
     // (e.g. Ctrl+Esc while one is up, or a click during the first instance's
     // start-up). Exit quietly rather than stacking another full-screen overlay
     // — stacked overlays are what made the menu "take several clicks" to open.
-    if !acquire_singleton() {
+    if !start_common::acquire_singleton("mde-menu") {
         return ExitCode::SUCCESS;
     }
     match launch() {
@@ -93,24 +93,6 @@ pub fn run(args: &[String]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-/// Refuse to open a second Start menu. Uses a pid file in the runtime dir: if
-/// it names a process that is still alive (`/proc/<pid>` exists), another menu
-/// owns the slot. A stale file (the previous menu exited via `exit(0)`, which
-/// skips cleanup) is harmless — its pid is gone, so we reclaim it. Linux-only
-/// liveness check, no extra dependency.
-fn acquire_singleton() -> bool {
-    let dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
-    let path = format!("{dir}/mde-menu.pid");
-    if let Ok(s) = std::fs::read_to_string(&path) {
-        if let Ok(pid) = s.trim().parse::<u32>() {
-            if std::path::Path::new(&format!("/proc/{pid}")).exists() {
-                return false;
-            }
-        }
-    }
-    std::fs::write(&path, std::process::id().to_string()).is_ok()
 }
 
 /// `mde menu --pin <Name> <command...>` — pin an item to the Start menu top.
@@ -599,35 +581,15 @@ fn run_act(act: &Act) {
                 let _ = fedora::launch(t);
             }
         }
-        Act::Cmd(cmd, terminal) => launch_cmd(cmd, *terminal),
-        Act::Mde(sub) => mde_self(sub),
-        Act::Run => mde_self("run"),
-        Act::Help => launch_cmd(
+        Act::Cmd(cmd, terminal) => start_common::launch_cmd(cmd, *terminal),
+        Act::Mde(sub) => start_common::mde_self(sub),
+        Act::Run => start_common::mde_self("run"),
+        Act::Help => start_common::launch_cmd(
             "echo 'MDE-Retro — Start=Win  Run=Win+R  Close=Alt+F4  Switch=Alt+Tab  My Computer=Win+E'; read -p 'Press Enter to close '",
             true,
         ),
-        Act::LogOff => mde_self("logoff"),
-        Act::ShutDown => mde_self("shutdown"),
-    }
-}
-
-fn mde_self(sub: &str) {
-    if let Ok(exe) = std::env::current_exe() {
-        let _ = Command::new(exe).arg(sub).spawn();
-    }
-}
-
-fn launch_cmd(cmd: &str, terminal: bool) {
-    if terminal {
-        let _ = Command::new("foot")
-            .arg("-o")
-            .arg(format!("font=monospace:size={}", fedora::CLI_FONT_SIZE))
-            .arg("sh")
-            .arg("-c")
-            .arg(cmd)
-            .spawn();
-    } else {
-        let _ = Command::new("sh").arg("-c").arg(cmd).spawn();
+        Act::LogOff => start_common::mde_self("logoff"),
+        Act::ShutDown => start_common::mde_self("shutdown"),
     }
 }
 
@@ -1006,22 +968,26 @@ fn view_carbon(menu: &Menu) -> Element<'_, Message> {
     if depth > 0 {
         // Back = toggle the parent submenu closed (Click on the open parent).
         let parent_idx = menu.open[depth - 1];
-        tiles.push(carbon_tile_raw(
+        tiles.push(start_common::tile(
             crate::icons::icon_any(&["go-previous", "back", "arrow-left"], 32),
             "Back",
             Message::Click(depth - 1, parent_idx),
             None,
+            104.0,
+            88.0,
         ));
     }
     for (i, node) in nodes.iter().enumerate() {
         match node {
             Node::Sep => {}
             Node::Leaf(label, _) | Node::Sub(label, _) => {
-                tiles.push(carbon_tile_raw(
+                tiles.push(start_common::tile(
                     crate::icons::icon_any(menu_icon(label), 32),
                     label,
                     Message::Click(depth, i),
                     Some(Message::RightClick(depth, i)),
+                    104.0,
+                    88.0,
                 ));
             }
         }
@@ -1104,57 +1070,6 @@ fn view_carbon(menu: &Menu) -> Element<'_, Message> {
         }
     }
     layers.into()
-}
-
-/// One Carbon switcher tile: a flat vertical button (icon over a centered,
-/// wrapped label) with an accent-tinted hover. `right` wires the context menu.
-fn carbon_tile_raw<'a>(
-    icon: Element<'a, Message>,
-    label: &'a str,
-    press: Message,
-    right: Option<Message>,
-) -> Element<'a, Message> {
-    let content = Column::new()
-        .spacing(4.0)
-        .align_x(Horizontal::Center)
-        .width(Length::Fill)
-        .push(container(icon).center_x(Length::Fill))
-        .push(
-            text(label)
-                .size(metrics::UI_PX)
-                .align_x(Horizontal::Center)
-                .width(Length::Fill),
-        );
-    let btn = button(content)
-        .on_press(press)
-        .width(Length::Fixed(104.0))
-        .height(Length::Fixed(88.0))
-        .padding(pad(8.0, 4.0, 6.0, 4.0))
-        .style(carbon_tile_style());
-    match right {
-        Some(r) => mouse_area(btn).on_right_press(r).into(),
-        None => btn.into(),
-    }
-}
-
-/// Carbon tile style: transparent at rest, accent-tinted on hover/press, 2px
-/// radius, label in menu text.
-fn carbon_tile_style() -> impl Fn(&iced::Theme, button::Status) -> button::Style {
-    |_theme, status| {
-        let hot = matches!(status, button::Status::Hovered | button::Status::Pressed);
-        let mut a = palette::accent();
-        a.a = 0.18;
-        button::Style {
-            background: hot.then_some(Background::Color(a)),
-            text_color: palette::color(palette::MENU_TEXT),
-            border: Border {
-                color: Color::TRANSPARENT,
-                width: 0.0,
-                radius: 2.0.into(),
-            },
-            shadow: Shadow::default(),
-        }
-    }
 }
 
 /// The launcher right-click menu panel. `pinned` swaps Pin for Unpin. Sized to
