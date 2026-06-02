@@ -98,6 +98,7 @@ shot panel            --crop "0,0 1280x40" panel
 shot start-menu       menu
 shot files            files "$HOME"
 shot control-panel    control-panel
+shot add-remove       --wait 3.0 add-remove
 shot system-properties --wait 3.0 system-properties
 shot run-dialog       run
 shot properties       properties "Command Prompt" "/usr/bin/foot"

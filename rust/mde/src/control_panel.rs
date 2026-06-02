@@ -121,7 +121,17 @@ fn update(state: &mut ControlPanel, message: Message) -> Task<Message> {
             // Single click selects and opens (a missing tool installs, then opens).
             state.selected = Some(i);
             if let Some(tool) = fedora::TOOLS.get(i) {
-                if state.installed.get(i).copied().unwrap_or(false) {
+                // mde-internal applets ("mde <sub>", e.g. Add/Remove Programs)
+                // launch via the running binary — always present, never installed.
+                if let Some(sub) = tool.command.strip_prefix("mde ") {
+                    let exe = std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.to_str().map(String::from))
+                        .unwrap_or_else(|| "mde".to_string());
+                    let _ = std::process::Command::new(exe)
+                        .args(sub.split_whitespace())
+                        .spawn();
+                } else if state.installed.get(i).copied().unwrap_or(false) {
                     let _ = fedora::launch(tool);
                 } else if matches!(fedora::install(&[tool.package]), Ok(s) if s.success()) {
                     // Install + open in one gesture, like Win2000 Add/Remove.

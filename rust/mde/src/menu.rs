@@ -228,7 +228,7 @@ fn build_root() -> Vec<Node> {
         Node::Leaf("Firefox".into(), Act::Cmd("firefox".into(), false)),
         Node::Leaf(
             "MackesDE Update".into(),
-            Act::Cmd("dnfdragora --update-only".into(), false),
+            Act::Cmd("sudo dnf upgrade".into(), true),
         ),
         Node::Sep,
         Node::Sub("Programs".into(), programs_tree()),

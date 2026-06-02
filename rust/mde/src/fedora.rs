@@ -28,8 +28,13 @@ pub struct Tool {
 /// The full tool table. Categories order = menu/Control Panel order.
 pub const TOOLS: &[Tool] = &[
     // --- Control Panel (classic applets) -----------------------------------
-    Tool { category: "Control Panel", name: "Add/Remove Programs", command: "dnfdragora", terminal: false, package: "dnfdragora", detect_bin: "dnfdragora", icons: &["system-software-install"] },
-    Tool { category: "Control Panel", name: "Automatic Updates", command: "dnfdragora-updater", terminal: false, package: "dnfdragora", detect_bin: "dnfdragora-updater", icons: &["system-software-update"] },
+    // Add/Remove Programs is mde's own dnf-backed surface (B) — `mde add-remove`,
+    // launched via the running binary (see control_panel Activate). Automatic
+    // Updates runs `dnf upgrade` in a terminal. Both replaced dnfdragora, which
+    // hung on launch and couldn't be killed. `package`/`detect_bin` = "mde" so the
+    // applet is always present (never offered for install).
+    Tool { category: "Control Panel", name: "Add/Remove Programs", command: "mde add-remove", terminal: false, package: "mde", detect_bin: "mde", icons: &["system-software-install"] },
+    Tool { category: "Control Panel", name: "Automatic Updates", command: "sudo dnf upgrade", terminal: true, package: "dnf", detect_bin: "dnf", icons: &["system-software-update"] },
     Tool { category: "Control Panel", name: "MackesDE Firewall", command: "firewall-config", terminal: false, package: "firewall-config", detect_bin: "firewall-config", icons: &["security-high"] },
     Tool { category: "Control Panel", name: "Network and Dial-up Connections", command: "nm-connection-editor", terminal: false, package: "nm-connection-editor", detect_bin: "nm-connection-editor", icons: &["network-wired"] },
     Tool { category: "Control Panel", name: "Sounds and Multimedia", command: "pavucontrol", terminal: false, package: "pavucontrol", detect_bin: "pavucontrol", icons: &["multimedia-volume-control"] },

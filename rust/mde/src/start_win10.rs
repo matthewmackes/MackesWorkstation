@@ -436,9 +436,14 @@ fn update(start: &mut Start, message: Message) -> Task<Message> {
             }
             exit(0);
         }
-        // Open the package manager (the Linux "Uninstall" mapping).
+        // Open the package manager (the Linux "Uninstall" mapping) — mde's own
+        // Add/Remove Programs, launched via the running binary.
         Message::CtxUninstall => {
-            start_common::launch_cmd("dnfdragora", false);
+            let exe = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.to_str().map(String::from))
+                .unwrap_or_else(|| "mde".to_string());
+            let _ = std::process::Command::new(exe).arg("add-remove").spawn();
             exit(0);
         }
         // A backdrop click / Esc closes the context menu first, else the Start.

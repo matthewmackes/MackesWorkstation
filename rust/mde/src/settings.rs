@@ -246,7 +246,7 @@ const CATEGORIES: &[Category] = &[
         pages: &[
             Page {
                 title: "Apps & features",
-                kind: Kind::Tool("dnfdragora"),
+                kind: Kind::Mde("add-remove"),
             },
             Page {
                 title: "Default apps",
@@ -325,7 +325,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "MackesDE Update",
-                kind: Kind::Cmd("dnfdragora --update-only", false),
+                kind: Kind::Cmd("sudo dnf upgrade", true),
             },
             Page {
                 title: "Backup",
