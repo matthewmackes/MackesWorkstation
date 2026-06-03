@@ -17,6 +17,24 @@
   packages (MDE `mde-core`/`mde-desktop`, the MDE-Retro RPM) are superseded by the
   Mackes Workstation deployment-role RPM; all future epics target the successor.
 
+*Review pass (2026-06-03) — four locks from the plan walkthrough:*
+- **Repo name → `MackesWorkstation`** (GitHub repo, matching the MDE / MackesDE
+  capitalization). The cargo workspace + crate names stay kebab-case (`mackes-*` / `mde-*`)
+  per Rust convention.
+- **Settings architecture (resolves Q14) → HYBRID.** A lightweight metadata registry
+  (category, title, icon, deep-link) drives the Settings home grid + nav rail; each page
+  still renders as its **own `mde settings --page X` process** (fits §7's per-process theme
+  model, stays grim-capturable). Registry for discovery; separate processes for rendering —
+  no monolithic match.
+- **KDE Connect TLS (refines Q48) → MUTUAL TLS both directions.** Inbound (host 3b.2e, done)
+  binds the peer's presented client-cert fingerprint to the paired device's pinned value
+  before accepting — a deliberate, *more-secure* divergence from the reference's
+  `no_client_auth` (flagged for the owner's adversarial audit). **Follow-up:** make the
+  outbound `connect_pinned_tls` present our cert too, so real-device interop is symmetric.
+- **Crate-prefix policy → keep mixed `mde-*`/`mackes-*` for v1** (the
+  `mde-config`/`mde-mesh-types`/`mded` facades already bridge); unify to `mackes-*` in a
+  post-v1 rename.
+
 *Load-bearing four — 2026-06-03:*
 - **Q8 Compositor → labwc.** Keep MDE-Retro's labwc substrate; MDE's sway-specific
   bits adapt to labwc/wlroots. The Win10 shell is the primary UX.
@@ -206,7 +224,7 @@ compute) · `mde-drawer` (quick actions) · `mde-wizard` (Birthright first-run).
 
 ## 4. Reuse strategy (REUSE IS KEY)
 
-- **New repo `mackes-workstation`** wires the three layers together; new code is glue.
+- **New repo `MackesWorkstation`** wires the three layers together; new code is glue.
 - **Shared crates as the spine:** `mde-kdc-proto` is already shared; the platform
   crates become libraries (+ `mackesd` as a supervised service); MDE-Retro's
   theme/widget/state/icon kits power the Win10 shell; the Workbench ports in largely
@@ -307,7 +325,7 @@ compute) · `mde-drawer` (quick actions) · `mde-wizard` (Birthright first-run).
 The decision gate is closed (27 answers + the governing **"Mirror Windows 10"** rule,
 §0). §9–§12 below are the **executable plan**, synthesized against the current code:
 MDE `@6459e17`, MDE-Retro `main`, and MDE-KDECnt-Rust. **Still PLANNING ONLY** — no
-`mackes-workstation` repo is created and nothing is built until the owner says
+`MackesWorkstation` repo is created and nothing is built until the owner says
 "execute." Reading order: §9 *what we keep* → §10 *what changes in the shell* →
 §11 *the order we build it* → §12 *where it all lives + how it ships*.
 
@@ -316,7 +334,9 @@ repos become upstream history under the one monorepo.
 
 ## 9. Per-crate reuse table (REUSE IS KEY)
 
-All 35 crates (33 MDE + 2 MDE-Retro), each classified **as-is** (move unchanged) /
+All ~35 workspace crates (33 MDE + 2 MDE-Retro — plus the canonical KDE Connect host imported
+from the separate MDE-KDECnt-Rust repo at E0; exact count firms up at import), each classified
+**as-is** (move unchanged) /
 **adapt** (reuse backend, reskin/rewire) / **rebuild-or-reskin** / **retire-absorb**
 (functions fold into a Win10/Workbench surface, crate retires post-v10). Target layer:
 `shared-lib` · `platform-daemon` · `win10-surface` · `app` · `workbench`.
@@ -481,9 +501,10 @@ checks. Win10 reaches parity with Win2000/BeOS/Carbon in the accuracy gate.
 
 ### Cross-cutting substrate (not a single surface)
 
-- **Registered-module Settings registry** — a `PageProvider`-style contract so E12/E13/E15/E17
-  inject Settings pages without editing `settings.rs`'s match tree. **Lock the interface before
-  E12 starts** (R6 decision: trait-aggregation vs. one-process-per-page).
+- **Registered-module Settings registry (decided — hybrid, §0).** A lightweight metadata
+  registry (category/title/icon/deep-link) drives the Settings home grid + nav rail; each page
+  renders as its own `mde settings --page X` process (per-process theme model, grim-capturable).
+  Epics register page metadata only — they never edit a central match tree.
 - **Bus client integration** — Win10 surfaces talk to mackesd workers over `mde-bus` (not
   private D-Bus). Prove theme/accent signal delivery first, then E3/E9/E15 action↔state loops.
 - **Mesh/peer Quick Access + LizardFS FUSE** — E8 Explorer enumerates LizardFS mesh mounts;
@@ -510,7 +531,7 @@ Every epic enforces §3 Definition of Done (no stubs, runtime-reachable, disclai
 
 | Epic | Scope | Depends on | Unblocks |
 |---|---|---|---|
-| **E0 Monorepo Bootstrap** | Cargo workspace absorbs ~37 platform crates + shell + Workbench; v10.0.0/GPL-3.0; wire `mde-bus` (retire D-Bus); import labwc config; EOL/archive old repos; disclaimer embedding; mackesd systemd unit; verify `mde <sub>` dispatch | none | E1–E7 |
+| **E0 Monorepo Bootstrap** | Cargo workspace absorbs ~35 workspace crates (platform + shell + Workbench); v10.0.0/GPL-3.0; wire `mde-bus` (retire D-Bus); import labwc config; EOL/archive old repos; disclaimer embedding; mackesd systemd unit; verify `mde <sub>` dispatch | none | E1–E7 |
 | **E1 Deployment-Role Install** | RPM install-time role chooser (Lighthouse/Server/Workstation) → mackesd worker subset + role-gated surfaces; role-aware systemd units + `/etc/mackesd/` templates; wire selector into installer | E0 | E2,E4,E5,E7 |
 | **E2 KDE Connect Convergence** | Finish MDE-KDECnt-Rust **inbound listener (3b.2e)** → bidirectional; converge in-tree `mde-kdc` onto canonical crate; pairing store + host in mackesd; sftp mount for Explorer Cloud Files; verify round-trip with a real phone | E0,E1 | E5,E9 |
 | **E3 Mesh-Storage LizardFS** | LizardFS master+chunk daemons; mount mesh XDG dirs owned by mackesd; topology-aware replication; offline graceful degrade (Gluster retired) | E0,E1 | E4,E5,E6 |
@@ -545,30 +566,31 @@ role is a strict superset:
 
 1. **Lighthouse** (rank 0) — VPS relay. mackesd (enrollment CA only) + mde-bus + Nebula +
    LizardFS read-only client. No desktop, no media/voice/compute, no display manager.
-2. **Headless / Server** (rank 1) — Lighthouse + LizardFS chunk brick + fleet (ansible-pull) +
+2. **Server** (rank 1, headless) — Lighthouse + LizardFS chunk brick + fleet (ansible-pull) +
    monitoring. Still no desktop.
-3. **Full Workstation** (rank 2) — Headless + sway/labwc + `mde` shell + all GUI + 17 applets +
+3. **Workstation** (rank 2, full desktop) — Server + sway/labwc + `mde` shell + all GUI + 17 applets +
    service daemons + greetd/regreet/cage + libvirt/qemu + kamailio/rtpengine + fonts.
 
-**mackesd worker subsets by role:** Lighthouse = enrollment(CA)+leader+health · Headless = +
-fleet+meshfs(LizardFS FUSE)+metrics · Full = + voice coordinator + media stack.
+**mackesd worker subsets by role:** Lighthouse = enrollment(CA)+leader+health · Server = +
+fleet+meshfs(LizardFS FUSE)+metrics · Workstation = + voice coordinator + media stack.
 
 **Surfaces gated by role:** CLI subcommands (`mde panel/menu/files/net-flyout/filedialog`)
 available everywhere; desktop-only (`mde settings/start-win10/action-center/security/oobe/
-installer`) ENOENT on non-Full; Workbench binary installs only under Full.
+installer`) ENOENT on non-Workstation; Workbench binary installs only under Workstation.
 
-**RPM subpackage structure** (one spec, conditional): `mde-core` (all roles — `mde`, `mackesd`,
-`mde-bus`, `mde-kdc`, systemd `mackesd.service`+`mde-bus.service`) · `mde-headless` (Headless+Full
-— lizardfs, ansible-pull.timer) · `mde-desktop` (Full only, `Requires: mde-core` — sway/labwc/
+**RPM subpackage structure** (one spec, conditional — package ids, not role names): `mde-core`
+(all roles — `mde`, `mackesd`, `mde-bus`, `mde-kdc`, systemd `mackesd.service`+`mde-bus.service`)
+· `mde-headless` (Server+Workstation — lizardfs, ansible-pull.timer) · `mde-desktop`
+(Workstation only, `Requires: mde-core` — sway/labwc/
 regreet/cage, `mde-workbench`, applets, icons/themes/fonts, `mde-session.service`+`greetd.service`).
 `Provides:` legacy names; `Obsoletes:` the old xfce/i3 packages.
 
 **Versioning:** single `[workspace.package] version = "10.0.0"`; all crates inherit; one git tag
-`mackes-workstation-v10.0.0`. **Disclaimer pre-flight gate:** `DISCLAIMER.md` must exist + be
+`MackesWorkstation-v10.0.0`. **Disclaimer pre-flight gate:** `DISCLAIMER.md` must exist + be
 non-empty before any RPM build.
 
 ---
 
-*Plan complete and executable. Awaiting "execute" to create the `mackes-workstation` monorepo
+*Plan complete and executable. Awaiting "execute" to create the `MackesWorkstation` monorepo
 and begin E0. The RPM (E8) stays held until all features are §3-complete; hardware bench is
 post-release.*
