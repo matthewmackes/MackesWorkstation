@@ -296,6 +296,84 @@ impl std::fmt::Display for AutoAction {
     }
 }
 
+/// Update & Security ▸ Backup ▸ More options (E17.7): how often to snapshot →
+/// systemd `OnCalendar=`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Schedule {
+    Hourly,
+    Daily,
+    Weekly,
+    Monthly,
+}
+impl Schedule {
+    const ALL: [Schedule; 4] = [
+        Schedule::Hourly,
+        Schedule::Daily,
+        Schedule::Weekly,
+        Schedule::Monthly,
+    ];
+    fn key(self) -> &'static str {
+        match self {
+            Schedule::Hourly => "hourly",
+            Schedule::Daily => "daily",
+            Schedule::Weekly => "weekly",
+            Schedule::Monthly => "monthly",
+        }
+    }
+    fn from_key(s: &str) -> Schedule {
+        match s {
+            "daily" => Schedule::Daily,
+            "weekly" => Schedule::Weekly,
+            "monthly" => Schedule::Monthly,
+            _ => Schedule::Hourly,
+        }
+    }
+}
+impl std::fmt::Display for Schedule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Schedule::Hourly => "Hourly",
+            Schedule::Daily => "Daily",
+            Schedule::Weekly => "Weekly",
+            Schedule::Monthly => "Monthly",
+        })
+    }
+}
+
+/// Backup ▸ More options: how many snapshots to keep.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Retention {
+    Forever,
+    Last10,
+    Last30Days,
+}
+impl Retention {
+    const ALL: [Retention; 3] = [Retention::Forever, Retention::Last10, Retention::Last30Days];
+    fn key(self) -> &'static str {
+        match self {
+            Retention::Forever => "forever",
+            Retention::Last10 => "last10",
+            Retention::Last30Days => "days30",
+        }
+    }
+    fn from_key(s: &str) -> Retention {
+        match s {
+            "last10" => Retention::Last10,
+            "days30" => Retention::Last30Days,
+            _ => Retention::Forever,
+        }
+    }
+}
+impl std::fmt::Display for Retention {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Retention::Forever => "Keep forever",
+            Retention::Last10 => "Last 10 snapshots",
+            Retention::Last30Days => "Last 30 days",
+        })
+    }
+}
+
 /// A keyboard-layout pick_list item — renders the friendly name, keyed by xkb code
 /// (E12.8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -828,6 +906,13 @@ struct Settings {
     /// automatic-backup toggle, mirroring menu.json.
     backup_drive: String,
     auto_backup: bool,
+    /// Backup ▸ More options (E17.7): the sub-view flag, a pending back-up-now
+    /// confirm, the schedule/retention pick_list values, and the included folders.
+    backup_more: bool,
+    confirm_backup: bool,
+    backup_schedule: Schedule,
+    backup_retention: Retention,
+    backup_includes: Vec<String>,
     /// Accounts ▸ Family & other users (E10.4): the enumerated local accounts,
     /// (re)read on each visit to that page.
     accounts: Vec<crate::sysinfo::Account>,
@@ -1005,6 +1090,18 @@ enum Message {
     SetBackupDrive(String),
     RemoveBackupDrive,
     SetAutoBackup(bool),
+    // Backup ▸ More options (E17.7).
+    ShowBackupMore,
+    BackFromMore,
+    AskBackupNow,
+    CancelBackupNow,
+    ConfirmBackupNow,
+    BackedUp,
+    SetSchedule(Schedule),
+    SetRetention(Retention),
+    AddInclude,
+    IncludeAdded(Option<String>),
+    RemoveInclude(String),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -1054,6 +1151,29 @@ pub fn run(args: &[String]) -> ExitCode {
                 );
                 return ExitCode::SUCCESS;
             }
+        }
+        // `--backup-now [--dry-run]` — create a Timeshift snapshot (E17.7). Dry-run
+        // prints the exact privileged command without running it (CI-safe).
+        if args.iter().any(|a| a == "--backup-now") {
+            let cmd = crate::sysinfo::timeshift_create_cmd();
+            if args.iter().any(|a| a == "--dry-run") {
+                println!("pkexec {}", cmd.join(" "));
+            } else {
+                let ok = std::process::Command::new("pkexec")
+                    .args(&cmd)
+                    .status()
+                    .map(|s| s.success())
+                    .unwrap_or(false);
+                println!(
+                    "{}",
+                    if ok {
+                        "snapshot created"
+                    } else {
+                        "snapshot failed"
+                    }
+                );
+            }
+            return ExitCode::SUCCESS;
         }
     }
     if args.iter().any(|a| a == "--list") {
@@ -1297,6 +1417,15 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 last_freed: None,
                 backup_drive: st.backup_drive.clone(),
                 auto_backup: st.auto_backup,
+                backup_more: std::env::var("MDE_BACKUP_VIEW").as_deref() == Ok("more"),
+                confirm_backup: false,
+                backup_schedule: Schedule::from_key(&st.backup_schedule),
+                backup_retention: Retention::from_key(&st.backup_retention),
+                backup_includes: if st.backup_includes.is_empty() {
+                    seed_backup_includes()
+                } else {
+                    st.backup_includes.clone()
+                },
                 accounts: Vec::new(),
                 new_user: String::new(),
                 confirm_remove: None,
@@ -1912,6 +2041,65 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.auto_backup = on;
             persist(state);
         }
+        // Backup ▸ More options (E17.7).
+        Message::ShowBackupMore => state.backup_more = true,
+        Message::BackFromMore => {
+            state.backup_more = false;
+            state.confirm_backup = false;
+        }
+        Message::AskBackupNow => state.confirm_backup = true,
+        Message::CancelBackupNow => state.confirm_backup = false,
+        Message::ConfirmBackupNow => {
+            state.confirm_backup = false;
+            let cmd = crate::sysinfo::timeshift_create_cmd();
+            return Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        let _ = std::process::Command::new("pkexec").args(&cmd).status();
+                    })
+                    .await
+                    .ok();
+                },
+                |_| Message::BackedUp,
+            );
+        }
+        Message::BackedUp => {
+            let _ = std::process::Command::new("notify-send")
+                .args(["Backup", "Snapshot created"])
+                .spawn();
+        }
+        Message::SetSchedule(s) => {
+            state.backup_schedule = s;
+            persist(state);
+            // Write + enable the --user backup timer with the new OnCalendar.
+            let cal = s.key().to_string();
+            return Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        crate::sysinfo::apply_backup_schedule(&cal)
+                    })
+                    .await
+                    .ok();
+                },
+                |_| Message::Noop,
+            );
+        }
+        Message::SetRetention(r) => {
+            state.backup_retention = r;
+            persist(state);
+        }
+        Message::AddInclude => return pick_folder_task(),
+        Message::IncludeAdded(Some(p)) => {
+            if !state.backup_includes.contains(&p) {
+                state.backup_includes.push(p);
+                persist(state);
+            }
+        }
+        Message::IncludeAdded(None) => {}
+        Message::RemoveInclude(p) => {
+            state.backup_includes.retain(|x| x != &p);
+            persist(state);
+        }
         // Keep PIN entry to digits (a Windows-style numeric PIN), capped at 8.
         Message::Pin1(p) => {
             state.pin1 = p.chars().filter(char::is_ascii_digit).take(8).collect();
@@ -2177,6 +2365,36 @@ fn bt_action_task<F: FnOnce() + Send + 'static>(action: F) -> Task<Message> {
             .unwrap_or_default()
         },
         |s| Message::BtLoaded(Box::new(s)),
+    )
+}
+
+/// Seed the backup include list from the XDG user dirs that exist (E17.7).
+fn seed_backup_includes() -> Vec<String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    ["Documents", "Pictures", "Videos", "Music", "Downloads"]
+        .iter()
+        .map(|d| format!("{home}/{d}"))
+        .filter(|p| std::path::Path::new(p).is_dir())
+        .collect()
+}
+
+/// Pop `mde filedialog` to pick a folder, returning the chosen path (E17.7).
+fn pick_folder_task() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(|| {
+                let exe = std::env::current_exe().ok()?;
+                let out = std::process::Command::new(exe)
+                    .args(["filedialog", "--title", "Add a folder to back up"])
+                    .output()
+                    .ok()?;
+                let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+                (!p.is_empty()).then_some(p)
+            })
+            .await
+            .unwrap_or(None)
+        },
+        Message::IncludeAdded,
     )
 }
 
@@ -2548,6 +2766,9 @@ fn persist(state: &Settings) {
     st.storage_sense = state.storage_sense;
     st.backup_drive = state.backup_drive.clone();
     st.auto_backup = state.auto_backup;
+    st.backup_schedule = state.backup_schedule.key().to_string();
+    st.backup_retention = state.backup_retention.key().to_string();
+    st.backup_includes = state.backup_includes.clone();
     st.update_paused_until = state.update_paused_until;
     st.update_active_start = state.active_start;
     st.update_active_end = state.active_end;
@@ -4498,6 +4719,9 @@ fn backup_page(state: &Settings) -> Element<'_, Message> {
             .color(palette::color(palette::GRAY_TEXT))
             .into();
     };
+    if state.backup_more {
+        return backup_more_page(state);
+    }
 
     let mut col = Column::new()
         .spacing(12.0)
@@ -4528,10 +4752,20 @@ fn backup_page(state: &Settings) -> Element<'_, Message> {
                     .style(mde_ui::checkbox_style),
             )
             .push(
-                button(text("Remove drive").size(metrics::UI_PX))
-                    .on_press(Message::RemoveBackupDrive)
-                    .padding(Padding::from([3.0, 12.0]))
-                    .style(mde_ui::button_ghost),
+                Row::new()
+                    .spacing(8.0)
+                    .push(
+                        button(text("More options").size(metrics::UI_PX))
+                            .on_press(Message::ShowBackupMore)
+                            .padding(Padding::from([3.0, 12.0]))
+                            .style(mde_ui::button_primary),
+                    )
+                    .push(
+                        button(text("Remove drive").size(metrics::UI_PX))
+                            .on_press(Message::RemoveBackupDrive)
+                            .padding(Padding::from([3.0, 12.0]))
+                            .style(mde_ui::button_ghost),
+                    ),
             );
     } else {
         col = col.push(
@@ -4578,6 +4812,121 @@ fn backup_page(state: &Settings) -> Element<'_, Message> {
             col = col.push(container(row).padding(Padding::from([4.0, 4.0])));
         }
     }
+    scrollable(col).style(mde_ui::scrollbar).into()
+}
+
+/// Backup ▸ More options (E17.7): Back up now, the schedule + retention pick_lists,
+/// and the included-folders add/remove list.
+fn backup_more_page(state: &Settings) -> Element<'_, Message> {
+    let back = button(text("\u{2190} Backup").size(metrics::UI_PX))
+        .on_press(Message::BackFromMore)
+        .padding(Padding::from([3.0, 10.0]))
+        .style(mde_ui::button_ghost);
+
+    let row = |lbl: &'static str, control: Element<'static, Message>| {
+        Row::new()
+            .spacing(8.0)
+            .align_y(iced::alignment::Vertical::Center)
+            .push(
+                text(lbl)
+                    .size(metrics::UI_PX)
+                    .width(Length::Fixed(170.0))
+                    .color(palette::color(palette::WINDOW_TEXT)),
+            )
+            .push(control)
+    };
+
+    // Back up now (confirm → pkexec timeshift --create).
+    let backup_now: Element<'_, Message> = if state.confirm_backup {
+        Row::new()
+            .spacing(8.0)
+            .push(
+                text("Create a snapshot now?")
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::WINDOW_TEXT)),
+            )
+            .push(
+                button(text("Back up now").size(metrics::UI_PX))
+                    .on_press(Message::ConfirmBackupNow)
+                    .padding(Padding::from([3.0, 12.0]))
+                    .style(mde_ui::button_primary),
+            )
+            .push(
+                button(text("Cancel").size(metrics::UI_PX))
+                    .on_press(Message::CancelBackupNow)
+                    .padding(Padding::from([3.0, 12.0]))
+                    .style(mde_ui::button_ghost),
+            )
+            .into()
+    } else {
+        button(text("Back up now").size(metrics::UI_PX))
+            .on_press(Message::AskBackupNow)
+            .padding(Padding::from([4.0, 14.0]))
+            .style(mde_ui::button_primary)
+            .into()
+    };
+
+    let mut col = Column::new()
+        .spacing(12.0)
+        .push(back)
+        .push(
+            text("More options")
+                .size(metrics::INFO_TITLE_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(backup_now)
+        .push(row(
+            "Back up my files",
+            pick_list(
+                Schedule::ALL.to_vec(),
+                Some(state.backup_schedule),
+                Message::SetSchedule,
+            )
+            .text_size(metrics::UI_PX)
+            .into(),
+        ))
+        .push(row(
+            "Keep my backups",
+            pick_list(
+                Retention::ALL.to_vec(),
+                Some(state.backup_retention),
+                Message::SetRetention,
+            )
+            .text_size(metrics::UI_PX)
+            .into(),
+        ))
+        .push(
+            text("Back up these folders")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+
+    for inc in &state.backup_includes {
+        col = col.push(
+            Row::new()
+                .spacing(10.0)
+                .align_y(iced::alignment::Vertical::Center)
+                .push(
+                    text(inc.clone())
+                        .size(metrics::UI_PX)
+                        .width(Length::Fill)
+                        .color(palette::color(palette::WINDOW_TEXT)),
+                )
+                .push(
+                    button(text("Remove").size(metrics::UI_PX))
+                        .on_press(Message::RemoveInclude(inc.clone()))
+                        .padding(Padding::from([3.0, 10.0]))
+                        .style(mde_ui::button_ghost),
+                ),
+        );
+    }
+    col = col.push(
+        button(text("+ Add a folder").size(metrics::UI_PX))
+            .on_press(Message::AddInclude)
+            .padding(Padding::from([4.0, 12.0]))
+            .style(mde_ui::button_ghost),
+    );
+
     scrollable(col).style(mde_ui::scrollbar).into()
 }
 

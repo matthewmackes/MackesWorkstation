@@ -294,6 +294,15 @@ pub struct MenuState {
     pub backup_drive: String,
     #[serde(default)]
     pub auto_backup: bool,
+    /// Backup ▸ More options (E17.7): snapshot schedule (systemd `OnCalendar`
+    /// shorthand, default "hourly"), retention key (default "forever"), and the
+    /// included-folders list (empty ⇒ the page seeds it from the XDG dirs).
+    #[serde(default = "def_backup_schedule")]
+    pub backup_schedule: String,
+    #[serde(default = "def_backup_retention")]
+    pub backup_retention: String,
+    #[serde(default)]
+    pub backup_includes: Vec<String>,
     /// Win10 taskbar search affordance: "button" (default), "box", or "hidden"
     /// (E2.9). All open `mde search`; "box" is a wider labelled pill.
     #[serde(default = "def_search_mode")]
@@ -361,6 +370,14 @@ fn def_kb_layout() -> String {
 
 fn def_autoplay_action() -> String {
     "open".to_string()
+}
+
+fn def_backup_schedule() -> String {
+    "hourly".to_string()
+}
+
+fn def_backup_retention() -> String {
+    "forever".to_string()
 }
 
 fn def_true() -> bool {
@@ -433,6 +450,9 @@ impl Default for MenuState {
             storage_sense: false,
             backup_drive: String::new(),
             auto_backup: false,
+            backup_schedule: def_backup_schedule(),
+            backup_retention: def_backup_retention(),
+            backup_includes: Vec::new(),
             win10_search_mode: def_search_mode(),
             update_paused_until: 0,
             update_active_start: def_active_start(),
@@ -579,6 +599,9 @@ mod tests {
             storage_sense: true,
             backup_drive: "/dev/sdb1".into(),
             auto_backup: true,
+            backup_schedule: "weekly".into(),
+            backup_retention: "last10".into(),
+            backup_includes: vec!["/home/me/Documents".into()],
             win10_search_mode: "box".into(),
             update_paused_until: 1_900_000_000,
             update_active_start: 9,

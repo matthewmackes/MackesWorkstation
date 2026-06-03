@@ -690,6 +690,49 @@ pub fn timeshift_device_cmd(dev: &str) -> Vec<String> {
     vec!["timeshift".into(), "--snapshot-device".into(), dev.into()]
 }
 
+/// `timeshift --create` — make a snapshot now (E17.7). Returns the argv (`pkexec`).
+pub fn timeshift_create_cmd() -> Vec<String> {
+    vec!["timeshift".into(), "--create".into()]
+}
+
+/// The backup-schedule `--user` units (service, timer) for an `OnCalendar=` value
+/// (E17.7). The service runs `mde settings backup --backup-now` (which pkexecs
+/// timeshift). Pure (unit-tested). Unattended runs need a polkit rule for
+/// timeshift; the manual "Back up now" works with the password prompt.
+pub fn backup_schedule_units(oncalendar: &str) -> (String, String) {
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.to_str().map(String::from))
+        .unwrap_or_else(|| "mde".into());
+    let service = format!(
+        "[Unit]\nDescription=MackesDE scheduled backup\n\n[Service]\nType=oneshot\nExecStart={exe} settings backup --backup-now\n"
+    );
+    let timer = format!(
+        "[Unit]\nDescription=MackesDE backup schedule\n\n[Timer]\nOnCalendar={oncalendar}\nPersistent=true\n\n[Install]\nWantedBy=timers.target\n"
+    );
+    (service, timer)
+}
+
+/// Write the backup-schedule units and enable the `--user` timer (E17.7).
+pub fn apply_backup_schedule(oncalendar: &str) {
+    let Some(home) = std::env::var_os("HOME") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(home).join(".config/systemd/user");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let (service, timer) = backup_schedule_units(oncalendar);
+    let _ = std::fs::write(dir.join("mde-backup.service"), service);
+    let _ = std::fs::write(dir.join("mde-backup.timer"), timer);
+    let _ = Command::new("systemctl")
+        .args(["--user", "daemon-reload"])
+        .status();
+    let _ = Command::new("systemctl")
+        .args(["--user", "enable", "--now", "mde-backup.timer"])
+        .status();
+}
+
 // --- headless entry point --------------------------------------------------
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -759,11 +802,16 @@ tmpfs             16000000000            0  16000000000 /run/user/1000
     }
 
     #[test]
-    fn timeshift_device_command_shaped() {
+    fn timeshift_commands_and_schedule_units() {
         assert_eq!(
             timeshift_device_cmd("/dev/sdb1"),
             vec!["timeshift", "--snapshot-device", "/dev/sdb1"]
         );
+        assert_eq!(timeshift_create_cmd(), vec!["timeshift", "--create"]);
+        let (service, timer) = backup_schedule_units("hourly");
+        assert!(service.contains("settings backup --backup-now"));
+        assert!(timer.contains("OnCalendar=hourly"));
+        assert!(timer.contains("WantedBy=timers.target"));
     }
 
     #[test]
