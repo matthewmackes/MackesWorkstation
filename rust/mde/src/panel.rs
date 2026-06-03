@@ -32,6 +32,13 @@ const BEOS_BAR_W: f32 = 115.0;
 const WIN10_BAR_H: f32 = 40.0;
 /// Compact bar height (px) for Win10 "use small taskbar buttons" (E7.9a).
 const WIN10_BAR_H_SMALL: f32 = 30.0;
+/// Width of the Win10 vertical (left/right) taskbar (px), E7.9b — wide enough for
+/// the square icon buttons (`bar_h()`) plus breathing room, like Win10's stock
+/// vertical bar.
+const WIN10_BAR_W: f32 = 56.0;
+/// Is the Win10 taskbar docked to a side (left/right → vertical layout)? Set from
+/// `state.taskbar_location` at panel startup, read by [`view_win10`].
+static WIN10_VERTICAL: AtomicBool = AtomicBool::new(false);
 /// Whether the Win10 bar is in compact ("small buttons") mode — set from
 /// `state.win10_small_buttons` at panel startup, read by [`bar_h`].
 static WIN10_SMALL: AtomicBool = AtomicBool::new(false);
@@ -303,31 +310,58 @@ fn launch() -> Result<(), iced_layershell::Error> {
             ..Default::default()
         }
     } else if palette::is_windows10() {
-        // The Win10 taskbar can sit at the bottom (default) or top per the
-        // Settings ▸ Personalization ▸ Taskbar location (E7.9); the horizontal
-        // bar's content is unchanged, only the anchored edge flips. (left/right
-        // need a vertical bar — E7.9a.)
+        // The Win10 taskbar can sit at the bottom (default), top, or — E7.9b — the
+        // left/right edge as a vertical bar. The bar's *content* is the same set of
+        // surfaces; only the anchored edge + orientation change.
         let st = crate::state::load();
         // "Use small taskbar buttons" (E7.9a) shrinks the bar + its buttons.
         WIN10_SMALL.store(st.win10_small_buttons, Ordering::Relaxed);
-        let top = st.taskbar_location == "top";
-        let edge = if top { Anchor::Top } else { Anchor::Bottom };
-        if st.win10_autohide {
-            // Auto-hide (E2.9a): reserve no space and start as a 1px reveal strip at
-            // the edge. Hovering it expands to full height via `SizeChange` (see
-            // `view_win10`'s reveal `mouse_area`); leaving collapses it back.
+        let vertical = st.taskbar_location == "left" || st.taskbar_location == "right";
+        WIN10_VERTICAL.store(vertical, Ordering::Relaxed);
+        if vertical {
+            // A vertical strip pinned to one side, spanning top↔bottom. Width is
+            // reserved via `size.0` + `exclusive_zone`; `view_win10` lays the bar out
+            // as a Column (E7.9b). Auto-hide collapses to a 1px reveal strip.
+            let edge = if st.taskbar_location == "left" {
+                Anchor::Left
+            } else {
+                Anchor::Right
+            };
+            let w = if st.win10_autohide {
+                1
+            } else {
+                WIN10_BAR_W as u32
+            };
             LayerShellSettings {
-                size: Some((0, 1)),
-                exclusive_zone: 0,
-                anchor: edge | Anchor::Left | Anchor::Right,
+                size: Some((w, 0)),
+                exclusive_zone: if st.win10_autohide {
+                    0
+                } else {
+                    WIN10_BAR_W as i32
+                },
+                anchor: edge | Anchor::Top | Anchor::Bottom,
                 ..Default::default()
             }
         } else {
-            LayerShellSettings {
-                size: Some((0, bar_h() as u32)),
-                exclusive_zone: bar_h() as i32,
-                anchor: edge | Anchor::Left | Anchor::Right,
-                ..Default::default()
+            let top = st.taskbar_location == "top";
+            let edge = if top { Anchor::Top } else { Anchor::Bottom };
+            if st.win10_autohide {
+                // Auto-hide (E2.9a): reserve no space and start as a 1px reveal strip
+                // at the edge. Hovering it expands to full height via `SizeChange`
+                // (see `view_win10`'s reveal `mouse_area`); leaving collapses it back.
+                LayerShellSettings {
+                    size: Some((0, 1)),
+                    exclusive_zone: 0,
+                    anchor: edge | Anchor::Left | Anchor::Right,
+                    ..Default::default()
+                }
+            } else {
+                LayerShellSettings {
+                    size: Some((0, bar_h() as u32)),
+                    exclusive_zone: bar_h() as i32,
+                    anchor: edge | Anchor::Left | Anchor::Right,
+                    ..Default::default()
+                }
             }
         }
     } else {
@@ -508,15 +542,26 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
                 state.children.push(child);
             }
         }
-        // Auto-hide reveal (E2.9a): expand to full height on edge-hover, collapse
-        // back to the 1px strip on leave, via the layer-shell SizeChange action.
+        // Auto-hide reveal (E2.9a): expand on edge-hover, collapse back to the 1px
+        // strip on leave, via the layer-shell SizeChange action. A side-docked bar
+        // (E7.9b) grows along width; the top/bottom bar grows along height.
         Message::Reveal if state.autohide && !state.revealed => {
             state.revealed = true;
-            return Task::done(Message::SizeChange((0, bar_h() as u32)));
+            let size = if WIN10_VERTICAL.load(Ordering::Relaxed) {
+                (WIN10_BAR_W as u32, 0)
+            } else {
+                (0, bar_h() as u32)
+            };
+            return Task::done(Message::SizeChange(size));
         }
         Message::Unreveal if state.autohide && state.revealed => {
             state.revealed = false;
-            return Task::done(Message::SizeChange((0, 1)));
+            let size = if WIN10_VERTICAL.load(Ordering::Relaxed) {
+                (1, 0)
+            } else {
+                (0, 1)
+            };
+            return Task::done(Message::SizeChange(size));
         }
         _ => {}
     }
@@ -939,6 +984,10 @@ fn win10_ac_button(state: &Panel) -> Element<'_, Message> {
 }
 
 fn view_win10(state: &Panel) -> Element<'_, Message> {
+    // Side-docked (left/right) → a vertical column layout (E7.9b).
+    if WIN10_VERTICAL.load(Ordering::Relaxed) {
+        return view_win10_vertical(state);
+    }
     let text_c = palette::color(palette::WINDOW_TEXT);
     let mut bar = Row::new()
         .spacing(0.0)
@@ -1020,6 +1069,86 @@ fn view_win10(state: &Panel) -> Element<'_, Message> {
         );
     // Auto-hide (E2.9a): a reveal mouse_area drives the expand/collapse — entering
     // the 1px edge strip expands the bar, leaving it collapses back.
+    if state.autohide {
+        mouse_area(stack)
+            .on_enter(Message::Reveal)
+            .on_exit(Message::Unreveal)
+            .into()
+    } else {
+        stack.into()
+    }
+}
+
+/// The vertical (left/right-docked) Win10 taskbar layout (E7.9b): the same surfaces
+/// as the horizontal bar reflowed into a Column — Start at top, then search /
+/// Task View / Quick-Launch pins / window buttons stacked, a spacer, and the tray /
+/// clock / Action Center at the bottom. Reuses every `win10_*` button component
+/// (each is a square `bar_h()`-wide tile that stacks cleanly).
+fn view_win10_vertical(state: &Panel) -> Element<'_, Message> {
+    let text_c = palette::color(palette::WINDOW_TEXT);
+    let mut col = Column::new()
+        .spacing(2.0)
+        .width(Length::Fill)
+        .align_x(iced::Alignment::Center)
+        .push(win10_start_tile(state));
+    if let Some(s) = win10_search_affordance(&state.search_mode) {
+        col = col.push(s);
+    }
+    if state.show_taskview {
+        col = col.push(win10_taskview_button());
+    }
+    for (i, item) in state.pinned.iter().enumerate() {
+        col = col.push(win10_pin_button(i, item));
+    }
+    for w in &state.windows {
+        col = col.push(win10_task_button(w));
+    }
+    // Spacer doubles as the taskbar right-click target and pushes the tray/clock
+    // block to the bottom of the column.
+    col = col.push(
+        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
+    );
+    // Tray glyphs stacked, then the clock + Action Center, at the bottom.
+    let mut tray = Column::new().spacing(6.0).align_x(iced::Alignment::Center);
+    for g in tray_glyphs(state) {
+        tray = tray.push(g);
+    }
+    col = col
+        .push(tray)
+        .push(Space::new(Length::Fill, Length::Fixed(4.0)))
+        .push(
+            text(state.clock.clone())
+                .size(metrics::BADGE_PX)
+                .color(text_c),
+        )
+        .push(win10_ac_button(state))
+        .push(Space::new(Length::Fill, Length::Fixed(6.0)));
+
+    // Flat dark bar (SHELL_HEADER) with a 1px accent line along the top edge.
+    let stack = Stack::new()
+        .push(
+            container(col)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(iced::Background::Color(palette::color(
+                        palette::SHELL_HEADER,
+                    ))),
+                    ..container::Style::default()
+                }),
+        )
+        .push(
+            Column::new()
+                .push(
+                    container(Space::new(Length::Fill, Length::Fixed(1.0)))
+                        .width(Length::Fill)
+                        .style(|_| container::Style {
+                            background: Some(iced::Background::Color(palette::chrome_accent())),
+                            ..container::Style::default()
+                        }),
+                )
+                .push(Space::new(Length::Fill, Length::Fill)),
+        );
     if state.autohide {
         mouse_area(stack)
             .on_enter(Message::Reveal)

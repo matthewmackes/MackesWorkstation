@@ -40,26 +40,36 @@ impl BgSource {
     const ALL: [BgSource; 3] = [BgSource::Picture, BgSource::Solid, BgSource::Slideshow];
 }
 
-/// Taskbar location (E7.9): the two horizontal edges the Win10 bar supports
-/// (left/right need a vertical bar — E7.9a).
+/// Taskbar location (E7.9): the four edges the Win10 bar supports — Bottom/Top
+/// (horizontal) and Left/Right (the vertical bar, E7.9b).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum TaskbarLoc {
     Bottom,
     Top,
+    Left,
+    Right,
 }
 impl TaskbarLoc {
-    const ALL: [TaskbarLoc; 2] = [TaskbarLoc::Bottom, TaskbarLoc::Top];
+    const ALL: [TaskbarLoc; 4] = [
+        TaskbarLoc::Bottom,
+        TaskbarLoc::Top,
+        TaskbarLoc::Left,
+        TaskbarLoc::Right,
+    ];
     fn key(self) -> &'static str {
         match self {
             TaskbarLoc::Bottom => "bottom",
             TaskbarLoc::Top => "top",
+            TaskbarLoc::Left => "left",
+            TaskbarLoc::Right => "right",
         }
     }
     fn from_key(k: &str) -> Self {
-        if k == "top" {
-            TaskbarLoc::Top
-        } else {
-            TaskbarLoc::Bottom
+        match k {
+            "top" => TaskbarLoc::Top,
+            "left" => TaskbarLoc::Left,
+            "right" => TaskbarLoc::Right,
+            _ => TaskbarLoc::Bottom,
         }
     }
 }
@@ -68,6 +78,8 @@ impl std::fmt::Display for TaskbarLoc {
         f.write_str(match self {
             TaskbarLoc::Bottom => "Bottom",
             TaskbarLoc::Top => "Top",
+            TaskbarLoc::Left => "Left",
+            TaskbarLoc::Right => "Right",
         })
     }
 }
