@@ -221,6 +221,11 @@ JSON
         printf '{"theme":"windows10","theme_mode":"dark"}\n' > "$era_cfg/mde/menu.json"
         shot "task-view" --wait 2.6 task-view
         shot "search"    --wait 2.6 search
+        # The Windows 10 OOBE wizard (E11), one shot per stage via the `--stage`
+        # capture seam — `--dry-run` so no real locale/keymap/account write fires.
+        for st in region keyboard secondkeyboard network account pin privacy yourphone personalize finalize; do
+            shot "oobe-$st" --wait 2.6 setup --era=win10 --dry-run --stage "$st"
+        done
     fi
 done
 unset XDG_CONFIG_HOME
