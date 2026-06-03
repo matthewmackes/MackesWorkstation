@@ -215,6 +215,12 @@ CUPS
 ],"last_read":{"secs_since_epoch":0,"nanos_since_epoch":0}}
 JSON
         shot "action-center" --wait 2.6 action-center
+        # The remaining Win10 P0 surfaces (E20.8): Task View (WIN+Tab window/desktop
+        # overview) and Search (the bottom-left flyout). Re-seed a clean Win10 config
+        # (the action-center step left a notifications.json seed in place).
+        printf '{"theme":"windows10","theme_mode":"dark"}\n' > "$era_cfg/mde/menu.json"
+        shot "task-view" --wait 2.6 task-view
+        shot "search"    --wait 2.6 search
     fi
 done
 unset XDG_CONFIG_HOME
@@ -228,6 +234,24 @@ if command -v montage >/dev/null 2>&1; then
             "$out"/windows10/panel.png "$out"/beos/panel.png \
             -tile 1x -geometry +0+4 -background '#222' -title "MDE-Retro — taskbar per era" \
             "$out/_era-taskbars.png" 2>/dev/null && echo "    -> _era-taskbars.png" || true
+fi
+
+# Per-era Windows 10 contact sheet of the P0 surfaces (E20.8) — the whole era on
+# one page. Only the shots that exist are tiled (a missing one is skipped, never
+# fatal), so this assembles whatever the run captured.
+if command -v montage >/dev/null 2>&1; then
+    win10_p0=()
+    for s in panel start-win10 menu search task-view action-center \
+             settings-start settings-apps-default; do
+        [[ -f "$out/windows10/$s.png" ]] && win10_p0+=("$out/windows10/$s.png")
+    done
+    if (( ${#win10_p0[@]} )); then
+        montage "${win10_p0[@]}" \
+            -tile 2x -geometry 640x480+6+6 -background '#1f1f1f' \
+            -title "MDE-Retro — Windows 10 era" \
+            "$out/windows10/_contact-sheet.png" 2>/dev/null \
+            && echo "    -> windows10/_contact-sheet.png (${#win10_p0[@]} surfaces)" || true
+    fi
 fi
 
 # --- optional contact sheet --------------------------------------------------
