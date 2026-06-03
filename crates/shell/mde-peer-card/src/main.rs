@@ -5,7 +5,7 @@
 //! set, anchored to the visual identity at
 //! `docs/design/visual-identity.md`:
 //!
-//! - 360 px wide (re-uses `mde-drawer::DRAWER_WIDTH_PX`).
+//! - 360 px wide (`DRAWER_WIDTH_PX`, locked locally (E0.7)).
 //! - 280 ms slide-in (`SLIDE_DURATION_MS`).
 //! - `Palette::surface` background, `Radii::modal` (16 px)
 //!   corners, `Shadow::modal()` elevation.

@@ -12,7 +12,7 @@
 //!
 //! ## Surface
 //!
-//! - 360 px wide (re-exports `DRAWER_WIDTH_PX` from `mde-drawer`).
+//! - 360 px wide (`DRAWER_WIDTH_PX`, locked locally per E0.7).
 //! - 280 ms slide-in (`SLIDE_DURATION_MS`).
 //! - Modal-tier chrome: charcoal `Palette::surface` ground,
 //!   16 px `Radii::modal` corners (Q45), `Shadow::modal()`
@@ -31,10 +31,11 @@ pub mod sections;
 
 use std::path::PathBuf;
 
-// Re-export the locked chrome constants from mde-drawer so
-// consumers (and the modal binary) read the same values without
-// duplicating them.
-pub use mde_drawer::{DRAWER_WIDTH_PX, SLIDE_DURATION_MS};
+// Drawer chrome locks, defined locally so this surface needs no dependency on the
+// retiring mde-drawer crate (E0.7). They fold into the Action Center at E5.6; until
+// then they must match the drawer's values. Pinned by the tests below.
+pub const DRAWER_WIDTH_PX: u16 = 360;
+pub const SLIDE_DURATION_MS: u64 = 280;
 
 pub use enrich::{Enrichment, EnrichmentCacheKey};
 pub use mackes_mesh_types::{

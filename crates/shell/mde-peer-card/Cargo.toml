@@ -27,7 +27,6 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Re-uses the drawer's locked chrome constants (DRAWER_WIDTH_PX,
 # SLIDE_DURATION_MS) per the PC-1 spec.
-mde-drawer = { path = "../mde-drawer" }
 
 # Consumes the locked design system for every visual token —
 # palette / spacing / typography / radii / shadows / a11y. The

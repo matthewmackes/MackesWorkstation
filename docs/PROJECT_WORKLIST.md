@@ -127,13 +127,14 @@ _Depends: none_
     - [ ] Editing `DISCLAIMER.md` and rebuilding changes the rendered text on the About dialog and System Properties at runtime (one edit, every surface updates).
     - [ ] `mde about` (and System Properties) renders the embedded title + body, including the "as is" / "at your own risk" warranty waivers (not an empty/placeholder string).
 
-- [ ] **E0.7: E0 — Move retire-absorb crates (mde-portal, mde-drawer, mde-virtual) to crates/legacy (out of default build)**
+- [✓] **E0.7: E0 — Move retire-absorb crates (mde-portal, mde-drawer, mde-virtual) to crates/legacy (out of default build)**
   **As** a workspace maintainer, **I want** the three retire-absorb crates relocated to `crates/legacy` and removed from the default build, **so that** their functions can reappear in Win10/Workbench surfaces without the old crates compiling by default.
   *Reuse:* mde-portal/mde-drawer/mde-virtual (§9 retire-absorb → Win10 shell / Action Center / Workbench Compute). *Deps:* E0.1.
   **Acceptance** (runtime-observable):
     - [ ] The three crates live under `crates/legacy/` and are absent from default `[workspace] members`; `cargo check --workspace` does not compile them.
     - [ ] No default-build crate depends on mde-portal/mde-drawer/mde-virtual (`cargo tree` shows zero in-tree dependents).
     - [ ] The shell still launches and the portal/drawer/virtual entry points are not reachable from any `mde <subcommand>` (their roles are deferred to E4/E5/E8 surfaces).
+  **Done (2026-06-03):** `git mv` mde-portal/mde-drawer/mde-virtual → `crates/legacy/`, removed from `members`. Severed the one real dependent: mde-peer-card re-exported `DRAWER_WIDTH_PX`/`SLIDE_DURATION_MS` from mde-drawer → now defined locally (fold into Action Center at E5.6). Full `cargo check --workspace` green; mde-peer-card tests (44) pass.
 
 - [ ] **E0.8: E0 — Port the accuracy/preview harness (preview.sh + tests/accuracy/) from provenance to the repo root**
   **As** a shell developer, **I want** the `preview.sh` + `tests/accuracy/` harness ported to the repo root, **so that** visual renders can be screenshotted and verified instead of trusting a green `cargo test`.

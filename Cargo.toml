@@ -44,17 +44,14 @@ members = [
     "crates/shared/mde-theme",
     "crates/shell/mde",
     "crates/shell/mde-alert-emit",
-    "crates/shell/mde-drawer",
     "crates/shell/mde-installer",
     "crates/shell/mde-logout-dialog",
     "crates/shell/mde-panel",
     "crates/shell/mde-peer-card",
     "crates/shell/mde-popover",
-    "crates/shell/mde-portal",
     "crates/shell/mde-session",
     "crates/shell/mde-ui",
     "crates/shell/mde-wizard",
-    "crates/workbench/mde-virtual",
     "crates/workbench/mde-workbench",
 ]
 # E0.2 (2026-06-03): the audio chain (mde-music/mde-musicd/mde-workbench) is back in
