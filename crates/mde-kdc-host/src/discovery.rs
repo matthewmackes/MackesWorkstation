@@ -16,6 +16,7 @@
 
 use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use mde_kdc_proto::discovery::{
@@ -55,6 +56,12 @@ pub struct UdpDiscovery {
     local: Announce,
     broadcast_dest: SocketAddr,
     announce_interval: Duration,
+    /// The address cache, shared so the LAN transport can resolve a discovered
+    /// peer's source address for the TCP+TLS connect ([`shared_registry`]). The
+    /// `run` loop folds inbound announces into it; brief, non-async-held locks.
+    ///
+    /// [`shared_registry`]: Self::shared_registry
+    registry: Arc<Mutex<DiscoveryRegistry>>,
 }
 
 impl UdpDiscovery {
@@ -73,7 +80,34 @@ impl UdpDiscovery {
             local,
             broadcast_dest: SocketAddr::from((Ipv4Addr::BROADCAST, KDC_UDP_PORT)),
             announce_interval: DEFAULT_ANNOUNCE_INTERVAL,
+            registry: Arc::new(Mutex::new(DiscoveryRegistry::new())),
         })
+    }
+
+    /// A handle to the shared address cache. Clone this **before** [`run`] consumes
+    /// the discovery (e.g. into a `LanTransport`) so the transport can call
+    /// [`peer_addr_in`] while `run` keeps folding announces into the same registry.
+    ///
+    /// [`run`]: Self::run
+    /// [`peer_addr_in`]: Self::peer_addr_in
+    #[must_use]
+    pub fn shared_registry(&self) -> Arc<Mutex<DiscoveryRegistry>> {
+        Arc::clone(&self.registry)
+    }
+
+    /// The cached source address of a discovered peer (the IP a TLS connect dials),
+    /// looked up in a shared registry handle. `None` until the peer has been heard
+    /// from. Free fn over the handle so the transport (which holds only the handle,
+    /// not the `UdpDiscovery`) can resolve addresses after `run` is spawned.
+    #[must_use]
+    pub fn peer_addr_in(
+        registry: &Arc<Mutex<DiscoveryRegistry>>,
+        device_id: &str,
+    ) -> Option<SocketAddr> {
+        registry
+            .lock()
+            .expect("discovery registry mutex poisoned")
+            .source_addr_for(device_id)
     }
 
     /// Override the broadcast destination. Production uses the default LAN
@@ -112,7 +146,10 @@ impl UdpDiscovery {
     /// — the port also sees unrelated LAN traffic — are silently dropped; a
     /// socket-level receive error ends the loop after emitting `TransportError`.
     pub async fn run(self, sink: EventSink, mut shutdown: oneshot::Receiver<()>) {
-        let mut registry = DiscoveryRegistry::new();
+        // The address cache is the shared registry (so a transport holding a
+        // `shared_registry` handle sees the same announces). Locked briefly per
+        // event; never held across an await.
+        let registry = Arc::clone(&self.registry);
         // Edge-trigger mirror: the set of device ids we've emitted `PeerDiscovered`
         // for and not yet `PeerLost`. Kept beside the registry (which exists for
         // its address cache) so repeat announces don't re-fire `PeerDiscovered`.
@@ -132,18 +169,22 @@ impl UdpDiscovery {
                     }
                 }
                 _ = prune_tick.tick() => {
-                    prune_and_emit_lost(&mut registry, &mut known, &sink, now_ms());
+                    let mut reg = registry.lock().expect("discovery registry mutex poisoned");
+                    prune_and_emit_lost(&mut reg, &mut known, &sink, now_ms());
                 }
                 recv = self.socket.recv_from(&mut buf) => match recv {
-                    Ok((n, src)) => ingest(
-                        &mut registry,
-                        &mut known,
-                        &sink,
-                        &buf[..n],
-                        src,
-                        &self.local.device_id,
-                        now_ms(),
-                    ),
+                    Ok((n, src)) => {
+                        let mut reg = registry.lock().expect("discovery registry mutex poisoned");
+                        ingest(
+                            &mut reg,
+                            &mut known,
+                            &sink,
+                            &buf[..n],
+                            src,
+                            &self.local.device_id,
+                            now_ms(),
+                        );
+                    }
                     Err(e) => {
                         let _ = sink.send(HostEvent::TransportError(format!("udp recv: {e}")));
                         break;
@@ -260,6 +301,33 @@ mod tests {
         assert!(rx.try_recv().is_err(), "second announce must not re-emit");
         // The source address is cached for the future TCP connect.
         assert_eq!(reg.source_addr_for("phone-1"), Some(src()));
+    }
+
+    #[test]
+    fn shared_registry_handle_resolves_peer_addr_after_ingest() {
+        // The transport holds a `shared_registry` handle and resolves a discovered
+        // peer's dial address through `peer_addr_in` — the seam `LanTransport::open`
+        // (3b.2) uses. Drive an ingest through the handle and read it back.
+        let (sink, _rx) = mpsc::unbounded_channel();
+        let registry = std::sync::Arc::new(std::sync::Mutex::new(DiscoveryRegistry::new()));
+        let mut known = HashSet::new();
+        {
+            let mut reg = registry.lock().unwrap();
+            ingest(
+                &mut reg,
+                &mut known,
+                &sink,
+                &datagram("phone-1"),
+                src(),
+                "self",
+                1000,
+            );
+        }
+        assert_eq!(
+            UdpDiscovery::peer_addr_in(&registry, "phone-1"),
+            Some(src())
+        );
+        assert_eq!(UdpDiscovery::peer_addr_in(&registry, "unknown"), None);
     }
 
     #[test]
