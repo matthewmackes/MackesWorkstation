@@ -50,6 +50,8 @@ pub const WIZARD_HEADING_PX: f32 = 15.0;
 pub const WIZARD_STATUS_PX: f32 = 10.0;
 /// The big monitor-number overlay drawn by Display ▸ Identify.
 pub const IDENTIFY_PX: f32 = 48.0;
+/// The large clock on the Windows 10 lock screen (`mde lock`, E10.8).
+pub const LOCK_CLOCK_PX: f32 = 72.0;
 /// Title-bar font is the UI font, bold, at the same size.
 pub const TITLE_FONT_BOLD: bool = true;
 /// The Windows 10 Task View window-tile size (px) — a square-ish window card.

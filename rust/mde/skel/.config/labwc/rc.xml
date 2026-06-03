@@ -51,8 +51,9 @@
   </desktops>
 
   <keyboard>
-    <!-- Lock the session (Win+L). logind issues the Lock; swayidle/swaylock
-         raise the lock surface. First entry, and in <keyboard> only — the
+    <!-- Lock the session (Win+L). Under Windows 10 `mde lock` draws its own
+         layer-shell lock overlay (clock + PIN, E10.8); classic eras fall back to
+         `loginctl lock-session`. First entry, and in <keyboard> only — the
          <mouse><default/> block is untouched (§7). -->
     <keybind key="W-l"><action name="Execute"><command>mde lock</command></action></keybind>
     <!-- Window management (Win2000-style). -->

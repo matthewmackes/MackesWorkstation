@@ -27,6 +27,7 @@ mod files;
 mod icons;
 mod install;
 mod installer;
+mod lock;
 mod menu;
 mod mount;
 mod net_flyout;
@@ -200,7 +201,7 @@ fn main() -> ExitCode {
         }
         "logoff" => dialogs::logoff(),
         "shutdown" => dialogs::shutdown(),
-        "lock" => dialogs::lock(),
+        "lock" => lock::run(rest),
         "setup" => installer::dispatch(rest),
         "install" => install::run(rest),
         "-V" | "--version" => {
