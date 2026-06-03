@@ -197,6 +197,8 @@ enum Kind {
     Hotspot,
     /// The native Network & Internet ▸ Proxy page (E15.9).
     Proxy,
+    /// The native Network & Internet ▸ Airplane mode page (E15.10).
+    Airplane,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -299,6 +301,10 @@ const CATEGORIES: &[Category] = &[
             Page {
                 title: "VPN",
                 kind: Kind::Vpn,
+            },
+            Page {
+                title: "Airplane mode",
+                kind: Kind::Airplane,
             },
             Page {
                 title: "Mobile hotspot",
@@ -532,6 +538,9 @@ struct Settings {
     proxy_mode: ProxyMode,
     proxy_host: String,
     proxy_port: String,
+    /// Airplane page (E15.10): airplane-mode + Wi-Fi-radio state, read on show.
+    airplane: bool,
+    wifi_radio: bool,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -612,6 +621,9 @@ enum Message {
     ProxyHost(String),
     ProxyPort(String),
     ApplyProxy,
+    // Airplane page (E15.10).
+    SetAirplane(bool),
+    SetWifiRadio(bool),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -700,6 +712,7 @@ fn list() -> ExitCode {
                 Kind::Vpn => "(native: VPN)".to_string(),
                 Kind::Hotspot => "(native: Mobile hotspot)".to_string(),
                 Kind::Proxy => "(native: Proxy)".to_string(),
+                Kind::Airplane => "(native: Airplane mode)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -775,6 +788,8 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                     h
                 },
                 proxy_port: crate::nm::proxy_http().1,
+                airplane: false,
+                wifi_radio: false,
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -1054,6 +1069,15 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         Message::ApplyProxy => {
             crate::nm::set_proxy_http(&state.proxy_host, &state.proxy_port);
         }
+        Message::SetAirplane(on) => {
+            crate::nm::set_airplane(on);
+            state.airplane = crate::nm::airplane_on();
+            state.wifi_radio = crate::nm::wifi_enabled();
+        }
+        Message::SetWifiRadio(on) => {
+            crate::nm::radio_wifi(on);
+            state.wifi_radio = crate::nm::wifi_enabled();
+        }
     }
     Task::none()
 }
@@ -1195,6 +1219,12 @@ fn maybe_load(state: &mut Settings) -> Task<Message> {
             state.wifi_scanning = true;
             state.wifi_autoconnect = crate::nm::wifi_autoconnect();
             wifi_scan_task()
+        }
+        Some(Kind::Airplane) => {
+            // Cheap sync reads; refresh on each visit so the toggles match reality.
+            state.airplane = crate::nm::airplane_on();
+            state.wifi_radio = crate::nm::wifi_enabled();
+            Task::none()
         }
         _ => Task::none(),
     }
@@ -1393,6 +1423,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Vpn
         | Kind::Hotspot
         | Kind::Proxy
+        | Kind::Airplane
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1691,6 +1722,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Vpn => vpn_page(state),
         Kind::Hotspot => hotspot_page(state),
         Kind::Proxy => proxy_page(state),
+        Kind::Airplane => airplane_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -2052,6 +2084,35 @@ fn update_advanced_page(state: &Settings) -> Element<'_, Message> {
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT)),
         )
+        .into()
+}
+
+/// Network & Internet ▸ Airplane mode (E15.10): a master Airplane toggle
+/// (`rfkill block/unblock all`) over a per-radio Wi-Fi toggle (`nmcli radio wifi`),
+/// disabled while airplane mode is on. State read live on show.
+fn airplane_page(state: &Settings) -> Element<'_, Message> {
+    let cb = |label: &'static str, on: bool| {
+        checkbox(label, on)
+            .size(metrics::UI_PX)
+            .text_size(metrics::UI_PX)
+            .spacing(8.0)
+            .style(mde_ui::checkbox_style)
+    };
+    // Wi-Fi reads off while airplane mode is on, and is disabled then (no on_toggle).
+    let mut wifi = cb("Wi-Fi", state.wifi_radio && !state.airplane);
+    if !state.airplane {
+        wifi = wifi.on_toggle(Message::SetWifiRadio);
+    }
+    Column::new()
+        .spacing(12.0)
+        .push(cb("Airplane mode", state.airplane).on_toggle(Message::SetAirplane))
+        .push(
+            text("Wireless devices")
+                .size(metrics::UI_PX)
+                .font(mde_ui::font::ui_bold())
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(wifi)
         .into()
 }
 
