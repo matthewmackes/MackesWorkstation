@@ -6,6 +6,27 @@
 > (repo shape). Generated 2026-06-03 from an exhaustive parallel review of both
 > repos (119 features inventoried across MDE + MDE-Retro).
 
+## 0. Decisions (answered by the owner)
+
+*Load-bearing four — 2026-06-03:*
+- **Q8 Compositor → labwc.** Keep MDE-Retro's labwc substrate; MDE's sway-specific
+  bits adapt to labwc/wlroots. The Win10 shell is the primary UX.
+- **Q16 Gluster mesh-home → PRECONDITION.** Mesh-home is always mounted; the
+  Workstation is **not** designed for single-box-only. Platform crates may assume
+  GFS-mounted XDG dirs + the mesh coordination substrate.
+- **Q1 Repo → MONOREPO.** One cargo workspace absorbs MDE's platform crates +
+  MDE-Retro's shell + the Workbench as members. The existing repos become upstream
+  history. (This is the final home for *this* plan once the repo exists.)
+- **Q5 v1 scope → EVERYTHING.** v1 = the full fusion: mesh, fleet/playbooks, VoIP,
+  compute (KVM/Podman), music, all 43 Workbench panels, + the Win10 shell. The RPM
+  is held until all of it is ready; hardware bench follows release.
+
+*Implications:* labwc + Gluster-mandatory + monorepo + full-scope means the plan
+optimizes for one large integrated workspace, not a minimal shell. Per-crate reuse
+is maximal (shared crates in one workspace). Remaining questions refine the daemon
+model, the bus, KDE Connect convergence, Win10-vs-Workbench placement, and the
+Workbench's look.
+
 ## 1. Vision
 
 **Mackes Workstation** is a new project that fuses two existing codebases:
