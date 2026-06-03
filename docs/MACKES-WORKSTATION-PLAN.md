@@ -85,6 +85,26 @@ Workbench's look.
 - **Q41 Workbench entry → a Start tile + a Control-Panel "Manage Workstation" app**
   (deep-linkable to a role/panel), per the Manage-Your-Server idiom.
 
+*Batch 5 — packaging, legal, more placement, 2026-06-03:*
+- **Q49 packaging → ONE RPM + an install-time DEPLOYMENT-ROLE chooser:**
+  **1. Lighthouse** (mesh relay/coordination node) · **2. Server (headless)** ·
+  **3. Workstation (full desktop)**. The chosen role selects which `mackesd` workers
+  + which surfaces are enabled (maps to MDE's lighthouse/host/peer worker model).
+  *Implication:* the Win10 shell + Workbench install only under the **Workstation**
+  role; Lighthouse/Server are headless-ish. First-run + role pick happen early in
+  install.
+- **Q50 licensing → GPL-3.0, Win10-*inspired* (not a clone), original assets.**
+  Avoid MS trademarks + pixel-exact copies; the `DISCLAIMER.md` covers risk.
+- **Q36 maintain → Workbench, + snapshots also as Win10 "System Restore"** (Settings
+  ▸ Recovery; one snapshot backend, two entry points; reuse `restore.rs`/E17).
+- **Q37 network → ALL network lives in Win10 Settings; NO Workbench Network group.**
+  The Workbench's 13 Network panels (Wi-Fi, mesh control/topology/federation, VPN,
+  firewall, remote desktop, service publishing, SSH, services, Bus) **migrate into
+  Win10 Settings ▸ Network & Internet** (atop the 9 native E15 pages already built).
+  *Implication:* Win10 Settings must scale to many more pages → favors a
+  **registered-module Settings registry** (resolves Q14 → modular pages); the
+  Workbench drops Network entirely.
+
 ## 0.1 Information currency
 
 The original review snapshot was **65 commits stale**; refreshed against current MDE
