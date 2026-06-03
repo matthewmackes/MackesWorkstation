@@ -9,6 +9,10 @@ mde panel &
 # the NetworkManager agent available).
 nm-applet --indicator &
 
+# Clipboard-history watcher (E16.2): records what you copy into a 25-entry ring
+# that the Win+V history popup (mde clipboard) reads. Lockfile-idempotent.
+mde clipboard daemon &
+
 # On-screen volume/brightness bar daemon (optional). If swayosd is installed the
 # media keys (wired in rc.xml) show a Win2000-style OSD; harmless if absent.
 command -v swayosd-server >/dev/null 2>&1 && swayosd-server &

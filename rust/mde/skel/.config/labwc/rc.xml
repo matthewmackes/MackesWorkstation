@@ -93,6 +93,9 @@
          classic Start menu. -->
     <keybind key="W-s"><action name="Execute"><command>mde search</command></action></keybind>
     <keybind key="W-x"><action name="Execute"><command>mde popup quickaccess</command></action></keybind>
+    <!-- Clipboard history (Win+V). The popup is Windows 10-only; `mde clipboard`
+         exits without drawing under the classic eras, so the bind is inert there. -->
+    <keybind key="W-v"><action name="Execute"><command>mde clipboard</command></action></keybind>
     <!-- Win10 Settings (Win+I). `mde settings` is the modern Settings app; under
          non-Win10 eras `mde control-panel` is the gear target instead. -->
     <keybind key="W-i"><action name="Execute"><command>mde settings</command></action></keybind>
