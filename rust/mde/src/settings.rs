@@ -735,6 +735,7 @@ enum Message {
     PrintersSetDefault(String),
     PrintersTest(String),
     PrintersRemove(String),
+    PrintersSetupPdf,
     SetManageDefaultPrinter(bool),
 }
 
@@ -1358,6 +1359,10 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         }
         Message::PrintersRemove(name) => {
             return printers_pkexec_task(crate::cups::remove_cmd(&name));
+        }
+        Message::PrintersSetupPdf => {
+            // Install cups-pdf + create the queue in one pkexec, then re-read (E12.5).
+            return printers_pkexec_task(crate::cups::ensure_pdf_cmd());
         }
         Message::SetManageDefaultPrinter(on) => {
             state.manage_default = on;
@@ -3112,16 +3117,21 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
         );
     }
 
-    // The installed queues.
-    let mut list = Column::new().spacing(4.0);
-    if cups.printers.is_empty() {
+    // The installed queues, led by the permanent "Print to PDF" row (E12.5) — it
+    // is always shown (like Win10's Microsoft Print to PDF), whether or not the
+    // cups-pdf queue is actually set up yet.
+    let mut list = Column::new()
+        .spacing(4.0)
+        .push(print_to_pdf_row(state, cups));
+    let real: Vec<&crate::cups::Printer> = cups.printers.iter().filter(|p| !p.is_pdf).collect();
+    if real.is_empty() {
         list = list.push(
-            text("No printers are installed yet.")
+            text("No other printers are installed yet.")
                 .size(metrics::UI_PX)
                 .color(palette::color(palette::GRAY_TEXT)),
         );
     }
-    for p in &cups.printers {
+    for p in real {
         let mut info_col = Column::new().width(Length::Fill).push(
             text(p.name.clone())
                 .size(metrics::UI_PX)
@@ -3195,6 +3205,74 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
         .style(mde_ui::checkbox_style),
     )
     .into()
+}
+
+/// The permanent "Print to PDF" row (E12.5) — the Win10 Microsoft-Print-to-PDF
+/// equivalent backed by cups-pdf. Always present: when the queue is installed it
+/// offers a test page (+ Set as default, subject to the manage-default toggle) and
+/// has no Remove (it is permanent); when absent, a single "Set up" action installs
+/// cups-pdf and registers the queue.
+fn print_to_pdf_row<'a>(
+    state: &Settings,
+    cups: &'a crate::cups::CupsState,
+) -> Element<'a, Message> {
+    let pdf = cups.printers.iter().find(|p| p.is_pdf);
+    let status = match pdf {
+        Some(p) if p.is_default => format!("Default · {}", p.state.label()),
+        Some(p) => p.state.label().to_string(),
+        None => "Not set up".to_string(),
+    };
+    let info_col = Column::new()
+        .width(Length::Fill)
+        .push(
+            text("Print to PDF")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            text(status)
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+    let mut row = Row::new()
+        .spacing(10.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(
+            text("\u{f1c1}") // nf-fa-file_pdf_o
+                .font(mde_ui::font::NERD)
+                .size(metrics::TILE_GLYPH_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(info_col);
+    match pdf {
+        Some(p) => {
+            if !state.manage_default && !p.is_default {
+                let n = p.name.clone();
+                row = row.push(
+                    button(text("Set as default").size(metrics::UI_PX))
+                        .on_press(Message::PrintersSetDefault(n))
+                        .padding(Padding::from([3.0, 10.0]))
+                        .style(mde_ui::button_ghost),
+                );
+            }
+            let test = p.name.clone();
+            row = row.push(
+                button(text("Print test page").size(metrics::UI_PX))
+                    .on_press(Message::PrintersTest(test))
+                    .padding(Padding::from([3.0, 10.0]))
+                    .style(mde_ui::button_ghost),
+            );
+        }
+        None => {
+            row = row.push(
+                button(text("Set up").size(metrics::UI_PX))
+                    .on_press(Message::PrintersSetupPdf)
+                    .padding(Padding::from([3.0, 10.0]))
+                    .style(mde_ui::button_primary),
+            );
+        }
+    }
+    container(row).padding(Padding::from([4.0, 4.0])).into()
 }
 
 /// Network & Internet ▸ Cellular (E15.12): a greyed, disabled "Cellular" toggle +

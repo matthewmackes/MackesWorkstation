@@ -45,6 +45,7 @@ pub struct Printer {
     pub info: String, // human description (lpstat -l "Description:"); falls back to name
     pub state: PrinterState,
     pub is_default: bool,
+    pub is_pdf: bool, // the cups-pdf virtual queue (Win10 "Print to PDF"), E12.5
 }
 
 /// A discovered-but-not-yet-added device (the "+ Add a printer" scan).
@@ -123,6 +124,7 @@ pub fn parse_printers(out: &str, default: Option<&str>) -> Vec<Printer> {
                 name,
                 state,
                 is_default,
+                is_pdf: false,
             });
         } else if let Some(desc) = line.trim().strip_prefix("Description:") {
             // Attach the description to the queue currently being built.
@@ -137,14 +139,64 @@ pub fn parse_printers(out: &str, default: Option<&str>) -> Vec<Printer> {
     printers
 }
 
-/// Read the installed queues + the system default.
-pub fn printers() -> Vec<Printer> {
-    if let Some((body, default)) = fixture() {
-        return parse_printers(&body, default.as_deref());
+/// Parse `lpstat -v` ("device for NAME: cups-pdf:/…") for the name of the cups-pdf
+/// virtual queue — the Win10 "Print to PDF" equivalent (E12.5). The `cups-pdf:`
+/// backend is the definitive marker (a queue merely *named* "pdf" doesn't count).
+pub fn parse_pdf_queue(out: &str) -> Option<String> {
+    out.lines().find_map(|l| {
+        let body = l.trim().strip_prefix("device for ")?;
+        let (name, uri) = body.split_once(':')?;
+        uri.trim()
+            .starts_with("cups-pdf")
+            .then(|| name.trim().to_string())
+    })
+}
+
+/// The cups-pdf queue name, if one is installed. Fixture-aware (`MDE_CUPS_PDF`).
+fn pdf_queue_name() -> Option<String> {
+    if std::env::var_os("MDE_CUPS_FIXTURE").is_some() {
+        return std::env::var("MDE_CUPS_PDF").ok().filter(|s| !s.is_empty());
     }
-    let default = run("lpstat", &["-d"]).and_then(|o| parse_default(&o));
-    let list = run("lpstat", &["-l", "-p"]).unwrap_or_default();
-    parse_printers(&list, default.as_deref())
+    parse_pdf_queue(&run("lpstat", &["-v"])?)
+}
+
+/// Read the installed queues + the system default, then flag the cups-pdf queue.
+pub fn printers() -> Vec<Printer> {
+    let pdf = pdf_queue_name();
+    let mut list = if let Some((body, default)) = fixture() {
+        parse_printers(&body, default.as_deref())
+    } else {
+        let default = run("lpstat", &["-d"]).and_then(|o| parse_default(&o));
+        let body = run("lpstat", &["-l", "-p"]).unwrap_or_default();
+        parse_printers(&body, default.as_deref())
+    };
+    if let Some(pn) = &pdf {
+        for p in &mut list {
+            if &p.name == pn {
+                p.is_pdf = true;
+            }
+        }
+    }
+    list
+}
+
+/// Whether the cups-pdf "Print to PDF" queue is currently installed.
+pub fn pdf_installed() -> bool {
+    pdf_queue_name().is_some()
+}
+
+/// One-shot "set up Print to PDF": install the `cups-pdf` package, then create the
+/// virtual queue if its post-install step didn't (some setups auto-register it).
+/// One `pkexec` prompt for the whole thing. Returned argv runs under pkexec.
+pub fn ensure_pdf_cmd() -> Vec<String> {
+    vec![
+        "sh".into(),
+        "-c".into(),
+        "dnf install -y cups-pdf && \
+         (lpstat -v 2>/dev/null | grep -qi 'cups-pdf' || \
+          lpadmin -p Print-to-PDF -E -v cups-pdf:/ -m everywhere)"
+            .into(),
+    ]
 }
 
 /// The page snapshot (no discovery — that is a separate, slower scan).
@@ -294,13 +346,15 @@ pub fn debug_list() {
     println!("cups present={} printers={}", st.present, st.printers.len());
     for p in &st.printers {
         println!(
-            "  {} [{}] {}{}",
+            "  {} [{}] {}{}{}",
             p.name,
             p.state.label(),
             p.info,
-            if p.is_default { " (default)" } else { "" }
+            if p.is_default { " (default)" } else { "" },
+            if p.is_pdf { " (pdf)" } else { "" }
         );
     }
+    println!("print-to-pdf installed={}", pdf_installed());
     let devs = discover();
     println!("discoverable devices={}", devs.len());
     for d in devs {
@@ -319,6 +373,19 @@ mod tests {
             Some("Office")
         );
         assert_eq!(parse_default("no system default destination\n"), None);
+    }
+
+    #[test]
+    fn pdf_queue_detected_by_backend() {
+        let out = "\
+device for Office: ipp://host/printer
+device for Cups-PDF: cups-pdf:/
+device for NotPdf: socket://10.0.0.5
+";
+        assert_eq!(parse_pdf_queue(out).as_deref(), Some("Cups-PDF"));
+        // A queue merely *named* pdf, on a real backend, is not the cups-pdf queue.
+        assert_eq!(parse_pdf_queue("device for pdfish: socket://h\n"), None);
+        assert_eq!(parse_pdf_queue("no devices\n"), None);
     }
 
     #[test]
