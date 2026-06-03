@@ -23,6 +23,7 @@ mod clipboard;
 mod control_panel;
 mod cups;
 mod dialogs;
+mod disclaimer;
 mod display;
 mod embedded_icons;
 mod fedora;

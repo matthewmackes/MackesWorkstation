@@ -30,7 +30,7 @@ struct About {
 pub fn run(_args: &[String]) -> ExitCode {
     let r = iced::application(|_: &About| format!("About {PRODUCT}"), update, view)
         .theme(|_| mde_ui::palette::iced_theme())
-        .window_size(iced::Size::new(400.0, 340.0))
+        .window_size(iced::Size::new(440.0, 600.0))
         .font(mde_ui::font::REGULAR_BYTES)
         .font(mde_ui::font::BOLD_BYTES)
         .font(mde_ui::font::PLEX_REGULAR_BYTES)
@@ -134,7 +134,10 @@ fn view(state: &About) -> Element<'_, Message> {
         .push(header)
         .push(rule())
         .push(specs)
-        .push(Space::with_height(Length::Fill))
+        .push(rule())
+        // The Mackes Workstation warning / disclaimer / mission statement, shown on
+        // every About + informational surface (scrollable, fills the rest).
+        .push(crate::disclaimer::view())
         .push(ok);
 
     container(body)

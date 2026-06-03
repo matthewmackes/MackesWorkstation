@@ -1,5 +1,17 @@
 # MDE-Retro Rust shell
 
+> **⚠️ Warning, Disclaimer & Mission.** Mackes Workstation is an educational,
+> experimental, open-source workstation platform for exploring encrypted mesh
+> networking, private service streaming, replication, and resilient private-network
+> infrastructure — provided for **education, experimentation, and personal research
+> only**, **“as is” without warranties of any kind**, and **at your own risk**. It
+> may modify network behavior, replicate data, and expose private services; misuse
+> may cause data loss, security weaknesses, or privacy exposure. Do not use it on
+> systems you don't own/control or in production/regulated/safety-critical
+> environments without independent review. **Full statement:**
+> [`../DISCLAIMER.md`](../DISCLAIMER.md).
+
+
 A native **Rust** desktop shell. Runs on **labwc** (a wlroots stacking
 compositor; the old sway IPC was hard-cut to wlr-foreign-toplevel in `wlr.rs`),
 and replaces the Python/shell scripts, Waybar, and wofi with one lean binary. It

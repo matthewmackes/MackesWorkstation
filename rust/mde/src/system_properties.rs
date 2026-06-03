@@ -195,6 +195,10 @@ fn general_tab(g: &General) -> Element<'static, Message> {
         .push(field("Processor", g.cpu.clone()))
         .push(field("Processors", format!("{} logical", g.cores)))
         .push(field("Memory", g.mem_human()))
+        .push(Space::new(Length::Fill, Length::Fixed(8.0)))
+        // The Mackes Workstation warning / disclaimer / mission statement — this tab
+        // is the Settings ▸ System ▸ About target, so it carries the disclaimer too.
+        .push(crate::disclaimer::view())
         .into()
 }
 

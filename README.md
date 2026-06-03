@@ -1,5 +1,15 @@
 # MDE-Retro
 
+> ## ⚠️ Warning, Disclaimer & Mission
+>
+> **Mackes Workstation** is an educational, experimental, open-source workstation platform designed to explore encrypted mesh networking, private service streaming, automated replication, distributed services, and resilient private-network infrastructure. Its mission is to provide a learning and research environment for understanding how secure workstation nodes, peer-to-peer connectivity, service availability, and controlled replication can be built using open-source technologies.
+>
+> It is provided for **education, experimentation, demonstration, and personal research only** — not a commercial product, managed service, enterprise support platform, security appliance, backup product, or guaranteed high-availability system. It may modify network behavior, establish encrypted mesh connections, replicate data, expose private services, change service routing, and alter how systems communicate inside a private network. Improper installation, configuration, or use may result in data loss, service interruption, unauthorized access, network instability, privacy exposure, security weaknesses, compliance issues, or unintended replication of sensitive information.
+>
+> Provided **“as is” and “as available,” without warranties of any kind**, express or implied — no guarantee of security, reliability, availability, performance, legal compliance, fitness for a particular purpose, compatibility, data integrity, or suitability for production use; and no support, SLA, recovery assistance, incident response, or warranty service unless separately agreed in writing. By installing, using, modifying, distributing, or operating it you **accept full responsibility for all risks and outcomes**, and you are responsible for backups, securing your systems, and complying with all applicable laws. **Do not** use it on systems/networks/data you do not own or have explicit permission to manage, or in production / regulated / safety-critical / medical / financial / emergency / public-infrastructure / high-availability environments without independent security, legal, operational, and backup review. Third-party open-source components retain their original licenses and terms. To the maximum extent permitted by law, the authors, maintainers, contributors, and distributors are **not liable** for any damages arising from its use.
+>
+> **Use at your own risk. If you do not understand the risks, do not install or use it.** The full statement is in [`DISCLAIMER.md`](DISCLAIMER.md).
+
 > **⚠️ This page documents the LEGACY script-based sway desktop.** The live
 > product is the native **Rust shell** in [`rust/`](rust/), which runs on
 > **labwc** (not sway) and defaults to an **IBM Carbon** theme with Windows 2000
