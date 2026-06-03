@@ -80,7 +80,7 @@ COMMANDS:
     mount URI        Mount a remote share (smb://, sftp://…); prints its local path
     control-panel    MackesDE 2000 Control Panel
     add-remove       Add/Remove Programs (dnf-backed package manager)
-    browser-default [--icon|--set-default|URL]   Default web browser: print / set Firefox / open
+    browser-default [--icon|--set-default|--pin URL [--name T]|URL]   Default browser / pin a page / open
     browser-jumplist   Firefox taskbar jump list (New / Private window)
     net-flyout         Win10 network flyout (Wi-Fi list + Airplane toggle)
 

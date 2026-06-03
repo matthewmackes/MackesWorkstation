@@ -175,6 +175,47 @@ fn read_recent(path: &std::path::Path) -> Vec<(String, String)> {
     }
 }
 
+/// A human label for a pinned web page when none is given (E18.7): the URL's host
+/// without a leading `www.`, falling back to the whole URL. Pure, so it's tested
+/// without touching state. `https://github.com/foo` → `github.com`.
+fn page_title_from_url(url: &str) -> String {
+    let after_scheme = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
+    let host = after_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(after_scheme);
+    let host = host.strip_prefix("www.").unwrap_or(host);
+    if host.is_empty() {
+        url.to_string()
+    } else {
+        host.to_string()
+    }
+}
+
+/// Pin a web page to the taskbar / Start (E18.7): append a `PinnedItem` whose
+/// command opens the URL in the default browser (`xdg-open '<url>'`, shell-quoted
+/// via [`open_url_cmd`]) and save `menu.json` atomically. `name` defaults to the
+/// page's host. Idempotent on the command, so pinning the same URL twice is a
+/// no-op (returns `false` — already pinned). The new `PinnedItem` carries no extra
+/// fields, so the §2.6 `parse("{}")`/Default-agreement test is unaffected.
+pub fn pin_page(url: &str, name: Option<&str>) -> bool {
+    let command = open_url_cmd(url);
+    let mut state = crate::state::load();
+    if state.pinned.iter().any(|p| p.command == command) {
+        return false;
+    }
+    let name = name
+        .map(str::to_string)
+        .unwrap_or_else(|| page_title_from_url(url));
+    state.pinned.push(crate::state::PinnedItem {
+        name,
+        command,
+        ..Default::default()
+    });
+    let _ = crate::state::save(&state);
+    true
+}
+
 /// The commands that make Firefox the default browser + http(s)/html handler,
 /// as (program, args) pairs — returned (not run) so a test can assert them exactly
 /// without mutating the session's real default.
@@ -204,11 +245,24 @@ pub fn set_default() {
 }
 
 pub fn run(args: &[String]) -> ExitCode {
+    let val = |flag: &str| {
+        args.iter()
+            .position(|a| a == flag)
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str)
+    };
     if args.iter().any(|a| a == "--set-default") {
         set_default();
         println!("Set Firefox as the default web browser.");
     } else if args.iter().any(|a| a == "--icon") {
         println!("{}", default_browser().icon);
+    } else if let Some(url) = val("--pin") {
+        // Pin the page to the taskbar (E18.7); --name overrides the host label.
+        if pin_page(url, val("--name")) {
+            println!("Pinned {url} to the taskbar.");
+        } else {
+            println!("{url} is already pinned.");
+        }
     } else if let Some(url) = args.iter().find(|a| !a.starts_with("--")) {
         launch_url(url);
     } else {
@@ -248,6 +302,29 @@ mod tests {
         let u = id_to_browser("falkon.desktop");
         assert_eq!(u.name, "falkon");
         assert_eq!(u.icon, "web-browser");
+    }
+
+    #[test]
+    fn page_title_defaults_to_the_host() {
+        // The pin label (E18.7) when --name is omitted: host, www-stripped, no path.
+        assert_eq!(
+            page_title_from_url("https://github.com/foo/bar"),
+            "github.com"
+        );
+        assert_eq!(
+            page_title_from_url("https://www.rust-lang.org/"),
+            "rust-lang.org"
+        );
+        assert_eq!(
+            page_title_from_url("http://example.com?q=1#frag"),
+            "example.com"
+        );
+        // A bare host with no scheme still works; an empty string falls back to itself.
+        assert_eq!(
+            page_title_from_url("news.ycombinator.com"),
+            "news.ycombinator.com"
+        );
+        assert_eq!(page_title_from_url(""), "");
     }
 
     #[test]
