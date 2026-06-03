@@ -1,0 +1,384 @@
+//! Default-web-browser surfacing for the Windows 10 era (E18). Reads the system
+//! default browser via `xdg-settings` and maps its `.desktop` id to a display
+//! name + an icon key, and builds the commands to make Firefox the default. The
+//! shell ships Firefox, so an unknown/empty default falls back to Firefox.
+//!
+//!   mde browser-default              print the default browser's name
+//!   mde browser-default --icon       print its icon key (for icon_any)
+//!   mde browser-default --set-default  make Firefox the default browser
+//!   mde browser-default <url>        open the url in the default browser
+
+use std::process::{Command, ExitCode};
+
+/// The resolved default browser: a display name + an icon key for `icons::icon_any`.
+pub struct Browser {
+    pub name: String,
+    pub icon: String,
+}
+
+/// Map a `.desktop` id (e.g. `firefox.desktop`) to a display name + icon key.
+/// Empty/unknown ids fall back to Firefox (the shipped browser) so the surface is
+/// never blank; a recognized-but-unbundled browser keeps its own name + a generic
+/// `web-browser` icon.
+fn id_to_browser(desktop_id: &str) -> Browser {
+    let b = |name: &str, icon: &str| Browser {
+        name: name.to_string(),
+        icon: icon.to_string(),
+    };
+    match desktop_id.trim().trim_end_matches(".desktop") {
+        "" | "firefox" | "org.mozilla.firefox" | "firefox-esr" => b("Firefox", "firefox"),
+        "google-chrome" | "google-chrome-stable" => b("Google Chrome", "google-chrome"),
+        "chromium" | "chromium-browser" => b("Chromium", "chromium"),
+        "brave-browser" => b("Brave", "brave-browser"),
+        "microsoft-edge" => b("Microsoft Edge", "microsoft-edge"),
+        other => b(other, "web-browser"),
+    }
+}
+
+/// The current default web browser (`xdg-settings get default-web-browser`),
+/// mapped to a name + icon. Falls back to Firefox when the tool/setting is absent.
+pub fn default_browser() -> Browser {
+    let id = Command::new("xdg-settings")
+        .args(["get", "default-web-browser"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    id_to_browser(&id)
+}
+
+/// Open a URL in the system default browser (fire-and-forget, like the rest of the
+/// shell's launchers). `xdg-open` honours whatever the default is.
+pub fn launch_url(url: &str) {
+    let _ = Command::new("xdg-open").arg(url).spawn();
+}
+
+/// The shell command that opens `url` (what [`launch_url`] runs) — the popup runs
+/// jump-list item commands through `sh -c`, so the URL is single-quote-escaped
+/// (E18.4).
+pub fn open_url_cmd(url: &str) -> String {
+    format!("xdg-open '{}'", url.replace('\'', "'\\''"))
+}
+
+/// The Quick-Launch / Start pin for the default web browser (E18.5). Name + icon
+/// come from the detected default ([`default_browser`]) — Firefox on a shipped
+/// system; the command is the browser's binary (its icon id), Firefox as fallback.
+pub fn default_pin() -> crate::state::PinnedItem {
+    let b = default_browser();
+    let command = if b.icon.is_empty() {
+        "firefox".to_string()
+    } else {
+        b.icon.clone()
+    };
+    crate::state::PinnedItem {
+        name: b.name,
+        command,
+        launch_count: 0,
+    }
+}
+
+/// The Firefox `places.sqlite` to read history from. `MDE_PLACES_DB` overrides it
+/// (a capture/test seam); otherwise the `default`-named profile under
+/// `~/.mozilla/firefox/`, else any profile that has one.
+fn places_db() -> Option<std::path::PathBuf> {
+    if let Some(p) = std::env::var_os("MDE_PLACES_DB") {
+        return Some(std::path::PathBuf::from(p));
+    }
+    let home = std::env::var_os("HOME")?;
+    let ff = std::path::PathBuf::from(home).join(".mozilla/firefox");
+    let mut fallback = None;
+    for e in std::fs::read_dir(&ff).ok()?.flatten() {
+        let db = e.path().join("places.sqlite");
+        if !db.is_file() {
+            continue;
+        }
+        if e.file_name()
+            .to_string_lossy()
+            .to_lowercase()
+            .contains("default")
+        {
+            return Some(db);
+        }
+        fallback = Some(db);
+    }
+    fallback
+}
+
+/// The most-recently-visited sites as `(title, url)`, newest first, capped at 8
+/// (E18.4). Returns empty on any failure (no profile, unreadable DB, …) so the
+/// jump list's Recent section omits itself cleanly. Reads read-only from a copy of
+/// `places.sqlite` opened `?immutable=1`, since Firefox holds a write lock on the
+/// live file.
+pub fn recent_sites() -> Vec<(String, String)> {
+    let Some(db) = places_db() else {
+        return Vec::new();
+    };
+    let tmp = std::env::temp_dir().join("mde-places-copy.sqlite");
+    if std::fs::copy(&db, &tmp).is_err() {
+        return Vec::new();
+    }
+    let out = read_recent(&tmp);
+    let _ = std::fs::remove_file(&tmp);
+    out
+}
+
+/// Headless helper for `mde __places-recent [--seed <path>]` (E18.4): with `--seed`
+/// it writes a small fixture `places.sqlite` (so captures don't need a real Firefox
+/// profile or the `sqlite3` CLI); otherwise it prints what `recent_sites` reads.
+pub fn debug_recent(args: &[String]) {
+    if let Some(i) = args.iter().position(|a| a == "--seed") {
+        if let Some(path) = args.get(i + 1) {
+            if let Ok(conn) = rusqlite::Connection::open(path) {
+                let _ = conn.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS moz_places(id INTEGER PRIMARY KEY, url TEXT, title TEXT, last_visit_date INTEGER);\n\
+                     DELETE FROM moz_places;\n\
+                     INSERT INTO moz_places(url,title,last_visit_date) VALUES\n\
+                      ('https://github.com/matthewmackes/mde-retro-workstation','MDE-Retro on GitHub',1780000000000000),\n\
+                      ('https://www.rust-lang.org/','Rust Programming Language',1779000000000000),\n\
+                      ('https://docs.rs/iced','iced — Rust GUI',1778000000000000),\n\
+                      ('https://en.wikipedia.org/wiki/Windows_2000','Windows 2000 - Wikipedia',1777000000000000);",
+                );
+                println!("seeded {path}");
+            }
+            return;
+        }
+    }
+    for (title, url) in recent_sites() {
+        println!("{title}  <{url}>");
+    }
+}
+
+fn read_recent(path: &std::path::Path) -> Vec<(String, String)> {
+    use rusqlite::OpenFlags;
+    let uri = format!("file:{}?immutable=1", path.display());
+    let flags = OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI;
+    let Ok(conn) = rusqlite::Connection::open_with_flags(uri, flags) else {
+        return Vec::new();
+    };
+    let sql = "SELECT url, title FROM moz_places \
+               WHERE last_visit_date IS NOT NULL AND url LIKE 'http%' \
+               ORDER BY last_visit_date DESC LIMIT 8";
+    let Ok(mut stmt) = conn.prepare(sql) else {
+        return Vec::new();
+    };
+    let rows = stmt.query_map([], |r| {
+        let url: String = r.get(0)?;
+        let title: Option<String> = r.get(1)?;
+        let label = title
+            .filter(|t| !t.trim().is_empty())
+            .unwrap_or_else(|| url.clone());
+        Ok((label, url))
+    });
+    match rows {
+        Ok(it) => it.flatten().collect(),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// A human label for a pinned web page when none is given (E18.7): the URL's host
+/// without a leading `www.`, falling back to the whole URL. Pure, so it's tested
+/// without touching state. `https://github.com/foo` → `github.com`.
+fn page_title_from_url(url: &str) -> String {
+    let after_scheme = url.split_once("://").map(|(_, r)| r).unwrap_or(url);
+    let host = after_scheme
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(after_scheme);
+    let host = host.strip_prefix("www.").unwrap_or(host);
+    if host.is_empty() {
+        url.to_string()
+    } else {
+        host.to_string()
+    }
+}
+
+/// Pin a web page to the taskbar / Start (E18.7): append a `PinnedItem` whose
+/// command opens the URL in the default browser (`xdg-open '<url>'`, shell-quoted
+/// via [`open_url_cmd`]) and save `menu.json` atomically. `name` defaults to the
+/// page's host. Idempotent on the command, so pinning the same URL twice is a
+/// no-op (returns `false` — already pinned). The new `PinnedItem` carries no extra
+/// fields, so the §2.6 `parse("{}")`/Default-agreement test is unaffected.
+pub fn pin_page(url: &str, name: Option<&str>) -> bool {
+    let command = open_url_cmd(url);
+    let mut state = crate::state::load();
+    if state.pinned.iter().any(|p| p.command == command) {
+        return false;
+    }
+    let name = name
+        .map(str::to_string)
+        .unwrap_or_else(|| page_title_from_url(url));
+    state.pinned.push(crate::state::PinnedItem {
+        name,
+        command,
+        ..Default::default()
+    });
+    let _ = crate::state::save(&state);
+    true
+}
+
+/// The commands that make Firefox the default browser + http(s)/html handler,
+/// as (program, args) pairs — returned (not run) so a test can assert them exactly
+/// without mutating the session's real default.
+fn set_default_cmds() -> Vec<(&'static str, Vec<&'static str>)> {
+    vec![
+        (
+            "xdg-settings",
+            vec!["set", "default-web-browser", "firefox.desktop"],
+        ),
+        (
+            "xdg-mime",
+            vec!["default", "firefox.desktop", "x-scheme-handler/http"],
+        ),
+        (
+            "xdg-mime",
+            vec!["default", "firefox.desktop", "x-scheme-handler/https"],
+        ),
+        ("xdg-mime", vec!["default", "firefox.desktop", "text/html"]),
+    ]
+}
+
+/// Make Firefox the default browser (runs `set_default_cmds`). Best-effort.
+pub fn set_default() {
+    for (prog, args) in set_default_cmds() {
+        let _ = Command::new(prog).args(args).status();
+    }
+}
+
+pub fn run(args: &[String]) -> ExitCode {
+    let val = |flag: &str| {
+        args.iter()
+            .position(|a| a == flag)
+            .and_then(|i| args.get(i + 1))
+            .map(String::as_str)
+    };
+    if args.iter().any(|a| a == "--set-default") {
+        set_default();
+        println!("Set Firefox as the default web browser.");
+    } else if args.iter().any(|a| a == "--icon") {
+        println!("{}", default_browser().icon);
+    } else if let Some(url) = val("--pin") {
+        // Pin the page to the taskbar (E18.7); --name overrides the host label.
+        if pin_page(url, val("--name")) {
+            println!("Pinned {url} to the taskbar.");
+        } else {
+            println!("{url} is already pinned.");
+        }
+    } else if let Some(url) = args.iter().find(|a| !a.starts_with("--")) {
+        launch_url(url);
+    } else {
+        println!("{}", default_browser().name);
+    }
+    ExitCode::SUCCESS
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn open_url_cmd_shell_quotes() {
+        assert_eq!(
+            open_url_cmd("https://x.com/a"),
+            "xdg-open 'https://x.com/a'"
+        );
+        // A single quote in the URL is escaped, so `sh -c` can't break out.
+        assert_eq!(
+            open_url_cmd("https://x.com/it's"),
+            "xdg-open 'https://x.com/it'\\''s'"
+        );
+    }
+
+    #[test]
+    fn desktop_id_maps_to_name_and_icon() {
+        // The shipped browser + its fallbacks.
+        let f = id_to_browser("firefox.desktop");
+        assert_eq!(f.name, "Firefox");
+        assert_eq!(f.icon, "firefox");
+        // Empty / unknown id → Firefox fallback (never blank).
+        assert_eq!(id_to_browser("").name, "Firefox");
+        // A recognized non-bundled browser keeps its name.
+        assert_eq!(id_to_browser("google-chrome.desktop").name, "Google Chrome");
+        // An unrecognized id keeps its stem + the generic web-browser icon.
+        let u = id_to_browser("falkon.desktop");
+        assert_eq!(u.name, "falkon");
+        assert_eq!(u.icon, "web-browser");
+    }
+
+    #[test]
+    fn page_title_defaults_to_the_host() {
+        // The pin label (E18.7) when --name is omitted: host, www-stripped, no path.
+        assert_eq!(
+            page_title_from_url("https://github.com/foo/bar"),
+            "github.com"
+        );
+        assert_eq!(
+            page_title_from_url("https://www.rust-lang.org/"),
+            "rust-lang.org"
+        );
+        assert_eq!(
+            page_title_from_url("http://example.com?q=1#frag"),
+            "example.com"
+        );
+        // A bare host with no scheme still works; an empty string falls back to itself.
+        assert_eq!(
+            page_title_from_url("news.ycombinator.com"),
+            "news.ycombinator.com"
+        );
+        assert_eq!(page_title_from_url(""), "");
+    }
+
+    #[test]
+    fn exposes_only_the_web_browser_default_app_entry_points() {
+        // E18.8: the Settings ▸ Default apps Web-browser row needs exactly a reader
+        // and a set-default writer from browser.rs. Bind them to their signatures so
+        // a rename breaks the build (these ARE the entry points the page wires).
+        let _read: fn() -> Browser = default_browser;
+        let _set: fn() = set_default;
+        // The set path is one fixed xdg command set — no per-app-category split.
+        assert_eq!(set_default_cmds().len(), 4);
+        // Guard: Email is a different epic's backend, and Win10's Maps/Music default
+        // rows have no shipped app here — none of those must leak into browser.rs.
+        // Scan only the production code (before the test module) so this test's own
+        // forbidden-name list doesn't trip the check.
+        let src = include_str!("browser.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        for forbidden in [
+            "default_maps",
+            "default_music",
+            "default_email",
+            "default_mail",
+        ] {
+            assert!(
+                !src.contains(forbidden),
+                "browser.rs must not expose `{forbidden}` (E18.8: web-browser row only)"
+            );
+        }
+    }
+
+    #[test]
+    fn set_default_builds_the_exact_xdg_commands() {
+        // Pin the argv so a test covers the side effect without mutating the
+        // session default (E18.2). Web-browser handler + http/https/html mime.
+        let cmds = set_default_cmds();
+        assert_eq!(
+            cmds,
+            vec![
+                (
+                    "xdg-settings",
+                    vec!["set", "default-web-browser", "firefox.desktop"]
+                ),
+                (
+                    "xdg-mime",
+                    vec!["default", "firefox.desktop", "x-scheme-handler/http"]
+                ),
+                (
+                    "xdg-mime",
+                    vec!["default", "firefox.desktop", "x-scheme-handler/https"]
+                ),
+                ("xdg-mime", vec!["default", "firefox.desktop", "text/html"]),
+            ]
+        );
+    }
+}

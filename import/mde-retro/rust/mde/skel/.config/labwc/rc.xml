@@ -1,0 +1,181 @@
+<?xml version="1.0"?>
+<!-- MDE-Retro labwc configuration (generated; mirrors the old sway keybinds).
+     Titlebar buttons live here + in the Win2000-MDE Openbox theme. -->
+<labwc_config>
+  <theme>
+    <name>Win2000-MDE</name>
+    <cornerRadius>0</cornerRadius>
+    <!-- System-menu icon on the left; minimize, maximize, close on the right. -->
+    <titlebar>
+      <layout>icon:iconify,max,close</layout>
+    </titlebar>
+    <font place="ActiveWindow">
+      <name>Droid Sans</name>
+      <size>10</size>
+      <weight>bold</weight>
+    </font>
+    <font place="InactiveWindow">
+      <name>Droid Sans</name>
+      <size>10</size>
+      <weight>bold</weight>
+    </font>
+  </theme>
+
+  <focus>
+    <followMouse>no</followMouse>
+    <raiseOnFocus>yes</raiseOnFocus>
+  </focus>
+
+  <!-- Drag-to-edge window snapping (Win10 Snap; labwc performs it). -->
+  <snapping>
+    <range>
+      <inner>12</inner>
+      <outer>12</outer>
+    </range>
+    <topMaximize>yes</topMaximize>
+  </snapping>
+
+  <!-- Pointer (libinput) defaults. Settings ▸ Devices ▸ Mouse (E12.6) rewrites
+       this whole <libinput> block from menu.json and reconfigures labwc (the
+       `reconfigure` SIGHUP); it never touches the <mouse> block below (§7), so the
+       §7 invariant holds. naturalScroll/leftHanded are
+       no by default; scrollFactor 1.00 = the neutral "3 lines" speed. -->
+  <libinput>
+    <device category="default">
+      <naturalScroll>no</naturalScroll>
+      <leftHanded>no</leftHanded>
+      <scrollFactor>1.00</scrollFactor>
+    </device>
+  </libinput>
+
+  <!-- Virtual desktops (Win10 era). Four, to match the Task View fallback strip
+       default (state.rs virtual_desktops). labwc owns the set (static); mde's
+       ext-workspace client reads + switches them and Task View shows the band.
+       labwc has no create/close-desktop action, so there is deliberately no
+       W-C-d / W-C-F4 bind — create/remove exist only on compositors that
+       advertise the capability, where Task View's "+ New desktop" chip / × act. -->
+  <desktops number="4">
+    <names>
+      <name>Desktop 1</name>
+      <name>Desktop 2</name>
+      <name>Desktop 3</name>
+      <name>Desktop 4</name>
+    </names>
+  </desktops>
+
+  <keyboard>
+    <!-- Lock the session (Win+L). Under Windows 10 `mde lock` draws its own
+         layer-shell lock overlay (clock + PIN, E10.8); classic eras fall back to
+         `loginctl lock-session`. First entry, and in <keyboard> only — the
+         <mouse><default/> block is untouched (§7). -->
+    <keybind key="W-l"><action name="Execute"><command>mde lock</command></action></keybind>
+    <!-- Window management (Win2000-style). -->
+    <keybind key="A-F4"><action name="Close"/></keybind>
+    <keybind key="W-Up"><action name="ToggleMaximize"/></keybind>
+    <keybind key="W-m"><action name="Iconify"/></keybind>
+    <!-- Win10 Snap + Snap Assist: labwc snaps the active window to a half, then
+         mde opens the half-screen picker for the OPPOSITE half so you can bring
+         another window forward beside it. labwc performs the snap; mde never
+         moves windows (the picker only focuses the pick). The snap-assist mode
+         self-gates to the Windows 10 theme, so under Carbon / Win2000 the
+         Execute is a fast no-op and these stay plain edge-snaps. -->
+    <keybind key="W-Left">
+      <action name="SnapToEdge"><direction>left</direction></action>
+      <action name="Execute"><command>mde task-view --snap-assist right</command></action>
+    </keybind>
+    <keybind key="W-Right">
+      <action name="SnapToEdge"><direction>right</direction></action>
+      <action name="Execute"><command>mde task-view --snap-assist left</command></action>
+    </keybind>
+    <keybind key="W-Down"><action name="Iconify"/></keybind>
+    <!-- Virtual-desktop switching (Win10 Ctrl+Win+Left/Right). labwc performs the
+         switch; wrap around the ends. There is no create/close bind (see above). -->
+    <keybind key="W-C-Left"><action name="GoToDesktop" to="left" wrap="yes"/></keybind>
+    <keybind key="W-C-Right"><action name="GoToDesktop" to="right" wrap="yes"/></keybind>
+    <keybind key="A-Tab"><action name="NextWindow"/></keybind>
+    <keybind key="A-S-Tab"><action name="PreviousWindow"/></keybind>
+
+    <!-- ===== Windows 10 P0 keybind table (E11-E15; era-gated, E20.6) =====
+         One keymap serves every era: each `mde` subcommand self-gates on the active
+         theme (read from menu.json at launch), so the SAME bind is correct in all
+         eras — Win10 draws the modern surface; the classic eras fall through or are
+         inert. None of these <keyboard> binds touch the §7 <mouse><default/> block
+         below (the invariant that keeps every built-in mousebind alive).
+           Win / Ctrl+Esc -> mde start          per-era Start (Win10 tiled / classic)
+           Win+A          -> mde action-center   Action Center pane (E3)
+           Win+Tab        -> mde task-view       Task View overview (E4)
+           Win+S          -> mde search          Search flyout (classic Start otherwise)
+           Win+I          -> mde settings        Settings (Win10) / Control Panel (classic, D4)
+         (Win+E/X/V/P + the PrintScreen family are the productivity binds below.) -->
+    <keybind key="W-d"><action name="Execute"><command>mde start</command></action></keybind>
+    <keybind key="C-Escape"><action name="Execute"><command>mde start</command></action></keybind>
+    <keybind key="W-e"><action name="Execute"><command>mde files</command></action></keybind>
+    <keybind key="W-a"><action name="Execute"><command>mde action-center</command></action></keybind>
+    <keybind key="W-Tab"><action name="Execute"><command>mde task-view</command></action></keybind>
+    <!-- Win10 Search (Win+S) and Quick Access / power-user menu (Win+X). Search
+         self-gates to the Windows 10 theme and otherwise falls through to the
+         classic Start menu. -->
+    <keybind key="W-s"><action name="Execute"><command>mde search</command></action></keybind>
+    <keybind key="W-x"><action name="Execute"><command>mde popup quickaccess</command></action></keybind>
+    <!-- Clipboard history (Win+V). The popup is Windows 10-only; `mde clipboard`
+         exits without drawing under the classic eras, so the bind is inert there. -->
+    <keybind key="W-v"><action name="Execute"><command>mde clipboard</command></action></keybind>
+    <!-- Snip a region (Win+Shift+S — the Windows snipping shortcut). Win10-only;
+         inert under the classic eras. -->
+    <keybind key="W-S-s"><action name="Execute"><command>mde snip rect</command></action></keybind>
+    <!-- PrintScreen family (E16.7), mapping to the E16.5 snip modes: Print copies
+         the whole screen to the clipboard (no file), Win+Print saves the whole
+         screen, Alt+Print snips the focused window. All Win10-only (inert otherwise). -->
+    <keybind key="Print"><action name="Execute"><command>mde snip clip</command></action></keybind>
+    <keybind key="W-Print"><action name="Execute"><command>mde snip full</command></action></keybind>
+    <keybind key="A-Print"><action name="Execute"><command>mde snip window</command></action></keybind>
+    <!-- Win10 Settings (Win+I). `mde settings` is the modern Settings app under the
+         Win10 era; under the classic eras it routes in-process to the Control Panel
+         (the era's gear target, D4) — so this one bind is correct everywhere. -->
+    <keybind key="W-i"><action name="Execute"><command>mde settings</command></action></keybind>
+    <!-- Project / multi-display pane (Win+P — the Windows projection shortcut).
+         Win10-only; `mde project` exits without drawing under the classic eras,
+         so the bind is inert there (use Display Properties instead). -->
+    <keybind key="W-p"><action name="Execute"><command>mde project</command></action></keybind>
+    <!-- Your Phone / Mobile Devices — the KDE Connect device window (E9). W-y = "Your
+         phone"; works in every era (the window just retitles per theme). -->
+    <keybind key="W-y"><action name="Execute"><command>mde phone</command></action></keybind>
+    <keybind key="W-r"><action name="Execute"><command>mde run</command></action></keybind>
+    <keybind key="W-Return"><action name="Execute"><command>foot</command></action></keybind>
+
+    <keybind key="W-S-q"><action name="Close"/></keybind>
+    <keybind key="C-A-Delete"><action name="Execute"><command>mde shutdown</command></action></keybind>
+
+    <!-- Media / volume / brightness keys (ported from the old sway config).
+         Volume + mute via wpctl (PipeWire), media transport via playerctl,
+         backlight via logind SetBrightness (no root). -->
+    <!-- Each prefers swayosd-client (shows an on-screen volume/brightness bar)
+         and falls back to the raw tool when swayosd isn't installed, so the keys
+         work either way and gain an OSD the moment swayosd is present. -->
+    <keybind key="XF86AudioRaiseVolume"><action name="Execute"><command>sh -c 'swayosd-client --output-volume raise || wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+'</command></action></keybind>
+    <keybind key="XF86AudioLowerVolume"><action name="Execute"><command>sh -c 'swayosd-client --output-volume lower || wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-'</command></action></keybind>
+    <keybind key="XF86AudioMute"><action name="Execute"><command>sh -c 'swayosd-client --output-volume mute-toggle || wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle'</command></action></keybind>
+    <keybind key="XF86AudioMicMute"><action name="Execute"><command>sh -c 'swayosd-client --input-volume mute-toggle || wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle'</command></action></keybind>
+    <keybind key="XF86MonBrightnessUp"><action name="Execute"><command>sh -c 'swayosd-client --brightness raise || $HOME/.config/labwc/scripts/brightness.sh up'</command></action></keybind>
+    <keybind key="XF86MonBrightnessDown"><action name="Execute"><command>sh -c 'swayosd-client --brightness lower || $HOME/.config/labwc/scripts/brightness.sh down'</command></action></keybind>
+    <keybind key="XF86AudioPlay"><action name="Execute"><command>playerctl play-pause</command></action></keybind>
+    <keybind key="XF86AudioPause"><action name="Execute"><command>playerctl play-pause</command></action></keybind>
+    <keybind key="XF86AudioStop"><action name="Execute"><command>playerctl stop</command></action></keybind>
+    <keybind key="XF86AudioNext"><action name="Execute"><command>playerctl next</command></action></keybind>
+    <keybind key="XF86AudioPrev"><action name="Execute"><command>playerctl previous</command></action></keybind>
+  </keyboard>
+
+  <!-- The leading <default/> is REQUIRED. labwc treats a <mouse> section as a
+       full replacement: without <default/> every built-in mousebind is dropped,
+       which is what left windows unmovable (no Title drag-to-Move, no Win+drag
+       on the Frame) and the titlebar buttons unresponsive (no Iconify/Maximize/
+       Close click actions). The defaults already give double-click-to-maximize
+       and right-click-titlebar -> client-menu, so we only re-add the desktop
+       (Root) right-click menu on top of them. -->
+  <mouse>
+    <default/>
+    <context name="Root">
+      <mousebind button="Right" action="Press"><action name="ShowMenu"><menu>root-menu</menu></action></mousebind>
+    </context>
+  </mouse>
+</labwc_config>

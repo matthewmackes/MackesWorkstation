@@ -1,0 +1,39 @@
+name: ci
+
+# Accuracy is job 1: the static checklist (mde-ui/tests/checklist.rs) pins the
+# Windows 2000 palette + metrics, so a color/metric typo fails CI rather than
+# the user's eye. The dynamic screenshot layer needs a Wayland session and is
+# run locally via tests/accuracy/capture.sh (skips automatically when headless).
+
+on:
+  push:
+    paths:
+      - 'rust/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    paths:
+      - 'rust/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build deps for iced/wgpu
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwayland-dev libxkbcommon-dev libvulkan-dev \
+            pkg-config cmake
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Build
+        working-directory: rust
+        run: cargo build --workspace --locked
+      - name: Test (static accuracy checklist + unit tests)
+        working-directory: rust
+        # WAYLAND_DISPLAY is unset on the runner, so the dynamic screenshot
+        # spot-check skips itself; the static checklist still gates the build.
+        run: cargo test --workspace --locked

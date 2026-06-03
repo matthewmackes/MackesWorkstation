@@ -1,0 +1,24 @@
+# Python bytecode from the menu/control-panel scripts
+__pycache__/
+*.pyc
+
+# Personal data that can leak into copied config trees
+home/.config/gtk-3.0/bookmarks
+home/.config/**/*.bak.*
+
+# Downloaded/extracted assets (fetched by assets/ installers, never committed)
+/assets/build/
+/assets/cache/
+*.iso
+# Fetched icon-theme tarballs (decision #7: never redistributed, fetched at
+# install time by install-win2k-icons.py). NOTE: 133-Win2k-*.tgz is still
+# tracked from the first commit — `git rm --cached` it before publishing.
+home/.config/sway/resources/*.tgz
+
+# Editor noise
+*.swp
+*~
+.DS_Store
+
+# Claude Code transient runtime state (scheduling/loop locks)
+.claude/scheduled_tasks.lock

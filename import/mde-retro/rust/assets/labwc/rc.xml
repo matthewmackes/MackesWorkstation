@@ -1,0 +1,136 @@
+<?xml version="1.0"?>
+<!-- MDE-Retro labwc configuration (generated; mirrors the old sway keybinds).
+     Titlebar buttons live here + in the Win2000-MDE Openbox theme. -->
+<labwc_config>
+  <theme>
+    <name>Win2000-MDE</name>
+    <cornerRadius>0</cornerRadius>
+    <!-- System-menu icon on the left; minimize, maximize, close on the right. -->
+    <titlebar>
+      <layout>icon:iconify,max,close</layout>
+    </titlebar>
+    <font place="ActiveWindow">
+      <name>Droid Sans</name>
+      <size>10</size>
+      <weight>bold</weight>
+    </font>
+    <font place="InactiveWindow">
+      <name>Droid Sans</name>
+      <size>10</size>
+      <weight>bold</weight>
+    </font>
+  </theme>
+
+  <focus>
+    <followMouse>no</followMouse>
+    <raiseOnFocus>yes</raiseOnFocus>
+  </focus>
+
+  <!-- Drag-to-edge window snapping (Win10 Snap; labwc performs it). -->
+  <snapping>
+    <range>
+      <inner>12</inner>
+      <outer>12</outer>
+    </range>
+    <topMaximize>yes</topMaximize>
+  </snapping>
+
+  <!-- Virtual desktops (Win10 era). Four, to match the Task View fallback strip
+       default (state.rs virtual_desktops). labwc owns the set (static); mde's
+       ext-workspace client reads + switches them and Task View shows the band.
+       labwc has no create/close-desktop action, so there is deliberately no
+       W-C-d / W-C-F4 bind — create/remove exist only on compositors that
+       advertise the capability, where Task View's "+ New desktop" chip / × act. -->
+  <desktops number="4">
+    <names>
+      <name>Desktop 1</name>
+      <name>Desktop 2</name>
+      <name>Desktop 3</name>
+      <name>Desktop 4</name>
+    </names>
+  </desktops>
+
+  <keyboard>
+    <!-- Lock the session (Win+L). logind issues the Lock; swayidle/swaylock
+         raise the lock surface. First entry, and in <keyboard> only — the
+         <mouse><default/> block is untouched (§7). -->
+    <keybind key="W-l"><action name="Execute"><command>mde lock</command></action></keybind>
+    <!-- Window management (Win2000-style). -->
+    <keybind key="A-F4"><action name="Close"/></keybind>
+    <keybind key="W-Up"><action name="ToggleMaximize"/></keybind>
+    <keybind key="W-m"><action name="Iconify"/></keybind>
+    <!-- Win10 Snap + Snap Assist: labwc snaps the active window to a half, then
+         mde opens the half-screen picker for the OPPOSITE half so you can bring
+         another window forward beside it. labwc performs the snap; mde never
+         moves windows (the picker only focuses the pick). The snap-assist mode
+         self-gates to the Windows 10 theme, so under Carbon / Win2000 the
+         Execute is a fast no-op and these stay plain edge-snaps. -->
+    <keybind key="W-Left">
+      <action name="SnapToEdge"><direction>left</direction></action>
+      <action name="Execute"><command>mde task-view --snap-assist right</command></action>
+    </keybind>
+    <keybind key="W-Right">
+      <action name="SnapToEdge"><direction>right</direction></action>
+      <action name="Execute"><command>mde task-view --snap-assist left</command></action>
+    </keybind>
+    <keybind key="W-Down"><action name="Iconify"/></keybind>
+    <!-- Virtual-desktop switching (Win10 Ctrl+Win+Left/Right). labwc performs the
+         switch; wrap around the ends. There is no create/close bind (see above). -->
+    <keybind key="W-C-Left"><action name="GoToDesktop" to="left" wrap="yes"/></keybind>
+    <keybind key="W-C-Right"><action name="GoToDesktop" to="right" wrap="yes"/></keybind>
+    <keybind key="A-Tab"><action name="NextWindow"/></keybind>
+    <keybind key="A-S-Tab"><action name="PreviousWindow"/></keybind>
+
+    <!-- Shell launchers (the old sway bindings). -->
+    <keybind key="W-d"><action name="Execute"><command>mde start</command></action></keybind>
+    <keybind key="C-Escape"><action name="Execute"><command>mde start</command></action></keybind>
+    <keybind key="W-e"><action name="Execute"><command>mde files</command></action></keybind>
+    <keybind key="W-a"><action name="Execute"><command>mde action-center</command></action></keybind>
+    <keybind key="W-Tab"><action name="Execute"><command>mde task-view</command></action></keybind>
+    <!-- Win10 Search (Win+S) and Quick Access / power-user menu (Win+X). Search
+         self-gates to the Windows 10 theme and otherwise falls through to the
+         classic Start menu. -->
+    <keybind key="W-s"><action name="Execute"><command>mde search</command></action></keybind>
+    <keybind key="W-x"><action name="Execute"><command>mde popup quickaccess</command></action></keybind>
+    <!-- Win10 Settings (Win+I). `mde settings` is the modern Settings app; under
+         non-Win10 eras `mde control-panel` is the gear target instead. -->
+    <keybind key="W-i"><action name="Execute"><command>mde settings</command></action></keybind>
+    <keybind key="W-r"><action name="Execute"><command>mde run</command></action></keybind>
+    <keybind key="W-Return"><action name="Execute"><command>foot</command></action></keybind>
+
+    <keybind key="W-S-q"><action name="Close"/></keybind>
+    <keybind key="C-A-Delete"><action name="Execute"><command>mde shutdown</command></action></keybind>
+
+    <!-- Media / volume / brightness keys (ported from the old sway config).
+         Volume + mute via wpctl (PipeWire), media transport via playerctl,
+         backlight via logind SetBrightness (no root). -->
+    <!-- Each prefers swayosd-client (shows an on-screen volume/brightness bar)
+         and falls back to the raw tool when swayosd isn't installed, so the keys
+         work either way and gain an OSD the moment swayosd is present. -->
+    <keybind key="XF86AudioRaiseVolume"><action name="Execute"><command>sh -c 'swayosd-client --output-volume raise || wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+'</command></action></keybind>
+    <keybind key="XF86AudioLowerVolume"><action name="Execute"><command>sh -c 'swayosd-client --output-volume lower || wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-'</command></action></keybind>
+    <keybind key="XF86AudioMute"><action name="Execute"><command>sh -c 'swayosd-client --output-volume mute-toggle || wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle'</command></action></keybind>
+    <keybind key="XF86AudioMicMute"><action name="Execute"><command>sh -c 'swayosd-client --input-volume mute-toggle || wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle'</command></action></keybind>
+    <keybind key="XF86MonBrightnessUp"><action name="Execute"><command>sh -c 'swayosd-client --brightness raise || $HOME/.config/labwc/scripts/brightness.sh up'</command></action></keybind>
+    <keybind key="XF86MonBrightnessDown"><action name="Execute"><command>sh -c 'swayosd-client --brightness lower || $HOME/.config/labwc/scripts/brightness.sh down'</command></action></keybind>
+    <keybind key="XF86AudioPlay"><action name="Execute"><command>playerctl play-pause</command></action></keybind>
+    <keybind key="XF86AudioPause"><action name="Execute"><command>playerctl play-pause</command></action></keybind>
+    <keybind key="XF86AudioStop"><action name="Execute"><command>playerctl stop</command></action></keybind>
+    <keybind key="XF86AudioNext"><action name="Execute"><command>playerctl next</command></action></keybind>
+    <keybind key="XF86AudioPrev"><action name="Execute"><command>playerctl previous</command></action></keybind>
+  </keyboard>
+
+  <!-- The leading <default/> is REQUIRED. labwc treats a <mouse> section as a
+       full replacement: without <default/> every built-in mousebind is dropped,
+       which is what left windows unmovable (no Title drag-to-Move, no Win+drag
+       on the Frame) and the titlebar buttons unresponsive (no Iconify/Maximize/
+       Close click actions). The defaults already give double-click-to-maximize
+       and right-click-titlebar -> client-menu, so we only re-add the desktop
+       (Root) right-click menu on top of them. -->
+  <mouse>
+    <default/>
+    <context name="Root">
+      <mousebind button="Right" action="Press"><action name="ShowMenu"><menu>root-menu</menu></action></mousebind>
+    </context>
+  </mouse>
+</labwc_config>

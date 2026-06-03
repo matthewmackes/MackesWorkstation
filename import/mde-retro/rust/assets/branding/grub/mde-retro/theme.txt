@@ -1,0 +1,33 @@
+# MDE Retro Workstation GRUB theme — brand background + a clean boot menu.
+desktop-image: "background.png"
+desktop-color: "#000000"
+title-text: ""
+terminal-font: "Unifont Regular 16"
+
+# Centred boot menu over the lower third of the brand background.
++ boot_menu {
+    left = 25%
+    width = 50%
+    top = 58%
+    height = 32%
+    item_font = "DejaVu Sans Bold 16"
+    item_color = "#c8d4f0"
+    selected_item_color = "#ffffff"
+    item_height = 28
+    item_padding = 6
+    item_spacing = 4
+    selected_item_pixmap_style = "select_*.png"
+}
+
+# Boot progress / countdown bar near the bottom.
++ progress_bar {
+    id = "__timeout__"
+    left = 25%
+    width = 50%
+    top = 92%
+    height = 16
+    show_text = false
+    fg_color = "#3a8aff"
+    bg_color = "#0a1a40"
+    border_color = "#5a7ad8"
+}

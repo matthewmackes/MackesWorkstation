@@ -1,0 +1,49 @@
+#!/bin/sh
+# MDE-Retro labwc autostart — launches the Rust shell + session services.
+# (Replaces the sway `exec` lines.)
+
+# The taskbar / Start button / tray / clock.
+mde panel &
+
+# Network tray applet (its icon is rendered natively by the panel; this keeps
+# the NetworkManager agent available).
+nm-applet --indicator &
+
+# Clipboard-history watcher (E16.2): records what you copy into a 25-entry ring
+# that the Win+V history popup (mde clipboard) reads. Lockfile-idempotent.
+mde clipboard daemon &
+
+# AutoPlay (E12.9): watches udisks2 for removable media and opens it in Files on
+# mount, per Settings ▸ Devices ▸ AutoPlay. No-ops when AutoPlay is off.
+mde devices-monitor &
+
+# On-screen volume/brightness bar daemon (optional). If swayosd is installed the
+# media keys (wired in rc.xml) show a Win2000-style OSD; harmless if absent.
+command -v swayosd-server >/dev/null 2>&1 && swayosd-server &
+
+# Output geometry (resolution/scale/position) — written by Display Properties.
+[ -x "$HOME/.config/mde/display.sh" ] && "$HOME/.config/mde/display.sh" &
+
+# Wallpaper — set by the Display control panel, which writes a swaybg line to
+# ~/.config/mde/wallpaper.sh; run it if present.
+[ -x "$HOME/.config/mde/wallpaper.sh" ] && "$HOME/.config/mde/wallpaper.sh" &
+
+# Screen saver / idle — armed by Display Properties (writes ~/.config/mde/idle.sh).
+[ -x "$HOME/.config/mde/idle.sh" ] && "$HOME/.config/mde/idle.sh" &
+
+# Polkit authentication agent — pkexec (Control Panel installs, Setup) needs one
+# in the session to show its password prompt. Best-effort: start whichever is
+# present (harmless if none — pkexec just won't prompt graphically).
+for _pk in /usr/libexec/polkit-gnome-authentication-agent-1 \
+           /usr/libexec/polkit-mate-authentication-agent-1 \
+           /usr/bin/lxqt-policykit-agent /usr/bin/lxpolkit; do
+    [ -x "$_pk" ] && { "$_pk" & break; }
+done
+
+# First-run MDE-Retro Setup. Opens the Win2000-blue Setup wizard on first login;
+# the marker is written only on success, so it reappears next login until Setup
+# completes. (Branding itself is applied at boot by mde-activate-branding.service;
+# Setup detects that and skips re-branding — see tui_setup.rs branding_active.)
+if [ ! -e "$HOME/.config/mde/.setup-done" ]; then
+    ( mde setup && mkdir -p "$HOME/.config/mde" && touch "$HOME/.config/mde/.setup-done" ) &
+fi

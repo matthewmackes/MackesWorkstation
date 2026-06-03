@@ -1,0 +1,20 @@
+[Unit]
+Description=Apply MDE Retro Workstation branding (one-shot, first boot after install)
+Documentation=file:///usr/share/mde/branding/scripts/install-branding.sh
+# Branding installs a LightDM web/gtk greeter (may dnf-fetch it) and rewrites the
+# display manager, so wait for the network and run after the install transaction
+# has fully settled (this is armed from the RPM %posttrans, never inside %post).
+After=network-online.target
+Wants=network-online.target
+# Self-disabling: install-branding.sh writes this marker on success, so the unit
+# becomes a no-op on every subsequent boot/upgrade. revert-branding.sh removes it
+# (and disables this unit) to re-arm activation.
+ConditionPathExists=!/var/lib/mde-branding/.activated
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/bash /usr/share/mde/branding/scripts/install-branding.sh
+
+[Install]
+WantedBy=multi-user.target
