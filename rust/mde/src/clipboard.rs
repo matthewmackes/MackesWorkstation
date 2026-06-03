@@ -16,11 +16,29 @@ use serde::{Deserialize, Serialize};
 /// Maximum entries kept in the ring.
 pub const RING: usize = 25;
 
-/// One clipboard history entry: inline text, or a path to a saved PNG blob.
+/// What a history entry holds: inline text, or a path to a saved PNG blob.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub enum ClipEntry {
+pub enum ClipKind {
     Text(String),
     Image(String),
+}
+
+/// One clipboard history entry: its content + whether it's pinned (E16.3 — pinned
+/// entries survive "Clear all" and the ring cap).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ClipEntry {
+    pub kind: ClipKind,
+    #[serde(default)]
+    pub pinned: bool,
+}
+
+impl ClipEntry {
+    fn new(kind: ClipKind) -> Self {
+        ClipEntry {
+            kind,
+            pinned: false,
+        }
+    }
 }
 
 /// `~/.local/share/mde/clipboard/` (honours `$XDG_DATA_HOME`).
@@ -43,7 +61,7 @@ pub fn load_index() -> Vec<ClipEntry> {
         .unwrap_or_default()
 }
 
-fn save_index(idx: &[ClipEntry]) -> std::io::Result<()> {
+pub(crate) fn save_index(idx: &[ClipEntry]) -> std::io::Result<()> {
     let Some(path) = index_path() else {
         return Ok(());
     };
@@ -57,12 +75,29 @@ fn save_index(idx: &[ClipEntry]) -> std::io::Result<()> {
     std::fs::rename(&tmp, &path)
 }
 
-/// Prepend `entry` to `idx`, moving an identical existing entry to the front
-/// (dedup) rather than stacking duplicates, and cap at [`RING`]. Pure — unit-tested.
-pub fn ring_push(mut idx: Vec<ClipEntry>, entry: ClipEntry) -> Vec<ClipEntry> {
-    idx.retain(|e| e != &entry);
+/// Prepend `entry` to `idx`, moving an identical-content existing entry to the
+/// front (dedup, inheriting its pinned flag) rather than stacking duplicates, then
+/// cap at [`RING`] — keeping ALL pinned entries plus the most-recent unpinned ones
+/// (order preserved). Pure — unit-tested.
+pub fn ring_push(mut idx: Vec<ClipEntry>, mut entry: ClipEntry) -> Vec<ClipEntry> {
+    if let Some(pos) = idx.iter().position(|e| e.kind == entry.kind) {
+        entry.pinned |= idx[pos].pinned; // a re-copied pinned item stays pinned
+        idx.remove(pos);
+    }
     idx.insert(0, entry);
-    idx.truncate(RING);
+    // Cap: pinned entries never count against the budget and are never dropped.
+    let budget = RING.saturating_sub(idx.iter().filter(|e| e.pinned).count());
+    let mut kept_unpinned = 0;
+    idx.retain(|e| {
+        if e.pinned {
+            true
+        } else if kept_unpinned < budget {
+            kept_unpinned += 1;
+            true
+        } else {
+            false
+        }
+    });
     idx
 }
 
@@ -76,7 +111,7 @@ fn add_text() {
     if std::io::stdin().read_to_string(&mut s).is_ok() {
         let s = s.trim_end_matches('\n').to_string();
         if !s.trim().is_empty() {
-            push_entry(ClipEntry::Text(s));
+            push_entry(ClipEntry::new(ClipKind::Text(s)));
         }
     }
 }
@@ -93,7 +128,7 @@ fn add_image() {
     let _ = std::fs::create_dir_all(&d);
     let path = d.join(format!("img-{}.png", next_img_id(&d)));
     if std::fs::write(&path, &bytes).is_ok() {
-        push_entry(ClipEntry::Image(path.display().to_string()));
+        push_entry(ClipEntry::new(ClipKind::Image(path.display().to_string())));
     }
 }
 
@@ -158,9 +193,10 @@ fn run_daemon() -> ExitCode {
 /// Headless dump of the history (one line per entry) for `mde clipboard --list`.
 fn debug_list() {
     for e in load_index() {
-        match e {
-            ClipEntry::Text(t) => println!("text: {}", t.replace('\n', "⏎")),
-            ClipEntry::Image(p) => println!("image: {p}"),
+        let pin = if e.pinned { "[pinned] " } else { "" };
+        match &e.kind {
+            ClipKind::Text(t) => println!("{pin}text: {}", t.replace('\n', "⏎")),
+            ClipKind::Image(p) => println!("{pin}image: {p}"),
         }
     }
 }
@@ -188,8 +224,8 @@ pub fn run(args: &[String]) -> ExitCode {
 /// Re-copy a history entry to the clipboard via `wl-copy` (text on stdin, or the
 /// PNG blob as `image/png`).
 pub fn copy_entry(entry: &ClipEntry) {
-    match entry {
-        ClipEntry::Text(s) => {
+    match &entry.kind {
+        ClipKind::Text(s) => {
             if let Ok(mut child) = Command::new("wl-copy")
                 .stdin(std::process::Stdio::piped())
                 .spawn()
@@ -201,7 +237,7 @@ pub fn copy_entry(entry: &ClipEntry) {
                 let _ = child.wait();
             }
         }
-        ClipEntry::Image(p) => {
+        ClipKind::Image(p) => {
             if let Ok(f) = std::fs::File::open(p) {
                 let _ = Command::new("wl-copy")
                     .args(["--type", "image/png"])
@@ -216,7 +252,8 @@ pub fn copy_entry(entry: &ClipEntry) {
 /// click one to re-copy it (with a "Copied" toast) and close.
 mod popup {
     use super::{copy_entry, load_index, ClipEntry};
-    use iced::widget::{container, image, mouse_area, scrollable, text, Column};
+    use super::{save_index, ClipKind};
+    use iced::widget::{button, container, image, mouse_area, scrollable, text, Column, Row};
     use iced::{event, keyboard, Background, Border, Color, Element, Event, Length, Padding, Task};
     use iced_layershell::build_pattern::{application, MainSettings};
     use iced_layershell::reexport::{Anchor, KeyboardInteractivity};
@@ -233,6 +270,9 @@ mod popup {
     #[derive(Debug, Clone)]
     enum Message {
         Copy(usize),
+        TogglePin(usize),
+        Delete(usize),
+        ClearAll,
         Event(Event),
     }
 
@@ -306,12 +346,51 @@ mod popup {
                 }
                 exit(0)
             }
+            // Pin / delete / clear mutate the on-screen list and persist it in place.
+            Message::TogglePin(i) => {
+                if let Some(e) = state.entries.get_mut(i) {
+                    e.pinned = !e.pinned;
+                }
+                let _ = save_index(&state.entries);
+                Task::none()
+            }
+            Message::Delete(i) => {
+                if i < state.entries.len() {
+                    state.entries.remove(i);
+                }
+                let _ = save_index(&state.entries);
+                Task::none()
+            }
+            Message::ClearAll => {
+                state.entries.retain(|e| e.pinned);
+                let _ = save_index(&state.entries);
+                Task::none()
+            }
             Message::Event(Event::Keyboard(keyboard::Event::KeyPressed {
                 key: keyboard::Key::Named(keyboard::key::Named::Escape),
                 ..
             })) => exit(0),
             _ => Task::none(),
         }
+    }
+
+    /// A small flat glyph button (pin / delete), Nerd Font.
+    fn glyph_btn(glyph: &'static str, accent: bool, msg: Message) -> Element<'static, Message> {
+        let color = if accent {
+            palette::accent()
+        } else {
+            palette::color(palette::GRAY_TEXT)
+        };
+        button(
+            text(glyph)
+                .font(mde_ui::font::NERD)
+                .size(metrics::UI_PX)
+                .color(color),
+        )
+        .on_press(msg)
+        .padding(Padding::from([2.0, 6.0]))
+        .style(mde_ui::button_ghost)
+        .into()
     }
 
     fn row_style(_: &iced::Theme) -> container::Style {
@@ -345,38 +424,49 @@ mod popup {
             );
         } else {
             for (i, e) in state.entries.iter().enumerate() {
-                let body: Element<Message> = match e {
-                    ClipEntry::Text(t) => text(truncate(t, 48))
+                let body: Element<Message> = match &e.kind {
+                    ClipKind::Text(t) => text(truncate(t, 38))
                         .size(metrics::UI_PX)
                         .color(palette::color(palette::WINDOW_TEXT))
                         .into(),
-                    ClipEntry::Image(p) => image(p.clone()).height(Length::Fixed(48.0)).into(),
+                    ClipKind::Image(p) => image(p.clone()).height(Length::Fixed(40.0)).into(),
                 };
-                list = list.push(
-                    mouse_area(
-                        container(body)
-                            .width(Length::Fill)
-                            .padding(8.0)
-                            .style(|t: &iced::Theme| row_style(t)),
+                // Content (click to re-copy) + pin toggle + delete.
+                let row = Row::new()
+                    .spacing(4.0)
+                    .align_y(iced::alignment::Vertical::Center)
+                    .push(
+                        mouse_area(container(body).width(Length::Fill).padding(6.0))
+                            .on_press(Message::Copy(i)),
                     )
-                    .on_press(Message::Copy(i)),
+                    .push(glyph_btn("\u{f08d}", e.pinned, Message::TogglePin(i))) // thumbtack
+                    .push(glyph_btn("\u{f00d}", false, Message::Delete(i))); // times
+                list = list.push(
+                    container(row)
+                        .width(Length::Fill)
+                        .style(|t: &iced::Theme| row_style(t)),
                 );
             }
         }
 
-        let card = container(
-            Column::new()
-                .spacing(8.0)
-                .push(
-                    text("Clipboard")
-                        .size(metrics::INFO_TITLE_PX)
-                        .color(palette::color(palette::WINDOW_TEXT)),
-                )
-                .push(
-                    container(scrollable(list).style(mde_ui::scrollbar))
-                        .height(Length::Fixed(360.0)),
-                ),
-        )
+        let header = Row::new()
+            .align_y(iced::alignment::Vertical::Center)
+            .push(
+                text("Clipboard")
+                    .size(metrics::INFO_TITLE_PX)
+                    .width(Length::Fill)
+                    .color(palette::color(palette::WINDOW_TEXT)),
+            )
+            .push(
+                button(text("Clear all").size(metrics::UI_PX))
+                    .on_press(Message::ClearAll)
+                    .padding(Padding::from([2.0, 8.0]))
+                    .style(mde_ui::button_ghost),
+            );
+
+        let card = container(Column::new().spacing(8.0).push(header).push(
+            container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fixed(360.0)),
+        ))
         .width(Length::Fixed(320.0))
         .padding(10.0)
         .style(|_| container::Style {
@@ -410,7 +500,7 @@ mod tests {
     use super::*;
 
     fn t(s: &str) -> ClipEntry {
-        ClipEntry::Text(s.to_string())
+        ClipEntry::new(ClipKind::Text(s.to_string()))
     }
 
     #[test]
@@ -430,5 +520,24 @@ mod tests {
         }
         assert_eq!(full.len(), RING);
         assert_eq!(full[0], t(&format!("e{}", RING + 4))); // newest kept
+    }
+
+    #[test]
+    fn pinned_entries_survive_the_cap() {
+        // Start with a pinned entry, then push RING+5 newer unpinned ones.
+        let mut idx = vec![ClipEntry {
+            kind: ClipKind::Text("keep me".into()),
+            pinned: true,
+        }];
+        for i in 0..(RING + 5) {
+            idx = ring_push(idx, t(&format!("u{i}")));
+        }
+        // The pinned entry is never dropped, even though far more than RING
+        // unpinned items have arrived; the rest are capped to fit the budget.
+        assert!(idx
+            .iter()
+            .any(|e| e.pinned && e.kind == ClipKind::Text("keep me".into())));
+        assert_eq!(idx.iter().filter(|e| e.pinned).count(), 1);
+        assert_eq!(idx.iter().filter(|e| !e.pinned).count(), RING - 1);
     }
 }
