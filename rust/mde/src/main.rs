@@ -44,6 +44,7 @@ mod search;
 mod security;
 mod security_probe;
 mod settings;
+mod snip;
 mod start_common;
 mod start_win10;
 mod state;
@@ -85,6 +86,7 @@ COMMANDS:
     security         Windows Security dashboard (firewall/encryption/AV/TPM posture)
     greeter [--css|--conf [BG]]   Emit the LightDM Win10 greeter theme (palette-sourced)
     clipboard daemon|--list   Clipboard history watcher (wl-paste) + 25-entry ring
+    snip [rect|full]   Region/full screenshot → ~/Pictures/Screenshots + clipboard
     taskbar-properties   Taskbar and Start Menu Properties
     setup [--tui|--gui|--dry-run]   Install/configure MDE-Retro
     install [--assets]   Fetch Chicago95 + Win2k assets (first run)
@@ -191,6 +193,7 @@ fn main() -> ExitCode {
         "pin" => pin::run(rest),
         "greeter" => greeter::run(rest),
         "clipboard" => clipboard::run(rest),
+        "snip" => snip::run(rest),
         "taskbar-properties" => taskbar_properties::run(rest),
         "__wlr-list" => {
             wlr::debug_list();
