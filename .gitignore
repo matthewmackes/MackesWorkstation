@@ -6,3 +6,7 @@
 # OS / editor
 .DS_Store
 *.swp
+
+# Claude Code runtime artifacts (session-local; not source)
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
