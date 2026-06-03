@@ -75,6 +75,16 @@ Workbench's look.
 - **Q29 files → Win10 Explorer primary; mesh/peer locations + mesh-storage fold into
   Quick access** (reuse `mde-files`' mesh-browse backend; retire its separate UI).
 
+*Batch 4 — placement + KDC, 2026-06-03:*
+- **Q48 KDE Connect → finish the inbound listener (host 3b.2e).** Full bidirectional
+  KDE Connect for v1; resume the crate work in `MDE-KDECnt-Rust`.
+- **Q30 music → a Win10 "Media Player" app** (the AIR-* maxi-player re-skinned Win10;
+  reuse `mde-music`/`mde-musicd` + MPRIS).
+- **Q33 drawer → fold into the Win10 Action Center** (one quick-actions surface;
+  reuse the drawer's action backends; retire the separate overlay).
+- **Q41 Workbench entry → a Start tile + a Control-Panel "Manage Workstation" app**
+  (deep-linkable to a role/panel), per the Manage-Your-Server idiom.
+
 ## 0.1 Information currency
 
 The original review snapshot was **65 commits stale**; refreshed against current MDE
