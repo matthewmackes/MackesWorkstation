@@ -88,6 +88,61 @@ pub fn parse_luks(lsblk_out: &str) -> bool {
     lsblk_out.contains("crypto_LUKS")
 }
 
+/// One block device for the Encryption page (E14.6).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockDev {
+    pub name: String,
+    pub fstype: String,
+    pub encrypted: bool,
+}
+
+/// Parse `lsblk -rno NAME,TYPE,FSTYPE` into the **encryptable** filesystems
+/// (partitions / LUKS mappings / LVM volumes — not bare disks, zram, loop, rom).
+/// A `crypto_LUKS` fstype or a `crypt` type marks an encrypted device.
+pub fn parse_block_devices(lsblk_out: &str) -> Vec<BlockDev> {
+    lsblk_out
+        .lines()
+        .filter_map(|l| {
+            let mut f = l.split_whitespace();
+            let name = f.next()?.to_string();
+            let kind = f.next().unwrap_or("");
+            let fstype = f.next().unwrap_or("").to_string();
+            if !matches!(kind, "part" | "crypt" | "lvm") || name.starts_with("zram") {
+                return None;
+            }
+            let encrypted = fstype == "crypto_LUKS" || kind == "crypt";
+            Some(BlockDev {
+                name,
+                fstype,
+                encrypted,
+            })
+        })
+        .collect()
+}
+
+/// Live block-device list for the Encryption page.
+pub fn encryption_detail() -> Vec<BlockDev> {
+    out("lsblk", &["-rno", "NAME,TYPE,FSTYPE"])
+        .map(|s| parse_block_devices(&s))
+        .unwrap_or_default()
+}
+
+/// The exact, **advisory** (never auto-run) command to LUKS-format a device.
+pub fn luks_format_cmd(dev: &str) -> String {
+    format!("cryptsetup luksFormat /dev/{dev}")
+}
+
+/// argv to back up an existing LUKS device's header to `file` (E14.6 recovery key).
+pub fn luks_header_backup_cmd(dev: &str, file: &str) -> Vec<String> {
+    vec![
+        "cryptsetup".into(),
+        "luksHeaderBackup".into(),
+        format!("/dev/{dev}"),
+        "--header-backup-file".into(),
+        file.into(),
+    ]
+}
+
 /// `/sys/class/tpm/tpm0/tpm_version_major` content → a human TPM version
 /// ("2" → "2.0", "1" → "1.2"); `None` for empty/unknown.
 pub fn parse_tpm_version(s: &str) -> Option<String> {
@@ -298,6 +353,33 @@ mod tests {
         let enc = "NAME   FSTYPE      \nsda                \nsda1   crypto_LUKS \n";
         assert!(parse_luks(enc));
         assert!(!parse_luks("NAME FSTYPE\nsda1 ext4\n"));
+    }
+
+    #[test]
+    fn block_devices_filtered_and_flagged() {
+        let fx = "sda disk \nsda1 part vfat\nsda2 part crypto_LUKS\nluks-x crypt ext4\nzram0 disk swap\nsr0 rom \n";
+        let d = parse_block_devices(fx);
+        let names: Vec<_> = d.iter().map(|b| b.name.as_str()).collect();
+        // bare disk (sda), zram, rom dropped; partitions + crypt kept.
+        assert_eq!(names, vec!["sda1", "sda2", "luks-x"]);
+        assert!(!d[0].encrypted); // sda1 vfat
+        assert!(d[1].encrypted); // sda2 crypto_LUKS
+        assert!(d[2].encrypted); // crypt mapping
+    }
+
+    #[test]
+    fn luks_commands() {
+        assert_eq!(luks_format_cmd("sda2"), "cryptsetup luksFormat /dev/sda2");
+        assert_eq!(
+            luks_header_backup_cmd("sda2", "/home/me/key.img"),
+            [
+                "cryptsetup",
+                "luksHeaderBackup",
+                "/dev/sda2",
+                "--header-backup-file",
+                "/home/me/key.img"
+            ]
+        );
     }
 
     #[test]

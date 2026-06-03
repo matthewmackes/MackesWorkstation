@@ -11,7 +11,7 @@ use std::process::ExitCode;
 use iced::widget::{button, column, container, mouse_area, text, Column, Row, Space};
 use iced::{Element, Length, Padding, Task};
 
-use crate::security_probe::{self, FirewallDetail, Level, SecurityStatus, Tile};
+use crate::security_probe::{self, BlockDev, FirewallDetail, Level, SecurityStatus, Tile};
 use mde_ui::{metrics, palette};
 
 /// Which pane the dashboard is showing — the home grid or a tile's detail page.
@@ -19,6 +19,7 @@ use mde_ui::{metrics, palette};
 enum Pane {
     Home,
     Firewall,
+    Encryption,
 }
 
 struct Security {
@@ -26,6 +27,11 @@ struct Security {
     pane: Pane,
     /// Live firewall detail, loaded when the Firewall page opens (E14.5).
     fw: Option<FirewallDetail>,
+    /// Block-device list for the Encryption page (E14.6).
+    devs: Vec<BlockDev>,
+    /// A plain device the user asked to "turn on" — shows the advisory luksFormat
+    /// command (never auto-run).
+    confirm_format: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +40,10 @@ enum Message {
     Open(Pane),
     Back,
     Advanced, // launch firewall-config
+    TurnOn(String),
+    CancelConfirm,
+    BackupKey(String),
+    KeyBackedUp(String, Option<String>), // (device, chosen save path)
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -45,8 +55,12 @@ pub fn run(args: &[String]) -> ExitCode {
         );
         return ExitCode::SUCCESS;
     }
-    // Deep-link: `mde security firewall` opens straight to the Firewall page.
-    let start_firewall = args.iter().any(|a| a == "firewall");
+    // Deep-link: `mde security <page>` opens straight to a detail page.
+    let deep = args.iter().find_map(|a| match a.as_str() {
+        "firewall" => Some(Pane::Firewall),
+        "encryption" => Some(Pane::Encryption),
+        _ => None,
+    });
     let r = iced::application(|_: &Security| "Windows Security".to_string(), update, view)
         .window_size(iced::Size::new(540.0, 420.0))
         .resizable(false)
@@ -59,16 +73,24 @@ pub fn run(args: &[String]) -> ExitCode {
         .run_with(move || {
             // The probes shell out (firewall-cmd/mokutil/lsblk/clamscan), so run
             // them off-thread and let the window appear immediately.
-            let (pane, fw) = if start_firewall {
-                (Pane::Firewall, Some(security_probe::firewall_detail()))
-            } else {
-                (Pane::Home, None)
+            let (pane, fw, devs) = match deep {
+                Some(Pane::Firewall) => (
+                    Pane::Firewall,
+                    Some(security_probe::firewall_detail()),
+                    Vec::new(),
+                ),
+                Some(Pane::Encryption) => {
+                    (Pane::Encryption, None, security_probe::encryption_detail())
+                }
+                _ => (Pane::Home, None, Vec::new()),
             };
             (
                 Security {
                     status: None,
                     pane,
                     fw,
+                    devs,
+                    confirm_format: None,
                 },
                 Task::perform(async { Box::new(security_probe::probe()) }, Message::Loaded),
             )
@@ -87,13 +109,58 @@ fn update(state: &mut Security, message: Message) -> Task<Message> {
             state.fw = Some(security_probe::firewall_detail());
             state.pane = Pane::Firewall;
         }
+        Message::Open(Pane::Encryption) => {
+            state.devs = security_probe::encryption_detail();
+            state.confirm_format = None;
+            state.pane = Pane::Encryption;
+        }
         Message::Open(pane) => state.pane = pane,
-        Message::Back => state.pane = Pane::Home,
+        Message::Back => {
+            state.pane = Pane::Home;
+            state.confirm_format = None;
+        }
         Message::Advanced => {
             let _ = std::process::Command::new("firewall-config").spawn();
         }
+        Message::TurnOn(dev) => state.confirm_format = Some(dev),
+        Message::CancelConfirm => state.confirm_format = None,
+        Message::BackupKey(dev) => {
+            // Pick a save path via the shared file dialog, then back up the header.
+            return Task::perform(async move { (dev.clone(), save_dialog()) }, |(d, p)| {
+                Message::KeyBackedUp(d, p)
+            });
+        }
+        Message::KeyBackedUp(dev, Some(path)) => {
+            let _ = std::process::Command::new("pkexec")
+                .args(security_probe::luks_header_backup_cmd(&dev, &path))
+                .spawn();
+        }
+        Message::KeyBackedUp(_, None) => {}
     }
     Task::none()
+}
+
+/// Run the shared Save file dialog (`mde filedialog --save`) → chosen path.
+fn save_dialog() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let o = std::process::Command::new(exe)
+        .args([
+            "filedialog",
+            "--save",
+            "--title",
+            "Back up LUKS header",
+            "--filename",
+            "luks-header.img",
+        ])
+        .output()
+        .ok()?;
+    if o.status.success() {
+        let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
+        if !s.is_empty() {
+            return Some(s);
+        }
+    }
+    None
 }
 
 /// The OK/WARN/RISK glyph + its palette colour (E14.2 STATUS roles).
@@ -179,6 +246,7 @@ fn view(state: &Security) -> Element<'_, Message> {
     match state.pane {
         Pane::Home => home_view(s),
         Pane::Firewall => firewall_view(state.fw.as_ref()),
+        Pane::Encryption => encryption_view(state),
     }
 }
 
@@ -195,7 +263,7 @@ fn home_view(s: &SecurityStatus) -> Element<'_, Message> {
         ("\u{f188}", &s.antivirus, None),
         ("\u{f132}", &s.firewall, Some(Pane::Firewall)),
         ("\u{f0ac}", &advisory, None),
-        ("\u{f023}", &s.encryption, None),
+        ("\u{f023}", &s.encryption, Some(Pane::Encryption)),
         ("\u{f084}", &s.secureboot, None),
         ("\u{f2db}", &s.tpm, None),
     ];
@@ -290,4 +358,117 @@ fn firewall_view(fw: Option<&FirewallDetail>) -> Element<'_, Message> {
         )
         .padding(Padding::from(16.0))
         .into()
+}
+
+/// Encryption tile detail (E14.6): per-device LUKS state, with "Back up recovery
+/// key" (luksHeaderBackup via the Save dialog) for encrypted devices and a
+/// "Turn on" that shows — never runs — the exact `cryptsetup luksFormat` command.
+fn encryption_view(state: &Security) -> Element<'_, Message> {
+    let back = button(text("← Back").size(metrics::UI_PX))
+        .on_press(Message::Back)
+        .padding(Padding::from([4.0, 12.0]))
+        .style(mde_ui::button_ghost);
+    let mut col = Column::new().spacing(10.0).push(back).push(
+        text("Device encryption")
+            .size(metrics::INFO_TITLE_PX)
+            .color(palette::color(palette::WINDOW_TEXT)),
+    );
+
+    // Inline "Turn on" advisory: the exact luksFormat command, never auto-run.
+    if let Some(dev) = &state.confirm_format {
+        col = col.push(
+            container(
+                Column::new()
+                    .spacing(6.0)
+                    .push(
+                        text(format!(
+                            "Encrypting /dev/{dev} ERASES it. Run this as root from a terminal:"
+                        ))
+                        .size(metrics::UI_PX)
+                        .color(palette::color(palette::WINDOW_TEXT)),
+                    )
+                    .push(
+                        text(security_probe::luks_format_cmd(dev))
+                            .size(metrics::UI_PX)
+                            .font(mde_ui::font::NERD)
+                            .color(palette::color(palette::STATUS_WARN)),
+                    )
+                    .push(
+                        button(text("Close").size(metrics::UI_PX))
+                            .on_press(Message::CancelConfirm)
+                            .padding(Padding::from([3.0, 10.0]))
+                            .style(mde_ui::button_ghost),
+                    ),
+            )
+            .padding(10.0)
+            .style(|_| container::Style {
+                border: iced::Border {
+                    color: palette::accent(),
+                    width: 1.0,
+                    radius: 2.0.into(),
+                },
+                ..container::Style::default()
+            }),
+        );
+    }
+
+    if state.devs.is_empty() {
+        col = col.push(
+            text("No block devices found.")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+    } else {
+        for dev in &state.devs {
+            let (glyph, role) = if dev.encrypted {
+                ("\u{f023}", palette::STATUS_OK) // lock
+            } else {
+                ("\u{f09c}", palette::STATUS_WARN) // unlock
+            };
+            let label = if dev.encrypted {
+                "Encrypted (LUKS)".to_string()
+            } else if dev.fstype.is_empty() {
+                "Not encrypted".to_string()
+            } else {
+                format!("Not encrypted — {}", dev.fstype)
+            };
+            let action = if dev.encrypted {
+                button(text("Back up recovery key").size(metrics::UI_PX))
+                    .on_press(Message::BackupKey(dev.name.clone()))
+            } else {
+                button(text("Turn on").size(metrics::UI_PX))
+                    .on_press(Message::TurnOn(dev.name.clone()))
+            }
+            .padding(Padding::from([3.0, 10.0]))
+            .style(mde_ui::button_ghost);
+            col = col.push(
+                Row::new()
+                    .spacing(10.0)
+                    .align_y(iced::alignment::Vertical::Center)
+                    .push(
+                        text(glyph)
+                            .font(mde_ui::font::NERD)
+                            .size(metrics::TILE_GLYPH_PX)
+                            .color(palette::color(role)),
+                    )
+                    .push(
+                        Column::new()
+                            .width(Length::Fill)
+                            .push(
+                                text(format!("/dev/{}", dev.name))
+                                    .size(metrics::UI_PX)
+                                    .color(palette::color(palette::WINDOW_TEXT)),
+                            )
+                            .push(
+                                text(label)
+                                    .size(metrics::BADGE_PX)
+                                    .color(palette::color(palette::GRAY_TEXT)),
+                            ),
+                    )
+                    .push(action),
+            );
+        }
+    }
+
+    col.padding(Padding::from(16.0)).into()
 }
