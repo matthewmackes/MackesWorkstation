@@ -18,23 +18,37 @@ All three repos are merged in via the built-in subtree-merge (`merge -s ours` +
 58 `Cargo.toml` manifests total; **3 workspace-root manifests** to reconcile:
 `import/mde/Cargo.toml`, `import/mde-retro/rust/Cargo.toml`, `import/mde-kdc/Cargo.toml`.
 
-## Next — build-green (the rest of E0)
+## Done — build-green (in-sandbox)
 
-The three imports are still **three separate cargo workspaces** (nested workspaces don't
-build), so `cargo build` at the root does not yet work. Bringing it to one green build:
+The three imports are unified into **one root cargo workspace** and
+**`cargo check --workspace` passes green** (0 errors). What this proves: the fusion is
+structurally sound — the workspace resolves, ~600 dependency crates + 51 workspace crates
+type-check as one, and the path-dep edges (incl. the shell→KDC host) all resolve.
 
-1. **Unify the workspace.** One root `Cargo.toml` `[workspace]` listing every member;
-   remove the three inner `[workspace]` tables; add `[workspace.package]` so the crates
-   that inherit (`version.workspace = true`, etc.) resolve against one source.
-2. **Reconcile dependency versions** across the three (iced, rustls, tokio, zbus, serde,
-   …) to a single set; fix the path-dep edges now that everything is co-located
-   (MDE-Retro's `mde-kdc-host` path dep becomes an in-workspace member).
-3. **Reorganize to the §12 layout** (`crates/platform`, `crates/shell`, `crates/kdc`,
+**4 crates are excluded** in `Cargo.toml`'s `[workspace] exclude` because they need
+**system dev libraries absent in this sandbox** (no root to install them). They build on
+any box with the libs; this is a sandbox limit, not a fusion problem:
+
+| Excluded crate | Needs | Note |
+|---|---|---|
+| `mackes-panel` | `gtk3-devel` (glib/gdk/atk/cairo) | legacy GTK panel — retire (iced shell replaces it) |
+| `mde-musicd` | `alsa-lib-devel` (cpal audio out) | re-include with the lib on CI |
+| `mde-music` | (via `mde-musicd`) | ↑ |
+| `mde-workbench` | (via `mde-musicd`) | ↑ — major surface; build on a dev box |
+
+The `mde-kdc-proto` clash was resolved by renaming MDE's retiring in-tree copy to
+`mde-kdc-proto-legacy` (dependents alias it via `package =`).
+
+## Next — finish E0
+
+1. **Verify the excluded set on a real box** (`gtk3-devel`, `alsa-lib-devel`) — or retire
+   `mackes-panel` and re-include the audio chain; full `cargo build` + `cargo test`.
+2. **Reorganize to the §12 layout** (`crates/platform`, `crates/shell`, `crates/kdc`,
    `crates/workbench`, `crates/services`, `crates/shared`, `crates/applets`, `crates/mesh`)
    with `git mv` (history follows), retiring the `import/` staging dirs.
-4. **One version line** `10.0.0`, GPL-3.0; wire `mde-bus`; confirm the `mde <subcommand>`
-   dispatch binary builds; `mackesd` as a supervised service entry point.
-5. `cargo build` + `cargo test` green across the union → **E0 complete**.
+3. **Wire `mde-bus`**; confirm the `mde <subcommand>` dispatch binary builds; `mackesd`
+   as a supervised service entry point. Resolve the 8 lint warnings.
+4. Create the GitHub repo + push; **archive** the three old repos (both gated).
 
 ## After E0
 

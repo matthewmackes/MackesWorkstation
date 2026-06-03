@@ -10,7 +10,6 @@ members = [
     "import/mde/crates/mackes-config",
     "import/mde/crates/mackes-mesh-types",
     "import/mde/crates/mackes-nebula-https-tunnel",
-    "import/mde/crates/mackes-panel",
     "import/mde/crates/mackes-theme",
     "import/mde/crates/mackes-transport",
     "import/mde/crates/mackesd",
@@ -42,8 +41,6 @@ members = [
     "import/mde/crates/mde-installer",
     "import/mde/crates/mde-logout-dialog",
     "import/mde/crates/mde-mesh-types",
-    "import/mde/crates/mde-music",
-    "import/mde/crates/mde-musicd",
     "import/mde/crates/mde-panel",
     "import/mde/crates/mde-portal",
     "import/mde/crates/mde-peer-card",
@@ -54,12 +51,22 @@ members = [
     "import/mde/crates/mde-voice-config",
     "import/mde/crates/mde-voice-hud",
     "import/mde/crates/mde-wizard",
-    "import/mde/crates/mde-workbench",
     "import/mde/crates/mded",
     "import/mde-retro/rust/mde",
     "import/mde-retro/rust/mde-ui",
     "import/mde-kdc/crates/mde-kdc-proto",
     "import/mde-kdc/crates/mde-kdc-host",
+]
+
+exclude = [
+    # GTK3 panel (glib/gdk/atk/cairo) — needs GTK dev libs absent in this sandbox, and
+    # is superseded by the iced shell (mde-panel + the MDE-Retro `mde` taskbar). Retire
+    # in the §12 reorg; build on CI/a dev box with gtk3-devel if kept meanwhile.
+    "import/mde/crates/mackes-panel",
+    # Audio chain (cpal → alsa-sys) needs alsa-lib-devel, absent in this sandbox:
+    "import/mde/crates/mde-musicd",
+    "import/mde/crates/mde-music",
+    "import/mde/crates/mde-workbench",
 ]
 
 [workspace.package]
