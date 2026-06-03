@@ -75,6 +75,8 @@ struct AddRemove {
     updates: Option<Vec<Update>>,
     /// A `dnf check-update` is in flight (the Updates tab shows "Checking…").
     checking: bool,
+    /// A downloaded Fedora release (Feature) upgrade target, if any (E13.3a).
+    feature: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -95,6 +97,8 @@ enum Message {
     UpdateAll,
     /// The upgrade transaction finished (`true` = succeeded) (B.2c).
     UpdatedAll(bool),
+    /// Install a downloaded Fedora release (Feature) upgrade (E13.3a).
+    FeatureUpgrade,
 }
 
 fn load_rows() -> Vec<Pkg> {
@@ -142,6 +146,7 @@ fn launch(updates: bool) -> iced::Result {
                 tab,
                 updates: None,
                 checking: updates,
+                feature: feature_upgrade(),
             },
             init,
         )
@@ -225,6 +230,18 @@ fn update(state: &mut AddRemove, message: Message) -> Task<Message> {
                 return check_task();
             }
             state.status = Some("Update was cancelled or failed.".to_string());
+        }
+        Message::FeatureUpgrade => {
+            // The release upgrade is already downloaded; install it in a visible
+            // terminal (it reboots into the upgrade). The user confirms via pkexec.
+            if let Some(n) = state.feature {
+                crate::installer::spawn_terminal(
+                    &format!("Upgrade to Fedora {n}"),
+                    &palette::hex(palette::HIGHLIGHT),
+                    "echo 'This installs the downloaded Fedora upgrade and restarts.'; \
+                     pkexec dnf system-upgrade reboot",
+                );
+            }
         }
     }
     Task::none()
@@ -322,6 +339,35 @@ pub(crate) fn parse_check_update(output: &str) -> Vec<Update> {
         }
     }
     out
+}
+
+/// Parse `dnf system-upgrade`'s `system-upgrade-state.json` → the target Fedora
+/// release of a **downloaded, ready-to-install** release upgrade (E13.3a), or
+/// `None` when none is staged. A Feature update is distinct from the per-package
+/// `check-update` (Quality) list. `target_releasever` is a string in dnf's JSON
+/// but accept a bare number too.
+pub(crate) fn parse_sysupgrade_state(json: &str) -> Option<u32> {
+    let v: serde_json::Value = serde_json::from_str(json).ok()?;
+    let state = v.get("state").and_then(|s| s.as_str()).unwrap_or("");
+    // "download-complete" / "ready" mean staged; "downloading" must NOT match.
+    let ready = state == "ready" || state.contains("complete");
+    if !ready {
+        return None;
+    }
+    let t = v.get("target_releasever")?;
+    t.as_str()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| t.as_u64().map(|n| n as u32))
+}
+
+/// Live probe for a prepared Fedora release (Feature) upgrade. The state-file path
+/// is overridable via `MDE_SYSUPGRADE_STATE` so the gallery can show the Feature
+/// section deterministically (real JSON, not demo data).
+fn feature_upgrade() -> Option<u32> {
+    let path = std::env::var("MDE_SYSUPGRADE_STATE")
+        .unwrap_or_else(|_| "/var/lib/dnf/system-upgrade/system-upgrade-state.json".to_string());
+    let json = std::fs::read_to_string(path).ok()?;
+    parse_sysupgrade_state(&json)
 }
 
 fn pad(t: f32, r: f32, b: f32, l: f32) -> Padding {
@@ -479,6 +525,12 @@ fn updates_view(state: &AddRemove) -> (Element<'_, Message>, String) {
         );
 
     let mut list = Column::new().spacing(0.0).padding(pad(2.0, 8.0, 2.0, 8.0));
+    // Feature update section (E13.3a): a downloaded Fedora release upgrade, shown
+    // above the per-package Quality updates with its own header.
+    if let Some(n) = state.feature {
+        list = list.push(section_header("Feature update"));
+        list = list.push(feature_row(n));
+    }
     let body_status = if state.checking {
         list = list.push(note("Checking for updates…"));
         "Checking for updates…".to_string()
@@ -493,6 +545,7 @@ fn updates_view(state: &AddRemove) -> (Element<'_, Message>, String) {
                 "Your programs are up to date.".to_string()
             }
             Some(u) => {
+                list = list.push(section_header("Quality updates"));
                 for upd in u {
                     list = list.push(update_row(upd));
                 }
@@ -509,6 +562,27 @@ fn updates_view(state: &AddRemove) -> (Element<'_, Message>, String) {
         .push(controls)
         .push(container(boxed_list(list)).height(Length::Fill));
     (body.into(), body_status)
+}
+
+/// The Feature-update row: a downloaded Fedora release upgrade + an install action.
+fn feature_row(n: u32) -> Element<'static, Message> {
+    Row::new()
+        .spacing(8.0)
+        .align_y(iced::Alignment::Center)
+        .push(
+            text(format!(
+                "Upgrade to Fedora {n} — downloaded, ready to install"
+            ))
+            .size(metrics::UI_PX)
+            .width(Length::Fill),
+        )
+        .push(
+            button(text("Install & restart").size(metrics::UI_PX))
+                .on_press(Message::FeatureUpgrade)
+                .padding(pad(2.0, 10.0, 2.0, 10.0)),
+        )
+        .padding(pad(2.0, 6.0, 2.0, 6.0))
+        .into()
 }
 
 /// A short centered note line for the Updates tab's empty/checking states.
@@ -575,6 +649,23 @@ fn view(state: &AddRemove) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sysupgrade_state_parsed() {
+        // A ready, downloaded upgrade → its target release.
+        let ready = r#"{"state": "download-complete", "target_releasever": "45", "system_releasever": "44"}"#;
+        assert_eq!(parse_sysupgrade_state(ready), Some(45));
+        // A bare-number target is accepted too.
+        let num = r#"{"state": "ready", "target_releasever": 45}"#;
+        assert_eq!(parse_sysupgrade_state(num), Some(45));
+        // Not yet downloaded / no state → no Feature update.
+        assert_eq!(
+            parse_sysupgrade_state(r#"{"state": "downloading", "target_releasever": "45"}"#),
+            None
+        );
+        assert_eq!(parse_sysupgrade_state("{}"), None);
+        assert_eq!(parse_sysupgrade_state("not json"), None);
+    }
 
     fn pkg(name: &'static str, package: &'static str) -> Pkg {
         Pkg {
