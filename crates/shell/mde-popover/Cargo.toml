@@ -1,0 +1,76 @@
+[package]
+name        = "mde-popover"
+description = "Iced + layer-shell popover host — mounts start-menu / audio / notifications / network / clock surfaces above the panel edge."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+
+[[bin]]
+name = "mde-popover"
+path = "src/main.rs"
+
+[dependencies]
+# Same Iced + iced_layershell pair as crates/mde-panel — keeps the
+# workspace dep tree on one resolution.
+# v4.0.1 BUG-13: `svg` added so start_menu pinned tiles (BUG-12)
+# can render Material Symbols glyphs instead of label-only buttons.
+# v4.0.1 WM-5.a: `image` added so app_switcher cards can paint
+# per-window PNG thumbnails captured via grim.
+iced            = { version = "0.14", default-features = false, features = ["wgpu", "tiny-skia", "svg", "image", "tokio", "advanced", "wayland"] }
+iced_layershell = "0.18"
+# v4.0.1 BUG-8.b — notification mute state persisted to
+# `~/.config/mde/notification-mutes.toml`.
+toml            = "0.8"
+
+# Domain logic libs that already ship with the applet binaries.
+mde-applet-start-menu = { path = "../../applets/start-menu" }
+mde-applet-audio      = { path = "../../applets/audio" }
+mde-applet-clock      = { path = "../../applets/clock" }
+mde-applet-notifications = { path = "../../applets/notifications" }
+
+# v4.0.1 WM-3 — window-actions popover writes to ~/.config/mde/panel.toml.
+mackes-config = { path = "../../mesh/mackes-config" }
+
+# JSON parsing for the notifications popover (read
+# ~/.cache/mackes/notifications.json).
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+# BUS-5.6 — decode inline clipboard payloads from the bus topic tree.
+base64     = "0.22"
+
+# CLI parsing for `mde-popover <kind>` dispatch.
+clap = { version = "4.5", features = ["derive"] }
+
+# Tracing for boot diagnostics — same JSON-line format mde-panel uses.
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# XDG home + cache paths (matches mde-panel + mackesd).
+dirs = "5"
+
+# ANIM-3.b.2 — motion token constants (stagger + dismiss timing).
+mde-theme = { path = "../../shared/mde-theme" }
+
+[dev-dependencies]
+# Watermark + admin-menu tests use tempdir for filesystem
+# round-trips (cached count file, build-meta probe).
+tempfile = "3"
+
+[lints.rust]
+unsafe_code     = "forbid"
+unused_must_use = "deny"
+missing_docs    = "allow"
+
+[lints.clippy]
+pedantic                = { level = "allow", priority = -1 }
+nursery                 = { level = "allow", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate      = "allow"
+missing_errors_doc      = "allow"
+missing_panics_doc      = "allow"
+unwrap_used             = "warn"
+panic                   = "warn"
+todo                    = "warn"

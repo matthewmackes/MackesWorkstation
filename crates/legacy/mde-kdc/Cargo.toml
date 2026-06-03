@@ -1,0 +1,93 @@
+[package]
+name        = "mde-kdc"
+description = "KDC2-3 — Native KDE Connect host integration. Implements the Transport trait, hosts dev.mackes.MDE.Connect.* on D-Bus, owns the file-backed pairing store at ~/.config/mde/connect/. Wraps the pure-library mde-kdc-proto in the wiring it needs (filesystem, RSA keygen, eventually networking + zbus). v2.1 native re-implementation supersedes the v13.0 Option A wrapper of upstream kdeconnectd."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+
+[lib]
+name = "mde_kdc"
+path = "src/lib.rs"
+
+[dependencies]
+# v2.1 KDC2: pure-library protocol crate. mde-kdc imports the wire
+# types + KeyStore trait + RSA sign/verify + AEAD seal/open from
+# here and adds the I/O + filesystem + future networking layers
+# on top.
+mde-kdc-proto = { path = "../mde-kdc-proto", package = "mde-kdc-proto-legacy" }
+
+# KDC2-1: Transport trait + capability model. mde-kdc implements
+# `Transport` so the mesh router (mackesd::workers::mesh_router)
+# can dispatch through it transparently.
+mackes-transport = { path = "../../mesh/mackes-transport" }
+
+# KDC2-3.2 — async-trait macro for the Transport impl. Pulling
+# just the macro crate; tokio dependency is deferred until
+# KDC2-2.8 lands the rustls-based TLS transport and we actually
+# need a runtime.
+async-trait = "0.1"
+
+# Pure-Rust RSA — used ONLY for keypair generation. ring 0.17.x
+# does not expose stable RSA keygen, so we pull the rsa crate
+# here, generate PKCS#8 bytes, and feed them back into ring via
+# mde-kdc-proto's `PairingKeyPair::from_pkcs8`. The hot sign /
+# verify path stays on ring; rsa runs once per first-launch.
+rsa  = "0.9"
+rand = "0.8"
+
+# KDC2-3.7 — PKCS#8 PEM encode/decode for the identity.pem
+# file. Re-uses the rsa crate's pkcs8 dep.
+pkcs8 = { version = "0.10", features = ["pem"] }
+
+# KDC2-2.7 — X.509 self-signed cert generation. rcgen accepts
+# an existing PKCS#8 RSA keypair via `KeyPair::from_pkcs8_pem
+# _and_sign_algo`, so the device identity (CN = peer-id) is
+# bound to the same RSA-2048 keypair the handshake signs with.
+rcgen = "0.13"
+
+# KDC2-2.8 — TLS layer. rustls 0.23 with the ring crypto
+# provider (matches mde-kdc-proto's ring dep so the audit
+# closure stays single-source). Cert pinning via custom
+# `ServerCertVerifier` impl that matches against a SHA-256
+# fingerprint the host's pairing store records at first-pair.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+# KDC2-3.2.a — async TLS wrapper over tokio sockets. Matches
+# rustls 0.23. Default features keep `ring` transitive.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring"] }
+sha2 = "0.10"
+
+# KDC2-3.3 — D-Bus host. zbus 5 with the tokio runtime so the
+# Connect interface coexists cleanly with the rest of mackesd's
+# async workers. `default-features = false` drops the
+# default-async-io (sneaky reactor-conflict source); we
+# explicitly pick `tokio` instead.
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "net", "time", "io-util"] }
+
+# KDC2-2.9.a — mDNS announce + browse via mdns-sd. The same
+# version mackesd's lan_discovery worker uses, so the build
+# graph re-uses one copy. mdns-sd runs its own daemon thread
+# internally + cohabits cleanly with tokio.
+mdns-sd = "0.11"
+# mdns-sd exposes its event channel as a flume Receiver. Pull
+# flume directly so we can name the type in our struct fields.
+flume = "0.11"
+
+# Serde for the pairing store's on-disk format.
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml       = "0.8"
+
+# BUS-5.9 — clip_bridge: phone↔mesh clipboard bus message format.
+ulid   = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+base64 = "0.22"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -1,0 +1,50 @@
+[package]
+name         = "mde-session"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+description  = "MDE user-session orchestrator — execs sway (wayland feature) or i3 (x11 feature) + owns the dev.mackes.MDE.Session DBus surface"
+
+[[bin]]
+name = "mde-session"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime — tokio for the zbus connection + signal handling.
+tokio = { version = "1", features = ["full"] }
+# DBus surface: dev.mackes.MDE.Session = { Logout, Restart,
+# Shutdown, Lock, SaveLayout }. zbus 5 with tokio integration.
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+async-trait = "0.1"
+# Error context for the SaveLayout path that touches the filesystem.
+anyhow = "1"
+# Structured logging — journald reads JSON spans from stderr when
+# the unit's StandardError=journal.
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+# Reads + writes settings sidecars during session bring-up.
+mackesd-core = { package = "mackesd", path = "../../mesh/mackesd", features = ["async-services"] }
+# XDG path resolution (same crate mackesd uses).
+dirs = "5"
+# DBUS-1 — the session lifecycle surface migrated from the
+# `dev.mackes.MDE.Session` D-Bus interface to Bus `action/session/<verb>`
+# per the Q96 Bus-canonical lock (EPIC-RETIRE-DBUS).
+mde-bus = { path = "../../platform/mde-bus" }
+# DBUS-1 — JSON Bus reply bodies (`{ok,error}`).
+serde_json = "1"
+
+[features]
+# `wayland` (default): sway compositor + swaylock screen locker.
+# `x11`: i3 compositor + i3lock screen locker.
+default = ["wayland"]
+wayland = []
+x11     = []
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true
