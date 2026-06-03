@@ -105,6 +105,18 @@ Workbench's look.
   **registered-module Settings registry** (resolves Q14 → modular pages); the
   Workbench drops Network entirely.
 
+*Batch 6 — governing rule + process/versioning, 2026-06-03:*
+- **Q15 PLACEMENT RULE → "Mirror Windows 10."** If Windows 10 has an equivalent
+  surface, the feature lives there (Win10 shell / Settings / an app); only **novel
+  platform features** (fleet/playbooks, compute, mesh ops, maintain/drift, presets,
+  deployment-role management) go to the **Workbench**. This rule settles the
+  remaining per-feature placements.
+- **Q12 process model → one multiplexed `mde <subcommand>` binary** for all GUI
+  surfaces + **`mackesd` daemon** for long-lived workers (MDE-Retro's proven model).
+- **Q39 applets → map the 17 `mde-applets` to Win10 tray items + Action-Center
+  tiles** (reuse backends; no separate applet host).
+- **Q7 versioning → share the platform's v10.0.0** (one version across the monorepo).
+
 ## 0.1 Information currency
 
 The original review snapshot was **65 commits stale**; refreshed against current MDE
