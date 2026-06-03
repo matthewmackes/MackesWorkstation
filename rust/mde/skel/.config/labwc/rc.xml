@@ -111,6 +111,12 @@
     <!-- Snip a region (Win+Shift+S — the Windows snipping shortcut). Win10-only;
          inert under the classic eras. -->
     <keybind key="W-S-s"><action name="Execute"><command>mde snip rect</command></action></keybind>
+    <!-- PrintScreen family (E16.7), mapping to the E16.5 snip modes: Print copies
+         the whole screen to the clipboard (no file), Win+Print saves the whole
+         screen, Alt+Print snips the focused window. All Win10-only (inert otherwise). -->
+    <keybind key="Print"><action name="Execute"><command>mde snip clip</command></action></keybind>
+    <keybind key="W-Print"><action name="Execute"><command>mde snip full</command></action></keybind>
+    <keybind key="A-Print"><action name="Execute"><command>mde snip window</command></action></keybind>
     <!-- Win10 Settings (Win+I). `mde settings` is the modern Settings app; under
          non-Win10 eras `mde control-panel` is the gear target instead. -->
     <keybind key="W-i"><action name="Execute"><command>mde settings</command></action></keybind>
