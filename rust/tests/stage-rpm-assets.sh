@@ -18,4 +18,8 @@ rm -rf "$stage/icons/Chicago95_Standard_Cursors/build"  # source files, not the 
 # Prune dangling symlinks (the Haiku theme ships a few alias links whose targets
 # aren't generated) — cargo-generate-rpm errors out trying to read them.
 find "$stage" -xtype l -delete
+# Regenerate the Windows 10 greeter theme (assets/greeter/) from the current
+# palette so the shipped CSS never drifts from palette.rs (E10.9/E10.10). Best
+# effort — the RPM also works from the committed assets if the binary isn't built.
+bash "$here/tests/stage-greeter-assets.sh" || echo "warning: greeter regen skipped (build mde first)"
 echo "staged $(du -sh "$stage" | cut -f1) into $stage"
