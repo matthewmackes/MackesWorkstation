@@ -358,7 +358,9 @@ fn launch() -> Result<(), iced_layershell::Error> {
             show_taskview: st.win10_show_taskview,
             search_mode: st.win10_search_mode.clone(),
             autohide: st.win10_autohide,
-            pinned: st.pinned,
+            // Seeds the default-browser pin under Win10 when nothing is pinned yet
+            // (E18.5); the classic eras get `st.pinned` verbatim.
+            pinned: crate::state::effective_pinned(&st),
             ..Panel::default()
         };
         (panel, Task::done(Message::Tick))
@@ -945,6 +947,12 @@ fn view_win10(state: &Panel) -> Element<'_, Message> {
         bar = bar.push(win10_taskview_button());
     }
 
+    // Quick Launch: pinned apps as icon buttons (E18.5; the default browser is
+    // seeded under Win10 via `effective_pinned`).
+    for item in &state.pinned {
+        bar = bar.push(win10_pin_button(item));
+    }
+
     for w in &state.windows {
         bar = bar.push(win10_task_button(w));
     }
@@ -1045,6 +1053,22 @@ fn win10_task_button(w: &wlr::Window) -> Element<'_, Message> {
     mouse_area(col)
         .on_press(Message::TaskButton(w.id))
         .on_right_press(Message::JumpList(w.app_id.clone()))
+        .into()
+}
+
+/// A Win10 Quick-Launch pin: the app icon, launching the pinned command on click
+/// (E18.5). Right-click on the default-browser pin opens its jump list (E18.6).
+fn win10_pin_button(item: &crate::state::PinnedItem) -> Element<'_, Message> {
+    let icon_id = item.command.split_whitespace().next().unwrap_or("");
+    let icon = container(crate::icons::icon_any(
+        &[icon_id, "application-x-executable"],
+        24,
+    ))
+    .height(Length::Fill)
+    .center_x(Length::Fixed(bar_h()))
+    .center_y(Length::Fill);
+    mouse_area(icon)
+        .on_press(Message::Launch(item.command.clone()))
         .into()
 }
 

@@ -60,6 +60,23 @@ pub fn open_url_cmd(url: &str) -> String {
     format!("xdg-open '{}'", url.replace('\'', "'\\''"))
 }
 
+/// The Quick-Launch / Start pin for the default web browser (E18.5). Name + icon
+/// come from the detected default ([`default_browser`]) — Firefox on a shipped
+/// system; the command is the browser's binary (its icon id), Firefox as fallback.
+pub fn default_pin() -> crate::state::PinnedItem {
+    let b = default_browser();
+    let command = if b.icon.is_empty() {
+        "firefox".to_string()
+    } else {
+        b.icon.clone()
+    };
+    crate::state::PinnedItem {
+        name: b.name,
+        command,
+        launch_count: 0,
+    }
+}
+
 /// The Firefox `places.sqlite` to read history from. `MDE_PLACES_DB` overrides it
 /// (a capture/test seam); otherwise the `default`-named profile under
 /// `~/.mozilla/firefox/`, else any profile that has one.

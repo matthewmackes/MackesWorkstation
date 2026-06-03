@@ -473,12 +473,32 @@ impl Default for MenuState {
 /// The Start tiles to show: the persisted `start_tiles` if any, else seeded from
 /// the pinned items (first-run) so the Win10 Start tile area is never blank.
 /// Pure — the caller persists if it wants the seed to stick.
+/// The seeded default state for a fresh config (E18.5): the base default plus a
+/// Quick-Launch / Start pin for the default browser. Consumed only under the Win10
+/// era (see [`effective_pinned`]), so the classic eras stay pin-free by default.
+pub fn default_state() -> MenuState {
+    MenuState {
+        pinned: vec![crate::browser::default_pin()],
+        ..MenuState::default()
+    }
+}
+
+/// The pins to show: the persisted `pinned`, or — **only under the Win10 era and
+/// only when nothing is pinned yet** — the seeded default-browser pin (E18.5). The
+/// classic eras always use `pinned` verbatim, so they're unchanged.
+pub fn effective_pinned(state: &MenuState) -> Vec<PinnedItem> {
+    if state.pinned.is_empty() && mde_ui::palette::is_windows10() {
+        default_state().pinned
+    } else {
+        state.pinned.clone()
+    }
+}
+
 pub fn seed_start_tiles(state: &MenuState) -> Vec<StartTile> {
     if !state.start_tiles.is_empty() {
         return state.start_tiles.clone();
     }
-    state
-        .pinned
+    effective_pinned(state)
         .iter()
         .map(|p| StartTile {
             name: p.name.clone(),
