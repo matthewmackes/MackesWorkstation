@@ -1039,6 +1039,29 @@ A drop-in subcommand modeled on `popup.rs`/`menu.rs`:
 
 **4. Default-apps rows in Settings (defers to E15, scoped).** In the Win10 Settings > Apps > Default apps surface (E15), MDE renders rows **only for in-scope categories: Email and Web browser** (Maps/Music are out of scope, D-list — no row, no chooser). The "Web browser" row reads `browser::default_browser()` for its current value and calls `browser::set_default()` from the chooser. This epic ships `browser.rs` with those two entry points so E15 wires the row without new logic; the row itself is E15's story, not E18's.
 
+#### Shipped (E18.1–E18.9) — reconciliation with the design above
+
+The epic landed under the Carbon-aliased `Theme::Windows10` (the rebrand collapsed
+the Win10 palette onto Carbon; `is_windows10()` still gates placement/labels). What
+shipped vs. the design notes above:
+
+- **`browser.rs`** — `default_browser()` / `launch_url()` / `set_default()` as
+  designed, plus `pin_page(url, name)` for "pin web page to taskbar" and
+  `recent_sites()` (bundled read-only `rusqlite` over `places.sqlite`, copy-to-temp
+  `?immutable=1`). Reached via `mde browser-default [--icon|--set-default|--pin URL
+  [--name T]|URL]`.
+- **`mde browser-jumplist`** — shipped (Tasks → New / New Private window, Recent
+  from Firefox history, Firefox footer); right-click on the Win10 Quick-Launch pin
+  spawns it (`QuickLaunchContext`). It reuses `popup.rs`'s `launch_with` rather than
+  a copied scaffold. Listed in `mde --help` / `USAGE`.
+- **Default apps page (E18.8) — Web browser only, *not* Email.** The native
+  `Settings ▸ Apps ▸ Default apps` page renders the **Web-browser row only**. The
+  design's "Email and Web browser" pair is narrowed: there is no shipped default
+  *email-handler* backend, so an Email row would be an inert mockup (§3). Email
+  surfaces with its own backend epic; Maps/Music remain out of scope (a guard test
+  in `browser.rs` keeps those symbols out). When E15's mail backend lands, the Email
+  row is additive — no rework of the Web-browser row.
+
 **Reused code:** `embedded_icons/firefox.svg` (already shipped) via `icons::icon_any`; the `xdg-open` spawn pattern from `files.rs`/`menu.rs`; `popup.rs` row/anchor scaffolding; `state.rs` `PinnedItem` + atomic `save()`; `panel.rs` Quick-Launch render + `push_child`/`spawn_child` reaping; the single `palette::color` theme edge. **Linux backends:** `xdg-settings`/`xdg-mime` (default registration), `xdg-open`/`firefox` CLI (launch), Firefox `places.sqlite` via read-only `rusqlite` (recent/jump-list history). **New dependency:** `rusqlite` (read-only). No compositor patching.
 
 **Out of scope (must not appear):** importing bookmarks/sync UI, tracking-protection settings, search-engine config, Immersive Reader, PWA install chrome (p. 254-259) — those are browser-internal, not shell integration. Maps and Music-player default-apps rows. OneNote, People.

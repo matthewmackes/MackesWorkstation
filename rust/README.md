@@ -25,6 +25,13 @@ and BeOS — switchable in Display ▸ Appearance.
   (palette/metrics transcribed from `../assets/reference/win2000-classic-colors.ini`),
   and BeOS. Verified by the [accuracy harness](ACCURACY.md).
 - **Binary:** one `mde` multiplexed by subcommand (or by `mde-*` symlink).
+- **Default browser (Windows 10 era):** the shipped browser is **Firefox** — the
+  shell never fakes an "Edge" brand it doesn't ship. The Win10 surfaces present and
+  manage it: a Start tile + taskbar Quick-Launch pin, the `mde browser-jumplist`
+  taskbar jump list (New / New Private window + recent sites from Firefox history),
+  and Settings ▸ Apps ▸ Default apps (Web-browser row). `mde browser-default` reads
+  or sets it — `--set-default` registers Firefox as the system default,
+  `--pin <url>` pins a web page to the taskbar.
 - **Packaging:** `cargo generate-rpm -p mde` (code-only RPM; assets fetched on
   first run via `mde install --assets`).
 
