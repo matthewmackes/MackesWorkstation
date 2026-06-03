@@ -12,7 +12,9 @@
 
 use std::process::{Command, ExitCode};
 
-use iced::widget::{button as ibutton, container, scrollable, text, Column, Row, Space};
+use iced::widget::{
+    button as ibutton, container, scrollable, text, text_input, Column, Row, Space,
+};
 use iced::{
     gradient::Linear, Background, Color, Element, Gradient, Length, Padding, Radians, Task,
 };
@@ -38,7 +40,10 @@ const REGIONS: &[(&str, &str)] = &[
 enum Stage {
     Region,
     Keyboard,
+    SecondKeyboard,
+    Pin,
     Privacy,
+    YourPhone,
     Personalize,
     Finalize,
 }
@@ -48,7 +53,10 @@ enum Stage {
 const FLOW: &[Stage] = &[
     Stage::Region,
     Stage::Keyboard,
+    Stage::SecondKeyboard,
+    Stage::Pin,
     Stage::Privacy,
+    Stage::YourPhone,
     Stage::Personalize,
     Stage::Finalize,
 ];
@@ -85,6 +93,11 @@ struct Oobe {
     p_diagnostics: bool,
     p_find: bool,
     p_ads: bool,
+    /// Second-keyboard stage (E11.3): an optional additional layout (None = skipped).
+    second_layout: Option<usize>,
+    /// Your-Phone stage (E11.8): the phone number the user types (informational —
+    /// real pairing is the Your Phone app's job once `mde connect` lands).
+    phone: String,
     /// Personalize stage (E11.9): accent index into ACCENTS + light/dark.
     accent: usize,
     light: bool,
@@ -94,9 +107,13 @@ struct Oobe {
 enum Msg {
     PickRegion(usize),
     PickLayout(usize),
+    PickSecond(usize),
     TogglePrivacy(u8),
     PickAccent(usize),
     SetMode(bool), // true = light
+    Phone(String),
+    /// Advance without committing the current stage (Skip / Do-it-later).
+    Skip,
     Next,
     Back,
     Finish,
@@ -169,7 +186,10 @@ pub fn run(args: &[String]) -> ExitCode {
         .and_then(|s| match s.as_str() {
             "region" => Some(Stage::Region),
             "keyboard" => Some(Stage::Keyboard),
+            "secondkeyboard" => Some(Stage::SecondKeyboard),
+            "pin" => Some(Stage::Pin),
             "privacy" => Some(Stage::Privacy),
+            "yourphone" => Some(Stage::YourPhone),
             "personalize" => Some(Stage::Personalize),
             "finalize" => Some(Stage::Finalize),
             _ => None,
@@ -181,6 +201,8 @@ pub fn run(args: &[String]) -> ExitCode {
         dry,
         region: detected_region(),
         layout: detected_layout(),
+        second_layout: None,
+        phone: String::new(),
         p_location: st.privacy_location,
         p_diagnostics: st.privacy_diagnostics,
         p_find: st.privacy_find_device,
@@ -312,10 +334,33 @@ fn commit_personalize(state: &Oobe) {
     let _ = crate::state::save(&st);
 }
 
+/// Apply both keyboard layouts (E11.3): `localectl set-x11-keymap <l1>[,<l2>]` — the
+/// combined keymap so the second layout is switchable. Echoed under dry-run.
+fn apply_second_keymap(primary: &str, second: Option<&str>, dry: bool) {
+    let combined = match second {
+        Some(s) => format!("{primary},{s}"),
+        None => primary.to_string(),
+    };
+    if dry {
+        println!("  + localectl set-x11-keymap {combined}");
+        return;
+    }
+    let _ = Command::new("localectl")
+        .args(["set-x11-keymap", &combined])
+        .status();
+}
+
+fn advance(state: &mut Oobe) {
+    if let Some(n) = state.stage.next() {
+        state.stage = n;
+    }
+}
+
 fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
     match msg {
         Msg::PickRegion(i) => state.region = i,
         Msg::PickLayout(i) => state.layout = i,
+        Msg::PickSecond(i) => state.second_layout = Some(i),
         Msg::TogglePrivacy(which) => match which {
             0 => state.p_location = !state.p_location,
             1 => state.p_diagnostics = !state.p_diagnostics,
@@ -324,6 +369,15 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
         },
         Msg::PickAccent(i) => state.accent = i,
         Msg::SetMode(light) => state.light = light,
+        Msg::Phone(s) => state.phone = s,
+        Msg::Skip => {
+            // Skip / Do-it-later: advance without committing this stage. For the
+            // second-keyboard stage that means clearing any tentative pick.
+            if state.stage == Stage::SecondKeyboard {
+                state.second_layout = None;
+            }
+            advance(state);
+        }
         Msg::Back => {
             if let Some(p) = state.stage.prev() {
                 state.stage = p;
@@ -336,13 +390,20 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
                 Stage::Keyboard => {
                     apply_keymap(crate::keyboard::LAYOUTS[state.layout].0, state.dry)
                 }
+                Stage::SecondKeyboard => apply_second_keymap(
+                    crate::keyboard::LAYOUTS[state.layout].0,
+                    state.second_layout.map(|i| crate::keyboard::LAYOUTS[i].0),
+                    state.dry,
+                ),
                 Stage::Privacy => commit_privacy(state),
                 Stage::Personalize => commit_personalize(state),
+                // Pin (E11.6) and Your Phone (E11.8) collect nothing to commit yet —
+                // a faithful Skip-style advance (PIN is future; phone pairing is the
+                // Your Phone app's job once `mde connect` lands).
+                Stage::Pin | Stage::YourPhone => {}
                 Stage::Finalize => {}
             }
-            if let Some(n) = state.stage.next() {
-                state.stage = n;
-            }
+            advance(state);
         }
         Msg::Finish => {
             finish(state.dry);
@@ -404,8 +465,19 @@ fn picker<'a>(
         .into()
 }
 
-/// The bottom action strip: an optional Back, a spacer, and the primary button.
+/// The bottom action strip: an optional Back, a spacer, the primary button.
 fn actions<'a>(back: bool, primary: &'a str, on_primary: Msg) -> Element<'a, Msg> {
+    actions_full(back, None, primary, on_primary)
+}
+
+/// Like [`actions`] but with an optional secondary (Skip / Do-it-later) button to
+/// the left of the primary (E11.3/E11.6/E11.8).
+fn actions_full<'a>(
+    back: bool,
+    skip: Option<&'a str>,
+    primary: &'a str,
+    on_primary: Msg,
+) -> Element<'a, Msg> {
     let mut row = Row::new().spacing(8.0).padding(pad(8.0, 24.0, 16.0, 24.0));
     if back {
         row = row.push(
@@ -415,6 +487,13 @@ fn actions<'a>(back: bool, primary: &'a str, on_primary: Msg) -> Element<'a, Msg
         );
     }
     row = row.push(Space::with_width(Length::Fill));
+    if let Some(label) = skip {
+        row = row.push(
+            mde_ui::button(text(label).size(metrics::UI_PX))
+                .on_press(Msg::Skip)
+                .width(Length::Fixed(120.0)),
+        );
+    }
     row = row.push(
         mde_ui::button(text(primary).size(metrics::UI_PX))
             .on_press(on_primary)
@@ -583,6 +662,26 @@ fn personalize_body(state: &Oobe) -> Element<'_, Msg> {
         .into()
 }
 
+fn your_phone_body(state: &Oobe) -> Element<'_, Msg> {
+    Column::new()
+        .spacing(12.0)
+        .padding(pad(20.0, 8.0, 0.0, 8.0))
+        .push(text("Phone number").size(metrics::UI_PX).color(dim()))
+        .push(
+            text_input("+1 555 0123", &state.phone)
+                .on_input(Msg::Phone)
+                .size(metrics::UI_PX)
+                .padding(pad(6.0, 10.0, 6.0, 10.0))
+                .width(Length::Fixed(260.0)),
+        )
+        .push(
+            text("We'll send a link to install the companion app. Pairing finishes in the Your Phone app.")
+                .size(metrics::BADGE_PX)
+                .color(dim()),
+        )
+        .into()
+}
+
 fn view(state: &Oobe) -> Element<'_, Msg> {
     match state.stage {
         Stage::Region => frame(
@@ -607,6 +706,46 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
                 Msg::PickLayout,
             ),
             actions(true, "Yes", Msg::Next),
+        ),
+        Stage::SecondKeyboard => frame(
+            "Want to add a second keyboard layout?",
+            "Pick another layout to switch between, or skip — you can add one later in Settings.",
+            picker(
+                crate::keyboard::LAYOUTS
+                    .iter()
+                    .enumerate()
+                    .map(|(i, (_, name))| (i, *name)),
+                state.second_layout.unwrap_or(usize::MAX),
+                Msg::PickSecond,
+            ),
+            actions_full(true, Some("Skip"), "Add layout", Msg::Next),
+        ),
+        Stage::Pin => {
+            let body = Column::new()
+                .spacing(10.0)
+                .padding(pad(20.0, 0.0, 0.0, 0.0))
+                .push(
+                    text("A PIN is a quick, secure way to sign in to your device.")
+                        .size(metrics::UI_PX)
+                        .color(white()),
+                )
+                .push(
+                    text("You can set this up later in Settings ▸ Accounts ▸ Sign-in options.")
+                        .size(metrics::BADGE_PX)
+                        .color(dim()),
+                );
+            frame(
+                "Create a PIN",
+                "Windows Hello sign-in.",
+                body.into(),
+                actions_full(true, Some("Skip for now"), "Next", Msg::Next),
+            )
+        }
+        Stage::YourPhone => frame(
+            "Link your phone and PC",
+            "Get your phone's photos, messages and notifications on your PC. Enter your number, or do this later.",
+            your_phone_body(state),
+            actions_full(true, Some("Do it later"), "Next", Msg::Next),
         ),
         Stage::Privacy => frame(
             "Choose privacy settings for your device",
