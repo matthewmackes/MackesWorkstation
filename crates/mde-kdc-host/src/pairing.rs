@@ -31,6 +31,14 @@ pub struct DeviceRecord {
     pub device_name: String,
     /// Unix-millisecond timestamp of when the peer was first paired (audit).
     pub paired_at_ms: i64,
+    /// The peer's pinned TLS identity: the SHA-256 fingerprint of its self-signed
+    /// cert ([`crate::tls::compute_fingerprint`]), recorded at first pair. Every
+    /// later TLS handshake to this peer must present a cert with this fingerprint
+    /// (the `PinnedFingerprintVerifier`); a mismatch is a key-change/MITM signal.
+    /// `#[serde(default)]` so a `devices.toml` written before this field loads as
+    /// an empty pin (which the transport treats as not-yet-pinned).
+    #[serde(default)]
+    pub fingerprint: String,
 }
 
 /// The `devices.toml` document root: a list of `[[device]]` tables.
@@ -249,6 +257,7 @@ mod tests {
             device_id: id.into(),
             device_name: "Phone".into(),
             paired_at_ms: 1,
+            fingerprint: "AB:CD:EF".into(),
         }
     }
 
@@ -309,6 +318,25 @@ mod tests {
         let s2 = PairingStore::open(tmp.path()).unwrap();
         assert!(s2.is_paired("dev-1"));
         assert_eq!(s2.get("dev-1").unwrap().device_name, "Phone");
+        // The pinned fingerprint round-trips through devices.toml.
+        assert_eq!(s2.get("dev-1").unwrap().fingerprint, "AB:CD:EF");
+    }
+
+    #[test]
+    fn devices_toml_without_fingerprint_loads_with_empty_pin() {
+        // Back-compat: a devices.toml written before the fingerprint field (e.g. a
+        // store from increment 1) must still load, with an empty (not-yet-pinned)
+        // fingerprint rather than a deserialize error.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("devices.toml"),
+            "[[device]]\ndevice_id = \"old-1\"\ndevice_name = \"Legacy\"\npaired_at_ms = 42\n",
+        )
+        .unwrap();
+        let s = PairingStore::open(tmp.path()).unwrap();
+        let rec = s.get("old-1").expect("legacy record loads");
+        assert_eq!(rec.device_name, "Legacy");
+        assert_eq!(rec.fingerprint, "", "missing fingerprint defaults to empty");
     }
 
     #[test]
