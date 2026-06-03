@@ -69,7 +69,7 @@ mde-kdc = { path = "../mde-kdc", optional = true }
 # Nebula peer-hood per Q23 of the 25-Q tuning survey
 # (EPIC PHONE-NEBULA-PEER). No feature gate — these are pure
 # types, no I/O or async runtime needed in the base build.
-mde-kdc-proto = { path = "../mde-kdc-proto" }
+mde-kdc-proto = { path = "../mde-kdc-proto", package = "mde-kdc-proto-legacy" }
 
 # EPIC-MESH-PROBE (MESH-PROBE-2) — the probe inventory IS mde-card
 # Cards (Q7): the nmap parser emits Host cards with Service children

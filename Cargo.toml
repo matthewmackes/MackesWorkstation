@@ -1,0 +1,101 @@
+# MackesWorkstation — unified cargo workspace (E0 build-green).
+# Fuses the three imported repos (import/mde, import/mde-retro, import/mde-kdc) into one
+# workspace. MDE's in-tree mde-kdc/mde-kdc-proto are EXCLUDED as members (the canonical
+# KDE Connect host lives in import/mde-kdc; mackesd's path deps still point at MDE's copies
+# until the E2 convergence). The §12 crates/* reorg follows once this builds green.
+
+[workspace]
+resolver = "2"
+members = [
+    "import/mde/crates/mackes-config",
+    "import/mde/crates/mackes-mesh-types",
+    "import/mde/crates/mackes-nebula-https-tunnel",
+    "import/mde/crates/mackes-panel",
+    "import/mde/crates/mackes-theme",
+    "import/mde/crates/mackes-transport",
+    "import/mde/crates/mackesd",
+    "import/mde/crates/mde-applets/app-switcher",
+    "import/mde/crates/mde-applets/apple-menu",
+    "import/mde/crates/mde-applets/applet-api",
+    "import/mde/crates/mde-applets/audio",
+    "import/mde/crates/mde-applets/bg",
+    "import/mde/crates/mde-applets/brightness-osd",
+    "import/mde/crates/mde-applets/clock",
+    "import/mde/crates/mde-applets/dock",
+    "import/mde/crates/mde-applets/mesh-status",
+    "import/mde/crates/mde-applets/network",
+    "import/mde/crates/mde-applets/notification-bell",
+    "import/mde/crates/mde-applets/notifications",
+    "import/mde/crates/mde-applets/recents",
+    "import/mde/crates/mde-applets/start-menu",
+    "import/mde/crates/mde-applets/status-cluster",
+    "import/mde/crates/mde-applets/sway-cluster",
+    "import/mde/crates/mde-applets/volume-osd",
+    "import/mde/crates/mde-alert-emit",
+    "import/mde/crates/mde-bus",
+    "import/mde/crates/mde-card",
+    "import/mde/crates/mde-clipd",
+    "import/mde/crates/mde-config",
+    "import/mde/crates/mde-drawer",
+    "import/mde/crates/mde-files",
+    "import/mde/crates/mde-iced-components",
+    "import/mde/crates/mde-installer",
+    "import/mde/crates/mde-logout-dialog",
+    "import/mde/crates/mde-mesh-types",
+    "import/mde/crates/mde-music",
+    "import/mde/crates/mde-musicd",
+    "import/mde/crates/mde-panel",
+    "import/mde/crates/mde-portal",
+    "import/mde/crates/mde-peer-card",
+    "import/mde/crates/mde-popover",
+    "import/mde/crates/mde-session",
+    "import/mde/crates/mde-theme",
+    "import/mde/crates/mde-virtual",
+    "import/mde/crates/mde-voice-config",
+    "import/mde/crates/mde-voice-hud",
+    "import/mde/crates/mde-wizard",
+    "import/mde/crates/mde-workbench",
+    "import/mde/crates/mded",
+    "import/mde-retro/rust/mde",
+    "import/mde-retro/rust/mde-ui",
+    "import/mde-kdc/crates/mde-kdc-proto",
+    "import/mde-kdc/crates/mde-kdc-host",
+]
+
+[workspace.package]
+version      = "10.0.0"
+edition      = "2021"
+rust-version = "1.85"
+license      = "GPL-3.0-or-later"
+authors      = ["Matthew Mackes <matthewmackes@gmail.com>"]
+repository   = "https://github.com/matthewmackes/MackesWorkstation"
+
+# Shared deps the MDE-Retro shell crates inherit (iced/serde/...). MDE + KDC crates
+# declare their own deps explicitly, so this set only needs the shell's.
+[workspace.dependencies]
+iced = { version = "0.13", features = ["image", "svg", "advanced", "tokio"] }
+iced_layershell = "0.13"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+mde-ui = { path = "import/mde-retro/rust/mde-ui" }
+
+# The strict lints the 41 MDE/KDC crates inherit (they were authored to pass them).
+# MDE-Retro's mde/mde-ui do not use `lints.workspace`, so they are unaffected.
+[workspace.lints.rust]
+unsafe_code     = "forbid"
+missing_docs    = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+pedantic    = { level = "warn", priority = -1 }
+nursery     = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+panic       = "warn"
+todo        = "warn"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

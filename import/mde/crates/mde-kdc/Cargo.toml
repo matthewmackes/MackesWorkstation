@@ -17,7 +17,7 @@ path = "src/lib.rs"
 # types + KeyStore trait + RSA sign/verify + AEAD seal/open from
 # here and adds the I/O + filesystem + future networking layers
 # on top.
-mde-kdc-proto = { path = "../mde-kdc-proto" }
+mde-kdc-proto = { path = "../mde-kdc-proto", package = "mde-kdc-proto-legacy" }
 
 # KDC2-1: Transport trait + capability model. mde-kdc implements
 # `Transport` so the mesh router (mackesd::workers::mesh_router)

@@ -1,5 +1,5 @@
 [package]
-name        = "mde-kdc-proto"
+name = "mde-kdc-proto-legacy"
 version     = "0.0.0"
 edition     = "2021"
 publish     = false
