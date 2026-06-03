@@ -106,6 +106,40 @@ fn out(bin: &str, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&o.stdout).to_string())
 }
 
+/// firewalld detail for the Firewall page (E14.5): running, default zone, and the
+/// active zones (mapped to Win10 network profiles in the view).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct FirewallDetail {
+    pub running: bool,
+    pub default_zone: String,
+    pub zones: Vec<String>,
+}
+
+/// Read the live firewalld detail (running / default zone / active zones).
+pub fn firewall_detail() -> FirewallDetail {
+    FirewallDetail {
+        running: out("firewall-cmd", &["--state"])
+            .map(|s| parse_firewall_state(&s))
+            .unwrap_or(false),
+        default_zone: out("firewall-cmd", &["--get-default-zone"])
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default(),
+        zones: out("firewall-cmd", &["--get-active-zones"])
+            .map(|s| parse_active_zones(&s))
+            .unwrap_or_default(),
+    }
+}
+
+/// Map a firewalld zone name to the Windows 10 network-profile label it most
+/// resembles (Domain / Private / Public).
+pub fn win10_zone_label(zone: &str) -> &'static str {
+    match zone {
+        "home" | "internal" | "trusted" => "Private network",
+        "work" | "dmz" => "Domain network",
+        _ => "Public network",
+    }
+}
+
 /// firewalld state + active zones.
 pub fn firewall() -> Tile {
     match out("firewall-cmd", &["--state"]) {
@@ -264,6 +298,15 @@ mod tests {
         let enc = "NAME   FSTYPE      \nsda                \nsda1   crypto_LUKS \n";
         assert!(parse_luks(enc));
         assert!(!parse_luks("NAME FSTYPE\nsda1 ext4\n"));
+    }
+
+    #[test]
+    fn zone_to_win10_profile() {
+        assert_eq!(win10_zone_label("home"), "Private network");
+        assert_eq!(win10_zone_label("trusted"), "Private network");
+        assert_eq!(win10_zone_label("work"), "Domain network");
+        assert_eq!(win10_zone_label("public"), "Public network");
+        assert_eq!(win10_zone_label("anything-else"), "Public network");
     }
 
     #[test]
