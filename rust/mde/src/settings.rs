@@ -203,6 +203,8 @@ enum Kind {
     DataUsage,
     /// The native Network & Internet ▸ Cellular page (E15.12) — greyed advisory.
     Cellular,
+    /// The native Accounts ▸ Your info page (E10.3).
+    AccountInfo,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -387,6 +389,10 @@ const CATEGORIES: &[Category] = &[
         icons: &["system-users", "avatar-default"],
         pages: &[
             Page {
+                title: "Your info",
+                kind: Kind::AccountInfo,
+            },
+            Page {
                 title: "Users",
                 kind: Kind::Tool("seahorse"),
             },
@@ -560,6 +566,9 @@ struct Settings {
     /// editable monthly limit in MB (mirrors `state.data_limit_mb`).
     usage: Vec<(String, u64, u64)>,
     data_limit: String,
+    /// Accounts ▸ Your info (E10.3): friendly name + avatar path, mirroring `state`.
+    display_name: String,
+    account_picture: String,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -646,6 +655,10 @@ enum Message {
     SetWifiRadio(bool),
     // Data usage page (E15.11).
     SetDataLimit(String),
+    // Accounts ▸ Your info (E10.3).
+    DisplayName(String),
+    BrowseAvatar,
+    AvatarBrowsed(Option<String>),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -737,6 +750,7 @@ fn list() -> ExitCode {
                 Kind::Airplane => "(native: Airplane mode)".to_string(),
                 Kind::DataUsage => "(native: Data usage)".to_string(),
                 Kind::Cellular => "(native: Cellular)".to_string(),
+                Kind::AccountInfo => "(native: Your info)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -815,6 +829,8 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 proxy_port: crate::nm::proxy_http().1,
                 airplane: false,
                 wifi_radio: false,
+                display_name: st.display_name.clone(),
+                account_picture: st.account_picture.clone(),
                 usage: Vec::new(),
                 data_limit: if st.data_limit_mb > 0 {
                     st.data_limit_mb.to_string()
@@ -1131,6 +1147,27 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
                     .spawn();
             }
         }
+        Message::DisplayName(n) => {
+            state.display_name = n;
+            persist(state);
+        }
+        Message::BrowseAvatar => {
+            return Task::perform(async { wallpaper::browse() }, Message::AvatarBrowsed);
+        }
+        Message::AvatarBrowsed(Some(src)) => {
+            // Copy the chosen image to ~/.face (the standard avatar) and record it.
+            if let Some(face) = std::env::var_os("HOME").map(|h| {
+                let mut p = std::path::PathBuf::from(h);
+                p.push(".face");
+                p
+            }) {
+                if std::fs::copy(&src, &face).is_ok() {
+                    state.account_picture = face.display().to_string();
+                    persist(state);
+                }
+            }
+        }
+        Message::AvatarBrowsed(None) => {}
     }
     Task::none()
 }
@@ -1484,6 +1521,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Airplane
         | Kind::DataUsage
         | Kind::Cellular
+        | Kind::AccountInfo
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1542,6 +1580,8 @@ fn persist(state: &Settings) {
     st.hotspot_name = state.hotspot_name.clone();
     st.hotspot_password = state.hotspot_password.clone();
     st.data_limit_mb = state.data_limit.parse().unwrap_or(0);
+    st.display_name = state.display_name.clone();
+    st.account_picture = state.account_picture.clone();
     let _ = crate::state::save(&st);
 }
 
@@ -1786,6 +1826,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Airplane => airplane_page(state),
         Kind::DataUsage => data_usage_page(state),
         Kind::Cellular => cellular_page(),
+        Kind::AccountInfo => account_info_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -2146,6 +2187,83 @@ fn update_advanced_page(state: &Settings) -> Element<'_, Message> {
             )
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .into()
+}
+
+/// `~/.face`, the standard per-user avatar path.
+fn home_face() -> String {
+    std::env::var_os("HOME")
+        .map(|h| {
+            let mut p = std::path::PathBuf::from(h);
+            p.push(".face");
+            p.display().to_string()
+        })
+        .unwrap_or_default()
+}
+
+/// Accounts ▸ Your info (E10.3): the account avatar (from `account_picture` / `~/.face`,
+/// with a Browse → copy-to-`~/.face`) + an editable display name (empty falls back to
+/// the system user). The avatar is square-bordered — iced has no circular image clip,
+/// so the "round" picture is approximated (recorded).
+fn account_info_page(state: &Settings) -> Element<'_, Message> {
+    let path = if state.account_picture.is_empty() {
+        home_face()
+    } else {
+        state.account_picture.clone()
+    };
+    let avatar: Element<Message> = if std::path::Path::new(&path).is_file() {
+        image(path)
+            .width(Length::Fixed(96.0))
+            .height(Length::Fixed(96.0))
+            .into()
+    } else {
+        container(
+            text("\u{f007}") // nf-fa-user
+                .size(metrics::IDENTIFY_PX)
+                .font(mde_ui::font::NERD)
+                .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .width(Length::Fixed(96.0))
+        .height(Length::Fixed(96.0))
+        .center_x(Length::Fixed(96.0))
+        .center_y(Length::Fixed(96.0))
+        .style(|_| container::Style {
+            border: Border {
+                color: palette::color(palette::WINDOW_FRAME),
+                width: 1.0,
+                radius: 4.0.into(),
+            },
+            ..container::Style::default()
+        })
+        .into()
+    };
+    let user = std::env::var("USER").unwrap_or_else(|_| "User".into());
+    Column::new()
+        .spacing(14.0)
+        .push(avatar)
+        .push(
+            button(text("Browse for one…").size(metrics::UI_PX))
+                .on_press(Message::BrowseAvatar)
+                .padding(Padding::from([4.0, 12.0]))
+                .style(tile_style),
+        )
+        .push(
+            Row::new()
+                .spacing(8.0)
+                .align_y(iced::alignment::Vertical::Center)
+                .push(
+                    text("Display name")
+                        .size(metrics::UI_PX)
+                        .width(Length::Fixed(110.0))
+                        .color(palette::color(palette::WINDOW_TEXT)),
+                )
+                .push(
+                    text_input(&user, &state.display_name)
+                        .on_input(Message::DisplayName)
+                        .size(metrics::UI_PX)
+                        .width(Length::Fixed(220.0)),
+                ),
         )
         .into()
 }
