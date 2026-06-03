@@ -520,6 +520,8 @@ struct Settings {
     show_taskview: bool,
     /// Win10 "automatically hide the taskbar" (E2.9a), consumed by panel.rs.
     autohide: bool,
+    /// Win10 "use small taskbar buttons" (E7.9a), consumed by panel.rs.
+    small_buttons: bool,
     /// Lock screen (greeter) picture selection (E7.6).
     lock_selected: Option<usize>,
     /// Update page (E13.2): a `dnf check-update` is in flight.
@@ -628,6 +630,7 @@ enum Message {
     SetSearchMode(SearchMode),
     SetShowTaskview(bool),
     SetAutohide(bool),
+    SetSmallButtons(bool),
     // Lock screen page (E7.6).
     LockSelect(usize),
     LockBrowse,
@@ -851,6 +854,7 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 search_mode: SearchMode::from_key(&st.win10_search_mode),
                 show_taskview: st.win10_show_taskview,
                 autohide: st.win10_autohide,
+                small_buttons: st.win10_small_buttons,
                 lock_selected: None,
                 update_checking: false,
                 update_status: None,
@@ -1006,6 +1010,10 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         }
         Message::SetAutohide(v) => {
             state.autohide = v;
+            persist(state);
+        }
+        Message::SetSmallButtons(v) => {
+            state.small_buttons = v;
             persist(state);
         }
         Message::LockSelect(i) => state.lock_selected = Some(i),
@@ -1740,6 +1748,7 @@ fn persist(state: &Settings) {
     st.win10_search_mode = state.search_mode.key().to_string();
     st.win10_show_taskview = state.show_taskview;
     st.win10_autohide = state.autohide;
+    st.win10_small_buttons = state.small_buttons;
     st.update_paused_until = state.update_paused_until;
     st.update_active_start = state.active_start;
     st.update_active_end = state.active_end;
@@ -3549,11 +3558,20 @@ fn taskbar_page(state: &Settings) -> Element<'_, Message> {
                 .spacing(8.0)
                 .style(mde_ui::checkbox_style),
         )
+        // Real toggle (E7.9a): panel.rs renders a compact 30px bar when on.
+        .push(
+            checkbox("Use small taskbar buttons", state.small_buttons)
+                .on_toggle(Message::SetSmallButtons)
+                .size(metrics::UI_PX)
+                .text_size(metrics::UI_PX)
+                .spacing(8.0)
+                .style(mde_ui::checkbox_style),
+        )
         .push(greyed("Lock the taskbar"))
         .push(
             text(
-                "Lock the taskbar is labwc-managed. \"Use small buttons\" and left/right \
-                 (vertical) location are a later milestone.",
+                "Lock the taskbar is labwc-managed. Left/right (vertical) location is a \
+                 later milestone.",
             )
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT)),

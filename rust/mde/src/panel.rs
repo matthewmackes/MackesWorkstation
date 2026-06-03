@@ -6,6 +6,7 @@
 //! Polls the foreign-toplevel list + the clock once a second.
 
 use std::process::{Child, Command, ExitCode};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use iced::mouse::ScrollDelta;
@@ -29,6 +30,20 @@ const BEOS_BAR_W: f32 = 115.0;
 /// Win10's stock 40px bottom bar. E0 anchors it; the Win10-specific content
 /// (search box, Task View button, jump lists) layers on in E2.
 const WIN10_BAR_H: f32 = 40.0;
+/// Compact bar height (px) for Win10 "use small taskbar buttons" (E7.9a).
+const WIN10_BAR_H_SMALL: f32 = 30.0;
+/// Whether the Win10 bar is in compact ("small buttons") mode — set from
+/// `state.win10_small_buttons` at panel startup, read by [`bar_h`].
+static WIN10_SMALL: AtomicBool = AtomicBool::new(false);
+/// The active Win10 bar height: the compact height when "use small buttons" is on,
+/// else the stock 40px. Drives both the bar's height and the square buttons' width.
+fn bar_h() -> f32 {
+    if WIN10_SMALL.load(Ordering::Relaxed) {
+        WIN10_BAR_H_SMALL
+    } else {
+        WIN10_BAR_H
+    }
+}
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::Anchor;
 use iced_layershell::settings::LayerShellSettings;
@@ -283,6 +298,8 @@ fn launch() -> Result<(), iced_layershell::Error> {
         // bar's content is unchanged, only the anchored edge flips. (left/right
         // need a vertical bar — E7.9a.)
         let st = crate::state::load();
+        // "Use small taskbar buttons" (E7.9a) shrinks the bar + its buttons.
+        WIN10_SMALL.store(st.win10_small_buttons, Ordering::Relaxed);
         let top = st.taskbar_location == "top";
         let edge = if top { Anchor::Top } else { Anchor::Bottom };
         if st.win10_autohide {
@@ -297,8 +314,8 @@ fn launch() -> Result<(), iced_layershell::Error> {
             }
         } else {
             LayerShellSettings {
-                size: Some((0, WIN10_BAR_H as u32)),
-                exclusive_zone: WIN10_BAR_H as i32,
+                size: Some((0, bar_h() as u32)),
+                exclusive_zone: bar_h() as i32,
                 anchor: edge | Anchor::Left | Anchor::Right,
                 ..Default::default()
             }
@@ -476,7 +493,7 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
         // back to the 1px strip on leave, via the layer-shell SizeChange action.
         Message::Reveal if state.autohide && !state.revealed => {
             state.revealed = true;
-            return Task::done(Message::SizeChange((0, WIN10_BAR_H as u32)));
+            return Task::done(Message::SizeChange((0, bar_h() as u32)));
         }
         Message::Unreveal if state.autohide && state.revealed => {
             state.revealed = false;
@@ -778,7 +795,7 @@ fn win10_start_tile(state: &Panel) -> Element<'_, Message> {
                 .color(c),
         )
         .height(Length::Fill)
-        .center_x(Length::Fixed(WIN10_BAR_H))
+        .center_x(Length::Fixed(bar_h()))
         .center_y(Length::Fill),
     )
     .on_press(Message::Start)
@@ -797,7 +814,7 @@ fn win10_taskview_button() -> Element<'static, Message> {
                 .color(palette::color(palette::WINDOW_TEXT)),
         )
         .height(Length::Fill)
-        .center_x(Length::Fixed(WIN10_BAR_H))
+        .center_x(Length::Fixed(bar_h()))
         .center_y(Length::Fill),
     )
     .on_press(Message::TaskView)
@@ -829,7 +846,7 @@ fn win10_search_affordance(mode: &str) -> Option<Element<'static, Message>> {
     let w = if mode == "box" {
         Length::Shrink
     } else {
-        Length::Fixed(WIN10_BAR_H)
+        Length::Fixed(bar_h())
     };
     Some(
         mouse_area(
@@ -997,7 +1014,7 @@ fn win10_task_button(w: &wlr::Window) -> Element<'_, Message> {
         Color::TRANSPARENT
     };
     let col = Column::new()
-        .width(Length::Fixed(WIN10_BAR_H))
+        .width(Length::Fixed(bar_h()))
         .height(Length::Fill)
         .push(
             container(crate::icons::icon_any(

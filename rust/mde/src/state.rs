@@ -215,6 +215,9 @@ pub struct MenuState {
     /// no space and sits as a 1px reveal strip until the edge is hovered.
     #[serde(default)]
     pub win10_autohide: bool,
+    /// Win10 "use small taskbar buttons" (E7.9a) — a compact 30px bar instead of 40px.
+    #[serde(default)]
+    pub win10_small_buttons: bool,
     /// Win10 taskbar search affordance: "button" (default), "box", or "hidden"
     /// (E2.9). All open `mde search`; "box" is a wider labelled pill.
     #[serde(default = "def_search_mode")]
@@ -308,6 +311,7 @@ impl Default for MenuState {
             win10_show_taskview: true,
             win10_accent_on_taskbar: true,
             win10_autohide: false,
+            win10_small_buttons: false,
             win10_search_mode: def_search_mode(),
             update_paused_until: 0,
             update_active_start: def_active_start(),
@@ -432,6 +436,7 @@ mod tests {
             win10_show_taskview: false,
             win10_accent_on_taskbar: false,
             win10_autohide: true,
+            win10_small_buttons: true,
             win10_search_mode: "box".into(),
             update_paused_until: 1_900_000_000,
             update_active_start: 9,
