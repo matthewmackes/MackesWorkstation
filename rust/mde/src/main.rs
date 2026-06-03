@@ -20,6 +20,7 @@ mod browser;
 mod browser_jumplist;
 mod catalogue;
 mod clipboard;
+mod connect;
 mod control_panel;
 mod cups;
 mod dialogs;
@@ -85,6 +86,7 @@ COMMANDS:
     browser-default [--icon|--set-default|--pin URL [--name T]|URL]   Default browser / pin a page / open
     browser-jumplist   Firefox taskbar jump list (New / Private window)
     net-flyout         Win10 network flyout (Wi-Fi list + Airplane toggle)
+    connect [--list]   KDE Connect daemon (roster on org.mde.Connect); --list prints it
 
     display [--outputs]   Display Properties (resolution, wallpaper, screen saver)
     filedialog [--save] [--filter ...]   Common Open/Save file dialog (prints path)
@@ -188,6 +190,7 @@ fn main() -> ExitCode {
         "browser-default" => browser::run(rest),
         "browser-jumplist" => browser_jumplist::run(rest),
         "net-flyout" => net_flyout::run(rest),
+        "connect" => connect::run(rest),
         "mount" => mount::run(rest),
         "control-panel" => control_panel::run(rest),
         "display" => display::run(rest),

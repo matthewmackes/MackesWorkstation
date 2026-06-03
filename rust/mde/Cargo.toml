@@ -38,7 +38,16 @@ wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 # (Task::perform + spawn_blocking) instead of freezing the UI thread. iced already
 # pulls tokio in (its "tokio" feature); this only declares it directly. Same locked
 # version, so nothing new is fetched.
-tokio = { version = "1", features = ["rt"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "net", "time", "sync", "io-util"] }
+# KDE Connect host (the Mobile Devices / "Your Phone" surface, E9). It lives in the
+# sibling MDE-KDECnt-Rust repo; a PATH dep builds it offline and matches the coming
+# monorepo (where it becomes a workspace member — see MACKES-WORKSTATION-PLAN §9).
+# Pulls rustls/ring/rcgen, already part of this project's pure-Rust TLS posture.
+mde-kdc-host = { path = "../../../MDE-KDECnt-Rust/crates/mde-kdc-host" }
+# The protocol layer (Announce, DeviceType, battery body) the connect daemon builds
+# its local identity + parses device packets with. Already compiled (mde-kdc-host
+# depends on it); a direct path dep just exposes the types here.
+mde-kdc-proto = { path = "../../../MDE-KDECnt-Rust/crates/mde-kdc-proto" }
 # PIN sign-in (E10.6): the user's PIN is stored only as an Argon2id hash in
 # ~/.config/mde/pin.hash — never plaintext, never a hand-rolled digest. Pure Rust,
 # no C/openssl; `std` (default) brings the OsRng salt source via password-hash.

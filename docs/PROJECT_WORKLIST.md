@@ -130,11 +130,13 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   `tls.rs` (SHA-256 `compute_fingerprint`, `PinnedFingerprintVerifier`/`FirstPairVerifier`
   rustls `ServerCertVerifier`s for KDE Connect's pin-at-first-pair model, `build_client_config`
   on the ring provider, and `connect_pinned_tls` the live tokio-rustls TLS-over-TCP connect).
-  34 host tests pass, fmt+clippy clean. Remaining: [ ] host increment **3b.2** — wire
-  `connect_pinned_tls` into a `LanTransport` + router (`Transport::open` against a discovered
-  peer, TCP listener for inbound, tie discovery + connections onto the event stream);
-  [ ] push MDE-KDECnt-Rust + rewire MDE-Retro to depend on it (git dep); [ ] `mde connect`
-  systemd user daemon + pairing modal/tray; [ ] capability surfaces (notifications
+  34 host tests pass, fmt+clippy clean. Remaining: [✓] host increment **3b.2** (a–f) — wired
+  `connect_pinned_tls` into a `LanTransport` + outbound `open` + the **inbound mutual-TLS
+  listener** (3b.2e) + `PairingStore::records()` (3b.2f), discovery + connections on the
+  event stream;
+  [✓] pushed MDE-KDECnt-Rust + rewired MDE-Retro to depend on it (**path dep**, monorepo-aligned;
+  git dep was the pre-monorepo plan); [>] `mde connect` daemon **landed** (E9.1: `org.mde.Connect`
+  roster); remaining its autostart unit + pairing modal/tray; [ ] capability surfaces (notifications
   bidirectional + a freedesktop notify daemon, clipboard, battery, file transfer via
   Explorer "Send to", MPRIS, run-commands, SMS); [ ] "Mobile Devices" Control Panel
   applet. LAN-only; remote-input deferred. Config at ~/.config/mde/connect/.
@@ -352,7 +354,7 @@ The deferrable layer: **E16 (Clipboard/Snip)**, **E17 (Storage/Backup)**, **E18 
 
 #### E9 Your Phone — unified KDE Connect surface (Mobile Devices / D5)
 
-- [ ] **E9.1** `connect.rs` client + `mde connect` daemon link: enumerate paired devices over the project bus and expose `devices()` with battery/online state. (Bench: with a paired phone, `mde phone` device picker lists the handset; `busctl --user` shows the connect service; no-panic `timeout 3 ./target/debug/mde phone`.)
+- [✓] **E9.1** `connect.rs` client + `mde connect` daemon link: enumerate paired devices over the project bus and expose `devices()` with battery/online state. (Bench: with a paired phone, `mde phone` device picker lists the handset; `busctl --user` shows the connect service; no-panic `timeout 3 ./target/debug/mde phone`.) — **Done.** `mde connect` is a D-Bus daemon claiming **`org.mde.Connect`** (`/org/mde/Connect`, interface `org.mde.Connect1`) with a `Devices()` method returning `(id, name, online, battery)` per paired peer. It seeds the roster from `PairingStore::records()` (host increment **3b.2f**) so it answers even before any device connects, and runs the native host (`mde-kdc-host`: UDP discovery + the mutual-TLS LAN transport/listener) on a background Tokio runtime, folding `HostEvent`s into the roster — **Connected/Disconnected** flip `online`, `kdeconnect.battery` packets set the charge, discovery announces refresh the name. Host bring-up is best-effort (a UDP-1716 bind clash still serves the static roster). `connect.rs` also ships the **client**: `connect::devices()` (zbus proxy, empty + no-panic when the daemon/bus is absent), exercised by **`mde connect --list`**. MDE-Retro now depends on the host crate via a **path dep** (`../../../MDE-KDECnt-Rust`, matching the coming monorepo; was specced as a git dep). Verified: event→roster folding unit-tested (`connect::tests`, online/battery/name/ghost-guard); `mde connect --list` exits 0 with the empty-state line; `timeout 3 mde connect` claims the name + parks (no panic). Live phone round-trips are the post-release bench. The `mde phone` picker that consumes `devices()` is **E9.2**.
 - [ ] **E9.2** `mde phone` window shell: `main.rs` dispatch arm + `mde-phone` `%post` symlink + `rc.xml` keybind; xdg-toplevel with the left nav rail (device picker + Notifications/Messages/Photos/Calls/Settings) reusing `files.rs` `row_style`. (Grim: capture shows a titled window — "Your Phone" under Win10, "Mobile Devices" under Carbon — with the five-item nav rail; selection highlights.)
 - [ ] **E9.3** Notifications view wired to the E3 `notifyd` history filtered to KDE-Connect origin, with per-row **Dismiss** + header **Clear all** calling `connect::notif_dismiss`/`notif_clear`. (Bench: a KDE Connect notification round-trip appears in the view; Dismiss removes it and the dbus call fires; grim shows a populated list + Clear all.)
 - [ ] **E9.4** Messages view: Recent-threads list + selected-thread bubbles + compose `text_input` sending on **Enter**/Send via `connect::sms_send`; **"+ New Message"** with contact auto-complete. (Bench: selecting a thread renders its bubbles; pressing Enter invokes `sms_send` over the bus, asserted by a fake transport; grim shows the two-pane thread + compose row.)
