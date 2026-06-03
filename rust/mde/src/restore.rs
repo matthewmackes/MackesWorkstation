@@ -16,7 +16,7 @@
 
 use std::process::{exit, ExitCode};
 
-use iced::widget::{button, column, container, scrollable, text, Column, Row};
+use iced::widget::{button, column, container, pick_list, scrollable, text, Column, Row};
 use iced::{event, Element, Length, Subscription, Task};
 
 use mde_ui::{metrics, palette};
@@ -34,6 +34,10 @@ struct Restore {
     selected: usize,
     view: ViewMode,
     confirm: bool,
+    /// Restore targets (E17.8a): "Original location" + each distinct device. The
+    /// Options "Restore to…" picker chooses one; the green button restores there.
+    targets: Vec<String>,
+    target: String,
 }
 
 #[derive(Debug, Clone)]
@@ -42,11 +46,28 @@ enum Message {
     Older,
     Newer,
     ToggleView,
+    SetTarget(String),
     AskRestore,
     CancelRestore,
     ConfirmRestore,
     Restored,
     Event(iced::Event),
+}
+
+const ORIGINAL: &str = "Original location";
+
+/// "Original location" plus each distinct backing device (E17.8a).
+fn restore_targets() -> Vec<String> {
+    let mut v = vec![ORIGINAL.to_string()];
+    let mut seen: Vec<String> = Vec::new();
+    for m in crate::sysinfo::mounts() {
+        if seen.contains(&m.source) {
+            continue;
+        }
+        seen.push(m.source.clone());
+        v.push(m.source);
+    }
+    v
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
@@ -83,6 +104,8 @@ fn launch() -> iced::Result {
                     selected: 0,
                     view: ViewMode::Details,
                     confirm: false,
+                    targets: restore_targets(),
+                    target: ORIGINAL.to_string(),
                 },
                 Task::none(),
             )
@@ -105,12 +128,17 @@ fn update(state: &mut Restore, message: Message) -> Task<Message> {
                 ViewMode::Large => ViewMode::Details,
             }
         }
+        Message::SetTarget(t) => state.target = t,
         Message::AskRestore => state.confirm = true,
         Message::CancelRestore => state.confirm = false,
         Message::ConfirmRestore => {
             state.confirm = false;
             if let Some(s) = state.snaps.get(state.selected) {
-                let cmd = crate::sysinfo::timeshift_restore_cmd(&s.name);
+                let cmd = if state.target == ORIGINAL {
+                    crate::sysinfo::timeshift_restore_cmd(&s.name)
+                } else {
+                    crate::sysinfo::timeshift_restore_to_cmd(&s.name, &state.target)
+                };
                 return Task::perform(
                     async move {
                         tokio::task::spawn_blocking(move || {
@@ -190,11 +218,19 @@ fn view(state: &Restore) -> Element<'_, Message> {
     let action: Element<'_, Message> = if state.snaps.is_empty() {
         iced::widget::horizontal_space().into()
     } else if state.confirm {
+        let prompt = if state.target == ORIGINAL {
+            "Replace files at their original location?".to_string()
+        } else {
+            format!(
+                "Restore the system to {}? This replaces its contents.",
+                state.target
+            )
+        };
         Row::new()
             .spacing(8.0)
             .align_y(iced::alignment::Vertical::Center)
             .push(
-                text("Replace files at their original location?")
+                text(prompt)
                     .size(metrics::UI_PX)
                     .color(palette::color(palette::WINDOW_TEXT)),
             )
@@ -212,15 +248,34 @@ fn view(state: &Restore) -> Element<'_, Message> {
             )
             .into()
     } else {
-        button(
-            text("Restore to original location")
-                .size(metrics::UI_PX)
-                .color(palette::color(palette::HIGHLIGHT_TEXT)),
-        )
-        .on_press(Message::AskRestore)
-        .padding(iced::Padding::from([5.0, 16.0]))
-        .style(restore_button)
-        .into()
+        let label = if state.target == ORIGINAL {
+            "Restore to original location".to_string()
+        } else {
+            format!("Restore to {}", state.target)
+        };
+        Row::new()
+            .spacing(8.0)
+            .align_y(iced::alignment::Vertical::Center)
+            // Options "Restore to…" — pick the original location or a target device.
+            .push(
+                pick_list(
+                    state.targets.clone(),
+                    Some(state.target.clone()),
+                    Message::SetTarget,
+                )
+                .text_size(metrics::UI_PX),
+            )
+            .push(
+                button(
+                    text(label)
+                        .size(metrics::UI_PX)
+                        .color(palette::color(palette::HIGHLIGHT_TEXT)),
+                )
+                .on_press(Message::AskRestore)
+                .padding(iced::Padding::from([5.0, 16.0]))
+                .style(restore_button),
+            )
+            .into()
     };
 
     let bottom = Row::new().push(nav).push(action);

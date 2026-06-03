@@ -738,6 +738,21 @@ pub fn timeshift_restore_cmd(name: &str) -> Vec<String> {
     ]
 }
 
+/// Restore a snapshot to a **different** target device — `timeshift --restore
+/// --snapshot <name> --target-device <dev> --yes` (E17.8a). Returns the `pkexec`
+/// argv.
+pub fn timeshift_restore_to_cmd(name: &str, dev: &str) -> Vec<String> {
+    vec![
+        "timeshift".into(),
+        "--restore".into(),
+        "--snapshot".into(),
+        name.into(),
+        "--target-device".into(),
+        dev.into(),
+        "--yes".into(),
+    ]
+}
+
 /// The Timeshift snapshots, newest first. `MDE_TIMESHIFT_FIXTURE` (a file of
 /// `timeshift --list` output) overrides for deterministic captures; otherwise
 /// `timeshift --list` is run (it needs root, so unprivileged sessions get an empty
@@ -901,6 +916,18 @@ Num     Name                 Tags  Description
                 "--restore",
                 "--snapshot",
                 "2024-01-15_10-00-01",
+                "--yes"
+            ]
+        );
+        assert_eq!(
+            timeshift_restore_to_cmd("2024-01-15_10-00-01", "/dev/sdb1"),
+            vec![
+                "timeshift",
+                "--restore",
+                "--snapshot",
+                "2024-01-15_10-00-01",
+                "--target-device",
+                "/dev/sdb1",
                 "--yes"
             ]
         );
