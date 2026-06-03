@@ -157,13 +157,14 @@ _Depends: none_
     - [ ] The `pre-commit` hook runs the suite and a commit introducing a raw hex color / stub / private-D-Bus name is rejected (non-zero exit blocks the commit).
     - [ ] The `commit-msg` hook enforces the message convention and rejects a malformed message at commit time.
 
-- [ ] **E0.11: E0 — Audit: confirm no subprocess-supervised Python remains (all mackesd workers are Rust); file gaps as tasks if found**
+- [>] **E0.11: E0 — Audit: confirm no subprocess-supervised Python remains (all mackesd workers are Rust); file gaps as tasks if found**
   **As** a platform owner, **I want** to confirm mackesd supervises only Rust workers with no subprocess-supervised Python, **so that** the control plane is a single-language runtime and any survivor becomes a tracked task.
   *Reuse:* mackesd (§9 as-is, worker supervision). *Deps:* E0.5.
   **Acceptance** (runtime-observable):
     - [ ] A grep/audit of mackesd's supervised-process table at runtime shows every worker is a Rust binary (no `python`/`.py` spawned under supervision).
     - [ ] `lint-no-stubs.sh` and the runtime-reachability lint find no Python supervision shim in the worker path.
     - [ ] Any surviving Python worker is filed as a new E-task with its replacement scope (audit produces actionable gaps, not just a pass/fail).
+  **Note (2026-06-03):** audit ran — found 7 subprocess-Python shims (mackesd workers mdns/remmina_sync/fs_sync/clipboard + Birthright in mde-wizard/mde-installer + Workbench service-publishing). Filed as **RETIRE-PY.1–7**. E0.11 closes when RETIRE-PY drains.
 
 - [ ] **E0.12: E0 — Archive the 3 predecessor repos read-only (operator-gated)**
   **As** the operator, **I want** the three predecessor repos archived read-only behind an explicit gate, **so that** the monorepo is the single origin and history is preserved without accidental writes.
@@ -748,3 +749,62 @@ _Depends: feature code complete_
     - [ ] Selecting Server provisions a headless system whose mackesd brings up the fleet/meshfs/metrics worker subset with no display manager.
     - [ ] Selecting Lighthouse provisions a relay node with enrollment-CA/leader/health workers only and a LizardFS read-only client — no media/voice/compute, no greeter.
     - [ ] Each installed role's systemd units and `/etc/mackesd/` templates match the chosen role on first boot (correct worker set running, no role-foreign units active).
+
+### RETIRE-PY — Python-daemon retirement (EPIC-RETIRE-PY-DAEMONS)
+_Depends: surfaced by the E0.11 audit (2026-06-03). These are v1.x→v2.0.0 transition shims whose own source comments say "the v2.0.0 cut reimplements [this]" but never landed in the merge. Governance §11 C13. Several converge with other epics — noted per task._
+
+- [ ] **RETIRE-PY.1: RETIRE-PY — Port the mDNS relay worker to native Rust (replaces `python3 -m mackes.mesh_mdns`)**
+  **As** an operator, **I want** the mDNS announce/watch relay to run as a native Rust `mackesd` worker, **so that** cross-LAN-segment mesh peer-presence bridging needs no Python runtime.
+  *Reuse:* `mackesd/src/workers/mdns.rs` (today a `SubprocessTickWorker` shelling to `python3 -m mackes.mesh_mdns`) → native Rust mDNS. *Deps:* none.
+  **Acceptance** (runtime-observable):
+    - [ ] `mackesd` runs the mDNS relay with **no** `python3`/`mackes.mesh_mdns` process spawned (`ps`/`pgrep` confirms).
+    - [ ] A peer announces and is discovered by a second peer on another LAN segment at runtime.
+    - [ ] Degrades gracefully with no mesh / no peers (idle announce loop, never panics).
+
+- [ ] **RETIRE-PY.2: RETIRE-PY — Port the Remmina-profile sync worker to native Rust (replaces `python3 -m mackes.remmina_sync`)**
+  **As** a user, **I want** Remmina RDP/VNC profiles synced across peers by a native Rust worker, **so that** remote-desktop profile sync needs no Python.
+  *Reuse:* `mackesd/src/workers/remmina_sync.rs` (today a `SubprocessTickWorker`). *Deps:* none.
+  **Acceptance** (runtime-observable):
+    - [ ] A Remmina profile created on one peer appears on another with **no** `python3`/`mackes.remmina_sync` spawn.
+    - [ ] The worker ticks on its interval and is supervised by `mackesd` (restart-on-exit).
+    - [ ] Degrades gracefully with no mesh / no peers.
+
+- [ ] **RETIRE-PY.3: RETIRE-PY — Converge the clipboard worker onto the Rust `mde-clipd` (retire `python3 -m mackes.clipboard_app`)**
+  **As** a user, **I want** the `mackesd` clipboard worker to drive the existing Rust `mde-clipd` daemon instead of the Python `clipboard_app`, **so that** clipboard sync is pure-Rust over the Bus.
+  *Reuse:* `crates/services/mde-clipd` (§9 as-is, Rust) + `mackesd/src/workers/clipboard.rs`. *Deps:* E0.3 (Bus).
+  **Acceptance** (runtime-observable):
+    - [ ] Copying on one peer makes the entry available on another via `mde-clipd` over `mde-bus`, with **no** `mackes.clipboard_app` python process.
+    - [ ] `wl-paste --watch` ring + pinned entries persist (the mde-clipd behavior), not the Python daemon's.
+    - [ ] Degrades gracefully with no mesh / no peers (local clipboard still works).
+
+- [ ] **RETIRE-PY.4: RETIRE-PY — Retire the GVFS `fs_sync` worker in favor of E3 LizardFS mesh-storage (remove `python3 -m mackes.mesh_gvfs.daemon`)**
+  **As** a platform maintainer, **I want** the old per-peer GVFS/QNM-Shared FUSE sync removed once LizardFS mounts the shared tree, **so that** there is ONE mesh-storage substrate, not two.
+  *Reuse:* **SUPERSEDED by E3** (LizardFS `mesh-storage`); delete `mackesd/src/workers/fs_sync.rs`. *Deps:* E3.2.
+  **Acceptance** (runtime-observable):
+    - [ ] No `python3`/`mackes.mesh_gvfs` process is spawned; the `fs_sync` worker is removed from `mackesd`.
+    - [ ] Mesh XDG dirs (`~/Documents` etc.) are served by the LizardFS mount (E3), not the GVFS FUSE path.
+    - [ ] Degrades gracefully with no mesh / no peers (local shadow answers reads).
+
+- [ ] **RETIRE-PY.5: RETIRE-PY — Native Rust Birthright apply/rollback (replaces `python3 -m mackes.birthright` in mde-wizard + mde-installer)**
+  **As** a new user, **I want** first-run Birthright steps applied by native Rust, **so that** OOBE and install need no Python runtime.
+  *Reuse:* `mde-wizard/src/pages/apply.rs` + `mde-installer/.../mde-install.rs` (today build `python3 -m mackes.birthright [apply|rollback]`). *Deps:* converges with **E7.2** (OOBE Birthright merge).
+  **Acceptance** (runtime-observable):
+    - [ ] OOBE / `mde-install` apply runs the Birthright steps (themes, mesh enrolment, DND) with **no** `python3`/`mackes.birthright` spawn.
+    - [ ] The rollback path (`birthright_rollback`) is native Rust and recovers a failed apply.
+    - [ ] Each applied step is observable (theme set, mesh enrolled) — not a placeholder.
+
+- [ ] **RETIRE-PY.6: RETIRE-PY — Pure-Rust asset installer — drop the `python3` "Asset installer runtime" dep (catalogue.rs)**
+  **As** a packager, **I want** `mde install --assets` to fetch + stage assets without a `python3` runtime, **so that** the asset path is pure-Rust (git fetch + native unpack).
+  *Reuse:* `mde/src/catalogue.rs` + `install.rs`. *Deps:* none.
+  **Acceptance** (runtime-observable):
+    - [ ] `mde install --assets` fetches + stages the asset set with **no** `python3` invoked.
+    - [ ] `catalogue.rs` no longer lists `python3` as an asset-installer runtime dependency.
+    - [ ] A fresh install resolves all bundled assets to disk (verifiable file presence).
+
+- [ ] **RETIRE-PY.7: RETIRE-PY — Workbench service-publishing reads via Bus, not `python3 -c mackes.mesh_nebula` (mde-workbench)**
+  **As** an admin, **I want** the Workbench service-publishing panel to read published-services state over `mde-bus` from `mackesd`, **so that** it needs no `python3` shell-out.
+  *Reuse:* `mde-workbench/src/panels/service_publishing.rs` (excluded crate; §9 reskin) + `mde-bus`. *Deps:* E0.3 (Bus), E6.
+  **Acceptance** (runtime-observable):
+    - [ ] The panel renders live published-services from a Bus query with **no** `python3`/`mackes.mesh_nebula` spawn.
+    - [ ] An added published service appears in the panel at runtime.
+    - [ ] Degrades gracefully with no mesh (empty list + hint, never panics).
