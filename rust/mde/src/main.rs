@@ -40,6 +40,7 @@ mod panel;
 mod pin;
 mod popup;
 mod search;
+mod security_probe;
 mod settings;
 mod start_common;
 mod start_win10;
@@ -187,6 +188,10 @@ fn main() -> ExitCode {
         "taskbar-properties" => taskbar_properties::run(rest),
         "__wlr-list" => {
             wlr::debug_list();
+            ExitCode::SUCCESS
+        }
+        "__security-probe" => {
+            security_probe::debug_print();
             ExitCode::SUCCESS
         }
         "__nm-list" => {
