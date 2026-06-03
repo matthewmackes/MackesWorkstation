@@ -38,26 +38,41 @@ const REGIONS: &[(&str, &str)] = &[
 enum Stage {
     Region,
     Keyboard,
+    Privacy,
+    Personalize,
     Finalize,
 }
 
+/// The stages in flow order. `next`/`prev` index into this, so adding a stage is a
+/// one-line edit and forward/back can never desync.
+const FLOW: &[Stage] = &[
+    Stage::Region,
+    Stage::Keyboard,
+    Stage::Privacy,
+    Stage::Personalize,
+    Stage::Finalize,
+];
+
 impl Stage {
-    /// The next stage, or `None` at the end of the flow.
+    fn pos(self) -> usize {
+        FLOW.iter().position(|&s| s == self).unwrap_or(0)
+    }
     fn next(self) -> Option<Stage> {
-        match self {
-            Stage::Region => Some(Stage::Keyboard),
-            Stage::Keyboard => Some(Stage::Finalize),
-            Stage::Finalize => None,
-        }
+        FLOW.get(self.pos() + 1).copied()
     }
     fn prev(self) -> Option<Stage> {
-        match self {
-            Stage::Region => None,
-            Stage::Keyboard => Some(Stage::Region),
-            Stage::Finalize => Some(Stage::Keyboard),
-        }
+        self.pos().checked_sub(1).and_then(|i| FLOW.get(i).copied())
     }
 }
+
+/// The four UI accent choices (Personalize, E11.9) — the icon_color keys + their
+/// Win10 accent swatch (`palette::icon_accent`, the one accent edge).
+const ACCENTS: &[(&str, &str)] = &[
+    ("blue", "Blue"),
+    ("orange", "Orange"),
+    ("red", "Red"),
+    ("neutral", "Neutral"),
+];
 
 struct Oobe {
     stage: Stage,
@@ -65,12 +80,23 @@ struct Oobe {
     dry: bool,
     region: usize,
     layout: usize,
+    /// Privacy stage (E11.7): the four toggles, seeded on (Win10 defaults).
+    p_location: bool,
+    p_diagnostics: bool,
+    p_find: bool,
+    p_ads: bool,
+    /// Personalize stage (E11.9): accent index into ACCENTS + light/dark.
+    accent: usize,
+    light: bool,
 }
 
 #[derive(Debug, Clone)]
 enum Msg {
     PickRegion(usize),
     PickLayout(usize),
+    TogglePrivacy(u8),
+    PickAccent(usize),
+    SetMode(bool), // true = light
     Next,
     Back,
     Finish,
@@ -143,6 +169,8 @@ pub fn run(args: &[String]) -> ExitCode {
         .and_then(|s| match s.as_str() {
             "region" => Some(Stage::Region),
             "keyboard" => Some(Stage::Keyboard),
+            "privacy" => Some(Stage::Privacy),
+            "personalize" => Some(Stage::Personalize),
             "finalize" => Some(Stage::Finalize),
             _ => None,
         })
@@ -153,6 +181,15 @@ pub fn run(args: &[String]) -> ExitCode {
         dry,
         region: detected_region(),
         layout: detected_layout(),
+        p_location: st.privacy_location,
+        p_diagnostics: st.privacy_diagnostics,
+        p_find: st.privacy_find_device,
+        p_ads: st.privacy_ads,
+        accent: ACCENTS
+            .iter()
+            .position(|(k, _)| *k == st.icon_color)
+            .unwrap_or(0),
+        light: st.theme_mode == "light",
     };
     let r = iced::application(|_: &Oobe| "MDE-Retro Setup".to_string(), update, view)
         .window_size(iced::Size::new(720.0, 540.0))
@@ -225,10 +262,68 @@ fn finish(dry: bool) {
     let _ = crate::state::save(&st);
 }
 
+/// Persist the four Privacy toggles to `menu.json` and apply the configs they each
+/// control (E11.7) — echoed under dry-run. `find_my_device`/Advertising are pure
+/// state flags; Location drives a geoclue opt-out marker and Diagnostics a telemetry
+/// opt-out marker (small files the toggle owns), so each switch does something real.
+fn commit_privacy(state: &Oobe) {
+    if state.dry {
+        println!("  + privacy: location={} diagnostics={} find_my_device={} ads={}\n  + geoclue: {}\n  + telemetry: {}",
+            state.p_location, state.p_diagnostics, state.p_find, state.p_ads,
+            if state.p_location { "enabled" } else { "opt-out marker written" },
+            if state.p_diagnostics { "enabled" } else { "opt-out marker written" });
+        return;
+    }
+    let mut st = crate::state::load();
+    st.privacy_location = state.p_location;
+    st.privacy_diagnostics = state.p_diagnostics;
+    st.privacy_find_device = state.p_find;
+    st.privacy_ads = state.p_ads;
+    let _ = crate::state::save(&st);
+    // Each external toggle owns one opt-out marker under the config dir.
+    if let Some(dir) = crate::state::config_path().and_then(|p| p.parent().map(|d| d.to_path_buf()))
+    {
+        write_optout(&dir.join("no-geolocation"), !state.p_location);
+        write_optout(&dir.join("no-telemetry"), !state.p_diagnostics);
+    }
+}
+
+/// Create (opt-out on) or remove (opt-out off) a marker file.
+fn write_optout(path: &std::path::Path, present: bool) {
+    if present {
+        let _ = std::fs::write(path, b"opted out by MDE-Retro OOBE\n");
+    } else {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
+/// Persist the Personalize choices (accent + light/dark) to `menu.json` (E11.9);
+/// applied at the next surface launch (`main.rs` reads them at startup).
+fn commit_personalize(state: &Oobe) {
+    let accent = ACCENTS[state.accent].0;
+    let mode = if state.light { "light" } else { "dark" };
+    if state.dry {
+        println!("  + personalize: accent={accent} mode={mode}");
+        return;
+    }
+    let mut st = crate::state::load();
+    st.icon_color = accent.to_string();
+    st.theme_mode = mode.to_string();
+    let _ = crate::state::save(&st);
+}
+
 fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
     match msg {
         Msg::PickRegion(i) => state.region = i,
         Msg::PickLayout(i) => state.layout = i,
+        Msg::TogglePrivacy(which) => match which {
+            0 => state.p_location = !state.p_location,
+            1 => state.p_diagnostics = !state.p_diagnostics,
+            2 => state.p_find = !state.p_find,
+            _ => state.p_ads = !state.p_ads,
+        },
+        Msg::PickAccent(i) => state.accent = i,
+        Msg::SetMode(light) => state.light = light,
         Msg::Back => {
             if let Some(p) = state.stage.prev() {
                 state.stage = p;
@@ -241,6 +336,8 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
                 Stage::Keyboard => {
                     apply_keymap(crate::keyboard::LAYOUTS[state.layout].0, state.dry)
                 }
+                Stage::Privacy => commit_privacy(state),
+                Stage::Personalize => commit_personalize(state),
                 Stage::Finalize => {}
             }
             if let Some(n) = state.stage.next() {
@@ -363,6 +460,129 @@ fn frame<'a>(
         .into()
 }
 
+/// One Privacy row: an On/Off toggle button + a label/description, on the chrome.
+fn privacy_row<'a>(on: bool, which: u8, label: &'a str, desc: &'a str) -> Element<'a, Msg> {
+    let pill = ibutton(
+        text(if on { "On" } else { "Off" })
+            .size(metrics::UI_PX)
+            .color(white()),
+    )
+    .padding(pad(4.0, 14.0, 4.0, 14.0))
+    .on_press(Msg::TogglePrivacy(which))
+    .style(move |_, _| ibutton::Style {
+        background: Some(if on {
+            Background::Color(palette::color(palette::HIGHLIGHT))
+        } else {
+            Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.10))
+        }),
+        text_color: white(),
+        border: iced::Border {
+            radius: 2.0.into(),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    Row::new()
+        .spacing(14.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(container(pill).width(Length::Fixed(70.0)))
+        .push(
+            Column::new()
+                .push(text(label).size(metrics::UI_PX).color(white()))
+                .push(text(desc).size(metrics::BADGE_PX).color(dim())),
+        )
+        .into()
+}
+
+fn privacy_body(state: &Oobe) -> Element<'_, Msg> {
+    scrollable(
+        Column::new()
+            .spacing(12.0)
+            .padding(pad(12.0, 8.0, 0.0, 8.0))
+            .push(privacy_row(
+                state.p_location,
+                0,
+                "Location",
+                "Let apps use your location and location history.",
+            ))
+            .push(privacy_row(
+                state.p_diagnostics,
+                1,
+                "Diagnostic data",
+                "Send diagnostic and usage data to help improve the system.",
+            ))
+            .push(privacy_row(
+                state.p_find,
+                2,
+                "Find my device",
+                "Use location to help you find your device if you lose it.",
+            ))
+            .push(privacy_row(
+                state.p_ads,
+                3,
+                "Tailored experiences",
+                "Use diagnostic data for tips and recommendations.",
+            )),
+    )
+    .height(Length::Fill)
+    .style(mde_ui::scrollbar)
+    .into()
+}
+
+/// A color swatch button for the Personalize accent picker.
+fn swatch(i: usize, selected: bool) -> Element<'static, Msg> {
+    let rgb = palette::icon_accent(i as u8, true);
+    let fill = iced::Color::from_rgb8(rgb.0, rgb.1, rgb.2);
+    ibutton(
+        text(if selected { "●" } else { " " })
+            .size(metrics::UI_PX)
+            .color(white()),
+    )
+    .width(Length::Fixed(44.0))
+    .height(Length::Fixed(44.0))
+    .on_press(Msg::PickAccent(i))
+    .style(move |_, _| ibutton::Style {
+        background: Some(Background::Color(fill)),
+        text_color: white(),
+        border: iced::Border {
+            color: white(),
+            width: if selected { 2.0 } else { 0.0 },
+            radius: 3.0.into(),
+        },
+        ..Default::default()
+    })
+    .into()
+}
+
+fn personalize_body(state: &Oobe) -> Element<'_, Msg> {
+    let mut swatches = Row::new().spacing(10.0);
+    for (i, _) in ACCENTS.iter().enumerate() {
+        swatches = swatches.push(swatch(i, i == state.accent));
+    }
+    let mode = Row::new()
+        .spacing(8.0)
+        .push(
+            mde_ui::button(text("Light").size(metrics::UI_PX))
+                .on_press(Msg::SetMode(true))
+                .default(state.light)
+                .width(Length::Fixed(96.0)),
+        )
+        .push(
+            mde_ui::button(text("Dark").size(metrics::UI_PX))
+                .on_press(Msg::SetMode(false))
+                .default(!state.light)
+                .width(Length::Fixed(96.0)),
+        );
+    Column::new()
+        .spacing(18.0)
+        .padding(pad(16.0, 8.0, 0.0, 8.0))
+        .push(text("Accent color").size(metrics::UI_PX).color(dim()))
+        .push(swatches)
+        .push(text("Choose your mode").size(metrics::UI_PX).color(dim()))
+        .push(mode)
+        .into()
+}
+
 fn view(state: &Oobe) -> Element<'_, Msg> {
     match state.stage {
         Stage::Region => frame(
@@ -387,6 +607,18 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
                 Msg::PickLayout,
             ),
             actions(true, "Yes", Msg::Next),
+        ),
+        Stage::Privacy => frame(
+            "Choose privacy settings for your device",
+            "You're in control. Turn off anything you'd rather not share; you can change these later in Settings.",
+            privacy_body(state),
+            actions(true, "Accept", Msg::Next),
+        ),
+        Stage::Personalize => frame(
+            "Now personalize your device",
+            "Pick an accent color and a light or dark look. You can change this any time.",
+            personalize_body(state),
+            actions(true, "Next", Msg::Next),
         ),
         Stage::Finalize => {
             let body = Column::new()
@@ -422,12 +654,15 @@ mod tests {
 
     #[test]
     fn stage_flow_is_linear_and_terminates() {
-        // Region → Keyboard → Finalize → end; prev mirrors it.
+        // FLOW is a single ordered list; next/prev walk it and terminate cleanly.
         assert_eq!(Stage::Region.next(), Some(Stage::Keyboard));
-        assert_eq!(Stage::Keyboard.next(), Some(Stage::Finalize));
-        assert_eq!(Stage::Finalize.next(), None);
         assert_eq!(Stage::Region.prev(), None);
-        assert_eq!(Stage::Finalize.prev(), Some(Stage::Keyboard));
+        assert_eq!(FLOW.last().copied().unwrap().next(), None);
+        // Round-trip every adjacent pair: prev(next(s)) == s.
+        for w in FLOW.windows(2) {
+            assert_eq!(w[0].next(), Some(w[1]));
+            assert_eq!(w[1].prev(), Some(w[0]));
+        }
     }
 
     #[test]
