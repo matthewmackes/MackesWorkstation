@@ -891,7 +891,7 @@ fn flat(_theme: &iced::Theme, status: button::Status) -> button::Style {
 }
 
 /// List-row style: navy when selected or hovered (white text), else plain.
-fn row_style(selected: bool) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
+pub(crate) fn row_style(selected: bool) -> impl Fn(&iced::Theme, button::Status) -> button::Style {
     move |_theme, status| {
         let hot = selected || matches!(status, button::Status::Hovered | button::Status::Pressed);
         button::Style {

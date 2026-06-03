@@ -137,6 +137,9 @@
          Win10-only; `mde project` exits without drawing under the classic eras,
          so the bind is inert there (use Display Properties instead). -->
     <keybind key="W-p"><action name="Execute"><command>mde project</command></action></keybind>
+    <!-- Your Phone / Mobile Devices — the KDE Connect device window (E9). W-y = "Your
+         phone"; works in every era (the window just retitles per theme). -->
+    <keybind key="W-y"><action name="Execute"><command>mde phone</command></action></keybind>
     <keybind key="W-r"><action name="Execute"><command>mde run</command></action></keybind>
     <keybind key="W-Return"><action name="Execute"><command>foot</command></action></keybind>
 

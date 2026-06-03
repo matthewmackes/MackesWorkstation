@@ -46,6 +46,7 @@ mod oobe;
 mod outputs;
 mod packages;
 mod panel;
+mod phone;
 mod pin;
 mod popup;
 mod project;
@@ -87,6 +88,7 @@ COMMANDS:
     browser-jumplist   Firefox taskbar jump list (New / Private window)
     net-flyout         Win10 network flyout (Wi-Fi list + Airplane toggle)
     connect [--list]   KDE Connect daemon (roster on org.mde.Connect); --list prints it
+    phone              Your Phone / Mobile Devices — KDE Connect device window (E9)
 
     display [--outputs]   Display Properties (resolution, wallpaper, screen saver)
     filedialog [--save] [--filter ...]   Common Open/Save file dialog (prints path)
@@ -191,6 +193,7 @@ fn main() -> ExitCode {
         "browser-jumplist" => browser_jumplist::run(rest),
         "net-flyout" => net_flyout::run(rest),
         "connect" => connect::run(rest),
+        "phone" => phone::run(rest),
         "mount" => mount::run(rest),
         "control-panel" => control_panel::run(rest),
         "display" => display::run(rest),
