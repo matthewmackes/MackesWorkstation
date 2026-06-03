@@ -141,13 +141,14 @@ _Depends: none_
     - [ ] `cargo test --test accuracy` (or the harness's test entry) runs against the in-repo `mde` binary and reports per-surface results.
     - [ ] The harness renders a Win10-gated surface only under `Theme::Windows10` and the Carbon default otherwise (era gating observable in the captured output).
 
-- [ ] **E0.9: E0 — GitHub Actions CI: cargo check/test/clippy/fmt on push/PR, with gtk3-devel + alsa-lib-devel so the full workspace builds**
+- [>] **E0.9: E0 — GitHub Actions CI: cargo check/test/clippy/fmt on push/PR, with gtk3-devel + alsa-lib-devel so the full workspace builds**
   **As** a maintainer, **I want** CI running check/test/clippy/fmt on push and PR with the system dev libs installed, **so that** every change is gated on a full-workspace green build.
   *Reuse:* new glue (adapt provenance `.github/workflows/ci.yml`). *Deps:* E0.2.
   **Acceptance** (runtime-observable):
     - [ ] A push and a PR each trigger the workflow; it installs `gtk3-devel` + `alsa-lib-devel` and runs `cargo check --workspace`, `cargo test`, `cargo clippy -- -D warnings`, and `cargo fmt --check`.
     - [ ] The job goes red on a clippy warning, a failing test, or an fmt violation (a deliberately broken commit fails CI).
     - [ ] A clean `main` commit produces an all-green run with the four ALSA/Workbench crates compiled (full workspace, no excluded members).
+  **Note (2026-06-03):** `.github/workflows/ci.yml` written + YAML-valid; cargo cmds match the green local baseline. Fedora container installs gtk3-devel/alsa-lib-devel (forward-ready for E0.2). CI-green confirmation is **push-gated** → flips to [✓] after the first push.
 
 - [ ] **E0.10: E0 — Port the 15-gate lint suite to install-helpers/ + wire the pre-commit + commit-msg git hooks**
   **As** a contributor, **I want** the 15-gate lint suite in `install-helpers/` wired into pre-commit and commit-msg hooks, **so that** stub/hex/mesh/design-token violations are blocked before they land.

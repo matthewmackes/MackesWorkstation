@@ -1,0 +1,65 @@
+name: CI
+
+# E0.9 — cargo check/test/clippy/fmt on every push + PR to main.
+# Runs in a Fedora container so the gtk3-devel / alsa-lib-devel package
+# names match the dev box; the libs are installed up front so that when
+# E0.2 re-includes the 4 currently-excluded crates, CI already covers
+# the full workspace with no workflow change. rustup picks up the pinned
+# toolchain (1.94.0 + rustfmt/clippy) from rust-toolchain.toml.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  build:
+    name: check · test · clippy · fmt
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - name: Install system dependencies
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            gcc gtk3-devel alsa-lib-devel pkgconf-pkg-config \
+            git findutils which curl
+      - uses: actions/checkout@v4
+
+      - name: Install rustup + pinned toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain none --profile minimal
+          echo "${HOME}/.cargo/bin" >> "${GITHUB_PATH}"
+      - name: Resolve toolchain from rust-toolchain.toml
+        run: rustup show
+
+      - name: Cache cargo registry + target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # fmt + clippy are warn-level today (workspace lints); they are
+      # promoted to deny at E8. Until then clippy must not fail on the
+      # existing pedantic/nursery warnings, so no `-D warnings` here.
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets
+      - name: cargo check
+        run: cargo check --workspace
+      - name: cargo test
+        run: cargo test --workspace
