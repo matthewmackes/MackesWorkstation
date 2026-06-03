@@ -1,0 +1,30 @@
+[Desktop Entry]
+# v4.0.1 (2026-05-23): NoDisplay=true. This entry is the v1.x
+# "Mackes XFCE Workstation" launcher; v2.0.0+ supersedes it with
+# `mde.desktop` (which is itself NoDisplay'd because the user is
+# already IN MDE — wizard / drawer / etc. live behind their own
+# named surfaces or panel chrome). The legacy `mackes` binary
+# stays installed for back-compat callers, but its start-menu
+# tile would just confuse operators who see two near-duplicate
+# entries side by side.
+Type=Application
+Name=Mackes XFCE Workstation
+GenericName=Settings & Mesh
+Comment=Unified XFCE workstation — panel, dock, settings, mesh networking, fleet management
+Exec=mackes
+Icon=mackes-shell
+Terminal=false
+NoDisplay=true
+Categories=Settings;System;X-XFCE-SettingsDialog;DesktopSettings;
+Keywords=settings;preferences;control;panel;xfce;shell;mesh;tailscale;headscale;fleet;ansible;workstation;
+StartupNotify=true
+StartupWMClass=Mackes XFCE Workstation
+Actions=Wizard;Drawer;
+
+[Desktop Action Wizard]
+Name=Open setup wizard
+Exec=mackes --wizard
+
+[Desktop Action Drawer]
+Name=Open notification drawer
+Exec=mackes --drawer

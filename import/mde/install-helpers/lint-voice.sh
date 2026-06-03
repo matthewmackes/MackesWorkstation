@@ -1,0 +1,271 @@
+#!/bin/sh
+# install-helpers/lint-voice.sh — voice-and-tone verb-discipline +
+# forbidden-strings gate.
+#
+# Locked by docs/design/voice-and-tone.md (v4.0.1). Enforces:
+#
+#   1. Forbidden marketing/celebratory strings: Oops, Whoops, Yikes,
+#      Lorem ipsum, etc.
+#   2. Forbidden placeholder strings reachable from user-visible
+#      code: lorem, foo/bar/baz/qux, test123, placeholder.
+#   3. Verb-discipline misuse in user-visible button-label-shaped
+#      strings: e.g. "Create" / "New" where "Add" is the lock,
+#      "Save" where "Apply" is the lock for config changes.
+#
+# Scans (per voice-and-tone.md §"Where this doc applies"):
+#
+#   - crates/mde-*/src/  (Iced views, panel labels)
+#   - mackes/workbench/  (residual GTK surfaces)
+#   - mackes/wizard/     (onboarding copy)
+#   - data/applications/*.desktop (launcher Name= / Comment=)
+#
+# Excludes: comments (//, #), test code, `crates/mackes-panel/`
+# (legacy GTK panel, frozen). The verb-discipline check is
+# intentionally conservative — it targets clear button-label
+# shapes (UPPER first letter, ≤ 3 words, ends with no punctuation)
+# to avoid false positives in narrative prose / comments / log
+# strings.
+#
+# Exit 0 = clean, exit 1 = violations found.
+# Run as: install-helpers/lint-voice.sh [path...]
+
+set -eu
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$REPO_ROOT"
+
+if [ $# -gt 0 ]; then
+    SCAN_PATHS="$*"
+    ACTIVE_PATHS="$*"
+else
+    # All paths get the forbidden-strings checks (marketing words,
+    # lorem ipsum, etc. shouldn't appear ANYWHERE).
+    SCAN_PATHS="crates/mde-applets crates/mde-bus crates/mde-drawer crates/mde-files crates/mde-kdc crates/mde-logout-dialog crates/mde-panel crates/mde-peer-card crates/mde-popover crates/mde-session crates/mde-wizard crates/mde-workbench mackes/workbench mackes/wizard data/applications data/bus"
+    # v4.0.2 cleanup: verb-discipline scans run only against active
+    # surfaces. `mackes/workbench/*` and `mackes/wizard/*` are the
+    # legacy v1.x GTK Python tree being retired by CB-1.x — their
+    # button-label vocabulary predates the voice-and-tone lock and
+    # won't be relabeled before retirement. Forbidden-strings stays
+    # active there.
+    ACTIVE_PATHS="crates/mde-applets crates/mde-drawer crates/mde-files crates/mde-kdc crates/mde-logout-dialog crates/mde-panel crates/mde-peer-card crates/mde-popover crates/mde-session crates/mde-wizard crates/mde-workbench data/applications"
+fi
+
+# Filter pattern for source lines: exclude comments + tests.
+# Iced strings are typically inside text("..."), button(text("...")),
+# .placeholder("...") — we grep across all and let the verb
+# pattern + word-boundary do the filtering.
+
+EXIT_CODE=0
+TOTAL_VIOLATIONS=0
+TMPFILE=$(mktemp)
+trap 'rm -f "$TMPFILE"' EXIT
+
+scan() {
+    local label="$1"
+    local pattern="$2"
+    local description="$3"
+    local args="$4"
+    # 5th positional arg: which path set to scan. "active" for
+    # verb-discipline checks (skips legacy Python tree),
+    # "all" (default) for forbidden-strings.
+    local path_set="${5:-all}"
+    local paths
+    case "$path_set" in
+        active) paths="$ACTIVE_PATHS" ;;
+        *)      paths="$SCAN_PATHS" ;;
+    esac
+    > "$TMPFILE"
+    # shellcheck disable=SC2086
+    grep -rn -E "$pattern" $args $paths 2>/dev/null \
+        | grep -v 'voice-allow' \
+        > "$TMPFILE" || true
+    # v4.0.2 cleanup: per-line `voice-allow:<class>` annotation
+    # silences a match. Use sparingly — only for cases that
+    # comply with the lock's "destroy" exception or that ship
+    # in legacy retired-surface paths the verb table doesn't
+    # cover.
+    if [ -s "$TMPFILE" ]; then
+        local count
+        count=$(wc -l < "$TMPFILE")
+        TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + count))
+        printf '\n[%s] %d hit(s) — %s\n' "$label" "$count" "$description"
+        head -10 "$TMPFILE"
+        if [ "$count" -gt 10 ]; then
+            printf '  ... %d more hits suppressed\n' $((count - 10))
+        fi
+        EXIT_CODE=1
+    fi
+}
+
+# ──────────────────────────────────────────────────────────────
+# Forbidden marketing / celebratory strings (locked §Forbidden)
+# ──────────────────────────────────────────────────────────────
+
+scan FORBIDDEN-MARKETING \
+    '\b(Oops|Whoops|Yikes)\b' \
+    'celebratory/apologetic words banned in user strings' \
+    '--include=*.rs --include=*.py --include=*.desktop'
+
+scan FORBIDDEN-LOREM \
+    '\b(Lorem ipsum|dolor sit amet)\b' \
+    'lorem ipsum placeholder reached production' \
+    '--include=*.rs --include=*.py --include=*.desktop'
+
+scan FORBIDDEN-FOO \
+    '"(foo|bar|baz|qux)"' \
+    'metasyntactic variables as visible strings (use real names)' \
+    '--include=*.rs --include=*.py'
+
+scan FORBIDDEN-TEST \
+    '"(test123|testing123|placeholder)"' \
+    'placeholder/test default values shipping in production' \
+    '--include=*.rs --include=*.py --include=*.desktop'
+
+# NF-20.5 (v2.5 Nebula fabric) — Tailscale / Headscale / DERP are
+# v1.x vocabulary. User-visible strings mentioning them are a
+# v2.5-cut regression. Pattern requires the term to be inside a
+# double-quoted string literal so retraction notes in code
+# comments (// or //!) don't false-positive.
+scan FORBIDDEN-LEGACY-MESH \
+    '"[^"]*\b(Tailscale|Headscale|DERP)\b[^"]*"' \
+    'pre-v2.5 mesh vocabulary leaked into user-visible copy' \
+    '--include=*.rs --include=*.desktop'
+
+# EPIC-UI-MOTION.lint (2026-05-26 — Q47 + `docs/design/motion-
+# language.md` §3 forbidden-verbs list). The motion principle is
+# "functional + subtle decorative motion" with a 100/120/150/200 ms
+# ease grid; user-visible strings must not promise bouncy / springy
+# / decorative animation. "rotate" is allowed (clock hands +
+# mesh-globe spin); "pop" / "punch" / "snap" as nouns for button-
+# press feedback are allowed too — they're listed in motion-
+# language.md §3 but not blocked here because the noun-vs-verb
+# disambiguation false-positives more than it catches.
+scan FORBIDDEN-MOTION-VOCAB \
+    '"[^"]*\b(bounce|bouncy|springy|elastic|wiggle|jiggle|swoosh|whoosh|twirl|swirl)\b[^"]*"' \
+    'motion-language §3 forbidden vocab leaked into user-visible copy' \
+    '--include=*.rs --include=*.py --include=*.desktop'
+
+# EPIC-UI-MATERIAL.lint (2026-05-26 — Q43 + Q97). Material Symbols
+# supersedes Carbon per the 100-Q tightening survey. User-visible
+# strings must not still advertise Carbon-branded iconography.
+# Conservative match — only quoted strings containing the literal
+# phrases "Carbon icon" / "Carbon glyph" / "Carbon Symbolic", or
+# the `carbon-<name>` symbolic-name format. Bare `carbon` is
+# allowed (lithography, carbon-copy idiom, etc).
+scan FORBIDDEN-CARBON-VOCAB \
+    '"[^"]*(Carbon (icon|glyph|Symbolic)|carbon-[a-z0-9-]{2,})[^"]*"' \
+    'Carbon iconography vocab leaked into user-visible copy (Q43 superseded by Material Symbols)' \
+    '--include=*.rs --include=*.py --include=*.desktop'
+
+# TUNE-5 / 25-Q Q9 (2026-05-26) — coming-soon discipline. Per
+# §0.12 + Q9 of the 25-Q tuning survey, user-visible strings
+# must not advertise aspirational state ("coming soon", "TBD",
+# "WIP", etc.). Pairs with the code-side `lint-no-stubs.sh`
+# (gate #13) to fully enforce §0.12.
+#
+# Wayland-protocol exception: `unstable-v1` is a legitimate
+# upstream protocol naming convention (`wlr-data-control-v1`,
+# `wlr-output-management-unstable-v1`, etc.) and not aspirational
+# from MDE's perspective. The pattern below requires the
+# forbidden word be inside a double-quoted string AND not
+# preceded by `wlr-` / `wp_` / `zxdg_` / `zwp_` / `unstable-v`
+# tokens that signal protocol naming.
+#
+# Note on conservatism: `experimental` / `beta` / `alpha` /
+# `preview` words can be legitimate in technical contexts (e.g.,
+# "experimental WGSL feature", "beta cargo feature"). The match
+# below requires the word to be the FIRST or LAST token in the
+# quoted string, which catches "Coming soon!" / "TBD" / "(WIP)"
+# style operator-facing aspirational labels without false-
+# positive on technical sentences.
+scan FORBIDDEN-COMING-SOON \
+    '"(coming soon|TBD|tbd|WIP|work in progress|not yet implemented|soon™|early access)"' \
+    'aspirational "coming soon" / "TBD" / "WIP" labels leaked into user-visible copy (§0.12 + 25-Q Q9)' \
+    '-i --include=*.rs --include=*.py --include=*.desktop'
+
+# Aspirational labels embedded INSIDE quoted user strings — e.g.
+# "Networks (coming soon)" / "Voice (beta)" / "Files [WIP]".
+# Match a quoted string containing one of: "(coming soon)",
+# "[coming soon]", "(WIP)", "[TBD]", "(beta)", "(alpha)",
+# "(preview)", "(experimental)", "(early access)". The
+# parenthetical / bracketed form is the operator-facing
+# aspirational-label idiom; bare technical mentions of beta/
+# alpha/etc. inside long descriptive strings are not caught.
+# -i so "Coming soon" and "coming soon" are both caught.
+scan FORBIDDEN-LABEL-SUFFIX \
+    '"[^"]*[\[\(](coming soon|TBD|WIP|work in progress|early access|alpha|beta|preview|experimental)[\]\)][^"]*"' \
+    'aspirational label suffix leaked into user-visible copy (§0.12 + 25-Q Q9)' \
+    '-i --include=*.rs --include=*.py --include=*.desktop'
+
+# ──────────────────────────────────────────────────────────────
+# Verb discipline (locked §Verb discipline)
+# Targets clear button-label-shape strings only: capitalized
+# first letter inside double-quotes, ends with quote (no
+# punctuation), ≤ 3 words. Logs / errors / multi-sentence prose
+# fall outside the shape and are not matched.
+# ──────────────────────────────────────────────────────────────
+
+# "Create" / "New" → use "Add"
+# Match: "Create peer", "New file", "Create" etc.
+scan VERB-CREATE-VS-ADD \
+    '"\b(Create|New)\b( \w+){0,2}"' \
+    'use "Add ..." not "Create/New ..." (voice-and-tone §Verb discipline)' \
+    '--include=*.rs --include=*.py --include=*.desktop' \
+    active
+
+# "Delete X" where the action is removal-from-set, not destruction
+# This is harder to disambiguate; flag bare "Delete" in button-shape
+# strings (≤ 3 words) so the author can choose Remove or keep Delete.
+scan VERB-DELETE-VS-REMOVE \
+    '"\bDelete\b( \w+){0,2}"' \
+    'consider "Remove ..." for set-removal; "Delete ..." reserved for destroy (voice-and-tone)' \
+    '--include=*.rs --include=*.py --include=*.desktop' \
+    active
+
+# "Save" / "Confirm" → use "Apply" for config changes
+scan VERB-SAVE-VS-APPLY \
+    '"\b(Save|Confirm)\b( \w+){0,2}"' \
+    'use "Apply ..." not "Save/Confirm ..." for config changes (voice-and-tone)' \
+    '--include=*.rs --include=*.py --include=*.desktop' \
+    active
+
+# "Stop" / "Abort" → use "Cancel"
+scan VERB-STOP-VS-CANCEL \
+    '"\b(Abort)\b( \w+){0,2}"' \
+    'use "Cancel ..." not "Abort ..." (voice-and-tone)' \
+    '--include=*.rs --include=*.py --include=*.desktop' \
+    active
+
+# "Execute" / "Trigger" / "Launch" → use "Run"
+scan VERB-EXECUTE-VS-RUN \
+    '"\b(Execute|Trigger)\b( \w+){0,2}"' \
+    'use "Run ..." not "Execute/Trigger ..." (voice-and-tone)' \
+    '--include=*.rs --include=*.py --include=*.desktop' \
+    active
+
+# SWAY-6 (Q84, 2026-05-29) — compositor proper-name must not appear in
+# user-visible labels. "sway" / "i3" are implementation details; user-
+# facing copy should say "compositor" / "window manager" / "MDE" instead.
+# Conservative pattern: only capitalized forms ("Sway", "I3") that would
+# appear as proper nouns in button labels / panel titles. Lowercase forms
+# ("sway", "i3") are left to code strings (binary names, paths, thread
+# IDs) — they are excluded by the case-sensitive match. Pattern mirrors
+# FORBIDDEN-LEGACY-MESH (capitalized proper-noun guard).
+scan FORBIDDEN-COMPOSITOR-NAMES \
+    '"[^"]*(Sway|I3)\b[^"]*"' \
+    'compositor proper-name "Sway"/"I3" must not appear in user-visible labels (Q84 — say "compositor" or "MDE" instead)' \
+    '--include=*.rs --include=*.py --include=*.desktop' \
+    active
+
+# ──────────────────────────────────────────────────────────────
+# Summary
+# ──────────────────────────────────────────────────────────────
+
+if [ "$EXIT_CODE" -eq 0 ]; then
+    echo "lint-voice.sh: clean ($SCAN_PATHS)"
+else
+    printf '\nlint-voice.sh: %d total violation(s) across the scanned paths.\n' "$TOTAL_VIOLATIONS" >&2
+    printf 'See docs/design/voice-and-tone.md for the locked verb table + forbidden strings.\n' >&2
+fi
+
+exit "$EXIT_CODE"

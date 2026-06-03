@@ -1,0 +1,15 @@
+# Snapshot allow-list for lint-runtime-reachability.sh
+# (TUNE-3 / 25-Q Q10). The lint was extended 2026-05-27 to
+# also accept aliased imports (`<name> as <alias>`), which
+# cleared 36 of the 37 prior false-positive entries (the
+# mde-workbench panel set imported via `apps_install as
+# apps_install_panel` etc.). TUNE-3.b (2026-05-27) hard-
+# deleted the remaining orphan `crates/mackesd/src/transport/
+# mesh_shunt.rs` (KDC2-4.3 file-transfer residue, superseded
+# by Q23 PHONE-NEBULA-PEER) — the allow-list is now empty.
+#
+# Net-new dead modules from this point forward are regressions
+# and must be either wired or deleted in the introducing
+# commit.
+#
+# Format: one <file>:<module-name> per line.

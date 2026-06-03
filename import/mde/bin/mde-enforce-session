@@ -1,0 +1,12 @@
+#!/bin/sh
+# mde-enforce-session — MDE session-enforcer shim.
+#
+# v2.0.0 Phase 0.3 + D.7 — shim for the legacy
+# `mackes-enforce-session` autostart helper. The v2.0.0 cut
+# retires the enforcer (mde-session.service handles login
+# orchestration directly) and this script will become a no-op.
+# Today it delegates so existing /etc/xdg/autostart/
+# mackes-enforce-session.desktop entries keep working through
+# the rename.
+
+exec /usr/bin/mackes-enforce-session "$@"

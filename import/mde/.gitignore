@@ -1,0 +1,49 @@
+# Build outputs
+build/
+dist/
+rpmbuild/
+*.egg-info/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local-only artifacts
+.themes-backup-*/
+
+# Session state
+*.log
+
+# Claude Code harness state — most of it is transient.
+# Carve-outs (WF-1.a, 2026-05-21): the policy + hook surfaces are
+# project-wide rules that propagate to fresh clones, so they're
+# explicitly tracked. Skills, worktrees, settings.local.json stay
+# gitignored.
+.claude/*
+!.claude/CLAUDE.md
+!.claude/settings.json
+!.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/*.sh
+# Skills are normally local-only (each dev installs to
+# ~/.claude/skills/), but project-bespoke skills that encode
+# the worklist's bundling / iteration patterns ship in-repo
+# so a fresh clone picks them up. Add per-skill exceptions
+# here.
+!.claude/skills/
+!.claude/skills/batch/
+!.claude/skills/batch/SKILL.md
+
+# Rust build artifacts (Phase 0.1+)
+/target/
+Cargo.lock.bak
+**/*.rs.bk

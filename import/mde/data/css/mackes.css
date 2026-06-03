@@ -1,0 +1,440 @@
+/* Mackes Shell — Panel chrome design system  (v1.0.7 polish pass).
+ *
+ * Single stylesheet for everything mackes-panel renders: top bar,
+ * bottom dock, popovers, menus, and the status cluster. Built on the
+ * tokens in tokens.css; per-preset accents.css overrides land on top.
+ *
+ * Design principles
+ * -----------------
+ *   1. Surfaces, not chrome.   Hairline borders. No drop shadows
+ *                              (GTK3's box-shadow on toplevels is
+ *                              unreliable). Depth comes from
+ *                              background-tint deltas and 1 px rules.
+ *   2. Type drives hierarchy.  Red Hat Display for brand, Red Hat Text
+ *                              for body, Red Hat Mono for tabular data.
+ *                              Three sizes per role; no ad-hoc points.
+ *   3. 4 px grid.              All padding/margins are multiples of 4.
+ *                              Tokens.css holds the named scale.
+ *   4. Motion is restraint.    180 ms ease-out for state changes
+ *                              (Carbon Productive). Never longer.
+ *                              Position changes are instant.
+ *   5. Accent for intent.      The blue (@mackes_accent) marks the
+ *                              currently active thing only. Hover is
+ *                              a neutral tint, not the brand color.
+ *
+ * Surface inventory
+ * -----------------
+ *   #mackes-top-bar             36 px tall, full width, hairline below
+ *   #mackes-dock                42 px tall, full width, hairline above
+ *   #mackes-panel-desktop       fullscreen wallpaper layer
+ *   .mackes-popover             status/weather/peer popovers
+ *   .mackes-context-menu        right-click menus (dock items, etc.)
+ *
+ *   #mackes-apple-menu-button   leftmost top-bar slot
+ *   #mackes-top-clock           centered, 12-hour time + click→weather
+ *   #mackes-status-cluster      rightmost 6-icon slot
+ *   .mackes-dock-strip          pinned launchers
+ *   #mackes-dock-tasklist       running-window icons
+ *   #mackes-dock-state-dot      under-icon indicator (running/focused)
+ */
+
+/* ---------------------------------------------------------------------- *
+ * Legacy mackes-* classes used by older workbench widgets.
+ * Kept until those panels migrate to mackes/carbon/.
+ * ---------------------------------------------------------------------- */
+
+.mackes-panel-title {
+    font-family: "Red Hat Display", "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: @cds_text_primary;
+    margin-bottom: 8px;
+}
+
+.mackes-section-header {
+    font-family: "Red Hat Text", system-ui, sans-serif;
+    font-size: 11px;
+    line-height: 16px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: @cds_text_helper;
+    padding-bottom: 6px;
+    border-bottom: 1px solid @cds_border_subtle_00;
+    margin-top: 20px;
+    margin-bottom: 12px;
+}
+
+.mackes-info {
+    font-family: "Red Hat Text", system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+    color: @cds_text_helper;
+}
+
+.mackes-row-label {
+    font-weight: 500;
+    min-width: 180px;
+    color: @cds_text_primary;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Panel surfaces
+ * ---------------------------------------------------------------------- */
+
+window#mackes-top-bar {
+    background-color: @cds_bg_default;
+    /* A hairline below establishes the surface edge without competing
+       with content. 1 px keeps the bar feeling like part of the screen,
+       not a heavy app window. */
+    border-bottom: 1px solid alpha(@cds_text_primary, 0.06);
+}
+
+window#mackes-dock {
+    /* The dock floats over the wallpaper; a slightly lighter surface
+       tint and a hairline above gives it the "shelf" feel without a
+       drop shadow. */
+    background-color: alpha(@cds_bg_default, 0.97);
+    border-top: 1px solid alpha(@cds_text_primary, 0.08);
+}
+
+window#mackes-panel-desktop {
+    /* Belt-and-braces: even if no wallpaper resolves, paint the
+       Carbon background so we never show through to the X root. */
+    background-color: @cds_bg_default;
+}
+
+/* All text defaults to the primary color, all panels are transparent
+   except for the surfaces above. Without this, GTK's default theme
+   picks dark-on-dark on some XFCE setups. */
+window#mackes-top-bar label,
+window#mackes-top-bar button,
+window#mackes-dock label,
+window#mackes-dock button {
+    color: @cds_text_primary;
+    background-color: transparent;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Top bar — apple menu, clock, status cluster
+ * ---------------------------------------------------------------------- */
+
+/* Button reset: kill the default GTK rounded raised look across the
+   whole top bar; each named button below paints its own state. */
+window#mackes-top-bar button {
+    padding: 4px 8px;
+    border: none;
+    border-radius: 4px;
+    box-shadow: none;
+    background-image: none;
+    transition: background-color 150ms cubic-bezier(0.0, 0.0, 0.2, 1.0),
+                color           150ms cubic-bezier(0.0, 0.0, 0.2, 1.0);
+}
+
+window#mackes-top-bar button:hover {
+    background-color: alpha(@cds_text_primary, 0.08);
+}
+
+window#mackes-top-bar button:active,
+window#mackes-top-bar button:checked {
+    background-color: alpha(@mackes_accent, 0.14);
+    color: @mackes_accent;
+}
+
+window#mackes-top-bar button:focus {
+    /* Subtle ring on keyboard focus. The 1 px ring at low alpha is
+       visible against any wallpaper without being loud. */
+    outline: 1px solid alpha(@mackes_accent, 0.50);
+    outline-offset: -1px;
+}
+
+/* Apple menu — the leftmost slot.  Slightly tighter than the cluster
+   buttons because the M glyph has its own surrounding negative space. */
+#mackes-apple-menu-button {
+    padding: 4px 10px;
+    margin-left: 4px;
+}
+
+/* Clock — center slot.  Tabular numerals so the minute digit changing
+   doesn't shift the time horizontally. */
+#mackes-top-clock {
+    padding: 0 12px;
+    margin: 0 4px;
+}
+
+#mackes-top-clock-label {
+    font-family: "Red Hat Mono", "JetBrains Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    font-feature-settings: "tnum";
+    letter-spacing: 0.02em;
+}
+
+/* Status cluster — six right-aligned icons.  We give each icon a 28 ×
+   28 hit target on a 36-px bar so they're tappable without crowding. */
+#mackes-status-cluster {
+    margin-right: 6px;
+}
+
+#mackes-status-cluster button {
+    padding: 4px 6px;
+    margin: 0 1px;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Dock — launcher strip + tasklist
+ * ---------------------------------------------------------------------- */
+
+window#mackes-dock button,
+window#mackes-dock .mackes-dock-strip,
+window#mackes-dock eventbox {
+    padding: 0;
+    margin: 0;
+    border: none;
+    box-shadow: none;
+    background-image: none;
+}
+
+/* Each dock entry (launcher or tasklist item) lives in a Box columns:
+   icon overlay (DOCK_ICON_PX), state-dot row (2 px).  Add a small
+   horizontal padding so adjacent icons don't visually merge. */
+.mackes-dock-strip > *,
+#mackes-dock-tasklist > * {
+    padding: 0 4px;
+    transition: background-color 150ms cubic-bezier(0.0, 0.0, 0.2, 1.0),
+                opacity          150ms cubic-bezier(0.0, 0.0, 0.2, 1.0);
+}
+
+/* Hover gives a subtle bg-tint behind the icon, not the icon itself —
+   the icon stays Carbon-monochrome.  No scale transform: GTK3 can't
+   smoothly animate it. */
+.mackes-dock-strip > *:hover,
+#mackes-dock-tasklist > *:hover {
+    background-color: alpha(@cds_text_primary, 0.07);
+    border-radius: 6px;
+}
+
+/* Phase 5.7 — drag-and-drop visual feedback.
+ *  - .dragging is applied to the drag source on `drag-begin` and
+ *    removed on `drag-end`. The icon dims to half opacity so the
+ *    user has a clear "this is the thing I'm moving" cue.
+ *  - .drop-hover is applied on `drag-motion` and removed on
+ *    `drag-leave` (and on `drag-data-received` as defence in depth).
+ *    The accent-tinted background + 1 px inset outline marks the
+ *    landing zone.
+ *
+ * Both classes are managed by `crates/mackes-panel/src/dock_dnd.rs`. */
+.mackes-dock-strip > *.dragging,
+#mackes-dock-tasklist > *.dragging,
+eventbox.dragging {
+    opacity: 0.5;
+}
+
+.mackes-dock-strip > *.drop-hover,
+#mackes-dock-tasklist > *.drop-hover,
+eventbox.drop-hover,
+#mackes-taskbar-pinned.drop-hover {
+    background-color: alpha(@mackes_accent, 0.18);
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px alpha(@mackes_accent, 0.55);
+}
+
+/* State dot — under-icon indicator.
+ *  - .muted  → unfocused running.  Helper-color, low contrast.
+ *  - .accent → focused window's app. Brand blue, full saturation.
+ *  - .alert  → urgent. Error color.
+ *
+ * The dot is 2 px tall with rounded ends so it reads as a marker, not
+ * a separator. */
+#mackes-dock-state-dot {
+    min-height: 2px;
+    background-color: transparent;
+    border: none;
+    margin: 1px 0 0 0;
+    border-radius: 1px;
+    transition: background-color 150ms cubic-bezier(0.0, 0.0, 0.2, 1.0);
+}
+
+#mackes-dock-state-dot.muted {
+    background-color: alpha(@cds_text_primary, 0.32);
+}
+
+#mackes-dock-state-dot.accent {
+    background-color: @mackes_accent;
+}
+
+#mackes-dock-state-dot.alert {
+    background-color: @cds_support_error;
+}
+
+/* Multi-window indicator: two or three short bars in a row. Each
+   inherits the same color via the parent's state class. */
+#mackes-dock-multi {
+    margin: 1px 0 0 0;
+}
+
+#mackes-dock-multi > #mackes-dock-state-dot {
+    border-radius: 1px;
+}
+
+/* Tasklist + launcher items both use this column wrapper. */
+#mackes-dock-item-column {
+    padding: 2px 0 0 0;
+}
+
+/* Right-edge unread badge (urgent state). */
+#mackes-dock-unread-badge {
+    background-color: @cds_support_error;
+    color: @cds_text_inverse;
+    font-family: "Red Hat Mono", monospace;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 8px;
+    margin: 2px;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Popovers — status / weather / peer
+ *
+ * GTK3 popovers are bin widgets with their own arrow + frame; we
+ * override the inside with our own padding/typography. The outer
+ * arrow keeps GTK's default since it's already theme-aware.
+ * ---------------------------------------------------------------------- */
+
+popover {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid alpha(@cds_text_primary, 0.10);
+    border-radius: 8px;
+    padding: 0;
+}
+
+popover > * {
+    padding: 14px 16px;
+    color: @cds_text_primary;
+    font-family: "Red Hat Text", system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 18px;
+}
+
+#mackes-status-popover-title,
+#mackes-weather-title,
+.mackes-popover-title {
+    font-family: "Red Hat Display", "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    color: @cds_text_primary;
+    margin-bottom: 2px;
+}
+
+#mackes-status-popover-summary,
+#mackes-weather-footer,
+.mackes-popover-helper {
+    color: @cds_text_helper;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+#mackes-weather-temp {
+    font-family: "Red Hat Display", "IBM Plex Sans", system-ui, sans-serif;
+    font-size: 32px;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    color: @cds_text_primary;
+    margin: 4px 0 2px 0;
+}
+
+#mackes-weather-symbol {
+    margin: 0 0 6px 0;
+}
+
+/* Drawer-handoff button inside the status popover — the main CTA. */
+#mackes-status-popover-drawer {
+    background-color: alpha(@mackes_accent, 0.12);
+    color: @mackes_accent;
+    border: 1px solid alpha(@mackes_accent, 0.30);
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin-top: 8px;
+    font-weight: 600;
+    transition: background-color 150ms cubic-bezier(0.0, 0.0, 0.2, 1.0);
+}
+
+#mackes-status-popover-drawer:hover {
+    background-color: alpha(@mackes_accent, 0.20);
+}
+
+/* ---------------------------------------------------------------------- *
+ * Menus — apple menu, launcher/tasklist context menus
+ * ---------------------------------------------------------------------- */
+
+menu, .mackes-context-menu, #mackes-apple-menu,
+#mackes-launcher-menu, #mackes-tasklist-menu {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid alpha(@cds_text_primary, 0.10);
+    border-radius: 8px;
+    padding: 6px 0;
+    color: @cds_text_primary;
+    font-family: "Red Hat Text", system-ui, sans-serif;
+    font-size: 13px;
+}
+
+menu menuitem,
+.mackes-context-menu menuitem {
+    padding: 6px 14px;
+    border-radius: 4px;
+    margin: 0 6px;
+    transition: background-color 150ms cubic-bezier(0.0, 0.0, 0.2, 1.0);
+}
+
+menu menuitem:hover,
+.mackes-context-menu menuitem:hover {
+    background-color: alpha(@mackes_accent, 0.18);
+    color: @cds_text_primary;
+}
+
+menu menuitem:disabled,
+.mackes-context-menu menuitem:disabled {
+    /* Header rows (window title in the tasklist menu, app name in
+       the launcher menu) — quieter, slightly smaller. */
+    color: @cds_text_helper;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 8px 14px 4px 14px;
+}
+
+menu separator {
+    background-color: alpha(@cds_text_primary, 0.08);
+    min-height: 1px;
+    margin: 4px 8px;
+}
+
+/* ---------------------------------------------------------------------- *
+ * Weather popover columns + peer popover buttons
+ * ---------------------------------------------------------------------- */
+
+#mackes-weather-column {
+    min-width: 220px;
+}
+
+#mackes-peer-popover {
+    min-width: 200px;
+}
+
+#mackes-peer-popover button {
+    background-color: transparent;
+    border: 1px solid alpha(@cds_text_primary, 0.12);
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin: 2px 0;
+    transition: background-color 150ms cubic-bezier(0.0, 0.0, 0.2, 1.0);
+}
+
+#mackes-peer-popover button:hover {
+    background-color: alpha(@cds_text_primary, 0.08);
+}

@@ -1,0 +1,24 @@
+[mackes-shell]
+name = Mackes Shell
+# Hosted as a dnf repo on the matthewmackes/MAP2-RELEASES gh-pages branch.
+# Populate with `createrepo_c` on every release tag; see
+# install-helpers/add-mackes-repo.sh and packaging docs.
+baseurl = https://matthewmackes.github.io/MAP2-RELEASES/fedora/$releasever/$basearch
+enabled = 1
+# 1.1.0 — Fedora best practice for third-party repos: gpgcheck +
+# repo_gpgcheck both on, metadata cache lifetime aligned with the
+# watermark's 4 h dnf-check-update poll (Q21). The mackes-shell GPG
+# key is fetched once and trusted via /etc/pki/rpm-gpg/.
+gpgcheck = 1
+repo_gpgcheck = 1
+gpgkey = https://matthewmackes.github.io/MAP2-RELEASES/RPM-GPG-KEY-mackes-shell
+metadata_expire = 4h
+# Lower priority than fedora/updates (which default to 99). This means
+# fedora packages always win over our repo for shared dependencies —
+# only the mackes-* packages themselves come from here.
+priority = 50
+skip_if_unavailable = True
+# Activate Mackes' built-in cleanup paths whenever upgrade transactions
+# land. The %post in mackes-xfce-workstation.spec runs the relevant
+# helpers; this keeps clean-orphan + clean-headers behavior consistent.
+clean_requirements_on_remove = True

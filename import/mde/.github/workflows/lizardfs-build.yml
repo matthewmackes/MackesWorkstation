@@ -1,0 +1,153 @@
+# MESHFS-1.1 (v5.0.0) — Build LizardFS from a pinned upstream tag and
+# cache / upload the resulting binaries as a workflow artifact.
+#
+# The artifact (lizardfs-binaries.tar.gz) is consumed by the release
+# workflow: it downloads the artifact into rpmbuild/SOURCES/ so that
+# `rpmbuild -ba` can satisfy the `Source1:` declaration in the spec.
+#
+# Pinning strategy: we pin to LIZARDFS_TAG (a git tag) rather than a raw
+# commit SHA so the reference is human-readable. Tags in the upstream
+# lizardfs/lizardfs repo are not forcibly moved. If the operator wants
+# to change the pin, update LIZARDFS_TAG below and re-run the workflow;
+# the cache key changes automatically.
+#
+# Build deps on Fedora 44:
+#   cmake, gcc, g++, fuse3-devel, fuse3-libs, zlib-devel,
+#   openssl-devel, boost-devel, spdlog-devel, fmt-devel, python3-devel, pkg-config
+
+name: lizardfs-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Force rebuild even if cached artifact exists"
+        required: false
+        default: "false"
+  push:
+    paths:
+      - ".github/workflows/lizardfs-build.yml"
+      - "install-helpers/build-lizardfs.sh"
+
+env:
+  LIZARDFS_TAG: "3.13.0-rc2"
+  LIZARDFS_REPO: "https://github.com/lizardfs/lizardfs.git"
+
+jobs:
+  build:
+    name: Build LizardFS 3.13.0-rc2  # literal: the `env` context isn't available in jobs.<id>.name
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+
+    steps:
+      - name: Install build deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git \
+            cmake \
+            gcc \
+            gcc-c++ \
+            fuse3-devel \
+            fuse3-libs \
+            zlib-devel \
+            openssl-devel \
+            boost-devel \
+            spdlog-devel \
+            fmt-devel \
+            python3-devel \
+            python3 \
+            pkg-config \
+            make
+
+      - name: Checkout mde repo
+        uses: actions/checkout@v4
+
+      - name: Cache LizardFS build artifact
+        id: cache-lfs
+        uses: actions/cache@v4
+        with:
+          path: lizardfs-binaries.tar.gz
+          key: lizardfs-${{ env.LIZARDFS_TAG }}-fedora44-v1
+
+      - name: Clone LizardFS at pinned tag
+        if: steps.cache-lfs.outputs.cache-hit != 'true' || inputs.force_rebuild == 'true'
+        run: |
+          git clone --depth 1 --branch "$LIZARDFS_TAG" \
+              "$LIZARDFS_REPO" /tmp/lizardfs-src
+          cd /tmp/lizardfs-src
+          git log -1 --format="LizardFS build: tag=%H" > /tmp/lizardfs-commit.txt
+          cat /tmp/lizardfs-commit.txt
+
+      - name: Build LizardFS
+        if: steps.cache-lfs.outputs.cache-hit != 'true' || inputs.force_rebuild == 'true'
+        run: |
+          mkdir -p /tmp/lizardfs-build
+          cd /tmp/lizardfs-build
+          cmake /tmp/lizardfs-src \
+              -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+              -DCMAKE_CXX_FLAGS="-include cstdint -include cstdio -include cstring -include cstdlib" \
+              -DCMAKE_CXX_STANDARD_LIBRARIES="-lfmt" \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_INSTALL_PREFIX=/usr \
+              -DENABLE_TESTS=OFF \
+              -DENABLE_WERROR=OFF \
+              -DENABLE_URAFT=OFF \
+              -DFUSE_INCLUDE_PATH=/usr/include/fuse3 \
+              -DFUSE_LIBRARY=/usr/lib64/libfuse3.so
+          # uraft (the HA-master helper) is the one component that does
+          # not build on Fedora 44's toolchain — it uses 2017-era
+          # boost::asio io_service / deadline_timer, removed upstream.
+          # It is NOT one of the 7 daemons we bundle, so disable it at
+          # configure time (-DENABLE_URAFT=OFF) rather than chasing a
+          # source port. Build everything else keep-going (-k) so no
+          # other unused legacy target can sink the build; the Bundle
+          # step verifies the 7 we actually need landed. (The previous
+          # `make <names> || make` fallback masked a target-name typo:
+          # the FUSE client's cmake target is `mount`, not `mfsmount`.)
+          make -j"$(nproc)" -k
+
+      - name: Bundle binaries
+        if: steps.cache-lfs.outputs.cache-hit != 'true' || inputs.force_rebuild == 'true'
+        run: |
+          bindir=$(mktemp -d)
+          # LizardFS 3.13 binary names differ from the legacy mfs* set:
+          # the FUSE3 client is `mfsmount3` (we install it as mfsmount, the
+          # name the systemd unit + spec expect), and goal/quota/admin live
+          # in the unified `lizardfs` / `lizardfs-admin` tools — the old
+          # mfscli/mfssetgoal/mfssetquota are argv[0] symlinks, not separate
+          # binaries. Each entry is built-name:bundled-name.
+          missing=""
+          for pair in mfsmaster:mfsmaster mfschunkserver:mfschunkserver \
+                      mfsmetarestore:mfsmetarestore mfsmount3:mfsmount \
+                      lizardfs:lizardfs lizardfs-admin:lizardfs-admin; do
+            srcname="${pair%%:*}"; dstname="${pair##*:}"
+            src=$(find /tmp/lizardfs-build -name "$srcname" -type f | head -1)
+            if [ -n "$src" ]; then
+              cp "$src" "$bindir/$dstname"
+              strip "$bindir/$dstname" 2>/dev/null || true
+            else
+              missing="$missing $dstname($srcname)"
+            fi
+          done
+          ls -lh "$bindir/"
+          # Never publish an incomplete mesh-storage layer. If a daemon
+          # is missing it's almost certainly a target/output-name skew —
+          # dump the real candidate names so the fix is one iteration.
+          if [ -n "$missing" ]; then
+            echo "::error::LizardFS build did not produce:$missing" >&2
+            echo "--- executables actually built (candidate names): ---" >&2
+            find /tmp/lizardfs-build -maxdepth 4 -type f -executable \
+              \( -name 'mfs*' -o -name 'lizardfs*' -o -name 'mount' \) \
+              -printf '%f\n' | sort -u >&2
+            exit 1
+          fi
+          tar -czf lizardfs-binaries.tar.gz -C "$bindir" .
+          echo "Artifact size: $(du -sh lizardfs-binaries.tar.gz)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: lizardfs-binaries-${{ env.LIZARDFS_TAG }}
+          path: lizardfs-binaries.tar.gz
+          retention-days: 90

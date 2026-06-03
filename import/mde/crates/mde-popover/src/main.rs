@@ -1,0 +1,197 @@
+//! `mde-popover` — Iced + wlr-layer-shell popover host.
+//!
+//! v3.0.2 panel-host wiring: the panel (`mde-panel`) spawns this
+//! binary on every clickable zone press. Each popover is a separate
+//! layer-shell overlay surface that anchors above the panel edge,
+//! dismisses on Esc / outside-click / close-button, and exits cleanly
+//! when the user commits or cancels.
+//!
+//! ```text
+//!   mde-popover start-menu         # M button → app launcher
+//!   mde-popover audio              # ♫ click → volume slider
+//!   mde-popover notifications      # bell click → notification list
+//!   mde-popover clock              # clock click → calendar
+//!   mde-popover network            # network click → connection list
+//! ```
+//!
+//! Per-kind ports: start-menu, audio, clock, notifications all ship
+//! working today with the v3.0.3 close-button + the panel-side
+//! toggle dedup + zombie reap fixes. The network kind is
+//! grandfathered as an exit-0 stub under §0.12 until the v3.0.3
+//! network-popover task closes.
+
+#![forbid(unsafe_code)]
+
+mod admin_menu;
+mod app_switcher;
+mod audio;
+mod clipboard;
+mod clock;
+mod dismiss;
+mod expose;
+mod farewell;
+mod fonts;
+mod hostname_info;
+mod icon_mapper;
+mod lock;
+mod status;
+mod minimized;
+mod network;
+mod notifications;
+mod snap_assist;
+mod start_menu;
+mod toasts;
+mod overview;
+mod urgent;
+mod watermark;
+mod weather;
+mod which_key;
+mod window_actions;
+
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "mde-popover",
+    about = "Mackes Desktop Environment popover overlay surfaces"
+)]
+struct Cli {
+    /// Which popover to mount.
+    #[arg(value_enum)]
+    kind: Kind,
+}
+
+#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    StartMenu,
+    Audio,
+    Notifications,
+    Clock,
+    Network,
+    /// v3.0.3 — right-click-on-Start admin menu (9 actions, 5
+    /// sections, foot --hold + pkexec).
+    AdminMenu,
+    /// v3.0.3 — long-running bottom-right watermark surface.
+    /// Polls dnf every 4 hours; visible only when updates pending;
+    /// click invokes `pkexec dnf upgrade`. Spawned at session
+    /// start via data/sway/config rather than from the panel.
+    Watermark,
+    /// v3.0.3 — F3 exposé grid. Fullscreen overlay rendering one
+    /// card per sway top-level; click focuses + dismisses.
+    /// Bound to F3 in data/sway/config.
+    Expose,
+    /// v3.0.3 — Super+V clipboard history popover. Reads
+    /// ~/.cache/mde/clipboard.json (mesh-synced by mackesd's
+    /// clipboard worker); click an entry to copy it back via
+    /// wl-copy.
+    Clipboard,
+    /// v3.0.3 — long-running toast render surface (Layer::Top).
+    /// Tails ~/.cache/mde/toasts.jsonl for emit events and stacks
+    /// up to STACK_LIMIT=3 toasts above the panel. Spawned at
+    /// session start via data/sway/config.
+    Toast,
+    /// v4.0.1 WM-2 — minimized-windows popover. Lists sway
+    /// scratchpad windows + click-to-restore via swaymsg. Bind
+    /// with `bindsym $mod+Shift+s exec mde-popover minimized`.
+    Minimized,
+    /// v4.0.1 WM-5 — visible Alt-Tab window switcher. Centered
+    /// overlay with one card per open window; Tab cycles, Enter
+    /// focuses, Esc cancels. Bind with `bindsym Mod1+Tab exec
+    /// mde-popover app-switcher`.
+    AppSwitcher,
+    /// v4.0.1 WM-3 — right-click-on-dock-cell window-actions
+    /// popover. Reads target via MDE_WINDOW_CON_ID +
+    /// MDE_WINDOW_APP_ID env vars (the dock applet sets both
+    /// before spawning).
+    WindowActions,
+    /// v4.0.1 WM-4 — Snap Assist overlay. Modal layer-shell
+    /// surface with 8 click-to-snap zones (4 halves + 4
+    /// quadrants); targets the focused sway window. Bound to
+    /// `bindsym $mod+z exec mde-popover snap-assist`.
+    SnapAssist,
+    /// v3.0.3 E.19 — icon-mapper glyph picker. Reads target
+    /// via MDE_ICON_MAPPER_APP_ID env var; writes the picked
+    /// Material Symbols glyph to ~/.local/share/applications/
+    /// <app>.desktop's X-MDE-Icon= line. Spawned via the
+    /// "Customize Icon..." entry on the WM-3 window-actions
+    /// popover.
+    IconMapper,
+    /// Portal-6.c — hostname-info tooltip. Small card at the
+    /// bottom-left corner above the Dock showing hostname,
+    /// uptime, primary IP, and mesh role. Spawned when the
+    /// user clicks the Dock's hostname segment.
+    HostnameInfo,
+    /// Portal-9.b — status-zone slide-up strip. Full-width
+    /// 180 px strip above the Dock with Volume / Brightness /
+    /// Power tabs. Spawned by clicking the volume or
+    /// brightness glyph in the Dock's status segment.
+    Status,
+    /// Portal-25 — lock-screen layer-shell overlay. Fullscreen
+    /// Layer::Overlay surface that captures keyboard exclusively
+    /// and paints the MDE lock visual (M › hostname breadcrumb,
+    /// big clock, date, mesh/net/battery/weather indicators).
+    /// Bind via `bindsym $mod+l exec mde-popover lock`. Esc or
+    /// Enter dismisses.
+    Lock,
+    /// BUS-2.5 — theater takeover for `urgent` Bus messages.
+    /// Fullscreen Layer::Overlay rendering a centered urgent card
+    /// (⚠ + title + body) read from MDE_URGENT_TITLE / MDE_URGENT_BODY;
+    /// Esc / Enter / click dismisses. Spawned by the mde-portal Dock
+    /// when a `priority=urgent` Bus segment arrives.
+    Urgent,
+    /// ANIM-6.c — which-key binding overlay (Q55). Centered card
+    /// listing all `bindsym` entries for the active sway mode. Mode
+    /// name read from MDE_SWAY_MODE env var. Spawned by mde-portal
+    /// Dock on ModeChanged entry; Esc or click-outside dismisses.
+    WhichKey,
+    /// ANIM-6.b — workspace overview surface (Q46). Fullscreen grid
+    /// of workspace cards (name + app pills). Click to switch
+    /// workspace; Esc to dismiss. No wlr-screencopy thumbnails.
+    /// Bind with `bindsym $mod+Tab exec mde-popover overview`.
+    Overview,
+    /// ANIM-7.c — session-end fade-out overlay (Q40). Fullscreen
+    /// Layer::Overlay that fades transparent → opaque charcoal
+    /// (~200 ms) then executes the session action (logout/restart/
+    /// shutdown). Reads `--action <slug>` CLI arg. Bound to
+    /// `bindsym $mod+Shift+e exec mde-popover farewell --action logout`
+    /// in data/sway/config.d/mackes-defaults.conf.
+    Farewell,
+}
+
+fn main() -> iced_layershell::Result {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_env("MDE_POPOVER_LOG")
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("mde_popover=info,warn")),
+        )
+        .json()
+        .init();
+
+    let cli = Cli::parse();
+    tracing::info!(kind = ?cli.kind, "mde-popover spawned");
+
+    match cli.kind {
+        Kind::StartMenu => start_menu::run(),
+        Kind::Audio => audio::run(),
+        Kind::Notifications => notifications::run(),
+        Kind::Clock => clock::run(),
+        Kind::AdminMenu => admin_menu::run(),
+        Kind::Watermark => watermark::run(),
+        Kind::Expose => expose::run(),
+        Kind::Clipboard => clipboard::run(),
+        Kind::Toast => toasts::run(),
+        Kind::Network => network::run(),
+        Kind::Minimized => minimized::run(),
+        Kind::AppSwitcher => app_switcher::run(),
+        Kind::WindowActions => window_actions::run(),
+        Kind::SnapAssist => snap_assist::run(),
+        Kind::IconMapper => icon_mapper::run(),
+        Kind::HostnameInfo => hostname_info::run(),
+        Kind::Status => status::run(),
+        Kind::Lock => lock::run(),
+        Kind::Urgent => urgent::run(),
+        Kind::WhichKey => which_key::run(),
+        Kind::Overview => overview::run(),
+        Kind::Farewell => farewell::run(),
+    }
+}

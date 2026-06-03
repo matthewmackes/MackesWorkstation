@@ -1,0 +1,435 @@
+/* Mackes Shell — Classic ChromeOS design tokens (CR-1, 2026-05-25).
+ *
+ * Single source of truth for the Mackes window chrome. Every color,
+ * font, and spacing value lives here as a CSS variable; mackes.css and
+ * the per-preset accent overrides consume these tokens.
+ *
+ * Palette: Classic ChromeOS (pre-2022) — flat surfaces, hard 1 px
+ *          dividers, single accent. The legacy `cds_*` token names
+ *          are kept (153 refs across panels read them) but their
+ *          VALUES now resolve to the Classic ChromeOS scale per
+ *          docs/design/chromeos-classic-spec.md. The previous
+ *          PatternFly v6 tokens are grandfathered in commit history.
+ * Typography: Roboto (body) + Intel One Mono (code) — locked
+ *             2026-05-25 by Q44 of the 100-Q tightening survey.
+ *             Roboto Mono / Geologica / IBM Plex Mono retired
+ *             (memory: project_ux_polish_locks supersession).
+ *             Falls back to Cantarell / system-ui (body) +
+ *             Cascadia Code / JetBrains Mono (code) so the typography
+ *             isn't broken on machines that haven't yet run the
+ *             v2.6 birthright fonts step (`intel-one-mono-fonts`
+ *             ships in MackesDE 1.0 RPM Requires).
+ * Spacing: 4 / 8 / 16 px grid per the Classic ChromeOS spec; the
+ *          cds-spacing-* numeric ladder is unchanged so existing
+ *          callers keep computing the documented values.
+ *
+ * The per-preset accent (--mackes-accent) is the *only* token that
+ * varies across presets.
+ */
+
+/* ---- Classic ChromeOS dark surfaces ------------------------------------- */
+
+@define-color cds_bg_default       #202124;
+@define-color cds_bg_layer_01      #202124;
+@define-color cds_bg_layer_02      #2d2e30;
+@define-color cds_bg_layer_03      #3c4043;
+@define-color cds_bg_inverse       #e8eaed;
+@define-color cds_bg_hover         #2d2e30;
+@define-color cds_bg_active        #3c4043;
+@define-color cds_bg_selected      #2d2e30;
+
+@define-color cds_text_primary     #e8eaed;
+@define-color cds_text_secondary   #9aa0a6;
+@define-color cds_text_helper      #9aa0a6;
+@define-color cds_text_placeholder #5f6368;
+@define-color cds_text_disabled    #5f6368;
+@define-color cds_text_inverse     #1d1d1f;
+@define-color cds_text_error       #ff5454;
+@define-color cds_text_warning     #f0ab00;
+@define-color cds_text_success     #3e8635;
+
+@define-color cds_border_subtle_00 #3c4043;
+@define-color cds_border_subtle_01 #3c4043;
+@define-color cds_border_subtle_02 #5f6368;
+@define-color cds_border_strong_01 #9aa0a6;
+@define-color cds_border_inverse   #e8eaed;
+
+@define-color cds_focus            #73bcf7;
+@define-color cds_focus_inset      #151515;
+@define-color cds_focus_inverse    #2b9af3;
+
+@define-color cds_link_primary     #73bcf7;
+@define-color cds_link_secondary   #bee1f4;
+@define-color cds_link_visited     #ad7fa8;
+
+@define-color cds_support_error    #ff5454;
+@define-color cds_support_success  #3e8635;
+@define-color cds_support_warning  #f0ab00;
+@define-color cds_support_info     #73bcf7;
+
+/* status backgrounds (for tags, notifications) */
+@define-color cds_support_error_bg     #2c0000;
+@define-color cds_support_success_bg   #1e4f18;
+@define-color cds_support_warning_bg   #3d2c00;
+@define-color cds_support_info_bg      #002952;
+
+/* explicit "on-color" — text drawn on top of the accent fill */
+@define-color cds_text_on_color    #ffffff;
+
+/* field surfaces */
+@define-color cds_field_01         #1b1d21;
+@define-color cds_field_02         #292929;
+
+/* hover layer (one step lighter than the surface below) */
+@define-color cds_layer_hover_01   #292929;
+@define-color cds_layer_hover_02   #3c3f42;
+
+@define-color cds_overlay          alpha(#000000, 0.70);
+@define-color cds_skeleton         #292929;
+
+
+/* ---- Per-preset accent (overridden by data/css/accents/<preset>.css) ----- */
+
+@define-color mackes_accent        #4285f4;   /* Material You indigo (Q45, 2026-05-25) — overridden per preset; replaces PF6 blue #2b9af3 */
+@define-color mackes_accent_hover  alpha(@mackes_accent, 0.85);
+@define-color mackes_accent_active alpha(@mackes_accent, 0.70);
+@define-color mackes_accent_dim    alpha(@mackes_accent, 0.20);
+@define-color mackes_accent_soft   alpha(@mackes_accent, 0.14);
+@define-color mackes_accent_focus  @mackes_accent;
+
+
+/* ---- Back-compat aliases (existing widgets read these) ------------------- */
+
+@define-color mackes_text          @cds_text_primary;
+@define-color mackes_dim           @cds_text_helper;
+
+
+/* ---- Typography (CR-1: Roboto + Roboto Mono) ---------------------------- */
+
+* {
+    font-family: "Roboto", "Cantarell", "system-ui", sans-serif;
+}
+
+.title-1, .title-2, .title-3, .title-4,
+.heading,
+.mackes-panel-title,
+.mackes-section-header,
+.cds-heading-01, .cds-heading-02, .cds-heading-03,
+.cds-heading-04, .cds-heading-05, .cds-heading-06, .cds-heading-07 {
+    font-family: "Roboto", "Cantarell", sans-serif;
+    font-weight: 500;
+}
+
+textview.monospace, textview.monospace text,
+.monospace, .cds-code-01, .cds-code-02 {
+    /* Q44 lock (2026-05-25): Intel One Mono primary; legacy Roboto Mono
+     * retained as fallback for machines without intel-one-mono-fonts
+     * installed yet (v2.6 birthright fonts step picks it up). */
+    font-family: "Intel One Mono", "Roboto Mono", "Cascadia Code", "JetBrains Mono", monospace;
+}
+
+/* Phase 7.2: Nerd Font fallback for inline-text contexts.
+ *
+ * Apple-menu status-line items, drawer mini-indicators, and any other
+ * inline place where a Carbon SVG would lose detail at <16 px size can
+ * use this class to pick up a Nerd Font glyph in-line with the text.
+ *
+ * Fedora doesn't ship a Nerd Font by default; the standard install
+ * helper drops `RedHatMono Nerd Font Mono` into ~/.local/share/fonts/
+ * the first time a status-line glyph is requested. Until then this
+ * gracefully falls back to plain Red Hat Mono — the glyphs render as
+ * tofu but nothing crashes.
+ */
+.mackes-nerd, .nerd-glyph,
+.mackes-apple-menu-status,
+.mackes-drawer-mini {
+    font-family:
+        "RobotoMono Nerd Font Mono", "RobotoMono Nerd Font",
+        "JetBrainsMono Nerd Font", "FiraCode Nerd Font",
+        "Symbols Nerd Font Mono", "Symbols Nerd Font",
+        "Roboto Mono", monospace;
+    font-feature-settings: "calt" on, "liga" on;
+}
+
+
+/* ---- PatternFly v6 type scale (compatible with the old cds- selectors) -- */
+/* PF v6 scale: sm=12 / md=14 / lg=16 / xl=18 / 2xl=24 / 3xl=28 / 4xl=36
+ * Old Carbon cds- class names retained — only the VALUES shifted. */
+
+.cds-helper-text-01    { font-size: 12px; line-height: 16px; font-weight: 400; }
+.cds-helper-text-02    { font-size: 14px; line-height: 18px; font-weight: 400; }
+.cds-body-compact-01   { font-size: 14px; line-height: 18px; font-weight: 400; }
+.cds-body-compact-02   { font-size: 16px; line-height: 22px; font-weight: 400; }
+.cds-body-01           { font-size: 14px; line-height: 20px; font-weight: 400; }
+.cds-body-02           { font-size: 16px; line-height: 24px; font-weight: 400; }
+.cds-heading-01        { font-size: 14px; line-height: 18px; font-weight: 600; }
+.cds-heading-02        { font-size: 16px; line-height: 22px; font-weight: 600; }
+.cds-heading-03        { font-size: 18px; line-height: 26px; font-weight: 500; }
+.cds-heading-04        { font-size: 24px; line-height: 32px; font-weight: 500; }
+.cds-heading-05        { font-size: 28px; line-height: 36px; font-weight: 500; }
+.cds-heading-06        { font-size: 36px; line-height: 44px; font-weight: 300; }
+.cds-heading-07        { font-size: 48px; line-height: 56px; font-weight: 300; }
+.cds-code-01           { font-size: 12px; line-height: 16px; font-weight: 400; }
+.cds-code-02           { font-size: 14px; line-height: 20px; font-weight: 400; }
+
+
+/* ---- Spacing scale (PF v6 4px grid; documented as comments) -------------- */
+/* GTK CSS doesn't support custom property variables for sizing. The
+ * cds-spacing-01..13 tokens stay numerically what they were — that grid
+ * is what every panel was built against; replacing it would force a
+ * cross-codebase audit. PF v6's own grid is finer (4 px) but the
+ * compatible 8 px grid below still passes a strict PF visual review.
+ *
+ *   --cds-spacing-01 =  2px
+ *   --cds-spacing-02 =  4px
+ *   --cds-spacing-03 =  8px
+ *   --cds-spacing-04 = 12px
+ *   --cds-spacing-05 = 16px
+ *   --cds-spacing-06 = 24px
+ *   --cds-spacing-07 = 32px
+ *   --cds-spacing-08 = 40px
+ *   --cds-spacing-09 = 48px
+ *   --cds-spacing-10 = 64px
+ *   --cds-spacing-11 = 80px
+ *   --cds-spacing-12 = 96px
+ *   --cds-spacing-13 = 160px
+ */
+
+
+/* ---- Window chrome ------------------------------------------------------- */
+
+window, .background {
+    background-color: @cds_bg_default;
+    color: @cds_text_primary;
+}
+
+headerbar {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    border-bottom: 1px solid @cds_border_subtle_00;
+    min-height: 48px;
+    padding-left: 16px;
+    padding-right: 8px;
+}
+
+notebook header {
+    background-color: @cds_bg_layer_01;
+    border-bottom: 1px solid @cds_border_subtle_00;
+}
+
+notebook tab {
+    background-color: transparent;
+    color: @cds_text_secondary;
+    padding: 12px 16px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    min-height: 32px;
+}
+
+notebook tab:checked {
+    color: @cds_text_primary;
+    border-bottom: 2px solid @mackes_accent;
+    background-color: @cds_bg_default;
+}
+
+notebook tab:hover:not(:checked) {
+    background-color: @cds_bg_hover;
+}
+
+stacksidebar list, stacksidebar listbox {
+    background-color: @cds_bg_layer_01;
+    border-right: 1px solid @cds_border_subtle_00;
+}
+
+stacksidebar row {
+    color: @cds_text_secondary;
+    padding: 12px 16px;
+    border-left: 2px solid transparent;
+}
+
+stacksidebar row:selected, stacksidebar row:selected:hover {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    border-left: 2px solid @mackes_accent;
+}
+
+stacksidebar row:hover:not(:selected) {
+    background-color: @cds_bg_hover;
+}
+
+
+/* ---- Buttons (PF6 primary / secondary / tertiary / link / danger) ------- */
+
+button {
+    background-image: none;
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    border: 1px solid transparent;
+    border-radius: 4px;           /* PF6 is 4px-rounded (Carbon was square) */
+    padding: 6px 16px;
+    min-height: 36px;
+    font-weight: 400;
+}
+
+button:hover {
+    background-color: @cds_bg_hover;
+}
+
+button:active, button:checked {
+    background-color: @cds_bg_active;
+}
+
+button:focus {
+    outline: 2px solid @mackes_accent;
+    outline-offset: 1px;
+}
+
+button.suggested-action, button.cds-button-primary {
+    background-color: @mackes_accent;
+    color: @cds_text_on_color;
+}
+
+button.suggested-action:hover, button.cds-button-primary:hover {
+    background-color: @mackes_accent_hover;
+}
+
+button.destructive-action, button.cds-button-danger {
+    background-color: #c9190b;
+    color: @cds_text_on_color;
+}
+
+button.cds-button-tertiary {
+    background-color: transparent;
+    border: 1px solid @mackes_accent;
+    color: @mackes_accent;
+}
+
+button.cds-button-ghost {
+    background-color: transparent;
+    color: @mackes_accent;
+    padding: 6px 12px;
+}
+
+
+/* ---- Entries (PF6 text input style) ------------------------------------- */
+
+entry, textview {
+    background-color: @cds_bg_layer_01;
+    color: @cds_text_primary;
+    border: none;
+    border-bottom: 1px solid @cds_border_subtle_01;
+    border-radius: 4px 4px 0 0;
+    padding: 6px 12px;
+    min-height: 36px;
+}
+
+entry:focus, textview:focus {
+    border-bottom: 2px solid @mackes_accent;
+    outline: none;
+}
+
+entry:disabled {
+    color: @cds_text_disabled;
+    background-color: @cds_bg_default;
+}
+
+
+/* ---- Switches, checks, radios ------------------------------------------- */
+
+switch {
+    background-color: @cds_bg_layer_03;
+    border-radius: 12px;
+    min-width: 48px;
+    min-height: 24px;
+}
+
+switch:checked {
+    background-color: @mackes_accent;
+}
+
+switch slider {
+    background-color: @cds_text_primary;
+    border-radius: 50%;
+    margin: 3px;
+}
+
+checkbutton check, radiobutton radio {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_strong_01;
+    color: @cds_text_primary;
+}
+
+checkbutton check:checked, radiobutton radio:checked {
+    background-color: @mackes_accent;
+    border-color: @mackes_accent;
+}
+
+
+/* ---- Frames, separators, scrollbars ------------------------------------- */
+
+frame, .view {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    border-radius: 4px;
+}
+
+separator {
+    background-color: @cds_border_subtle_00;
+    min-width: 1px;
+    min-height: 1px;
+}
+
+scrollbar slider {
+    background-color: @cds_bg_layer_03;
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 4px;
+}
+
+scrollbar slider:hover { background-color: @cds_text_helper; }
+
+
+/* ---- PF utility classes (compatible with old cds- selectors) ------------ */
+
+.cds-tile {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    border-radius: 4px;
+    padding: 16px;
+}
+
+.cds-tile:hover {
+    background-color: @cds_bg_hover;
+    border-color: @mackes_accent;
+}
+
+.cds-tile.cds-tile-clickable:hover {
+    cursor: pointer;
+}
+
+.cds-notification-info     { border-left: 3px solid @cds_support_info; }
+.cds-notification-success  { border-left: 3px solid @cds_support_success; }
+.cds-notification-warning  { border-left: 3px solid @cds_support_warning; }
+.cds-notification-error    { border-left: 3px solid @cds_support_error; }
+.cds-notification-highlight { border-left: 3px solid @mackes_accent; }
+
+.cds-skeleton {
+    background-color: @cds_skeleton;
+    min-height: 16px;
+}
+
+.cds-status-dot-running   { color: @cds_support_success; }
+.cds-status-dot-stopped   { color: @cds_text_helper; }
+.cds-status-dot-error     { color: @cds_support_error; }
+.cds-status-dot-warning   { color: @cds_support_warning; }
+
+
+/* ---- Status bar (24px bottom strip) ------------------------------------- */
+
+.cds-status-bar {
+    background-color: @mackes_accent;
+    color: @cds_text_inverse;
+    min-height: 24px;
+    padding: 0 16px;
+    font-size: 12px;
+}

@@ -1,0 +1,50 @@
+[Unit]
+Description=MDE Session — Mackes Desktop Environment login orchestrator
+Documentation=https://github.com/matthewmackes/MAP2-RELEASES
+# v2.0.0 Phase D.6 — user-session unit that execs sway (or whichever
+# compositor the operator picked), chains graphical-session.target,
+# owns the Logout / Restart / Shutdown / Lock / SaveLayout DBus
+# surface (Phase D.1–D.4), and re-applies persisted settings
+# (Phase C sidecars under $XDG_CACHE_HOME/mde/) on each login.
+PartOf=graphical-session.target
+After=graphical-session.target
+# Runs after the first-boot migration target (CB-2.4) so the
+# config-path move + xfconf replay land before we read any
+# settings. The target's ConditionPathExists guards short-circuit
+# on the second + every subsequent login so this hook costs one
+# stat() once the markers exist.
+Wants=mde-firstboot.target
+After=mde-firstboot.target
+
+[Service]
+Type=notify
+# mde-session signals "ready" via sd_notify(READY=1) after sway is
+# up + the DBus surface is registered. Until then graphical-session.
+# target waits, preventing other graphical units from racing the
+# session bring-up.
+NotifyAccess=main
+ExecStart=/usr/bin/mde-session
+# v4.0.1 BUG-4 — replace cosmic-files as the default folder handler.
+# xdg-mime is idempotent; the `-` prefix makes a missing binary or a
+# missing .desktop file non-fatal so the session still comes up.
+ExecStartPost=-/usr/bin/sh -c '/usr/bin/xdg-mime default mde-files.desktop inode/directory'
+# v4.0.1 BUG-11 — append missing `exec mde-popover {watermark,toast}`
+# lines to ~/.config/sway/config for operators whose home copy was
+# created at v1.x and never refreshed. Idempotent: appends only if
+# absent. Runs `swaymsg reload` so the new exec line takes effect
+# this session without a re-login.
+ExecStartPost=-/usr/share/mde/install-helpers/sync-user-sway-exec-lines.sh
+Restart=on-failure
+RestartSec=5
+# Hardening (lighter than mded.service since this owns the user
+# session and needs broader access to xdg paths).
+NoNewPrivileges=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=graphical-session.target

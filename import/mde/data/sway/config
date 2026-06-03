@@ -1,0 +1,258 @@
+# MDE — default sway config
+# =========================
+#
+# v2.0.0 Phase D.5 — port of `data/i3/config` for the Wayland line.
+# Coexists with mde-panel (Iced + libcosmic via wlr-layer-shell) which
+# anchors itself with `set_exclusive_zone()` so tiled windows never
+# overlap. Keybindings mirror the i3 config so muscle memory carries
+# across the X11 → Wayland switch.
+#
+# Reset to this default any time via Workbench → System → Window
+# Manager → "Reset sway config" or by copying
+# /usr/share/mde/sway/config back to ~/.config/sway/config.
+
+# ---------------------------------------------------------------------------
+# Modifier — Super (the "Windows" key)
+# ---------------------------------------------------------------------------
+set $mod Mod4
+
+# Same font as the panel — Roboto (UI) per the sway-native lock (Q31).
+font pango:Roboto 11
+
+# ---------------------------------------------------------------------------
+# Look & feel — borderless + thin focus-line, gaps, Classic ChromeOS palette
+# ---------------------------------------------------------------------------
+# Sway-native lock (2026-05-28, docs/design/sway-native-shell.md §5;
+# Q26/Q27/Q31): borderless windows + a thin 1 px accent line on the
+# FOCUSED window only; smart_borders gives a lone window full-bleed.
+# client.* uses the Classic ChromeOS palette — only the focused border
+# is the accent (#4285f4); unfocused borders are the desktop bg
+# (#202124) so they vanish into the gaps. Per-tag focus color (Q28) is
+# deferred to the mded border_colors worker (ANIM-8.b). SUPERSEDES
+# (newer-wins §0.14) the BUG-10 / BUG-16 / Portal-55 / Carbon notes
+# retained below as history:
+#
+# BUG-10 (2026-05-23): operator asked for thicker, always-visible
+# window borders. Was `pixel 1` + `smart_borders on` (hides border on
+# single-window workspaces). Bumped to 4 px + smart_borders off so the
+# focused-window highlight reads at 4K-TV viewing distance.
+#
+# BUG-16 (2026-05-23): switched from `pixel` to `normal` so sway
+# renders a per-window title bar with its native min/max/close
+# button row at the top-right of each managed window — Windows 11
+# muscle-memory standard. The font is the existing
+# `font pango:Red Hat Text 11` set at the top of this file; sway
+# uses it for the title-bar text. The centered panel slot that
+# previously hosted these buttons now hosts the Desktop Layout
+# cluster (mde-panel/src/top_bar.rs::desktop_layout_cluster_view).
+#
+# Portal-55 (R12-Q20, 2026-05-26): smart_borders flipped back to
+# `on`. Single-window workspaces become full-bleed (no border) per
+# the Round 12 design lock — cinema/reading/code-review feel.
+# Multi-window workspaces keep the 4 px focused border so BUG-10's
+# 4K-TV-readability intent still holds where the focus signal
+# carries real load. Newer-wins per CLAUDE.md §0.14.
+#
+# Portal-55 (R12-Q19, 2026-05-26): `focus_on_window_activation urgent`
+# — background apps never steal focus; they set the urgent flag
+# instead. Per-app overrides flow through the Portal-53 window-rules
+# subsystem's `focus_policy` field, not this file.
+default_border pixel 1
+default_floating_border pixel 1
+focus_on_window_activation urgent
+gaps inner 4
+gaps outer 0
+smart_gaps on
+smart_borders on
+
+#                       border    bg        text      indicator child_border
+client.focused          #4285f4   #4285f4   #ffffff   #4285f4   #4285f4
+client.focused_inactive #202124   #202124   #a8a8a8   #202124   #202124
+client.unfocused        #202124   #202124   #a8a8a8   #202124   #202124
+client.urgent           #f28b82   #f28b82   #202124   #f28b82   #f28b82
+client.placeholder      #202124   #202124   #a8a8a8   #202124   #202124
+
+# ---------------------------------------------------------------------------
+# Workspaces (4, persistent — no dynamic workspaces by name)
+# ---------------------------------------------------------------------------
+set $ws1 "1"
+set $ws2 "2"
+set $ws3 "3"
+set $ws4 "4"
+
+bindsym $mod+1 workspace $ws1
+bindsym $mod+2 workspace $ws2
+bindsym $mod+3 workspace $ws3
+bindsym $mod+4 workspace $ws4
+bindsym $mod+Shift+1 move container to workspace $ws1
+bindsym $mod+Shift+2 move container to workspace $ws2
+bindsym $mod+Shift+3 move container to workspace $ws3
+bindsym $mod+Shift+4 move container to workspace $ws4
+
+# ---------------------------------------------------------------------------
+# Focus / move
+# ---------------------------------------------------------------------------
+# Portal-55 (R12-Q17, 2026-05-26): `mouse_warping container` — cursor
+# jumps to the focused container's center on focus change. Pairs with
+# the platform's keyboard-driven workflow + the `focus_follows_mouse no`
+# choice immediately below (Q18 locks the current default — operator
+# must click to focus, but if they switch focus by keyboard the cursor
+# follows along instead of stranding on a different output).
+mouse_warping container
+focus_follows_mouse no
+
+bindsym $mod+h focus left
+bindsym $mod+j focus down
+bindsym $mod+k focus up
+bindsym $mod+Shift+h move left
+bindsym $mod+Shift+j move down
+bindsym $mod+Shift+k move up
+bindsym $mod+Shift+l move right
+bindsym $mod+Left focus left
+bindsym $mod+Right focus right
+bindsym $mod+Up focus up
+bindsym $mod+Down focus down
+bindsym $mod+Shift+Left move left
+bindsym $mod+Shift+Right move right
+bindsym $mod+Shift+Up move up
+bindsym $mod+Shift+Down move down
+
+# ---------------------------------------------------------------------------
+# Layout switching
+# ---------------------------------------------------------------------------
+bindsym $mod+s layout stacking
+bindsym $mod+f fullscreen toggle
+bindsym $mod+Shift+space focus mode_toggle
+
+# ---------------------------------------------------------------------------
+# Window operations
+# ---------------------------------------------------------------------------
+# $mod+q, $mod+w, $mod+e, $mod+l, $mod+space defined in config.d/mackes-defaults.conf
+# Wayland-native terminal — sway pairs cleanly with `foot`. The
+# package spec swaps the v1.x xfce4-terminal Requires for foot at
+# the v2.0.0 cut (Phase H.1).
+bindsym $mod+Return exec foot
+bindsym $mod+d exec bemenu-run -fn "Red Hat Text 11" -nb "#262626" -nf "#f4f4f4" -sb "#2b9af3" -sf "#f4f4f4"
+# v3.0.3 — F3 opens the exposé grid (fullscreen overlay rendering
+# one card per top-level window; click focuses + dismisses).
+bindsym F3 exec mde-popover expose
+# ANIM-6.b — $mod+Tab opens the workspace overview (Q46): fullscreen
+# grid of workspace cards showing name + app pills. Click switches;
+# Esc dismisses.
+bindsym $mod+Tab exec mde-popover overview
+# v3.0.3 — Super+V opens the clipboard history popover (mesh-
+# synced entries from ~/.cache/mde/clipboard.json; click an
+# entry to copy it back via wl-copy).
+bindsym $mod+v exec mde-popover clipboard
+
+# Portal-59 (R12-Q24, 2026-05-26): supersedes BUG-15 + R5-Q23. The
+# 5th micro-button on every running-zone card (`↓`) now parks the
+# window at workspace 99 + briefly switches there + uses
+# `workspace back_and_forth` to return to where the operator was,
+# instead of moving to sway's actual scratchpad. The natural inverse
+# Mod+Shift+m matches: instead of `scratchpad show` it moves the
+# most-recently-focused window from the parked workspace 99 back
+# into the current workspace. Park-workspace 99 stays out of the
+# Portal mini-tree + running-zone (filter `workspace_num != 99`)
+# so parking feels like minimize. Sway's native scratchpad stays
+# untouched — Portal-full (`mde-portal-full`) still uses
+# `scratchpad show` against its layer-shell surface.
+bindsym $mod+Shift+m exec swaymsg "[workspace=\"99\"] move container to workspace current"
+
+# Portal-30 — soft-restart mde-portal (R4-Q87). Shell-state snapshot
+# (Portal-29) fires every 5 s so the last snapshot is ≤5 s stale.
+# systemd restarts the unit and mde-portal restores from snapshot.
+bindsym $mod+Shift+q exec systemctl --user restart mde-portal
+
+# Resize mode — Super+r enters resize mode, escape leaves.
+mode "resize" {
+    bindsym h resize shrink width  10 px
+    bindsym j resize grow   height 10 px
+    bindsym k resize shrink height 10 px
+    bindsym l resize grow   width  10 px
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+}
+bindsym $mod+r mode "resize"
+
+# sway itself
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+r reload
+
+# ---------------------------------------------------------------------------
+# Reserved bindings — owned by other layers (do NOT bind here)
+# ---------------------------------------------------------------------------
+#  Super+M               Notification drawer toggle (mde --drawer)
+#  XF86Audio*            Volume + mute (pactl / pipewire)
+#  XF86MonBrightness*    Brightness (brightnessctl, via settings::display)
+# These remain handled by mde-session or by the matching settings
+# applier — they do NOT belong in this file.
+
+# ---------------------------------------------------------------------------
+# Window rules — float MDE panel surfaces + dialogs
+# ---------------------------------------------------------------------------
+for_window [app_id="^shell\.mackes\.Panel$"] floating enable, border none
+# Title-match fallback for the v2.0.x pre-app_id binaries — harmless once
+# the app_id rule above starts matching (v2.0.3+).
+for_window [title="^mde-panel$"]             floating enable, border none
+for_window [app_id="^mde-shell$"]   floating enable
+for_window [app_id="^mde-session$"] floating enable
+# Portal-16 — Portal-full scratchpad surface.
+# The binary launches at startup and is immediately placed in the scratchpad
+# so it is hidden until the Dock's nav buttons reveal it.
+for_window [app_id="^dev\.mackes\.MDE\.Portal\.Full$"] move scratchpad
+for_window [app_id="^dev\.mackes\.MDE\.Portal\.Full$"] floating enable, border none
+for_window [app_id="^dev\.mackes\.MDE\.Portal\.Full$"] resize set 1280 720
+for_window [window_role="pop-up"]      floating enable
+for_window [window_role="task_dialog"] floating enable
+for_window [window_type="dialog"]      floating enable
+
+# ---------------------------------------------------------------------------
+# No swaybar — mde-panel replaces it
+# ---------------------------------------------------------------------------
+# (intentionally no `bar { ... }` block)
+
+# ---------------------------------------------------------------------------
+# Autostart — MDE compositor services
+# ---------------------------------------------------------------------------
+# `exec_always` so per-display scale picks are re-applied after every
+# sway reload (display hotplug + manual `swaymsg reload` both go
+# through this path). The helper is operator-override-safe: it skips
+# any output whose current scale isn't exactly 1.0.
+exec_always mde-output-autoscale
+exec mde-applet-bg
+exec mde-panel
+exec mde-portal-full
+# ANIM-7.a — idle → gradual dim → crossfade-lock (Q63).
+# Timeout 90 s: gradually fade display to 15 % via mde-idle-dim.
+# Timeout 270 s: mount the lock screen (180 s after dim starts).
+# resume: restore brightness if the user wakes before the lock fires.
+# before-sleep: lock immediately on suspend / lid-close.
+exec swayidle -w \
+    timeout 90  'mde-idle-dim dim' \
+    resume      'mde-idle-dim restore' \
+    timeout 270 'mde-popover lock' \
+    before-sleep 'mde-popover lock'
+# v3.0.3 — long-running Win10-style watermark surface
+# (Layer::Background, bottom-right, visible only when dnf has
+# updates pending). See crates/mde-popover/src/watermark.rs.
+exec mde-popover watermark
+# v3.0.3 — long-running toast render surface (Layer::Top, tails
+# ~/.cache/mde/toasts.jsonl). Emit sites in the popover crate
+# (clipboard popover today; more land per-feature) append events
+# to that file.
+# v4.0.1 BUG-17 (2026-05-23): autostart disabled until BUG-17
+# fixes the empty-stack render path. The 360x200 layer-shell
+# surface paints its theme background dark even when the stack
+# is empty (1x1 dummy widget inside), leaving a small grey box
+# floating above the panel. Re-enable once BUG-17 lands the
+# transparent-empty-state fix.
+# exec mde-popover toast
+
+# ---------------------------------------------------------------------------
+# Mackes-managed includes
+# ---------------------------------------------------------------------------
+# settings::keybinds writes mackes-bindings.conf into this directory
+# alongside any gaps-profile fragments; user edits are preserved by
+# `mde-wm reset`.
+include ~/.config/sway/config.d/*.conf

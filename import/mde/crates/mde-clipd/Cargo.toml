@@ -1,0 +1,35 @@
+[package]
+name         = "mde-clipd"
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+description  = "BUS-5.1 — MDE clipboard daemon. Uses wlr-data-control-unstable-v1 to watch every Wayland clipboard change and log it as a structured event. Supervised by mded (one instance per Wayland session)."
+
+[[bin]]
+name = "mde-clipd"
+path = "src/main.rs"
+
+[dependencies]
+anyhow             = "1"
+clap               = { version = "4.5", features = ["derive", "env"] }
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+wayland-client         = "0.31"
+wayland-protocols-wlr  = { version = "0.3", features = ["client"] }
+
+# BUS-5.2 — clipboard publish to bus topic tree
+rustix      = { version = "0.38", features = ["pipe"] }
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+base64      = "0.22"
+ulid        = "1"
+chrono      = { version = "0.4", default-features = false, features = ["clock", "serde"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -1,0 +1,435 @@
+// API surface is consumed by Phase 1.5+; suppress dead-code warnings
+// while the module ships ahead of its callers.
+#![allow(dead_code)]
+
+//! Mackes-Carbon icon loader.
+//!
+//! Given a freedesktop icon name (e.g. `"folder-symbolic"`, `"home"`,
+//! `"system-search-symbolic"`) returns a `gdk_pixbuf::Pixbuf` from the
+//! installed Mackes-Carbon theme at the requested pixel size. Caches the
+//! parsed pixbuf per (`name`, `size`) so subsequent loads of the same
+//! glyph are free.
+//!
+//! Per Q14 of the design lock, every panel/dock icon resolves through
+//! this loader — no app-specific PNGs, no third-party theme.
+
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
+use gdk_pixbuf::Pixbuf;
+
+/// Carbon text-primary. Mackes-Carbon symbolic SVGs ship `fill="currentColor"`,
+/// which librsvg resolves to black when no SVG-level CSS `color` property is
+/// set — producing the "black icons on a black panel" visual at first boot.
+/// We substitute `currentColor` with this token at load time so every
+/// cached Pixbuf is already drawn in the panel's foreground color.
+const SYMBOLIC_FOREGROUND: &str = "#f0f0f0";
+
+/// Root of the installed Mackes-Carbon icon theme.
+const THEME_ROOT: &str = "/usr/share/icons/Mackes-Carbon/scalable";
+
+/// Freedesktop categories the build script lays icons out under. Search
+/// order matches the spec's typical lookup order so the most semantically
+/// correct hit wins.
+const CATEGORIES: &[&str] = &[
+    "actions",
+    "status",
+    "devices",
+    "places",
+    "emblems",
+    "categories",
+    "mimetypes",
+    "apps",
+];
+
+thread_local! {
+    /// Per-thread (`name`, `size`) → Pixbuf cache. The panel runs single-
+    /// threaded (GTK main loop) so a thread-local is sufficient and avoids
+    /// a Mutex on the hot path.
+    static CACHE: RefCell<HashMap<(String, i32), Pixbuf>> = RefCell::new(HashMap::new());
+}
+
+/// Curated map of app `.desktop` Icon= values → Mackes-Carbon symbolic
+/// names per Q14 (monochrome Carbon for every dock item). When a dock
+/// `AppModule` asks for its icon, we route through `resolve()` first so
+/// well-known apps wear the Carbon look even if their `.desktop` shipped
+/// a brand-colored Icon=.
+const APP_TO_CARBON: &[(&str, &str)] = &[
+    // Browsers
+    ("firefox", "earth"),
+    ("firefox-nightly", "earth"),
+    ("google-chrome", "earth"),
+    ("chromium", "earth"),
+    ("brave-browser", "earth"),
+    // Mail / chat
+    ("thunderbird", "email"),
+    ("evolution", "email"),
+    ("element-desktop", "chat"),
+    ("slack", "chat"),
+    ("discord", "chat"),
+    // Files / utilities
+    ("thunar", "folder--open"),
+    ("nautilus", "folder--open"),
+    ("file-roller", "archive"),
+    ("gnome-calculator", "calculator"),
+    ("gnome-system-monitor", "analytics"),
+    ("htop", "analytics"),
+    // Terminals / dev
+    ("xfce4-terminal", "terminal"),
+    ("gnome-terminal", "terminal"),
+    ("alacritty", "terminal"),
+    ("kitty", "terminal"),
+    ("code", "code"),
+    ("code-oss", "code"),
+    ("idea", "code"),
+    ("clion", "code"),
+    // Media
+    ("vlc", "play--filled-alt"),
+    ("mpv", "play--filled-alt"),
+    ("sublime-music", "music"),
+    ("rhythmbox", "music"),
+    ("delfin", "video"),
+    // Office
+    ("libreoffice-writer", "document"),
+    ("libreoffice-calc", "table"),
+    ("libreoffice-impress", "presentation-file"),
+    ("libreoffice-startcenter", "document"),
+    // Graphics
+    ("gimp", "image"),
+    ("krita", "image"),
+    ("inkscape", "image"),
+    ("blender", "cube"),
+    // Mackes (our own)
+    ("mackes-shell", "settings--adjust"),
+    ("mackes-clipboard", "paste"),
+];
+
+/// Look up a `.desktop` Icon= value in the app→Carbon table. Returns
+/// the Carbon symbolic name on hit, or the original (so `load()` can
+/// still try the freedesktop hierarchy) on miss.
+#[must_use]
+pub fn resolve(desktop_icon: &str) -> &str {
+    let key = desktop_icon
+        .rsplit('/')
+        .next()
+        .and_then(|n| n.split('.').next())
+        .unwrap_or(desktop_icon);
+    for (k, v) in APP_TO_CARBON {
+        if k.eq_ignore_ascii_case(key) {
+            return v;
+        }
+    }
+    desktop_icon
+}
+
+/// Look up an icon by freedesktop name and return a `Pixbuf` sized to
+/// `size_px`. Returns `None` only if the file is genuinely missing from
+/// the Mackes-Carbon theme — vendor brand icons from the system theme are
+/// **intentionally** not consulted (Q14: Carbon-only across the entire
+/// interface). Callers that want a category-aware fallback should use
+/// [`load_with_fallback`] instead.
+#[must_use]
+pub fn load(name: &str, size_px: i32) -> Option<Pixbuf> {
+    let key = (name.to_owned(), size_px);
+    if let Some(hit) = CACHE.with(|c| c.borrow().get(&key).cloned()) {
+        return Some(hit);
+    }
+
+    let pb = load_from_carbon(name, size_px)?;
+    CACHE.with(|c| {
+        c.borrow_mut().insert(key, pb.clone());
+    });
+    Some(pb)
+}
+
+/// Mackes-Carbon SVG (the only icon source the panel ever uses for
+/// rendering, per Q14). Returns None when the name isn't in the
+/// shipped Carbon set.
+fn load_from_carbon(name: &str, size_px: i32) -> Option<Pixbuf> {
+    let path = locate_svg(name)?;
+    render_recolored_svg(&path, size_px)
+        .or_else(|| Pixbuf::from_file_at_scale(&path, size_px, size_px, true).ok())
+}
+
+/// Carbon-only icon resolution with category-based fallback. For a
+/// `.desktop` whose Icon= field isn't covered by the [`APP_TO_CARBON`]
+/// curated table OR whose mapped name has no SVG in the shipped theme,
+/// we degrade to the freedesktop "applications-<bucket>-symbolic"
+/// glyph appropriate to the entry's Categories — every dock/menu icon
+/// stays inside the Mackes-Carbon visual system.
+///
+/// Resolution order:
+///   1. Curated `APP_TO_CARBON` mapping for the literal Icon= value.
+///   2. Literal Icon= value passed through the Carbon SVG locator.
+///   3. Category-bucket Carbon glyph from `carbon_glyph_for_categories`.
+///   4. `applications-other-symbolic` as a last resort.
+#[must_use]
+pub fn load_with_fallback(
+    icon_name: Option<&str>,
+    categories: &[String],
+    size_px: i32,
+) -> Option<Pixbuf> {
+    if let Some(name) = icon_name {
+        let mapped = resolve(name);
+        if let Some(pb) = load(mapped, size_px) {
+            return Some(pb);
+        }
+        if mapped != name {
+            if let Some(pb) = load(name, size_px) {
+                return Some(pb);
+            }
+        }
+    }
+    let bucket = carbon_glyph_for_categories(categories);
+    load(bucket, size_px).or_else(|| load("applications-other-symbolic", size_px))
+}
+
+/// Map `.desktop` `Categories=` into one of the freedesktop top-level
+/// `applications-<bucket>-symbolic` glyphs. The Carbon theme ships these
+/// under `actions`/`apps`/`categories`, so they always resolve.
+#[must_use]
+pub fn carbon_glyph_for_categories(categories: &[String]) -> &'static str {
+    // Walk the explicit category list once; the first known bucket wins.
+    // freedesktop spec lists categories in priority order so this matches
+    // most users' intuition (Network before Utility for a web browser).
+    for cat in categories {
+        match cat.as_str() {
+            "Network" | "WebBrowser" | "Email" => return "applications-internet-symbolic",
+            "AudioVideo" | "Audio" | "Video" | "AudioVideoPlayer" | "Player" => {
+                return "applications-multimedia-symbolic"
+            }
+            "Photography" | "RasterGraphics" | "VectorGraphics" | "Graphics" => {
+                return "applications-graphics-symbolic"
+            }
+            "Office" | "TextEditor" | "Spreadsheet" | "Presentation" => {
+                return "applications-office-symbolic"
+            }
+            "Development" | "IDE" | "Debugger" | "Building" => {
+                return "applications-development-symbolic"
+            }
+            "Game" | "Games" => return "applications-games-symbolic",
+            "System" | "Settings" | "Monitor" => return "applications-system-symbolic",
+            "Utility" | "Accessibility" | "TextTools" | "FileTools" => {
+                return "applications-utilities-symbolic"
+            }
+            _ => {}
+        }
+    }
+    "applications-other-symbolic"
+}
+
+/// Read the SVG file, swap `currentColor` for the panel foreground,
+/// and render via `Pixbuf::from_stream_at_scale`. Returns `None` if the
+/// file isn't text or rendering fails — callers fall back to the raw
+/// file load so non-symbolic glyphs still work.
+fn render_recolored_svg(path: &Path, size_px: i32) -> Option<Pixbuf> {
+    let raw = std::fs::read_to_string(path).ok()?;
+    if !raw.contains("currentColor") {
+        return None;
+    }
+    let recolored = raw.replace("currentColor", SYMBOLIC_FOREGROUND);
+    let bytes = glib::Bytes::from(recolored.as_bytes());
+    let stream = gio::MemoryInputStream::from_bytes(&bytes);
+    Pixbuf::from_stream_at_scale(&stream, size_px, size_px, true, gio::Cancellable::NONE).ok()
+}
+
+/// Resolve `name` to an SVG path under `THEME_ROOT`. Tries the literal
+/// name first, then the `-symbolic` variant, then the bare-name (stripped
+/// suffix) variant. Walks the category list in `CATEGORIES` order.
+fn locate_svg(name: &str) -> Option<PathBuf> {
+    let candidates = candidate_basenames(name);
+    for category in CATEGORIES {
+        for cand in &candidates {
+            let p = PathBuf::from(THEME_ROOT).join(category).join(cand);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+    None
+}
+
+fn candidate_basenames(name: &str) -> Vec<String> {
+    let mut v = Vec::with_capacity(3);
+    v.push(format!("{name}.svg"));
+    if name.ends_with("-symbolic") {
+        // foo-symbolic → also try foo.svg as a fallback
+        let bare = name.trim_end_matches("-symbolic");
+        v.push(format!("{bare}.svg"));
+    } else {
+        // foo → also try foo-symbolic.svg in case the theme only carries
+        // the symbolic variant for this name.
+        v.push(format!("{name}-symbolic.svg"));
+    }
+    v
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn candidate_basenames_for_plain_name() {
+        let v = candidate_basenames("folder");
+        assert_eq!(v, ["folder.svg", "folder-symbolic.svg"]);
+    }
+
+    #[test]
+    fn candidate_basenames_for_symbolic_suffix() {
+        let v = candidate_basenames("folder-symbolic");
+        assert_eq!(v, ["folder-symbolic.svg", "folder.svg"]);
+    }
+
+    #[test]
+    fn locate_returns_none_for_missing() {
+        // This will only "miss correctly" when the theme isn't installed
+        // in the test environment. Either way the function shouldn't
+        // panic — that's the assertion.
+        let _ = locate_svg("definitely-not-a-real-icon-name");
+    }
+
+    #[test]
+    fn resolve_maps_known_app() {
+        assert_eq!(resolve("firefox"), "earth");
+        assert_eq!(resolve("thunar"), "folder--open");
+        assert_eq!(resolve("FIREFOX"), "earth"); // case-insensitive
+    }
+
+    #[test]
+    fn resolve_strips_path_and_extension() {
+        assert_eq!(resolve("/usr/share/icons/firefox.png"), "earth");
+        assert_eq!(resolve("firefox.svg"), "earth");
+    }
+
+    #[test]
+    fn resolve_falls_through_on_miss() {
+        assert_eq!(
+            resolve("definitely-not-mapped-symbolic"),
+            "definitely-not-mapped-symbolic"
+        );
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_internet_bucket() {
+        assert_eq!(
+            carbon_glyph_for_categories(&["Network".into()]),
+            "applications-internet-symbolic"
+        );
+        assert_eq!(
+            carbon_glyph_for_categories(&["WebBrowser".into()]),
+            "applications-internet-symbolic"
+        );
+        assert_eq!(
+            carbon_glyph_for_categories(&["Email".into()]),
+            "applications-internet-symbolic"
+        );
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_multimedia_bucket() {
+        for cat in ["AudioVideo", "Audio", "Video", "AudioVideoPlayer", "Player"] {
+            assert_eq!(
+                carbon_glyph_for_categories(&[cat.to_string()]),
+                "applications-multimedia-symbolic",
+                "category {cat} should map to multimedia"
+            );
+        }
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_graphics_office_dev_games_system_utility() {
+        // Each bucket — first-match wins on the very first entry.
+        let cases = [
+            ("Photography", "applications-graphics-symbolic"),
+            ("RasterGraphics", "applications-graphics-symbolic"),
+            ("VectorGraphics", "applications-graphics-symbolic"),
+            ("Graphics", "applications-graphics-symbolic"),
+            ("Office", "applications-office-symbolic"),
+            ("TextEditor", "applications-office-symbolic"),
+            ("Spreadsheet", "applications-office-symbolic"),
+            ("Presentation", "applications-office-symbolic"),
+            ("Development", "applications-development-symbolic"),
+            ("IDE", "applications-development-symbolic"),
+            ("Debugger", "applications-development-symbolic"),
+            ("Building", "applications-development-symbolic"),
+            ("Game", "applications-games-symbolic"),
+            ("Games", "applications-games-symbolic"),
+            ("System", "applications-system-symbolic"),
+            ("Settings", "applications-system-symbolic"),
+            ("Monitor", "applications-system-symbolic"),
+            ("Utility", "applications-utilities-symbolic"),
+            ("Accessibility", "applications-utilities-symbolic"),
+            ("TextTools", "applications-utilities-symbolic"),
+            ("FileTools", "applications-utilities-symbolic"),
+        ];
+        for (cat, expected) in cases {
+            assert_eq!(
+                carbon_glyph_for_categories(&[cat.to_string()]),
+                expected,
+                "{cat} → {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_empty_input_falls_to_other() {
+        assert_eq!(
+            carbon_glyph_for_categories(&[]),
+            "applications-other-symbolic"
+        );
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_unknown_falls_to_other() {
+        assert_eq!(
+            carbon_glyph_for_categories(&["NotACategory".into(), "AlsoNot".into()]),
+            "applications-other-symbolic"
+        );
+    }
+
+    #[test]
+    fn carbon_glyph_for_categories_first_known_wins_over_later() {
+        // Walk order is the user's category list, NOT CATEGORY_RULES.
+        // First entry's bucket wins because the inner match returns
+        // on first hit.
+        let cats = vec!["Game".into(), "Network".into()];
+        // Game → games-symbolic, encountered before Network.
+        assert_eq!(
+            carbon_glyph_for_categories(&cats),
+            "applications-games-symbolic"
+        );
+    }
+
+    #[test]
+    fn resolve_handles_path_with_only_extension_after_basename() {
+        // `firefox-nightly` is a curated alias.
+        assert_eq!(resolve("firefox-nightly"), "earth");
+        assert_eq!(resolve("FIREFOX-NIGHTLY"), "earth");
+    }
+
+    #[test]
+    fn load_with_fallback_returns_none_when_theme_missing() {
+        // Without Mackes-Carbon installed the theme root won't exist;
+        // load_with_fallback must not panic and must fall through to
+        // None when nothing resolves.
+        let result = load_with_fallback(
+            Some("definitely-not-a-real-icon-9zXq"),
+            &["NotARealCat".into()],
+            16,
+        );
+        // Either None (theme absent) or Some (theme present + the
+        // ultimate `applications-other-symbolic` is shipped). Both are
+        // valid behaviors. Goal: exercise every branch without panic.
+        let _ = result;
+    }
+
+    #[test]
+    fn candidate_basenames_appends_symbolic_variant_for_plain_name() {
+        // Important: covers the `else` arm of the symbolic-suffix
+        // branching.
+        let v = candidate_basenames("home");
+        assert!(v.iter().any(|s| s == "home.svg"));
+        assert!(v.iter().any(|s| s == "home-symbolic.svg"));
+    }
+}

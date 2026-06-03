@@ -1,0 +1,45 @@
+[Unit]
+Description=Mackes Mesh control plane (mackesd)
+Documentation=https://github.com/matthewmackes/MAP2-RELEASES
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mackesd
+Group=mackesd
+# v2.0.0 Phase B.12 + B.13 — ExecStart is now `mackesd serve`,
+# the unified worker-supervisor entry point. Runs the migration
+# first (idempotent) then starts the tokio supervisor + every
+# registered worker (clipboard, mdns, fs_sync, media_sync,
+# remmina_sync, ansible_pull, kdc_bridge, heartbeat,
+# notifications_server, notification_relay). Replaces the v1.x
+# `mackesd status` ExecStart that did nothing past the migration.
+# Also retires the 8 standalone systemd units per Phase B.13
+# (mackes-clipboard-daemon, mackes-gvfsd-mesh, mackes-mdns-relay,
+# mackes-remmina-sync.{service,timer}, mackes-media-sync.{service,
+# timer}, mackes-ansible-pull.{service,timer},
+# mackesd-kdc-bridge) — each is now a worker tick inside this
+# process.
+ExecStartPre=/usr/bin/mackesd migrate
+ExecStart=/usr/bin/mackesd serve
+Restart=on-failure
+RestartSec=10
+StateDirectory=mackesd
+StateDirectoryMode=0750
+# Hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

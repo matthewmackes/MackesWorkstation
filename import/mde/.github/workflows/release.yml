@@ -1,0 +1,177 @@
+# Mackes Desktop Environment — tag-triggered RPM build + GitHub Release.
+# (v2.0.0 rebrand lock: project renamed from "Mackes XFCE Workstation".)
+#
+# Pushing a tag matching v* (e.g. `git push origin v1.0.0` or
+# `v1.0.0-rc1`) fires this workflow. Inside a Fedora 44 container we
+# install build deps + run `make rpm` (which produces an sdist, then
+# runs rpmbuild against the .spec — itself compiling the C panel
+# plugins in %build and `cargo build --release` for the Rust panel),
+# then create a GitHub Release with whichever RPM landed under
+# rpmbuild/RPMS/ — the package name + version + release suffix vary
+# (mackes-shell-2.x for legacy tags, mackes-xfce-workstation-1.x for
+# the new train).
+#
+# Attached assets:
+#   - <pkg>-<version>-<release>.fc44.x86_64.rpm    (binary RPM)
+#   - <pkg>-<version>-<release>.fc44.src.rpm       (source RPM)
+#   - install.sh, uninstall.sh                     (curl-pipe-bash
+#                                                   bootstrap scripts)
+#
+# Release body comes from the matching `## <version>` section in
+# CHANGELOG.md. RC tags (vX.Y.Z-rcN) are flagged as prereleases on
+# the GitHub side.
+
+name: Release RPM
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write          # softprops/action-gh-release needs to create releases
+
+jobs:
+  build-and-release:
+    name: Build RPM + cut Release
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+              git rpm-build rpmdevtools dnf-plugins-core \
+              python3 python3-build python3-pyyaml \
+              gcc make pkgconfig \
+              gtk3-devel xfce4-panel-devel libxfce4ui-devel \
+              rust cargo
+          rpm -E '%fedora'
+          rustc --version
+          cargo --version
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # actions/checkout chowns to a non-root user inside containers; we
+      # need to mark this dir as safe for git operations.
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Resolve version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          VER="${TAG#v}"
+          # Strip RC / dev / alpha suffix so the in-repo __version__ check
+          # passes on pre-release tags (vX.Y.Z-rcN, vX.Y.Z-dev, etc.).
+          # Pre-release marker stays in $RC for release-body labelling.
+          BASE_VER="${VER%%-*}"
+          RC="${VER#$BASE_VER}"
+          RC="${RC#-}"
+          echo "tag=$TAG"            >> "$GITHUB_OUTPUT"
+          echo "ver=$VER"            >> "$GITHUB_OUTPUT"
+          echo "base_ver=$BASE_VER"  >> "$GITHUB_OUTPUT"
+          echo "rc=$RC"              >> "$GITHUB_OUTPUT"
+          if [ -n "$RC" ]; then
+            echo "prerelease=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+          IN_REPO=$(python3 -c "import sys; sys.path.insert(0, '.'); import mackes; print(mackes.__version__)")
+          if [ "$IN_REPO" != "$BASE_VER" ]; then
+            # The Mackes XFCE Workstation rename (Q48 lock, Phase 10.1)
+            # introduces intentional skew: git tags continue v2.3.0 →
+            # v3.0.0 in the historical line, but the renamed RPM
+            # (mackes-xfce-workstation) starts fresh at package version
+            # 1.0.0 + matching Python __version__. Warn but don't fail.
+            echo "::warning::tag $TAG (base=$BASE_VER) differs from mackes.__version__=$IN_REPO — accepted (renamed package starts a fresh version line)"
+          else
+            echo "OK — tag base $BASE_VER matches mackes.__version__ (rc='$RC')"
+          fi
+
+      # MESHFS-1.1 — the spec's `Source1: lizardfs-binaries.tar.gz` (the
+      # compiled LizardFS daemons) must sit in rpmbuild/SOURCES/ before
+      # rpmbuild runs, or %install fails on the missing source. Restore the
+      # lizardfs-build.yml cache when present (same key); otherwise build
+      # the binaries inline (the fedora:44 job runs as root, so the
+      # boost-devel/fuse3-devel deps install cleanly). This wires the
+      # consumption lizardfs-build.yml's header always promised.
+      - name: Restore cached LizardFS binaries
+        uses: actions/cache@v4
+        with:
+          path: lizardfs-binaries.tar.gz
+          key: lizardfs-3.13.0-rc2-fedora44-v1
+
+      - name: Provide LizardFS Source1
+        env:
+          LIZARDFS_TAG: "3.13.0-rc2"
+        run: |
+          if [ ! -f lizardfs-binaries.tar.gz ]; then
+            dnf install -y --setopt=install_weak_deps=False \
+              cmake gcc gcc-c++ fuse3-devel fuse3-libs zlib-devel \
+              openssl-devel boost-devel spdlog-devel fmt-devel python3-devel pkg-config make
+            install-helpers/build-lizardfs.sh "$LIZARDFS_TAG"
+          fi
+          mkdir -p rpmbuild/SOURCES
+          cp lizardfs-binaries.tar.gz rpmbuild/SOURCES/
+
+      - name: Build sdist + RPM
+        run: |
+          make rpm
+          ls -la rpmbuild/RPMS/x86_64/ rpmbuild/SRPMS/
+
+      - name: Resolve RPM filenames
+        id: rpms
+        run: |
+          # The package name + release suffix vary between legacy
+          # mackes-shell-2.x tags and the new mackes-xfce-workstation
+          # train. Discover both files from disk so the rename doesn't
+          # break the upload.
+          BIN_RPM=$(ls rpmbuild/RPMS/x86_64/*.x86_64.rpm | head -1)
+          SRC_RPM=$(ls rpmbuild/SRPMS/*.src.rpm | head -1)
+          echo "bin_rpm=$BIN_RPM" >> "$GITHUB_OUTPUT"
+          echo "src_rpm=$SRC_RPM" >> "$GITHUB_OUTPUT"
+
+      - name: Extract release notes from CHANGELOG.md
+        id: notes
+        run: |
+          VER="${{ steps.version.outputs.ver }}"
+          awk -v ver="$VER" '
+            BEGIN { in_section = 0 }
+            /^## / {
+              if (in_section) exit
+              if ($0 ~ "^## " ver "( |$|—)") in_section = 1
+              else next
+            }
+            in_section { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "Mackes Shell $VER" > release-notes.md
+            echo "" >> release-notes.md
+            echo "See [CHANGELOG.md](CHANGELOG.md) for the full feature list." >> release-notes.md
+          fi
+          echo "--- release notes preview ---"
+          head -40 release-notes.md
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name:  ${{ steps.version.outputs.tag }}
+          # v2.0.4: name follows the v2.0.0 rebrand lock ("Mackes
+          # Desktop Environment"). The legacy "Mackes XFCE
+          # Workstation" string here was left over from v1.x and
+          # surfaced in the v2.0.3 release as a visible regression
+          # on the GitHub release page.
+          name:      "Mackes Desktop Environment ${{ steps.version.outputs.ver }}"
+          body_path: release-notes.md
+          draft:     false
+          prerelease: ${{ steps.version.outputs.prerelease }}
+          fail_on_unmatched_files: true
+          files: |
+            ${{ steps.rpms.outputs.bin_rpm }}
+            ${{ steps.rpms.outputs.src_rpm }}
+            install.sh
+            uninstall.sh

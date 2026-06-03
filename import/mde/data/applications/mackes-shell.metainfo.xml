@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.matthewmackes.MackesShell</id>
+  <launchable type="desktop-id">mackes-shell.desktop</launchable>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+
+  <name>Mackes XFCE Workstation</name>
+  <summary>Unified XFCE workstation: panel, dock, settings, mesh networking, fleet management</summary>
+
+  <description>
+    <p>
+      Mackes XFCE Workstation replaces xfce4-panel, xfdesktop, and the
+      stock settings manager with a unified shell that ships its own
+      top status bar, macOS-style bottom dock, and a sidebar workbench
+      for every setting Mackes manages. Underneath it stays a standard
+      XFCE session — xfwm4 or i3 (toggleable) for window management,
+      LightDM for login, Plymouth for boot.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Rust-native top bar + bottom dock (single mackes-panel binary) with Plank-parity dock behavior: pinned launchers, window grouping, multi-window indicators, right-click context menus</li>
+      <li>Live status cluster (mesh peers, clipboard items, volume, battery, unread notifications, sessions) refreshed every 2 s</li>
+      <li>Apple-menu launcher with About / Settings / Software Update / Recent Items / Applications submenu (8 buckets) / Force Quit / Sleep / Restart / Shut Down / Lock / Sign Out</li>
+      <li>First-run setup wizard with curated presets (hashbang, mackes, daylight, vanilla)</li>
+      <li>Notification Drawer with live data for Mesh, Bluetooth, Volume, Brightness, Battery, Hardware</li>
+      <li>Mesh networking via Headscale + Tailscale — peers, shares, services as first-class dock items</li>
+      <li>Remote desktop integration with auto-discovered SSH / RDP / VNC peers via Remmina</li>
+      <li>Bidirectional clipboard sync across mesh peers</li>
+      <li>Fleet management via Ansible-pull with curated playbooks</li>
+      <li>Optional i3 tiling window manager via mackes-wm switcher (Workbench → System → Window Manager)</li>
+      <li>System maintenance: snapshots, drift detection, system updates, dependency checks</li>
+      <li>PatternFly v6 design tokens, Red Hat Display/Text/Mono fonts, Mackes-Carbon symbolic icon theme</li>
+    </ul>
+  </description>
+
+  <url type="homepage">https://github.com/matthewmackes/MAP2-RELEASES</url>
+  <url type="bugtracker">https://github.com/matthewmackes/MAP2-RELEASES/issues</url>
+
+  <developer id="io.github.matthewmackes">
+    <name>Matthew Mackes</name>
+  </developer>
+
+  <categories>
+    <category>Settings</category>
+    <category>System</category>
+    <category>Network</category>
+  </categories>
+
+  <keywords>
+    <keyword>settings</keyword>
+    <keyword>preferences</keyword>
+    <keyword>xfce</keyword>
+    <keyword>mesh</keyword>
+    <keyword>tailscale</keyword>
+    <keyword>headscale</keyword>
+    <keyword>fleet</keyword>
+    <keyword>ansible</keyword>
+  </keywords>
+
+  <content_rating type="oars-1.1" />
+
+  <provides>
+    <binary>mackes</binary>
+  </provides>
+
+  <releases>
+    <release version="1.1.0" date="2026-05-19">
+      <description>
+        <p>Win10 layout reskin. Single bottom taskbar replaces the top bar + Plank dock. Right-click Start opens a 9-item Fedora admin menu (Root Terminal / DNF / journalctl / systemctl / SELinux / firewall / disk-clean) in terminator with the shell kept open. Win10-style desktop watermark shows in the lower-right when DNF updates are pending (4 h poll). Status-cluster click toggles the Workbench closed on a repeated press. XDG user-dirs remapped to mesh-sync targets (Music/Pictures/Videos/Documents to ~/QNM-Mesh/, Downloads stays local). XFCE menu hides expanded to every replaced component + propagated to existing users on every login.</p>
+      </description>
+    </release>
+    <release version="1.0.8" date="2026-05-19">
+      <description>
+        <p>First-boot hotfix. The mackes-enforce-session autostart converges every login onto i3 + mackes-panel (no xfwm4, no xfce4-panel, no xfdesktop). WorkbenchWindow WM_CLASS pinned to Mackes-shell + i3 float rule. Status-cluster icons open the Workbench focused on the relevant panel via mackes --focus &lt;slug&gt;.</p>
+      </description>
+    </release>
+    <release version="1.0.7" type="development" date="2026-05-18">
+      <description>
+        <p>Plank-parity dock with pinned launchers, tasklist, and window grouping. Live status cluster (icon + number, 2 s poll, opens drawer on click). Optional i3 tiling WM via mackes-wm switcher. About Mackes window. Drawer probes now wired to live data sources (pactl, bluetoothctl, tailscale, MPRIS, UPower). The legacy 1.6.7 release on the 2.x line is intentionally omitted from this history; that build pre-dates the 1.0.x reset.</p>
+      </description>
+    </release>
+    <release version="1.0.6" date="2026-05-18">
+      <description>
+        <p>First-boot panel polish bundle: visible top-bar icons, auto-sizing dock, 12-hour clock with weather popover, status-cluster review popovers, _NET_WM_STRUT_PARTIAL on panel and dock.</p>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-05-18">
+      <description>
+        <p>Mackes XFCE Workstation: full pivot from Mackes Shell 2.x. Replaces xfce4-panel + xfdesktop with a unified Rust panel (top bar + bottom dock + wallpaper). PatternFly v6 design tokens and Red Hat font family throughout. Workspaces collapsed to one (app-switching replaces virtual desktops). LightDM + Plymouth + apple-menu chrome rebuilt to match the new design language. Performance gates: cold start &lt; 200 ms, idle CPU &lt; 1%, RSS &lt;= 150 MB.</p>
+      </description>
+    </release>
+  </releases>
+</component>

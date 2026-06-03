@@ -1,0 +1,19 @@
+[Unit]
+# CB-2.4 — one-shot ordering target that gates the v2.0.0
+# first-login migration. mde-session.service Wants= this; the two
+# migrator units (mde-migrate-from-1x.service +
+# mde-shell-migrate-v2.service) are ordered Before= it so they
+# complete first. The target itself is a unit with no ExecStart —
+# it exists only as a synchronization point.
+#
+# Why a target instead of After= chains: each migrator stamps a
+# completion marker file so re-runs are idempotent; the target's
+# ConditionPathExists guard fires only when neither marker exists,
+# so post-first-boot the whole sub-tree skips with one stat() call
+# instead of N.
+Description=MDE first-boot config migration (one-shot)
+ConditionPathExists=|!%h/.cache/mde/.migrate-from-1x.done
+ConditionPathExists=|!%h/.cache/mde/.shell-migrate-v2.done
+
+[Install]
+WantedBy=default.target

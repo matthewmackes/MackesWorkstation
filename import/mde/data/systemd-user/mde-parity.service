@@ -1,0 +1,20 @@
+[Unit]
+Description=Overlay-install mackes-shell repo updates onto running MDE (v4.0.1 PARITY-3)
+Documentation=https://github.com/matthewmackes/MAP2-RELEASES/blob/main/install-helpers/parity-overlay.sh
+# Don't fight with package installs — if dnf is running, skip this round
+# and the next commit will re-trigger.
+ConditionPathExists=!/var/lib/dnf/transaction-lock
+
+[Service]
+Type=oneshot
+# The script runs `cargo build` (slow) then `sudo -n` itself to install.
+# We launch it as the developer user; the install phase uses sudo
+# via the install-helpers/sudoers-mde-parity drop-in.
+ExecStart=/usr/local/bin/mde-parity-overlay
+# Two-phase build+install can take a couple of minutes after a large
+# Rust diff. Cap it so a hung build doesn't wedge the unit.
+TimeoutStartSec=15min
+
+# Quiet "expected" failure modes — nothing-to-do exits, transient lock
+# contention with an in-flight overlay — should not page the operator.
+SuccessExitStatus=0 64

@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mackes-shell"
+version = "4.0.0"
+description = "Mackes Desktop Environment (MDE) — Wayland-only Fedora DE (v2.0.0 cut; PyPI distribution name kept at mackes-shell for the one-release back-compat window)"
+readme = "README.md"
+license = { text = "GPL-3.0" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Matt Mackes", email = "matthewmackes@gmail.com" },
+]
+keywords = ["xfce", "whisker-menu", "carbon-design", "settings", "fedora", "qnm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Desktop Environment",
+]
+dependencies = [
+    "PyYAML",
+    # PyGObject is the Fedora-RPM dep (python3-gobject); not a hard pip dep
+    # because it requires system libraries (libgirepository, gtk3).
+]
+
+[project.scripts]
+mackes = "mackes.app:main"
+
+[project.urls]
+Homepage = "https://github.com/mattmacke/mackes-shell"
+Source   = "https://github.com/mattmacke/mackes-shell"
+Issues   = "https://github.com/mattmacke/mackes-shell/issues"
+
+[tool.setuptools.packages.find]
+# v2.0.0 Phase 0.10 — `mde` ships as a thin re-export facade over
+# `mackes` during the back-compat window so new code can call
+# `from mde.X import …`.
+include = ["mackes*", "mde"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

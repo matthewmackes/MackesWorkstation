@@ -1,0 +1,39 @@
+.TH MDE-MIGRATE-FROM-1X 1 "2026-05-19" "MDE 2.0.0" "User Commands"
+.SH NAME
+mde-migrate-from-1x \- atomic config-path migrator for the v1.x → v2.0.0 rebrand
+.SH SYNOPSIS
+.B mde-migrate-from-1x
+.SH DESCRIPTION
+For each of the three locked
+.RI ( legacy ", " target )
+pairs:
+.IP \(bu 2
+.I ~/.config/mackes-shell/
+\(->
+.I ~/.config/mde/
+.IP \(bu 2
+.I ~/.cache/mackes/
+\(->
+.I ~/.cache/mde/
+.IP \(bu 2
+.I ~/.local/state/mackes/
+\(->
+.I ~/.local/state/mde/
+.P
+If the legacy path exists and the target does not,
+.B mde-migrate-from-1x
+atomically moves the legacy tree (via
+.BR os.replace (3)
+when source + target share a filesystem; falls back to recursive
+copy + delete cross-FS). Idempotent: re-running on an
+already-migrated box is a no-op exit 0.
+.SH OUTPUT
+Logged via
+.B systemd-cat -t mde-migrate
+with stderr fallback. Each step reports `moved` / `noop` /
+`collision` / `failed`.
+.SH SEE ALSO
+.B mde-shell-migrate-v2(1),
+.B mde-session(1)
+.SH AUTHORS
+Matt Mackes <matthewmackes@gmail.com> and contributors.

@@ -1,0 +1,4 @@
+[D-BUS Service]
+Name=dev.mackes.MDE.Session
+Exec=/usr/bin/mde-session
+SystemdService=mde-session.service

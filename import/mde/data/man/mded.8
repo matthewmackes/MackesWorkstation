@@ -1,0 +1,106 @@
+.TH MDED 8 "2026-05-19" "MDE 2.0.0" "System Administration"
+.SH NAME
+mded \- MDE Mesh control plane daemon
+.SH SYNOPSIS
+.B mded
+[\fIOPTIONS\fR]
+.I SUBCOMMAND
+.SH DESCRIPTION
+.B mded
+is the v2.0.0 successor to
+.B mackesd(8).
+A single-binary, single-PID Rust meta-daemon that owns the
+authoritative mesh control plane state (SQLite store under
+\fI/var/lib/mde/mded.db\fR) plus the in-process worker pool:
+clipboard watcher, mDNS relay, mesh FUSE supervisor, media-sync,
+remmina-sync, ansible-pull, KDE-Connect bridge, heartbeat,
+notifications server (org.freedesktop.Notifications), and the
+cross-peer notification relay.
+.SH SUBCOMMANDS
+.TP
+.B serve
+Boot the tokio runtime, start every registered worker, and block
+on SIGTERM/SIGINT. This is the systemd ExecStart for
+.BR mded.service .
+.TP
+.B migrate
+Apply every pending SQLite migration against the store. Idempotent.
+.TP
+.B status
+Print the applied-migration count + db path.
+.TP
+.B healthz
+Print the live HealthReport as a JSON line.
+.TP
+.B enroll \-\-passcode \fIPASSCODE\fR [\-\-name \fINAME\fR]
+Mint a fresh Ed25519 identity + bearer token; print the signed
+EnrollmentRequest the leader ingests.
+.TP
+.B decommission \fINODE_ID\fR [\-\-force]
+Soft-delete the node row + emit a hash-chained Lifecycle event.
+.TP
+.B reenroll \fINODE_ID\fR
+Refresh the node's credentials (new Ed25519 identity); preserves
+history.
+.TP
+.B peers\-why \fINODE_ID\fR
+Print the reason chain explaining every expected peer relationship
+for the named node.
+.TP
+.B fleet push\-setting \fIKEY\fR \fIVALUE\fR [\-\-peers \fISELECTOR\fR] [\-\-author \fIAUTHOR\fR] [\-\-dry\-run]
+Push a settings revision to a peer selection.
+.TP
+.B revisions list [\-\-json]
+List every desired_config revision (descending by id).
+.TP
+.B revisions diff \fIFROM\fR \fITO\fR
+Diff two revisions' spec_json payloads.
+.TP
+.B revisions rollback \fITARGET_ID\fR [\-\-author \fIAUTHOR\fR] [\-\-peers \fISELECTOR\fR]
+Write the named revision's payload as a fresh applied revision.
+.TP
+.B inventory\-legacy [\-\-mesh\-only] [\-\-json]
+Walk \fI~/.config/mackes-shell/\fR + \fI~/.cache/mackes/\fR +
+\fI~/.qnm-sync/\fR for legacy artifacts; print a catalog.
+.TP
+.B import\-legacy [\-\-dry\-run]
+Import legacy artifacts into the mded store.
+.TP
+.B audit\-verify
+Walk the events table's hash chain. Exits 0 on Intact/Empty, 1
+on Break.
+.TP
+.B generate\-passcode
+Print a fresh 16-character URL-safe shared passcode.
+.TP
+.B rotate\-passcode
+Same as generate-passcode; reminds the operator to update
+libsecret.
+.SH ENVIRONMENT
+.TP
+.B MACKESD_DB
+Override the SQLite store path. Defaults to
+\fI/var/lib/mde/mded.db\fR.
+.TP
+.B MDE_HOME
+Defaults the store path under \fI<MDE_HOME>/mded.db\fR. The
+v1.x \fBMACKESD_HOME\fR is honored as a one-release fallback
+(deprecated; removed in v2.1).
+.TP
+.B QNM_SHARED_ROOT
+Override the QNM-Shared sync root (defaults to
+\fI~/QNM-Shared\fR).
+.SH FILES
+.TP
+.I /var/lib/mde/mded.db
+Authoritative SQLite store.
+.TP
+.I /usr/lib/systemd/system/mackesd.service
+systemd unit; ExecStart is
+.BR "mded serve" .
+.SH SEE ALSO
+.B mde(1),
+.B mde-session(1),
+.B mde-shell-migrate-v2(1)
+.SH AUTHORS
+Matt Mackes <matthewmackes@gmail.com> and contributors.

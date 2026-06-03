@@ -1,0 +1,7 @@
+[D-BUS Service]
+# We implement org.freedesktop.Notifications (the standard) under
+# the MDE name as well so introspection tools see both names. The
+# session-bus daemon resolves both to the same mded process.
+Name=dev.mackes.MDE.Notifications
+Exec=/usr/bin/mded serve
+SystemdService=mded.service

@@ -1,0 +1,295 @@
+# Mackes Desktop Environment — push/PR CI.
+# (v2.0.0 rebrand lock: project renamed from "Mackes XFCE Workstation".)
+#
+# Two parallel jobs:
+#
+#   1. python — pyflakes + pytest + import smoke across supported Fedora
+#                releases (43 + 44 today). Mirrors what release.yml does on
+#                tag pushes, minus the rpm build.
+#
+#   2. rust   — cargo fmt --check + cargo clippy + cargo check + cargo test
+#                on the workspace (currently just crates/mackes-panel/, more
+#                land in Phase 0.2+).
+#
+# Both jobs follow the dep-install-first / checkout-second pattern that
+# release.yml uses, so the container has git available when checkout runs.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bench_fleet_url:
+        description: >
+          URL or path to the NF-9.x bench fleet topology JSON (see
+          docs/help/bench-acceptance.md). Required for the
+          `acceptance` job; ignored by the default push/PR jobs.
+        required: false
+        default: ""
+
+jobs:
+  python:
+    name: python (Fedora ${{ matrix.fedora }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ["43", "44"]
+    container:
+      image: fedora:${{ matrix.fedora }}
+    steps:
+      - name: Install runtime + test deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git \
+            python3 python3-pip python3-pyyaml \
+            python3-gobject gtk3 xfconf cairo-gobject-devel \
+            python3-cairo python3-textual \
+            python3-pytest python3-pytest-cov \
+            ruff
+          # GUI panels won't initialize headlessly; pytest sees only logic
+          # modules. cairo-gobject + python3-textual are needed so the
+          # import-smoke test can import the mesh_thumbnailer / tui modules.
+          # python3-pytest-cov powers the `make test-coverage` Track 4 gate.
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: ruff (pyflakes-equivalent F-codes)
+        # Ruff is faster than pyflakes AND honors `# noqa: F401` for the
+        # try/except ImportError feature-detection imports across mesh_*.
+        run: ruff check --select F401,F541,F811,F841 mackes/ tests/
+
+      - name: voice-and-tone lint (v4.0.1)
+        # Locked by docs/design/voice-and-tone.md — enforces the verb
+        # discipline table + forbidden-strings list. Catches "Save"
+        # where "Apply" is the lock for config changes, "Create" /
+        # "New" where "Add" is the lock, "Oops"/"Whoops"/"Yikes"
+        # marketing copy, lorem ipsum, etc.
+        #
+        # v4.0.1 flipped to a hard gate (2026-05-23): legacy GTK
+        # Python (`mackes/workbench/*`, `mackes/wizard/*`) is
+        # excluded from verb-discipline scans (those surfaces are
+        # actively retired by CB-1.x); the remaining active-Rust
+        # exceptions carry `voice-allow:<class>` per-line
+        # annotations the linter honors. Adding a new violation
+        # in active code now breaks CI.
+        run: install-helpers/lint-voice.sh
+
+      - name: pytest
+        # tests/test_imports.py::test_every_non_gui_module_imports already
+        # walks every mackes.* submodule with proper typelib filtering, so
+        # no separate "import smoke" step is needed here.
+        run: python3 -m pytest tests/ -v --tb=short
+
+      - name: test-coverage gate (Track 4)
+        # v4.0.1 — EPIC-production-ready-mackes Track 4 lock:
+        # ≥60% coverage on the 4 mesh-critical Python modules.
+        # Soft-gate on first introduction so the baseline can be
+        # measured without breaking CI; flips to hard gate in
+        # v4.0.2 once the actual coverage number is known + any
+        # gaps closed (or threshold tuned to reality).
+        run: make test-coverage
+        continue-on-error: true
+
+  rust:
+    name: rust (Fedora 44)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    steps:
+      - name: Install Rust toolchain
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git \
+            rust cargo rustfmt clippy \
+            gcc make pkgconfig \
+            gtk3-devel
+          rustc --version
+          cargo --version
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: cargo fmt --check
+        run: cargo fmt --all --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo check
+        run: cargo check --workspace --all-targets
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      - name: cargo check (x11 feature — XOrg fork)
+        run: cargo check --features x11 -p mde-session -p mackesd -p mde-workbench -p mde-files -p mde-logout-dialog
+
+      - name: cargo test (x11 feature — mde-session)
+        run: cargo test --features x11 -p mde-session
+
+  panel-smoke:
+    # 1.1.0 (#13): Xvfb-driven smoke for the live mackes-panel binary.
+    # Boots the panel under a virtual X server, asserts the bottom
+    # taskbar window appears at the expected geometry, then exercises
+    # `mackes --focus mesh_join` to confirm the click-through CLI path
+    # still drives the workbench. Both gates are blocking — a PR that
+    # regresses panel boot or the --focus CLI fails CI.
+    name: panel smoke (Xvfb, Fedora 44)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    needs: rust
+    steps:
+      - name: Install runtime + test deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git rust cargo gcc make pkgconfig gtk3-devel \
+            xorg-x11-server-Xvfb wmctrl xdotool \
+            python3 python3-pip python3-pyyaml python3-gobject \
+            gtk3 xfconf cairo-gobject-devel \
+            python3-cairo python3-textual python3-pytest
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build mackes-panel (release)
+        run: cargo build --release -p mackes-panel
+
+      - name: Run Xvfb panel smoke + click-through pytest
+        env:
+          DISPLAY: ":99"
+        run: |
+          # Start Xvfb on display :99 with a 1920x1080 root.
+          Xvfb :99 -screen 0 1920x1080x24 &
+          XVFB_PID=$!
+          # Give the X server a beat to come up.
+          for i in $(seq 1 50); do
+            xdotool getactivewindow 2>/dev/null && break || sleep 0.1
+          done
+          # Phase 9.2 + 9.3 gate: panel boot + --focus round-trip +
+          # xdotool-driven E2E (Super+Space apple-menu, Super+V
+          # clipboard focus, xterm running-indicator).
+          python3 -m pytest \
+              tests/test_panel_xvfb_smoke.py \
+              tests/test_panel_e2e_xdotool.py \
+              -v --tb=short
+          kill $XVFB_PID 2>/dev/null || true
+
+      - name: Phase 9.4 — bench-panel.sh perf gate
+        env:
+          DISPLAY: ":98"
+          PANEL_BIN: target/release/mackes-panel
+          DISPLAY_NUM: ":98"
+        run: |
+          # Separate Xvfb on :98 so the smoke run doesn't poison the
+          # cold-start measurement. bench-panel.sh expects the panel
+          # binary to exist at $PANEL_BIN (we built it above).
+          Xvfb :98 -screen 0 1920x1080x24 &
+          BENCH_XVFB_PID=$!
+          sleep 0.5
+          install-helpers/bench-panel.sh
+          kill $BENCH_XVFB_PID 2>/dev/null || true
+
+  wayland-smoke:
+    # SWAY-3 (Q5/Q81/Q99) — headless Wayland CI smoke.
+    #
+    # Runs the HW-3 harness (tests/hardware/hw3_wayland_smoke.sh) inside
+    # a Fedora container that has sway + wlr-randr.  The script starts a
+    # headless sway session (WLR_BACKENDS=headless), asserts sway outputs,
+    # and — if mackesd is built — exercises the marks_state Bus action
+    # responder (worker-exercise gates 4 + 5).
+    #
+    # The Q99 reduce-motion static-render assertions live in the Rust test
+    # suite (mde-theme animation.rs) and are covered by the `rust` job above.
+    name: wayland smoke (headless sway, Fedora 44)
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    needs: rust
+    steps:
+      - name: Install sway + Wayland test tools
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git \
+            sway wlr-randr \
+            xorg-x11-server-Xvfb \
+            rust cargo gcc make pkgconfig gtk3-devel
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run HW-3 headless Wayland smoke
+        env:
+          WLR_BACKENDS: headless
+          WLR_LIBINPUT_NO_DEVICES: "1"
+          XDG_RUNTIME_DIR: /tmp/hw3-ci-runtime
+        run: |
+          mkdir -p /tmp/hw3-ci-runtime
+          chmod 700 /tmp/hw3-ci-runtime
+          bash tests/hardware/hw3_wayland_smoke.sh
+
+  acceptance:
+    # NF-9.x — v2.5 Nebula-fabric bench acceptance gate.
+    #
+    # This job is intentionally skipped on every push + pull_request
+    # event. The six bench scenarios (NF-9.1..NF-9.6 in
+    # docs/PROJECT_WORKLIST.md) require a live Nebula fleet stood up
+    # by the operator, described by a JSON topology file as
+    # documented in docs/help/bench-acceptance.md.
+    #
+    # To run the gate, invoke the workflow with
+    #   gh workflow run ci.yml -f bench_fleet_url=<url-or-path>
+    # The runner expects that URL to resolve to a fleet topology
+    # JSON on the runner's filesystem; the harness reads it via the
+    # MDE_NEBULA_BENCH_FLEET env var.
+    #
+    # NF-20.4: the legacy CI test stage had `tailscaled` and
+    # `headscale` services in its docker-compose; both were removed
+    # ahead of the v2.5 cut. This job replaces them — there is no
+    # docker-compose stack at all; the harness ssh's into hosts the
+    # operator provisioned.
+    name: acceptance (NF-9.x bench fleet)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.bench_fleet_url != ''
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:44
+    steps:
+      - name: Install runtime + test deps
+        run: |
+          dnf install -y --setopt=install_weak_deps=False \
+            git openssh-clients \
+            python3 python3-pip python3-pytest
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Mark workspace safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run bench-acceptance harness
+        env:
+          # The harness expects MDE_NEBULA_BENCH_FLEET to point at a
+          # local JSON file. The workflow input is recorded verbatim
+          # — wire it up to whatever fetch/secret-store mechanism
+          # the bench operator uses before invoking the workflow.
+          MDE_NEBULA_BENCH_FLEET: ${{ github.event.inputs.bench_fleet_url }}
+        run: |
+          python3 -m pytest tests/acceptance/test_nebula_fabric.py -v --tb=short

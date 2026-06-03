@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Mackes Session Enforcer
+GenericName=i3 + mackes-panel session convergence
+Comment=Ensures i3 owns the WM role and that xfce4-panel/xfdesktop are not running on every login.
+Exec=/usr/bin/mackes-enforce-session
+Icon=applications-system-symbolic
+Terminal=false
+NoDisplay=true
+StartupNotify=false
+X-XFCE-Autostart-enabled=true
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=XFCE;
+Categories=Settings;DesktopSettings;

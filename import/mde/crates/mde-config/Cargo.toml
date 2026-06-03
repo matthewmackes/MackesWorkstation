@@ -1,0 +1,22 @@
+[package]
+name        = "mde-config"
+description = "Mackes Desktop Environment (MDE) — re-export facade over mackes-config during the v2.0.0 back-compat window."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+
+# Phase 0.2 transitional alias — see crates/mded/Cargo.toml for
+# the full pattern.
+
+[lib]
+name = "mde_config"
+path = "src/lib.rs"
+
+[dependencies]
+mackes-config = { path = "../mackes-config" }
+
+[lints]
+workspace = true

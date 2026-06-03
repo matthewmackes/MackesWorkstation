@@ -1,0 +1,589 @@
+/* Mackes Shell — Carbon refresh layout (v1.1.0).
+ *
+ * Loaded AFTER tokens.css + mackes.css. Defines the new sidebar shell,
+ * the Carbon component classes the v1.1.0 panels rely on (stat-tile, tag,
+ * data-table, modal, notif, code, toast, topo, preset-grid), and the
+ * Tweaks drawer.
+ *
+ * Token references resolve through tokens.css (@cds_* / @mackes_*).
+ *
+ * GTK CSS notes:
+ *   - GTK has no CSS custom properties, no `var()`, no `calc()`, no
+ *     percent-of-parent flexbox. Sizes are explicit px.
+ *   - Layout is done in Python (Gtk.Box pack_start, etc.); this file only
+ *     supplies cosmetic styling. Don't try to enforce grid columns here.
+ *   - GTK's class selectors match Gtk widgets that have add_class("name")
+ *     applied via StyleContext. Compound selectors (.parent .child) work
+ *     but only as widget-descendant, not arbitrary DOM.
+ */
+
+
+/* =========================================================================
+   Shell — header strip
+   ========================================================================= */
+
+.mackes-shell-header {
+    background-color: @cds_bg_default;
+    border-bottom: 1px solid @cds_border_subtle_00;
+    min-height: 48px;
+}
+
+.mackes-brand-text {
+    font-weight: 600;
+    font-size: 16px;
+    color: @cds_text_primary;
+    letter-spacing: 0.01em;
+}
+
+.mackes-brand-light {
+    color: @cds_text_secondary;
+    font-weight: 400;
+}
+
+.mackes-header-action {
+    background-color: transparent;
+    border: none;
+    border-left: 1px solid @cds_border_subtle_00;
+    color: @cds_text_secondary;
+    padding: 0 16px;
+    min-height: 48px;
+    border-radius: 0;
+    font-size: 14px;
+}
+
+.mackes-header-action:hover {
+    background-color: @cds_layer_hover_01;
+    color: @cds_text_primary;
+}
+
+.mackes-header-action.checked, .mackes-header-action:checked {
+    color: @cds_text_primary;
+    background-color: @cds_bg_layer_02;
+}
+
+.mackes-header-action.mackes-header-action-flush {
+    border-left: 0;
+}
+
+
+/* =========================================================================
+   Shell — side nav
+   ========================================================================= */
+
+.mackes-side-nav {
+    background-color: @cds_bg_default;
+    border-right: 1px solid @cds_border_subtle_00;
+    min-width: 256px;
+}
+
+/* Sidebar group — subtle elevation lifts each navigation group off
+ * the sidebar surface (Carbon UI Shell pattern). Active groups gain
+ * a right-edge accent via the .mackes-side-nav-item.active styling.
+ */
+.mackes-side-nav-group-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: @cds_text_helper;
+    padding: 12px 16px 4px 16px;
+    background-color: @cds_bg_layer_01;
+    border-top: 1px solid @cds_border_subtle_00;
+    border-bottom: 1px solid @cds_border_subtle_00;
+}
+
+.mackes-side-nav-item {
+    background-color: @cds_bg_layer_01;
+    border: none;
+    border-left: 3px solid transparent;
+    border-radius: 0;
+    color: @cds_text_secondary;
+    padding: 0 16px;
+    min-height: 40px;
+    font-size: 14px;
+}
+
+.mackes-side-nav-item label {
+    color: @cds_text_secondary;
+}
+
+.mackes-side-nav-item:hover {
+    background-color: @cds_layer_hover_01;
+    color: @cds_text_primary;
+}
+
+.mackes-side-nav-item:hover label { color: @cds_text_primary; }
+
+.mackes-side-nav-item.active,
+.mackes-side-nav-item:checked {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    border-left-color: @mackes_accent;
+    border-right: 1px solid @mackes_accent_dim;
+}
+
+.mackes-side-nav-item.active label,
+.mackes-side-nav-item:checked label {
+    color: @cds_text_primary;
+}
+
+.mackes-sn-badge {
+    background-color: @mackes_accent_soft;
+    color: @mackes_accent;
+    font-family: "Red Hat Mono", monospace;
+    font-size: 11px;
+    padding: 1px 6px;
+}
+
+
+/* =========================================================================
+   Shell — status bar
+   ========================================================================= */
+
+/* Status strip — distinct from the page background so the live mesh /
+ * service / sshd / drift counters read as their own zone rather than
+ * floating in the content. */
+.mackes-status-bar {
+    background-color: @cds_bg_layer_01;
+    border-top: 1px solid @cds_border_subtle_01;
+    min-height: 24px;
+    padding: 0 16px;
+    font-family: "Red Hat Mono", monospace;
+    font-size: 11px;
+    color: @cds_text_helper;
+}
+
+.mackes-status-bar-item {
+    color: @cds_text_helper;
+    font-family: "Red Hat Mono", monospace;
+    font-size: 11px;
+}
+
+.mackes-status-bar-item.ok    { color: @cds_support_success; }
+.mackes-status-bar-item.warn  { color: @cds_support_warning; }
+.mackes-status-bar-item.fail  { color: @cds_support_error; }
+
+
+/* =========================================================================
+   Content frame
+   ========================================================================= */
+
+.mackes-content {
+    background-color: @cds_bg_default;
+    padding: 32px 40px;
+}
+
+.mackes-page-title {
+    font-size: 32px;
+    line-height: 40px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: @cds_text_primary;
+}
+
+.mackes-page-subtitle {
+    font-size: 16px;
+    line-height: 24px;
+    color: @cds_text_secondary;
+    margin-bottom: 24px;
+}
+
+/* Plain-language explainer that sits above a panel or under a section
+ * title. Reads as supporting copy — slightly larger than helper text,
+ * dimmer than the page title, with a left-edge accent rail so the user
+ * registers it as guidance, not as content.
+ */
+.mackes-section-description {
+    font-size: 14px;
+    line-height: 20px;
+    color: @cds_text_secondary;
+    background-color: @cds_bg_layer_01;
+    border-left: 2px solid @mackes_accent_soft;
+    padding: 8px 12px;
+    margin-bottom: 16px;
+}
+
+.mackes-breadcrumb {
+    font-size: 12px;
+    color: @cds_text_helper;
+}
+
+
+/* =========================================================================
+   Carbon components — Tile / Stat tile / Tag / Data table / Modal / Code
+   ========================================================================= */
+
+/* Stat tile — Carbon's standard data tile. v1.6.2 visual hierarchy
+ * adds a thin border + 4px radius so each tile reads as its own card
+ * against the page surface, rather than as a flush background block.
+ */
+.mackes-stat-tile {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    border-bottom: 2px solid @cds_border_subtle_00;
+    border-radius: 4px;
+    padding: 16px;
+}
+
+.mackes-stat-tile.accent {
+    border-bottom-color: @mackes_accent;
+}
+
+.mackes-stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: @cds_text_helper;
+}
+
+.mackes-stat-value {
+    font-size: 32px;
+    font-weight: 300;
+    color: @cds_text_primary;
+    letter-spacing: -0.01em;
+}
+
+.mackes-stat-foot {
+    font-size: 11px;
+    color: @cds_text_helper;
+}
+
+.mackes-tag {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    /* Q44 lock (2026-05-25): Intel One Mono primary; Red Hat Mono fallback. */
+    font-family: "Intel One Mono", "Red Hat Mono", monospace;
+    font-size: 11px;
+    padding: 1px 8px;
+    border-radius: 12px;  /* pill — functional shape, not the Q42 card radius */
+}
+
+.mackes-tag.accent  { background-color: @mackes_accent_soft;     color: @mackes_accent; }
+.mackes-tag.success { background-color: @cds_support_success_bg; color: @cds_support_success; }
+.mackes-tag.warning { background-color: @cds_support_warning_bg; color: @cds_support_warning; }
+.mackes-tag.error   { background-color: @cds_support_error_bg;   color: @cds_support_error; }
+.mackes-tag.info    { background-color: @cds_support_info_bg;    color: @cds_support_info; }
+.mackes-tag.neutral { background-color: @cds_bg_layer_02;        color: @cds_text_secondary; }
+
+
+/* DataTable — gets a visible border + radius and gentle alternating
+ * row backgrounds so each row reads as a distinct entry instead of a
+ * flush list.
+ */
+.mackes-dt {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    border-radius: 4px;
+}
+
+/* GTK TreeView fallback for striped rows — Gtk.TreeView responds to
+ * .cell:nth-child if rules-hint is on; our DataTable widget instead
+ * relies on the listbox-style stripe below. */
+.mackes-dt row:nth-child(even) {
+    background-color: @cds_bg_layer_02;
+}
+.mackes-dt row:nth-child(odd) {
+    background-color: @cds_bg_layer_01;
+}
+
+.mackes-dt-toolbar {
+    background-color: @cds_bg_layer_01;
+    border-bottom: 1px solid @cds_border_subtle_00;
+    min-height: 48px;
+    padding: 0 16px;
+}
+
+.mackes-dt treeview, .mackes-dt list {
+    background-color: @cds_bg_layer_01;
+    color: @cds_text_primary;
+    border: 0;
+}
+
+.mackes-dt treeview header button,
+.mackes-dt list .header {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    font-weight: 600;
+    border-bottom: 1px solid @cds_border_subtle_01;
+    border-radius: 0;
+    padding: 8px 12px;
+}
+
+.mackes-dt row {
+    color: @cds_text_primary;
+    padding: 8px 12px;
+    border-bottom: 1px solid @cds_border_subtle_00;
+}
+
+.mackes-dt row:hover    { background-color: @cds_layer_hover_01; }
+.mackes-dt row:selected { background-color: @mackes_accent_soft; color: @cds_text_primary; }
+
+
+/* Notification panel — borders all four sides plus a left accent rail
+ * give it a proper card silhouette. */
+.mackes-notif {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    border-left: 3px solid @mackes_accent;
+    border-radius: 4px;
+    padding: 16px;
+    margin-top: 8px;
+    margin-bottom: 8px;
+}
+
+.mackes-notif.info    { border-left-color: @cds_support_info; }
+.mackes-notif.success { border-left-color: @cds_support_success; }
+.mackes-notif.warning { border-left-color: @cds_support_warning; }
+.mackes-notif.error   { border-left-color: @cds_support_error; }
+
+.mackes-notif-title { font-weight: 600; color: @cds_text_primary; }
+.mackes-notif-body  { color: @cds_text_secondary; }
+
+
+/* Toast */
+.mackes-toast {
+    background-color: @cds_bg_layer_01;
+    border-left: 3px solid @mackes_accent;
+    color: @cds_text_primary;
+    padding: 12px 16px;
+}
+.mackes-toast.success  { border-left-color: @cds_support_success; }
+.mackes-toast.error    { border-left-color: @cds_support_error; }
+.mackes-toast.warning  { border-left-color: @cds_support_warning; }
+.mackes-toast.info     { border-left-color: @cds_support_info; }
+
+
+/* =========================================================================
+   Density modes — Tweaks panel sets one of these classes on the app window
+   ========================================================================= */
+
+.mackes-density-compact .mackes-side-nav-item {
+    min-height: 32px;
+}
+.mackes-density-compact .mackes-stat-tile {
+    padding: 8px;
+}
+.mackes-density-compact .mackes-app-card {
+    padding: 8px;
+}
+.mackes-density-compact .mackes-dt row {
+    padding: 4px 8px;
+}
+
+.mackes-density-cozy .mackes-side-nav-item {
+    min-height: 40px;
+}
+.mackes-density-cozy .mackes-stat-tile {
+    padding: 16px;
+}
+.mackes-density-cozy .mackes-app-card {
+    padding: 16px;
+}
+
+.mackes-density-comfortable .mackes-side-nav-item {
+    min-height: 48px;
+}
+.mackes-density-comfortable .mackes-stat-tile {
+    padding: 24px;
+}
+.mackes-density-comfortable .mackes-app-card {
+    padding: 24px;
+}
+.mackes-density-comfortable .mackes-dt row {
+    padding: 12px 16px;
+}
+
+
+/* Code block */
+.mackes-code {
+    font-family: "Red Hat Mono", monospace;
+    font-size: 13px;
+    background-color: @cds_bg_default;
+    border: 1px solid @cds_border_subtle_00;
+    padding: 12px 16px;
+    color: @cds_text_secondary;
+}
+
+
+/* Tabs (in-page) */
+.mackes-tabs {
+    border-bottom: 1px solid @cds_border_subtle_00;
+    min-height: 40px;
+}
+
+.mackes-tab {
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+    color: @cds_text_secondary;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.mackes-tab:hover { color: @cds_text_primary; }
+
+.mackes-tab.active, .mackes-tab:checked {
+    color: @cds_text_primary;
+    border-bottom-color: @mackes_accent;
+    background-color: transparent;
+}
+
+
+/* Topology canvas frame */
+.mackes-topo {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    min-height: 420px;
+}
+
+
+/* Modal */
+.mackes-modal {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_01;
+}
+
+.mackes-modal-title { font-size: 20px; color: @cds_text_primary; }
+.mackes-modal-sub   { color: @cds_text_secondary; }
+
+
+/* Section header */
+.mackes-section-title {
+    font-size: 20px;
+    line-height: 28px;
+    font-weight: 400;
+    color: @cds_text_primary;
+}
+
+.mackes-section-meta {
+    font-size: 11px;
+    color: @cds_text_helper;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+
+/* Preset card (used in wizard preset-pick) */
+.mackes-preset-card {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+}
+
+.mackes-preset-card:hover { border-color: @cds_border_strong_01; }
+
+.mackes-preset-card.selected {
+    border-color: @mackes_accent;
+}
+
+.mackes-preset-name { font-size: 20px; color: @cds_text_primary; }
+.mackes-preset-voice { color: @cds_text_secondary; }
+
+
+/* Tweaks drawer */
+.mackes-tweaks-button {
+    background-color: @cds_bg_layer_02;
+    color: @cds_text_primary;
+    border: 1px solid @cds_border_subtle_01;
+    border-radius: 0;
+    min-width: 40px;
+    min-height: 40px;
+    padding: 0;
+}
+.mackes-tweaks-button:hover { background-color: @cds_layer_hover_02; }
+
+/* Floating Tweaks drawer — reads as an actual elevated surface, not
+ * a flush panel. Uses bg_layer_02 (one step lighter than the cards
+ * around it) plus a stronger border and radius to lift it off the
+ * content. */
+.mackes-tweaks-drawer {
+    background-color: @cds_bg_layer_02;
+    border: 1px solid @cds_border_subtle_02;
+    border-radius: 4px;
+    min-width: 280px;
+    padding: 16px;
+}
+
+.mackes-tweaks-section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: @cds_text_helper;
+}
+
+
+/* App store card / Maintain-hub tile — gains a visible border + radius
+ * + a brighter accent rail on hover so the user always sees which tile
+ * is under the pointer.
+ */
+.mackes-app-card {
+    background-color: @cds_bg_layer_01;
+    border: 1px solid @cds_border_subtle_00;
+    border-radius: 4px;
+    padding: 16px;
+}
+
+.mackes-app-card:hover {
+    background-color: @cds_layer_hover_01;
+    border-color: @mackes_accent_dim;
+}
+
+.mackes-app-icon {
+    background-color: @cds_bg_layer_02;
+    color: @mackes_accent;
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.mackes-app-name { font-size: 16px; font-weight: 600; color: @cds_text_primary; }
+.mackes-app-desc { color: @cds_text_secondary; }
+.mackes-app-meta { font-family: "Red Hat Mono", monospace; font-size: 11px; color: @cds_text_helper; }
+
+
+/* Help — markdown rendering */
+.mackes-md-h1 { font-size: 28px; line-height: 36px; font-weight: 400; color: @cds_text_primary; }
+.mackes-md-h2 { font-size: 20px; line-height: 28px; font-weight: 400; color: @cds_text_primary; }
+.mackes-md-p  { font-size: 16px; line-height: 24px; color: @cds_text_secondary; }
+.mackes-md-li { color: @cds_text_secondary; }
+.mackes-md-code-inline {
+    font-family: "Red Hat Mono", monospace;
+    font-size: 12px;
+    background-color: @cds_bg_layer_01;
+    color: @mackes_accent;
+    padding: 1px 6px;
+}
+.mackes-md-pre {
+    font-family: "Red Hat Mono", monospace;
+    background-color: @cds_bg_default;
+    border-left: 3px solid @mackes_accent;
+    color: @cds_text_secondary;
+    padding: 12px;
+}
+
+
+/* Wizard chrome */
+.mackes-wizard-step {
+    font-family: "Red Hat Mono", monospace;
+    font-size: 11px;
+    color: @cds_text_helper;
+}
+
+.mackes-wizard-step.active { color: @mackes_accent; }
+.mackes-wizard-step .num {
+    min-width: 20px; min-height: 20px;
+    border: 1px solid @cds_text_helper;
+    color: @cds_text_helper;
+}
+.mackes-wizard-step.active .num { border-color: @mackes_accent; color: @mackes_accent; }
+
+
+/* Status dots — inline use anywhere */
+.mackes-dot         { font-size: 12px; color: @cds_text_helper; }
+.mackes-dot.ok      { color: @cds_support_success; }
+.mackes-dot.warn    { color: @cds_support_warning; }
+.mackes-dot.fail    { color: @cds_support_error; }
+.mackes-dot.muted   { color: @cds_text_helper; }
+.mackes-dot.accent  { color: @mackes_accent; }

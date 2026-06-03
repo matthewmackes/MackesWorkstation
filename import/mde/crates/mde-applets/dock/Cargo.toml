@@ -1,0 +1,39 @@
+[package]
+name        = "mde-applet-dock"
+description = "Taskbar dock applet — bottom-bar window list (DOCK-1 Iced layer-shell rebuild)."
+version.workspace      = true
+edition.workspace      = true
+rust-version.workspace = true
+license.workspace      = true
+authors.workspace      = true
+repository.workspace   = true
+
+[[bin]]
+name = "mde-applet-dock"
+path = "src/main.rs"
+
+[lib]
+name = "mde_applet_dock"
+path = "src/lib.rs"
+
+[dependencies]
+mde-applet-api = { path = "../applet-api" }
+serde          = { version = "1", features = ["derive"] }
+serde_json     = "1"
+
+# DOCK-1 (v4.0.1, 2026-05-23) — full Iced rebuild deps. Mirrors
+# mde-popover's resolution so the workspace dep tree stays on one
+# Iced version (0.13 + iced_layershell 0.13.7). The legacy
+# text-renderer (`--text`, `--manifest`, `--now`) is preserved for
+# backwards-compat with the applet-host stdin loop until the host
+# learns to spawn the GUI directly; the default `main()` now
+# boots the Iced layer-shell.
+iced               = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "svg", "tokio", "advanced"] }
+iced_layershell    = "0.13.7"
+mde-theme          = { path = "../../mde-theme" }
+mackes-config      = { path = "../../mackes-config" }
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
+
+[lints]
+workspace = true

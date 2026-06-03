@@ -1,0 +1,70 @@
+# Ableton Live — dark production aesthetic.
+#
+# Warm near-black surfaces, muted gray text, and Ableton's signature
+# orange highlight. Built for focus, flow, and audio production work
+# on Linux (Bitwig Studio, Ardour, Carla).
+
+name: ableton-12-dark
+display_name: "Ableton 12 Dark"
+description: >
+  Ableton Live-inspired dark UI. Warm near-black surfaces, muted gray
+  text, and the signature #ff7700 orange highlight. Curated for audio
+  production and creative focus work.
+
+appearance:
+  gtk_theme:      "Orchis-Dark"
+  icon_theme:     "Mackes-Carbon"
+  cursor_theme:   "Adwaita"
+  cursor_size:    24
+  font_ui:        "Red Hat Text 11"
+  font_monospace: "Red Hat Mono 11"
+  wallpaper:      "/usr/share/mackes-shell/branding/standard-wallpaper.png"
+
+devices:
+  display_scaling:    "auto"
+  power_profile:      "performance"
+  audio_default_sink: "pipewire"
+
+network:
+  qnm_enabled:           false
+  firewall_default_zone: "FedoraWorkstation"
+
+system:
+  workspace_count:       1
+  window_manager_theme:  "Shiki-Statler"
+  notifications_enabled: true
+  autostart_extras: []
+
+panel:
+  clock:
+    digital-layout:      1
+    digital-date-format: "%B %d, %Y"
+    digital-date-font:   "Red Hat Text 10"
+    digital-time-format: "%I:%M %p"
+    digital-time-font:   "Red Hat Display Bold 12"
+
+apps:
+  install:
+    - terminator
+    - vlc
+    - ardour
+    - carla
+    - qjackctl
+    - menulibre
+
+  remove_bloat:
+    - gnome-software
+    - gnome-tour
+    - gnome-maps
+    - gnome-music
+    - totem
+    - asunder
+    - parole
+    - pragha
+    - xfburn
+    - transmission-gtk
+    - claws-mail
+    - pidgin
+
+snapshot:
+  initial_snapshot_name: "ableton-baseline"

@@ -1,0 +1,331 @@
+# Snapshot allow-list for lint-design-tokens.sh (TUNE-10 / 25-Q Q7).
+# Captured 2026-05-26 at lint introduction. 139 pre-existing
+# hardcoded-token references in active visual code.
+#
+# Each line is <file>:<line> for a hex literal or
+# Color::from_rgb call that should reference the canonical
+# token files (data/css/tokens.css, crates/mde-theme/).
+#
+# Cleanup tracked in EPIC-UI-MATERIAL.token-sweep — this
+# file shrinks as each entry ports to the token files.
+#
+# Format: one <file>:<line> per line. Lines starting with
+# `#` are comments; blank lines ignored.
+
+crates/mde-applets/applet-api/src/lib.rs:495
+crates/mde-applets/applet-api/src/lib.rs:497
+crates/mde-applets/applet-api/src/lib.rs:503
+crates/mde-applets/clock/src/lib.rs:130
+crates/mde-applets/dock/src/main.rs:64
+crates/mde-applets/mesh-status/src/lib.rs:172
+crates/mde-applets/mesh-status/src/lib.rs:173
+crates/mde-applets/mesh-status/src/lib.rs:174
+crates/mde-applets/mesh-status/src/lib.rs:175
+crates/mde-applets/mesh-status/src/lib.rs:346
+crates/mde-applets/mesh-status/src/lib.rs:347
+crates/mde-applets/mesh-status/src/lib.rs:348
+crates/mde-applets/mesh-status/src/lib.rs:349
+crates/mde-files/src/theme.rs:220
+crates/mde-files/src/widgets.rs:719
+crates/mde-iced-components/src/lib.rs:331
+crates/mde-logout-dialog/src/main.rs:82
+crates/mde-logout-dialog/src/main.rs:83
+crates/mde-logout-dialog/src/main.rs:84
+crates/mde-logout-dialog/src/main.rs:85
+crates/mde-logout-dialog/src/main.rs:86
+crates/mde-logout-dialog/src/main.rs:98
+crates/mde-panel/src/theme.rs:130
+crates/mde-panel/src/theme.rs:131
+crates/mde-panel/src/theme.rs:132
+crates/mde-panel/src/theme.rs:133
+crates/mde-panel/src/theme.rs:134
+crates/mde-panel/src/theme.rs:181
+crates/mde-panel/src/theme.rs:183
+crates/mde-panel/src/theme.rs:184
+crates/mde-panel/src/theme.rs:185
+crates/mde-panel/src/theme.rs:69
+crates/mde-panel/src/theme.rs:70
+crates/mde-panel/src/theme.rs:71
+crates/mde-panel/src/theme.rs:72
+crates/mde-panel/src/theme.rs:73
+crates/mde-panel/src/theme.rs:80
+crates/mde-panel/src/top_bar.rs:126
+crates/mde-panel/src/top_bar.rs:14
+crates/mde-panel/src/top_bar.rs:17
+crates/mde-panel/src/top_bar.rs:509
+crates/mde-popover/src/app_switcher.rs:288
+crates/mde-popover/src/app_switcher.rs:289
+crates/mde-popover/src/hostname_info.rs:271
+# ANIM-7.d: lock.rs test assertion re-anchored (+51 lines from crossfade additions)
+crates/mde-popover/src/lock.rs:517
+crates/mde-popover/src/minimized.rs:243
+crates/mde-popover/src/minimized.rs:244
+crates/mde-popover/src/network.rs:473
+crates/mde-popover/src/network.rs:474
+crates/mde-popover/src/status.rs:484
+crates/mde-popover/src/toasts.rs:392
+crates/mde-popover/src/toasts.rs:393
+# Portal-5.b workspace cell + Portal-49 mark-pill + Portal-57.b/.c pulse
+# tier-red + BUS-2.2.a/b breadcrumb tints + Portal-14.a.consumers Cyan
+# constant + tests + docstring hex examples (re-anchored 2026-05-30).
+# Portal-17.a/.c + Portal-18.b — docstring hex examples, charcoal
+# const docstring, hex-parser tests, Edit-tag form #42be65 fixtures
+# + battery status Color::from_rgb green/amber/red + mark_pill_color
+# + tag-validation error reds. Re-anchored 2026-05-30 after
+# ANIM-5.c/5.d additions shifted all line numbers (+8 constants,
+# +4 struct field, +1 Default, +5 handler, +5 sweep, +32 fns,
+# +9 fn, +1 lookup, +2 cell_bg, +9 summon, +58 tests).
+# Re-anchored 2026-05-30 (ANIM-1.c): ANIM-1.c struct fields + StatusUpdate
+# expansion + helpers + build_status_segment replacement shifted many entries.
+crates/mde-portal/src/app.rs:101
+crates/mde-portal/src/app.rs:109
+crates/mde-portal/src/app.rs:117
+crates/mde-portal/src/app.rs:125
+crates/mde-portal/src/app.rs:133
+crates/mde-portal/src/app.rs:141
+crates/mde-portal/src/app.rs:149
+crates/mde-portal/src/app.rs:157
+crates/mde-portal/src/app.rs:555
+crates/mde-portal/src/app.rs:2228
+crates/mde-portal/src/app.rs:2416
+crates/mde-portal/src/app.rs:2741
+crates/mde-portal/src/app.rs:2743
+crates/mde-portal/src/app.rs:2745
+crates/mde-portal/src/app.rs:2747
+crates/mde-portal/src/app.rs:2749
+crates/mde-portal/src/app.rs:3125
+crates/mde-portal/src/app.rs:3127
+crates/mde-portal/src/app.rs:3129
+crates/mde-portal/src/app.rs:3145
+crates/mde-portal/src/app.rs:3315
+crates/mde-portal/src/app.rs:3323
+crates/mde-portal/src/app.rs:3328
+crates/mde-portal/src/app.rs:3332
+crates/mde-portal/src/app.rs:4360
+crates/mde-portal/src/app.rs:5291
+crates/mde-portal/src/app.rs:5299
+crates/mde-portal/src/app.rs:5309
+crates/mde-wizard/src/pages/preset.rs:12
+crates/mde-wizard/src/pages/preset.rs:18
+crates/mde-wizard/src/pages/preset.rs:24
+crates/mde-wizard/src/pages/preset.rs:30
+crates/mde-wizard/src/pages/preset.rs:91
+crates/mde-workbench/src/app.rs:1489
+crates/mde-workbench/src/app.rs:1490
+crates/mde-workbench/src/app.rs:1524
+crates/mde-workbench/src/app.rs:58
+crates/mde-workbench/src/app.rs:69
+crates/mde-workbench/src/app.rs:74
+crates/mde-workbench/src/header.rs:217
+crates/mde-workbench/src/panel_chrome.rs:158
+crates/mde-workbench/src/panel_chrome.rs:159
+crates/mde-workbench/src/panel_chrome.rs:162
+crates/mde-workbench/src/panel_chrome.rs:163
+crates/mde-workbench/src/panel_chrome.rs:166
+crates/mde-workbench/src/panel_chrome.rs:167
+crates/mde-workbench/src/panel_chrome.rs:536
+crates/mde-workbench/src/panel_chrome.rs:540
+crates/mde-workbench/src/panel_chrome.rs:546
+crates/mde-workbench/src/panels/drift.rs:260
+crates/mde-workbench/src/panels/drift.rs:267
+crates/mde-workbench/src/panels/drift.rs:44
+crates/mde-workbench/src/panels/drift.rs:45
+crates/mde-workbench/src/panels/drift.rs:46
+crates/mde-workbench/src/panels/health_check.rs:200
+crates/mde-workbench/src/panels/health_check.rs:201
+crates/mde-workbench/src/panels/health_check.rs:202
+crates/mde-workbench/src/panels/home.rs:102
+crates/mde-workbench/src/panels/home.rs:103
+crates/mde-workbench/src/panels/home.rs:104
+crates/mde-workbench/src/panels/home.rs:105
+crates/mde-workbench/src/panels/home.rs:1165
+crates/mde-workbench/src/panels/mesh_control.rs:296
+crates/mde-workbench/src/panels/mesh_control.rs:308
+crates/mde-workbench/src/panels/mesh_pending.rs:287
+crates/mde-workbench/src/panels/mesh_pending.rs:331
+crates/mde-workbench/src/panels/mesh_services.rs:271
+crates/mde-workbench/src/panels/mesh_services.rs:276
+crates/mde-workbench/src/panels/mesh_services.rs:281
+# CR-6.b — PeerStatus::color() semantic status colors (green/yellow/red/grey);
+# no palette token for these. Shadow rgba(0,0,0,0.22) is pure black. Error
+# red in empty_state_card is same pre-existing literal.
+# CR-6.c — modal backdrop rgba(0,0,0,0.45) pure black semi-transparent scrim.
+# Re-anchored 2026-05-30 after CR-6.c additions shifted all three line numbers.
+crates/mde-workbench/src/panels/mesh_topology.rs:70
+crates/mde-workbench/src/panels/mesh_topology.rs:71
+crates/mde-workbench/src/panels/mesh_topology.rs:72
+crates/mde-workbench/src/panels/mesh_topology.rs:73
+crates/mde-workbench/src/panels/mesh_topology.rs:474
+crates/mde-workbench/src/panels/mesh_topology.rs:629
+crates/mde-workbench/src/panels/mesh_topology.rs:658
+crates/mde-workbench/src/panels/panel_apps.rs:217
+crates/mde-workbench/src/panels/service_publishing.rs:219
+crates/mde-workbench/src/panels/sync_status.rs:164
+crates/mde-workbench/src/panels/sync_status.rs:168
+crates/mde-workbench/src/panels/sync_status.rs:264
+crates/mde-workbench/src/panels/sync_status.rs:270
+data/css/accents/ableton-12-dark.css:13
+data/css/accents/ableton-12-dark.css:14
+data/css/accents/ableton-12-dark.css:15
+data/css/accents/ableton-12-dark.css:16
+data/css/accents/ableton-12-dark.css:17
+data/css/accents/ableton-12-dark.css:18
+data/css/accents/ableton-12-dark.css:19
+data/css/accents/ableton-12-dark.css:22
+data/css/accents/ableton-12-dark.css:23
+data/css/accents/ableton-12-dark.css:24
+data/css/accents/ableton-12-dark.css:25
+data/css/accents/ableton-12-dark.css:26
+data/css/accents/ableton-12-dark.css:29
+data/css/accents/ableton-12-dark.css:30
+data/css/accents/ableton-12-dark.css:31
+data/css/accents/ableton-12-dark.css:32
+data/css/accents/ableton-12-dark.css:5
+crates/mde-portal/src/portal_full_main.rs:178
+crates/mde-portal/src/portal_full_main.rs:1139
+crates/mde-portal/src/portal_full_main.rs:1143
+crates/mde-portal/src/portal_full_main.rs:1403
+crates/mde-portal/src/portal_full_main.rs:1470
+crates/mde-portal/src/portal_full_main.rs:1765
+crates/mde-portal/src/portal_full_main.rs:1994
+crates/mde-portal/src/portal_full_main.rs:2005
+crates/mde-portal/src/portal_full_main.rs:2006
+crates/mde-portal/src/portal_full_main.rs:2016
+crates/mde-portal/src/portal_full_main.rs:2028
+crates/mde-portal/src/portal_full_main.rs:2029
+crates/mde-portal/src/portal_full_main.rs:2036
+crates/mde-portal/src/portal_full_main.rs:2039
+crates/mde-portal/src/portal_full_main.rs:2155
+crates/mde-portal/src/portal_full_main.rs:2185
+crates/mde-portal/src/portal_full_main.rs:2193
+crates/mde-portal/src/portal_full_main.rs:2235
+crates/mde-portal/src/portal_full_main.rs:2236
+# MESHFS-12.1 mesh-status applet: 4 hex test-assertion literals; shifted to 517-520 by MESHFS-12.b struct additions
+crates/mde-applets/mesh-status/src/lib.rs:517
+crates/mde-applets/mesh-status/src/lib.rs:518
+crates/mde-applets/mesh-status/src/lib.rs:519
+crates/mde-applets/mesh-status/src/lib.rs:520
+# Portal portal_full_main.rs: new token-drift entries from prior commits (EPIC-UI-MATERIAL.token-sweep)
+crates/mde-portal/src/portal_full_main.rs:1984
+crates/mde-portal/src/portal_full_main.rs:1995
+crates/mde-portal/src/portal_full_main.rs:1996
+crates/mde-portal/src/portal_full_main.rs:2018
+crates/mde-portal/src/portal_full_main.rs:2019
+crates/mde-portal/src/portal_full_main.rs:2026
+crates/mde-portal/src/portal_full_main.rs:2145
+crates/mde-portal/src/portal_full_main.rs:2175
+crates/mde-portal/src/portal_full_main.rs:2183
+crates/mde-portal/src/portal_full_main.rs:2225
+crates/mde-portal/src/portal_full_main.rs:2226
+crates/mde-iced-components/src/lib.rs:353
+crates/mde-iced-components/src/lib.rs:354
+crates/mde-iced-components/src/lib.rs:621
+crates/mde-iced-components/src/lib.rs:622
+crates/mde-iced-components/src/lib.rs:706
+crates/mde-workbench/src/app.rs:1532
+crates/mde-workbench/src/app.rs:1533
+crates/mde-workbench/src/app.rs:1567
+crates/mde-workbench/src/app.rs:60
+crates/mde-workbench/src/panels/home.rs:101
+crates/mde-workbench/src/panels/home.rs:1160
+crates/mde-workbench/src/app.rs:71
+crates/mde-workbench/src/app.rs:76
+# mde-iced-components — test-only fixture colors inside #[cfg(test)] module.
+# These are abstract black/white/grey math fixtures, not design tokens.
+# Re-anchored ANIM-8.c.2 2026-05-30 (+69 lines from icon_fill_morph + 5 tests
+# inserted before #[cfg(test)] block; test block moved from line 811 → 880).
+crates/mde-iced-components/src/lib.rs:902
+crates/mde-iced-components/src/lib.rs:903
+crates/mde-iced-components/src/lib.rs:987
+# TUNE-15.b — mde-workbench/src/app.rs pre-existing entries re-anchored
+# 2026-05-30 (+1 import line, +2 Message enum, +1 struct field, +1 with_backend,
+# +1 update dispatch, +4 on_panel_navigated, +6 panel_body = 16 lines total shift
+# above these entries; prior allowlist entries at 60/71/76/1532/1533/1567 now stale).
+crates/mde-workbench/src/app.rs:61
+crates/mde-workbench/src/app.rs:72
+crates/mde-workbench/src/app.rs:77
+crates/mde-workbench/src/app.rs:1547
+crates/mde-workbench/src/app.rs:1548
+crates/mde-workbench/src/app.rs:1582
+
+# --- UX-PRE iced 0.13->0.14 port line-shifts (2026-05-30, session opus-47-2026-05-30-ship-A) ---
+# Pre-existing Color::from_rgb literals whose prior allow-list line
+# numbers shifted when the mechanical iced 0.14 API port rewrote
+# surrounding lines (Space builder / snap field / etc.). NOT net-new
+# design colors; tokenize under EPIC-UI-MATERIAL.token-sweep.
+crates/mde-popover/src/hostname_info.rs:276
+crates/mde-popover/src/lock.rs:522
+crates/mde-portal/src/app.rs:2754
+crates/mde-portal/src/app.rs:2756
+crates/mde-portal/src/app.rs:2758
+crates/mde-portal/src/app.rs:2760
+crates/mde-portal/src/app.rs:2762
+crates/mde-portal/src/app.rs:3336
+crates/mde-portal/src/portal_full_main.rs:2001
+crates/mde-portal/src/portal_full_main.rs:2012
+crates/mde-portal/src/portal_full_main.rs:2013
+crates/mde-portal/src/portal_full_main.rs:2023
+crates/mde-portal/src/portal_full_main.rs:2035
+crates/mde-portal/src/portal_full_main.rs:2043
+crates/mde-portal/src/portal_full_main.rs:2046
+crates/mde-portal/src/portal_full_main.rs:2162
+crates/mde-portal/src/portal_full_main.rs:2192
+crates/mde-portal/src/portal_full_main.rs:2200
+crates/mde-portal/src/portal_full_main.rs:2242
+crates/mde-portal/src/portal_full_main.rs:2243
+crates/mde-files/src/theme.rs:185
+crates/mde-files/src/theme.rs:208
+crates/mde-files/src/theme.rs:222
+crates/mde-popover/src/app_switcher.rs:531
+crates/mde-popover/src/app_switcher.rs:532
+crates/mde-popover/src/app_switcher.rs:533
+crates/mde-popover/src/minimized.rs:423
+crates/mde-popover/src/minimized.rs:424
+crates/mde-popover/src/minimized.rs:425
+crates/mde-popover/src/network.rs:976
+crates/mde-popover/src/network.rs:977
+crates/mde-portal/src/app.rs:3341
+crates/mde-portal/src/app.rs:3345
+crates/mde-portal/src/app.rs:4373
+crates/mde-portal/src/app.rs:5304
+crates/mde-portal/src/app.rs:5312
+crates/mde-portal/src/app.rs:5322
+crates/mde-workbench/src/app.rs:1563
+crates/mde-workbench/src/app.rs:1564
+crates/mde-workbench/src/app.rs:1598
+crates/mde-popover/src/network.rs:978
+crates/mde-popover/src/toasts.rs:371
+crates/mde-popover/src/toasts.rs:372
+crates/mde-popover/src/toasts.rs:373
+crates/mde-portal/src/app.rs:2241
+crates/mde-portal/src/app.rs:2429
+crates/mde-portal/src/app.rs:3138
+crates/mde-portal/src/app.rs:3140
+crates/mde-portal/src/app.rs:3142
+crates/mde-portal/src/app.rs:3158
+crates/mde-workbench/src/app.rs:75
+crates/mde-workbench/src/app.rs:80
+
+# BUS-2.7.c (2026-06-02) — mde-portal/src/app.rs pre-existing token
+# literals re-anchored after the BusAction struct + spawn_urgent_theater
+# actions-env insertions shifted their line numbers (added no new tokens).
+crates/mde-portal/src/app.rs:2270
+crates/mde-portal/src/app.rs:2458
+crates/mde-portal/src/app.rs:2783
+crates/mde-portal/src/app.rs:2785
+crates/mde-portal/src/app.rs:2787
+crates/mde-portal/src/app.rs:2789
+crates/mde-portal/src/app.rs:2791
+crates/mde-portal/src/app.rs:3167
+crates/mde-portal/src/app.rs:3169
+crates/mde-portal/src/app.rs:3171
+crates/mde-portal/src/app.rs:3187
+crates/mde-portal/src/app.rs:3357
+crates/mde-portal/src/app.rs:3365
+crates/mde-portal/src/app.rs:3370
+crates/mde-portal/src/app.rs:3374
+crates/mde-portal/src/app.rs:4402
+crates/mde-portal/src/app.rs:5336
+crates/mde-portal/src/app.rs:5344
+crates/mde-portal/src/app.rs:5354
+crates/mde-portal/src/app.rs:572

@@ -1,0 +1,158 @@
+/* DM-6 (v2.7) — regreet greeter stylesheet.
+ *
+ * Sourced by /etc/regreet/regreet.toml's `[appearance] style` key.
+ * Imports the shared design tokens so a single hex change in
+ * `data/css/tokens.css` ripples to the greeter without hand-syncing
+ * three CSS files (greeter / panel / Workbench).
+ *
+ * Per DM-6 acceptance: NO symlinks (RPM verification breaks on
+ * dangling symlinks); the cross-file connection is a runtime CSS
+ * `@import` against the installed path.
+ *
+ * The tokens.css file is large + carries every Classic ChromeOS
+ * variable. The greeter only consumes a handful (background,
+ * accent, body color, mono fallbacks); the rest are harmless
+ * unused declarations.
+ *
+ * Supersedes the standalone `data/regreet/regreet.css` shipped in
+ * DM-3 — the greeter now reads from `/usr/share/mde/theme/greeter.css`
+ * instead of its own embedded copy of the palette.
+ */
+
+@import url("file:///usr/share/mde/theme/tokens.css");
+
+/* ── Window chrome (background + base body color) ───────────── */
+window,
+.background {
+    background-color: #1d1d1f;
+    color: #e8eaed;
+    font-family: "Roboto", "Cantarell", system-ui, sans-serif;
+    font-size: 14px;
+}
+
+/* ── Greeting header ───────────────────────────────────────── */
+.greeting,
+.greeting-message {
+    color: #e8eaed;
+    font-size: 28px;
+    font-weight: 300;
+    letter-spacing: 0.5px;
+    margin-bottom: 32px;
+}
+
+/* ── Username + password entries ───────────────────────────── */
+entry {
+    background-color: #2d2d2f;
+    color: #e8eaed;
+    border: 1px solid #3c4043;
+    border-radius: 4px;
+    padding: 10px 14px;
+    min-width: 280px;
+    caret-color: #5b6af5;
+}
+
+entry:focus {
+    border-color: #5b6af5;
+    outline: none;
+}
+
+entry placeholder {
+    color: #9aa0a6;
+}
+
+/* ── Buttons (login, power controls) ───────────────────────── */
+button {
+    background-color: #2d2d2f;
+    color: #e8eaed;
+    border: 1px solid #3c4043;
+    border-radius: 4px;
+    padding: 8px 16px;
+    min-height: 28px;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+
+button:hover {
+    background-color: #3c4043;
+    border-color: #5b6af5;
+}
+
+button:active,
+button.suggested-action {
+    background-color: #5b6af5;
+    border-color: #5b6af5;
+    color: #1d1d1f;
+}
+
+/* ── Power glyph row (bottom-right per DM-3 spec) ──────────── */
+.power-buttons,
+.system-buttons {
+    margin: 16px;
+}
+
+.power-buttons button,
+.system-buttons button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 8px;
+    border-radius: 22px;
+}
+
+/* ── Session picker dropdown ───────────────────────────────── */
+combobox,
+dropdown {
+    background-color: #2d2d2f;
+    color: #e8eaed;
+    border: 1px solid #3c4043;
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+combobox:hover,
+dropdown:hover {
+    border-color: #5b6af5;
+}
+
+/* ── Clock widget (top, per regreet.toml) ──────────────────── */
+.clock,
+.clock-widget {
+    color: #9aa0a6;
+    font-size: 13px;
+    font-weight: 400;
+    margin-top: 24px;
+}
+
+/* ── Error / status messages ───────────────────────────────── */
+.error,
+label.error {
+    color: #f28b82;
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+/* ── DM-7 mesh-status chip (3 states) ───────────────────────
+ * The chip widget itself lands when DM-7 ships; these rules
+ * are pre-staged so the chip falls into the locked palette
+ * without an extra commit. Selectors match the chip's three
+ * .chip-{online,joining,offline} classes.
+ */
+.mesh-status-chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin: 8px;
+}
+
+.mesh-status-chip.chip-online {
+    background-color: rgba(91, 106, 245, 0.18);
+    color: #5b6af5;
+}
+
+.mesh-status-chip.chip-joining {
+    background-color: rgba(251, 188, 5, 0.18);
+    color: #fbbc05;
+}
+
+.mesh-status-chip.chip-offline {
+    background-color: rgba(154, 160, 166, 0.18);
+    color: #9aa0a6;
+}

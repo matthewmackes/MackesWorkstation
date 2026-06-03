@@ -1,0 +1,17 @@
+[Unit]
+# mde-xorg.target — XOrg parallel of mde.target.
+# Reached when mde-session-xorg has brought up i3 + the MDE user
+# services. Autostart entries that need the desktop ready should
+# WantedBy=mde-xorg.target (or both targets for cross-session compat).
+#
+# ConditionEnvironment checks that DISPLAY is set (i.e. we're inside
+# an XOrg session) so systemd --user doesn't accidentally activate
+# this target under sway/Wayland.
+Description=Mackes Desktop Environment XOrg Session
+Documentation=https://github.com/matthewmackes/MDE-X
+BindsTo=graphical-session.target
+After=graphical-session.target
+ConditionEnvironment=DISPLAY
+
+[Install]
+WantedBy=graphical-session.target

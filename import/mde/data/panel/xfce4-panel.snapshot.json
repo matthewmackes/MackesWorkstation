@@ -1,0 +1,183 @@
+{
+  "/configver": {
+    "type": "uint",
+    "value": 2
+  },
+  "/panels": {
+    "type": "array-uint",
+    "value": [0]
+  },
+  "/panels/dark-mode": {
+    "type": "bool",
+    "value": true
+  },
+  "/panels/panel-0/autohide-behavior": {
+    "type": "uint",
+    "value": 0
+  },
+  "/panels/panel-0/background-style": {
+    "type": "uint",
+    "value": 0
+  },
+  "/panels/panel-0/icon-size": {
+    "type": "uint",
+    "value": 20
+  },
+  "/panels/panel-0/length": {
+    "type": "uint",
+    "value": 100
+  },
+  "/panels/panel-0/position": {
+    "type": "string",
+    "value": "p=8;x=0;y=0"
+  },
+  "/panels/panel-0/position-locked": {
+    "type": "bool",
+    "value": true
+  },
+  "/panels/panel-0/size": {
+    "type": "uint",
+    "value": 32
+  },
+  "/panels/panel-0/plugin-ids": {
+    "type": "array-uint",
+    "value": [1, 2, 3, 4, 5, 6, 7]
+  },
+
+  "/plugins/plugin-1": {
+    "type": "string",
+    "value": "whiskermenu"
+  },
+  "/plugins/plugin-1/button-title": {
+    "type": "string",
+    "value": "Mackes"
+  },
+  "/plugins/plugin-1/button-icon": {
+    "type": "string",
+    "value": "mackes-shell"
+  },
+  "/plugins/plugin-1/show-button-title": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-1/show-button-icon": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-1/launcher-show-name": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-1/launcher-show-description": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-1/category-icon-size": {
+    "type": "int",
+    "value": 1
+  },
+  "/plugins/plugin-1/item-icon-size": {
+    "type": "int",
+    "value": 2
+  },
+  "/plugins/plugin-1/menu-width": {
+    "type": "int",
+    "value": 440
+  },
+  "/plugins/plugin-1/menu-height": {
+    "type": "int",
+    "value": 560
+  },
+  "/plugins/plugin-1/menu-opacity": {
+    "type": "int",
+    "value": 100
+  },
+  "/plugins/plugin-1/position-search-alternate": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-1/position-categories-alternate": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-1/search-actions-enabled": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-1/recent-items-max": {
+    "type": "int",
+    "value": 10
+  },
+  "/plugins/plugin-1/favorites": {
+    "type": "array-string",
+    "value": [
+      "mackes-shell.desktop",
+      "xfce4-terminal-emulator.desktop",
+      "thunar.desktop",
+      "firefox.desktop",
+      "mackes-clipboard.desktop"
+    ]
+  },
+
+  "/plugins/plugin-2": {
+    "type": "string",
+    "value": "mackes-launcher"
+  },
+
+  "/plugins/plugin-3": {
+    "type": "string",
+    "value": "docklike"
+  },
+
+  "/plugins/plugin-4": {
+    "type": "string",
+    "value": "separator"
+  },
+  "/plugins/plugin-4/expand": {
+    "type": "bool",
+    "value": true
+  },
+  "/plugins/plugin-4/style": {
+    "type": "uint",
+    "value": 0
+  },
+
+  "/plugins/plugin-5": {
+    "type": "string",
+    "value": "mackes-clipboard"
+  },
+
+  "/plugins/plugin-6": {
+    "type": "string",
+    "value": "systray"
+  },
+
+  "/plugins/plugin-7": {
+    "type": "string",
+    "value": "clock"
+  },
+  "/plugins/plugin-7/digital-time-font": {
+    "type": "string",
+    "value": "Red Hat Display Bold 12"
+  },
+  "/plugins/plugin-7/digital-time-format": {
+    "type": "string",
+    "value": "%I:%M %p"
+  },
+  "/plugins/plugin-7/digital-date-font": {
+    "type": "string",
+    "value": "Red Hat Text 10"
+  },
+  "/plugins/plugin-7/digital-date-format": {
+    "type": "string",
+    "value": "%B %d, %Y"
+  },
+  "/plugins/plugin-7/digital-layout": {
+    "type": "uint",
+    "value": 1
+  },
+  "/plugins/plugin-7/mode": {
+    "type": "uint",
+    "value": 2
+  }
+}

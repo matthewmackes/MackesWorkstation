@@ -1,0 +1,10 @@
+[Unit]
+Description = Mackes Shell recovery target (TTY-only, network up)
+Documentation = file:///usr/share/mackes-shell/data/systemd/README.md
+Requires = sysinit.target NetworkManager.service
+Conflicts = graphical.target rescue.target
+After = multi-user.target network-online.target
+AllowIsolate = yes
+
+[Install]
+Alias = recovery.target

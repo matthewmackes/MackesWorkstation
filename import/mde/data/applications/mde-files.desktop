@@ -1,0 +1,20 @@
+[Desktop Entry]
+# v4.0.1 BUG-4 — MDE Files (Artifact Manager) .desktop entry. Forked
+# layout from `pop-os/cosmic-files`, customized with the mesh-first
+# sidebar + Downloads-as-primary + Local-pinned disclosure. Replaces
+# `com.system76.CosmicFiles.desktop` as the default inode/directory
+# handler — `mde-session.service` runs `xdg-mime default
+# mde-files.desktop inode/directory` via ExecStartPost on every login
+# so the default stays sticky.
+Type=Application
+Name=MDE Files
+GenericName=File Manager
+Comment=Mesh-first artifact manager — share, browse, and send files across the mesh
+Exec=mde-files %U
+Icon=system-file-manager
+Terminal=false
+Categories=System;FileManager;
+Keywords=files;file;manager;explorer;mesh;artifact;share;send;peer;download;mde;mackes;
+StartupNotify=true
+StartupWMClass=mde-files
+MimeType=inode/directory;

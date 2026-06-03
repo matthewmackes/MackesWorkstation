@@ -1,0 +1,115 @@
+/*
+ * Motion vocabulary — canonical anchor for the platform's animation
+ * grid. Iced intra-surface motion lives in Rust constants under each
+ * crate; this file is the central documentation those constants point
+ * back to + the exemption target for the design-tokens lint
+ * (install-helpers/lint-design-tokens.sh per TUNE-10 gate #12) + the
+ * future motion-vocabulary lint (planned per the 25-Q tuning survey
+ * Q6).
+ *
+ * GTK 3's CSS parser doesn't support CSS custom properties / `:root`,
+ * so this file ships as documentation only — the values below are
+ * hand-copied into Rust constants by the consumers listed at the end.
+ * Hyprland's compositor-level animations live in
+ * /usr/share/mde/hyprland.conf (HYP-23 + HYP-24); the two grids align
+ * on the same 100/120/150/200 ms cadence but apply at different
+ * layers (window-level vs intra-surface).
+ *
+ * Authority: docs/design/motion-language.md.
+ *
+ *
+ * §1 — Canonical timings (every transition in the platform resolves
+ *      to one of these four values; drift is a design-system
+ *      regression):
+ *
+ *        --mde-duration-standard:        150 ms  (default state change)
+ *        --mde-duration-active:          100 ms  (button press / toggle)
+ *        --mde-duration-info-arrival:    200 ms  (toast / popover open)
+ *        --mde-duration-info-dismissal:  120 ms  (toast / popover close)
+ *
+ * §1 — Canonical easing curves (Material-standard ease-out for
+ *      arrival, ease-in for dismissal; no spring / overshoot /
+ *      bounce per the §0 master rule's "subtle decorative motion"
+ *      lock):
+ *
+ *        --mde-ease-out:  cubic-bezier(0.0, 0.0, 0.2, 1.0)
+ *        --mde-ease-in:   cubic-bezier(0.4, 0.0, 1.0, 1.0)
+ *
+ * §2 — Approved-pattern rates (Iced consumers reach for these before
+ *      inventing a new shape):
+ *
+ *        --mde-typewriter-speed-chars-per-sec:  60     (Portal Breadcrumb, BUS-2.2)
+ *        --mde-marquee-speed-px-per-sec:        50     (Portal Breadcrumb overflow)
+ *        --mde-typewriter-end-hold-ms:        2000     (pause-at-end before fade)
+ *        --mde-marquee-edge-pause-ms:          800     (pause at start + end per loop)
+ *        --mde-tray-popover-slide-px:            8     (§2.3 reveal slide distance)
+ *
+ *
+ * §3 — Motion vocabulary (SWAY-2, 2026-05-28; sway-native max-animation
+ *      lock, docs/design/sway-native-shell.md §2). Three reusable
+ *      primitives compose every shell animation:
+ *
+ *        fade   — opacity 0<->1
+ *        slide  — translate on one axis (panel edge / page direction)
+ *        scale  — 0.8<->1.0 (pop / press); origin-anchored where it
+ *                 grows from a trigger point (menus from cursor, etc.)
+ *
+ *      Exit rule: every surface dismisses as the REVERSE of its reveal,
+ *      dropped one tier (reveal 200 -> dismiss 150; reveal 150 -> 120).
+ *
+ *      Stagger: list/grid reveals cascade the first ~8 visible items at
+ *      ~20 ms offset each, then the remainder appears instantly (so a
+ *      long list never crawls).
+ *
+ * §4 — Per-surface timing assignments (all resolve to the §1 grid):
+ *
+ *        reveal (Portal / menus / launcher / notifications)  200 ms slide+fade
+ *        dismiss (all surfaces)                              one tier faster
+ *        hover / press feedback                              100 ms scale+brightness
+ *        selection / focus-highlight travel                 120 ms slide
+ *        OSD level-bar fill                                  120 ms
+ *        theme / preset crossfade                            200 ms
+ *        urgent pulse                                        ~2 cycles, bounded
+ *        workspace-label morph (typewriter)                  60 chars/sec (§2)
+ *
+ * §5 — Interruptibility + reduced motion (Q61 + Q4, sway-native lock):
+ *
+ *      Interruptible: a new trigger mid-animation REDIRECTS the tween
+ *      from its current value toward the new target over the standard
+ *      eased curve -- it never snaps or waits to finish. This is an
+ *      eased redirect, NOT a physics spring: the "no spring / overshoot
+ *      / bounce" lock (§1 easing) still holds. "Interruptible"
+ *      describes the behaviour, not an overshoot shape.
+ *
+ *      Reduced motion: honor prefers-reduced-motion (accessibility
+ *      toggle only -- no battery / hardware auto-throttle). When set,
+ *      non-essential motion snaps or uses a single short fade; loading
+ *      feedback (skeleton shimmer) is retained.
+ *
+ *      Owner: the `mde-motion` crate (SWAY-1) implements §1-§5 as the
+ *      single Rust source every iced surface consumes; this file is its
+ *      documentation anchor.
+ *
+ *
+ * Consumers (search-and-replace target — when these values evolve,
+ * grep the codebase for the constant name + update):
+ *
+ *   crates/mde-portal/src/typewriter.rs          (DEFAULT_CHARS_PER_SEC = 60)
+ *   crates/mde-portal/src/marquee.rs             (DEFAULT_PX_PER_SEC = 50)
+ *   crates/mde-portal/src/app.rs                 (PREV_WS_SEGMENT_TTL_SECS,
+ *                                                 mark-pulse durations)
+ *   crates/mde-popover/src/status.rs             (slide-up timing)
+ *   crates/mde-popover/src/window_actions.rs     (button-press feedback)
+ *   crates/mde-workbench/src/header.rs           (panel-mount fade)
+ *   crates/mde-applets/notification-bell/src/main.rs
+ *   crates/mde-motion/src/lib.rs                 (SWAY-1 — central owner
+ *                                                 of §1-§5; the other
+ *                                                 consumers above migrate
+ *                                                 to import from here)
+ *
+ *
+ * Locked: 2026-05-27 via HYP-7 closure under ship-CH session.
+ * Extended: 2026-05-28 via SWAY-2 (sway-native maximum-animation lock;
+ *           §3 vocabulary + §4 per-surface timing + §5 interruptibility
+ *           & reduced motion). Authority docs/design/sway-native-shell.md.
+ */
