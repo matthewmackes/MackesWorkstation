@@ -493,6 +493,9 @@ struct Settings {
     /// Windows 10 UI accent index (E7.5) — into `palette::WIN10_ACCENTS`; drives
     /// selection/highlight via the `win10()` slot, persisted as `win10_accent`.
     win10_accent: u8,
+    /// E7.5a: "show accent color on Start & taskbar" — persisted as
+    /// `win10_accent_on_taskbar`, consumed by `palette::chrome_accent` in panel.rs.
+    accent_on_taskbar: bool,
     /// Home-screen search query (E6.6): filters the flat (category, page) list.
     search: String,
     /// Background page (E7.4): source mode, scanned pictures, selection, fit.
@@ -597,6 +600,7 @@ enum Message {
     Open, // activate the current page's backend
     Back,
     SetDark(bool),
+    SetAccentOnTaskbar(bool),
     Search(String),
     Jump(usize, usize), // (category, page) from a search result
     // Background page (E7.4).
@@ -828,6 +832,7 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 page: initial_page,
                 dark: st.theme_mode != "light",
                 win10_accent: st.win10_accent,
+                accent_on_taskbar: st.win10_accent_on_taskbar,
                 search: initial_search,
                 bg_source: BgSource::Picture,
                 bg_wallpapers: wallpaper::scan(),
@@ -931,6 +936,11 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         Message::SetDark(d) => {
             state.dark = d;
             palette::set_dark(d);
+            persist(state);
+        }
+        Message::SetAccentOnTaskbar(on) => {
+            state.accent_on_taskbar = on;
+            palette::set_accent_on_chrome(on);
             persist(state);
         }
         Message::BgSource(s) => state.bg_source = s,
@@ -1712,6 +1722,7 @@ fn persist(state: &Settings) {
     let mut st = crate::state::load();
     st.theme_mode = if state.dark { "dark" } else { "light" }.to_string();
     st.win10_accent = state.win10_accent;
+    st.win10_accent_on_taskbar = state.accent_on_taskbar;
     st.start_more_tiles = state.start_more_tiles;
     st.start_full_screen = state.start_full_screen;
     st.start_show_recent = state.start_show_recent;
@@ -3178,7 +3189,23 @@ fn colors_page(state: &Settings) -> Element<'_, Message> {
     let dark = mode_button("Dark", state.dark, Message::SetDark(true));
     let modes = Row::new().spacing(8.0).push(light).push(dark);
 
-    column![mode_label, modes].spacing(8.0).into()
+    // E7.5a: "Show accent color on Start & taskbar" — gates the panel chrome's
+    // accent tint (palette::chrome_accent). The companion "on title bars" option is
+    // superseded by the MackesDE rebrand (the Win10 titlebar matches Carbon, no
+    // accent tint), so it's intentionally absent.
+    let accent_chrome = checkbox(
+        "Show accent color on Start and taskbar",
+        state.accent_on_taskbar,
+    )
+    .on_toggle(Message::SetAccentOnTaskbar)
+    .size(metrics::UI_PX)
+    .text_size(metrics::UI_PX)
+    .spacing(8.0)
+    .style(mde_ui::checkbox_style);
+
+    column![mode_label, modes, accent_chrome]
+        .spacing(10.0)
+        .into()
 }
 
 /// Personalization ▸ Background (E7.4): a live preview, a Picture/Solid/

@@ -736,7 +736,7 @@ fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
 /// and SVG-free, like the rest of the panel (§7).
 fn win10_start_tile(state: &Panel) -> Element<'_, Message> {
     let c = if state.menu.is_some() {
-        palette::accent()
+        palette::chrome_accent()
     } else {
         palette::color(palette::WINDOW_TEXT)
     };
@@ -841,7 +841,7 @@ fn win10_ac_button(state: &Panel) -> Element<'_, Message> {
             left: 3.0,
         })
         .style(|_| container::Style {
-            background: Some(iced::Background::Color(palette::accent())),
+            background: Some(iced::Background::Color(palette::chrome_accent())),
             border: iced::Border {
                 radius: 6.0.into(),
                 ..Default::default()
@@ -940,7 +940,7 @@ fn view_win10(state: &Panel) -> Element<'_, Message> {
                     container(Space::new(Length::Fill, Length::Fixed(1.0)))
                         .width(Length::Fill)
                         .style(|_| container::Style {
-                            background: Some(iced::Background::Color(palette::accent())),
+                            background: Some(iced::Background::Color(palette::chrome_accent())),
                             ..container::Style::default()
                         }),
                 )
@@ -953,7 +953,7 @@ fn view_win10(state: &Panel) -> Element<'_, Message> {
 /// focused. Left-click focuses/minimizes; right-click toggles minimize.
 fn win10_task_button(w: &wlr::Window) -> Element<'_, Message> {
     let underline = if w.focused {
-        palette::accent()
+        palette::chrome_accent()
     } else {
         Color::TRANSPARENT
     };

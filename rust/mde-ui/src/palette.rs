@@ -145,6 +145,27 @@ pub fn accent_idx() -> u8 {
     ACCENT.load(Ordering::Relaxed)
 }
 
+// Windows 10 "show accent color on Start & taskbar" (E7.5a). Default on.
+static ACCENT_ON_CHROME: AtomicU8 = AtomicU8::new(1);
+
+/// Set whether the Windows 10 taskbar/Start chrome tints with the accent. When
+/// off, chrome highlights fall back to a neutral grey. (main.rs sets this from
+/// `state.win10_accent_on_taskbar` at startup.)
+pub fn set_accent_on_chrome(on: bool) {
+    ACCENT_ON_CHROME.store(on as u8, Ordering::Relaxed);
+}
+
+/// The accent for Windows 10 taskbar/Start **chrome** — the UI accent when the
+/// "show accent on Start & taskbar" toggle is on, else a neutral grey. Content
+/// surfaces keep using [`accent`]; only the panel chrome honours the toggle.
+pub fn chrome_accent() -> iced::Color {
+    if ACCENT_ON_CHROME.load(Ordering::Relaxed) != 0 {
+        accent()
+    } else {
+        color(BUTTON_SHADOW)
+    }
+}
+
 /// Whether the BeOS theme is active.
 pub fn is_beos() -> bool {
     theme() == Theme::Beos

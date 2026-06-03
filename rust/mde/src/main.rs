@@ -119,6 +119,7 @@ fn main() -> ExitCode {
             "red" => 2,
             _ => 3, // neutral
         });
+        palette::set_accent_on_chrome(st.win10_accent_on_taskbar);
     }
 
     // Resolve the subcommand from argv[0] basename if it looks like `mde-foo`.

@@ -324,6 +324,20 @@ mod tests {
     }
 
     #[test]
+    fn chrome_accent_honours_the_toggle() {
+        // The panel chrome's accent tint follows "show accent on Start & taskbar":
+        // on → the UI accent, off → a neutral grey. (Independent of theme/accent.)
+        palette::set_accent_on_chrome(true);
+        assert_eq!(palette::chrome_accent(), palette::accent());
+        palette::set_accent_on_chrome(false);
+        assert_eq!(
+            palette::chrome_accent(),
+            palette::color(palette::BUTTON_SHADOW)
+        );
+        palette::set_accent_on_chrome(true); // restore default
+    }
+
+    #[test]
     fn ghost_button_is_transparent_with_accent_text() {
         palette::set_theme(palette::Theme::Carbon);
         let g = button_ghost(&iced::Theme::Dark, Status::Active);
