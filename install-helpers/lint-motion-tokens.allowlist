@@ -1,0 +1,42 @@
+# lint-motion-tokens.allowlist — snapshot of PRE-EXISTING non-animation
+# motion-grid Duration literals in the merged tree at gate-install time
+# (2026-06-03). Format: one <file>:<line> key per line; '#' comments and
+# blank lines ignored.
+#
+# Every entry below is a NON-animation Duration (poll/tick cadence,
+# debounce window, chunked-sleep shutdown latency, request timeout, or a
+# unit-test fixture) that happens to land on a motion-grid value. None
+# are animation-path code, so none should reference an mde-theme Motion
+# preset. The gate exists to catch NET-NEW *animation* literals; these
+# are grandfathered. The list should stay small and shrink only if a
+# given site is reworked away from a grid value.
+#
+# (The canonical motion source crate, crates/shared/mde-theme/, is
+# excluded from the scan entirely and so needs no entries here.)
+
+# 2026-06-03 — toast expiry unit-test fixtures (#[test]
+#   is_expired_after_visible_window; #[cfg(test)] is on the parent mod,
+#   so the per-line cfg(test) filter does not catch these).
+crates/shell/mde-popover/src/toasts.rs:532
+crates/shell/mde-popover/src/toasts.rs:533
+
+# 2026-06-03 — mackesd test fixtures + infra cadences (non-animation):
+#   nebula_enroll.rs   — #[test] wait_for_signed_bundle timeout arg
+#   stun.rs            — #[test] gather_endpoint probe timeout
+#   telemetry/mod.rs   — CHECK_CHUNK chunked-sleep shutdown latency
+#   compute_provision  — #[test] await_reply_sync poll interval
+#   subprocess_tick.rs — #[tokio::test] child run_once timeout
+#   workspace_namer.rs — DEBOUNCE_WINDOW Alt+Tab trailing-edge debounce
+crates/mesh/mackesd/src/nebula_enroll.rs:872
+crates/mesh/mackesd/src/stun.rs:593
+crates/mesh/mackesd/src/telemetry/mod.rs:152
+crates/mesh/mackesd/src/workers/compute_provision.rs:1196
+crates/mesh/mackesd/src/workers/subprocess_tick.rs:220
+crates/mesh/mackesd/src/workers/workspace_namer.rs:33
+
+# 2026-06-03 — mde-bus poll cadences (non-animation; matches the MDE
+#   gate's own pre-existing allow-list):
+#   subs.rs — DEFAULT_TICK_INTERVAL file mtime-poll cadence (100 ms)
+#   rpc.rs  — DEFAULT_POLL_INTERVAL reply-topic RPC poll cadence (200 ms)
+crates/platform/mde-bus/src/subs.rs:58
+crates/platform/mde-bus/src/rpc.rs:45

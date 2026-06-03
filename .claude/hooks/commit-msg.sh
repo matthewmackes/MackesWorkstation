@@ -13,15 +13,18 @@ set -u
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 MSG_FILE="$1"
 
-# Run every executable lint in install-helpers/ that opts into the commit-msg contract
-# by being named lint-*-commitmsg.sh. None exist yet — this is the port hook.
-if [ -d "${REPO_ROOT}/install-helpers" ]; then
-    for lint in "${REPO_ROOT}"/install-helpers/lint-*-commitmsg.sh; do
-        [ -x "$lint" ] || continue
-        if ! "$lint" "$MSG_FILE"; then
-            exit 1
-        fi
-    done
-fi
+# Commit-msg-class gates (each receives the message-file path as $1):
+#   - install-helpers/lint-visual-citation.sh — visual commits cite a design doc
+#     (lenient no-op pre-release; re-enables when docs/design/ exists).
+#   - any install-helpers/lint-*-commitmsg.sh — future commit-msg gates.
+for lint in \
+    "${REPO_ROOT}/install-helpers/lint-visual-citation.sh" \
+    "${REPO_ROOT}"/install-helpers/lint-*-commitmsg.sh
+do
+    [ -x "$lint" ] || continue
+    if ! "$lint" "$MSG_FILE"; then
+        exit 1
+    fi
+done
 
 exit 0

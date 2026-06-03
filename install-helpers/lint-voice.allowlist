@@ -1,0 +1,67 @@
+# Snapshot allow-list for lint-voice.sh.
+#
+# Captured 2026-06-03 against the MackesWorkstation merged tree. These
+# are the PRE-EXISTING voice-and-tone hits in the merged tree at gate
+# install time, so the gate exits 0 today and catches only NET-NEW
+# violations going forward. Net-new hits outside this list fail the
+# gate. The file is meant to SHRINK over time as each entry is cleaned
+# up (or confirmed a legitimate platform-convention exception).
+#
+# Breakdown of the snapshot:
+#   - FORBIDDEN-FOO / FORBIDDEN-COMING-SOON: all inside #[cfg(test)]
+#     mod tests blocks (test fixtures: "foo"/"baz" assertions, a
+#     "wip" draft-row fixture). Not user-visible — the upstream MDE
+#     gate documented "Excludes: test code" but the grep cannot see
+#     module boundaries, so they are snapshotted here instead.
+#   - VERB-* hits: pre-existing UI labels + platform-convention
+#     strings. Several are legitimate OS idioms the verb table does
+#     not intend to rewrite — "Save As" / "Open"-vs-"Save" file
+#     dialogs, "Confirm password"/"Confirm PIN" credential fields,
+#     and the openbox rc.xml <action name="Execute"> menu bindings
+#     (openbox's own action name, not user-visible copy). The rest
+#     ("New Folder", "New Window", "New Private Window", "Create a
+#     PIN", "Create", "Delete", "Save theme") are genuine relabel
+#     candidates tracked for cleanup.
+#
+# Format: one <file>:<line> key per line. Lines starting with `#`
+# are comments. Blank lines ignored.
+#
+# Snapshot count: 37 pre-existing entries.
+#
+crates/mesh/mackesd/src/passcode.rs:198
+crates/mesh/mackesd/src/worker.rs:740
+crates/mesh/mackesd/src/workers/sway_config_watcher.rs:445
+crates/mesh/mackesd/tests/integration_testcontainers.rs:390
+crates/mesh/mackes-mesh-types/src/peer_probe.rs:183
+crates/shared/mackes-theme/src/lib.rs:293
+crates/shared/mde-iced-components/src/lib.rs:1015
+crates/shell/mde/src/browser_jumplist.rs:42
+crates/shell/mde/src/browser_jumplist.rs:43
+crates/shell/mde/src/fedora.rs:49
+crates/shell/mde/src/filedialog.rs:152
+crates/shell/mde/src/filedialog.rs:318
+crates/shell/mde/src/filedialog.rs:579
+crates/shell/mde/src/files.rs:1072
+crates/shell/mde/src/files.rs:1156
+crates/shell/mde/src/files.rs:1163
+crates/shell/mde/src/files.rs:516
+crates/shell/mde/src/files.rs:517
+crates/shell/mde/src/files.rs:991
+crates/shell/mde/src/files.rs:998
+crates/shell/mde/src/oobe.rs:1090
+crates/shell/mde/src/oobe.rs:987
+crates/shell/mde/src/oobe.rs:989
+crates/shell/mde/src/panel.rs:189
+crates/shell/mde/src/panel.rs:193
+crates/shell/mde/src/panel.rs:196
+crates/shell/mde/src/panel.rs:200
+crates/shell/mde/src/panel.rs:208
+crates/shell/mde/src/popup.rs:211
+crates/shell/mde/src/popup.rs:215
+crates/shell/mde/src/settings.rs:3539
+crates/shell/mde/src/settings.rs:3902
+crates/shell/mde/src/settings.rs:4018
+crates/shell/mde/src/settings.rs:5484
+crates/shell/mde/src/settings.rs:5504
+crates/shell/mde/src/settings.rs:6215
+crates/shell/mde/src/settings.rs:6230

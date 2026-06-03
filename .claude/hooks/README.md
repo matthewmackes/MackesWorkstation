@@ -19,14 +19,16 @@ A small inline `PostToolUse` command in `settings.json` also runs `rustfmt` on a
 These are **not** active until you link them. They never modify `git config`.
 
 ```sh
-ln -sf ../../.claude/hooks/pre-commit-worklist.sh .git/hooks/pre-commit
-ln -sf ../../.claude/hooks/commit-msg.sh          .git/hooks/commit-msg
+sh install-helpers/install-hooks.sh   # idempotent; symlinks both, no git-config change
 ```
 
 | Hook | Git event | What it does |
 |---|---|---|
-| `pre-commit-worklist.sh` | `pre-commit` | WF-5.a — blocks a commit that adds a `docs/PROJECT_WORKLIST.md` task whose title lacks a release/workstream prefix (`v10.0.0:`, `E5:`, `MESHFS-3:`, …). No-op unless the worklist is staged. |
-| `commit-msg.sh` | `commit-msg` | Extension point for commit-message lints (`install-helpers/lint-*-commitmsg.sh`). A clean no-op until linters are ported. |
+| `pre-commit` | `pre-commit` | Runs `install-helpers/run-lint-gates.sh` (the lint suite, gated on the staged file types) **then** `pre-commit-worklist.sh`. Either failure blocks the commit. |
+| `pre-commit-worklist.sh` | (called by `pre-commit`) | WF-5.a — blocks a commit that adds a `docs/PROJECT_WORKLIST.md` task whose title lacks a release/workstream prefix (`v10.0.0:`, `E5:`, `MESHFS-3:`, …). No-op unless the worklist is staged. |
+| `commit-msg.sh` | `commit-msg` | Runs `install-helpers/lint-visual-citation.sh` (+ any `lint-*-commitmsg.sh`) against the message file. Lenient/no-op pre-release; re-enables when `docs/design/` exists. |
 
-These are deliberately left un-installed: the worklist doesn't exist yet, and the
-`install-helpers/` lint tree is E1/E8 port work. Symlink them once that lands.
+The lint suite (E0.10) lives in `install-helpers/lint-*.sh` with snapshot
+`*.allowlist` files capturing pre-existing violations, so the gates catch only
+**net-new** issues. `run-lint-gates.sh` runs the relevant subset per commit (the
+slow whole-repo `lint-runtime-reachability` only when a `lib.rs`/`mod.rs` is staged).

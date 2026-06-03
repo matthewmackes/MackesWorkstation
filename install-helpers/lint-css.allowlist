@@ -1,0 +1,16 @@
+# lint-css.allowlist — snapshot of PRE-EXISTING, accepted CSS parse
+# messages in the merged tree at gate-install time. Each non-comment,
+# non-blank line is a distinctive SUBSTRING of an accepted GTK
+# CssProvider message; any message containing one of these substrings
+# is treated as accepted (not a failure). This file is meant to SHRINK
+# over time as each entry is resolved.
+#
+# Format: one substring per line. Keep it specific enough not to mask
+# net-new errors.
+
+# 2026-06-03 — greeter.css deliberately @import's the INSTALLED runtime
+# theme path (file:///usr/share/mde/theme/tokens.css), which only exists
+# after `make install` / RPM install (DM-3). At lint time that file is
+# absent, so GTK reports an import-failure — a path-resolution artifact,
+# not a CSS-syntax defect. Accepted pre-existing condition.
+/usr/share/mde/theme/tokens.css

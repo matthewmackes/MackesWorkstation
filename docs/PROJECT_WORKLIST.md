@@ -153,13 +153,14 @@ _Depends: none_
     - [ ] A clean `main` commit produces an all-green run with the four ALSA/Workbench crates compiled (full workspace, no excluded members).
   **Note (2026-06-03):** `.github/workflows/ci.yml` written + YAML-valid; cargo cmds match the green local baseline. Fedora container installs gtk3-devel/alsa-lib-devel (forward-ready for E0.2). CI-green confirmation is **push-gated** → flips to [✓] after the first push.
 
-- [>] **E0.10: E0 — Port the 15-gate lint suite to install-helpers/ + wire the pre-commit + commit-msg git hooks**
+- [✓] **E0.10: E0 — Port the 15-gate lint suite to install-helpers/ + wire the pre-commit + commit-msg git hooks**
   **As** a contributor, **I want** the 15-gate lint suite in `install-helpers/` wired into pre-commit and commit-msg hooks, **so that** stub/hex/mesh/design-token violations are blocked before they land.
   *Reuse:* mde/install-helpers/lint-*.sh (§9 as-is, the §3 enforcement suite). *Deps:* none.
   **Acceptance** (runtime-observable):
     - [ ] All 15 lint gates live under `install-helpers/` and a single runner executes them; running it on a clean tree passes with exit 0.
     - [ ] The `pre-commit` hook runs the suite and a commit introducing a raw hex color / stub / private-D-Bus name is rejected (non-zero exit blocks the commit).
     - [ ] The `commit-msg` hook enforces the message convention and rejects a malformed message at commit time.
+  **Done (2026-06-03):** ported the 12 lint-gate scripts to `install-helpers/` + 5 snapshot allowlists (catch net-new only); wired a staged-file-gated `run-lint-gates.sh` runner + `.claude/hooks/pre-commit` (suite + worklist) + `commit-msg.sh` (visual-citation) + `install-hooks.sh`. The "15 gates" = these 12 scripts + cargo build/test/clippy/fmt (CI, E0.9). All gates run clean. Notable: fixed an inherited bug in lint-dbus-shape (its `#` comment-filter swallowed every `#[interface]` — MDE's gate never fired); neutralized lint-material-symbols (the monorepo KEEPS Carbon, so its Carbon-forbidding policy is N/A → documented no-op); runtime-reachability surfaced 1 pre-existing dead module (mackesd::orchestrator, allowlisted — picked up by the E8.4 sweep).
 
 - [>] **E0.11: E0 — Audit: confirm no subprocess-supervised Python remains (all mackesd workers are Rust); file gaps as tasks if found**
   **As** a platform owner, **I want** to confirm mackesd supervises only Rust workers with no subprocess-supervised Python, **so that** the control plane is a single-language runtime and any survivor becomes a tracked task.

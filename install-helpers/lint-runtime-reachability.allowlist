@@ -1,0 +1,19 @@
+# Snapshot allow-list for lint-runtime-reachability.sh.
+#
+# Regenerated 2026-06-03 against the MackesWorkstation merged tree
+# (the inherited MDE allowlist was stale — it referenced retired
+# Python paths + a crate layout that no longer exists). This file
+# captures the pre-existing dead `pub mod` declarations in THIS
+# tree so the gate exits 0 and catches only NET-NEW dead modules
+# going forward. Each entry should eventually be wired into a
+# caller, re-exported via pub use, or deleted; the file shrinks
+# over time.
+#
+# Snapshot count: 1 pre-existing dead module.
+#
+# Format: one <file>:<module-name> per line. Lines starting with
+# `#` are comments. Blank lines ignored.
+
+# 2026-06-03 — mackesd orchestrator module declared but not yet
+# referenced from any external caller in the merged tree.
+crates/mesh/mackesd/src/lib.rs:orchestrator

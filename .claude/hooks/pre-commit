@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# .claude/hooks/pre-commit (E0.10) — GIT pre-commit hook. Install by symlinking
+# into .git/hooks/pre-commit (run install-helpers/install-hooks.sh, or see
+# .claude/hooks/README.md). Never modifies git config.
+#
+# Runs, in order:
+#   1. install-helpers/run-lint-gates.sh — the lint suite, gated on staged files.
+#   2. .claude/hooks/pre-commit-worklist.sh — WF-5.a worklist-prefix check.
+# Either non-zero exit blocks the commit.
+
+set -u
+
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+
+if [ -x "${REPO_ROOT}/install-helpers/run-lint-gates.sh" ]; then
+    "${REPO_ROOT}/install-helpers/run-lint-gates.sh" || exit 1
+fi
+
+if [ -x "${REPO_ROOT}/.claude/hooks/pre-commit-worklist.sh" ]; then
+    "${REPO_ROOT}/.claude/hooks/pre-commit-worklist.sh" || exit 1
+fi
+
+exit 0
