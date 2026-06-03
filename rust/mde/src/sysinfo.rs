@@ -257,6 +257,77 @@ pub fn parse_meminfo_total(s: &str) -> u64 {
         .unwrap_or(0)
 }
 
+// --- local accounts (Accounts ▸ Family & other users, E10.4) ---------------
+
+/// A local user account for the Accounts pages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Account {
+    pub name: String, // login name (passwd field 1)
+    pub uid: u32,     // numeric UID
+    pub full: String, // GECOS full name, falling back to the login name
+    pub admin: bool,  // member of the `wheel` group → Administrator
+}
+
+/// Member login names of the `wheel` line in `/etc/group` content
+/// (`wheel:x:10:alice,bob` → `[alice, bob]`). The trailing colon-field anchors it,
+/// so a group merely *starting* "wheel" (none in practice) can't false-match.
+pub fn parse_wheel(group: &str) -> Vec<String> {
+    group
+        .lines()
+        .find_map(|l| l.strip_prefix("wheel:"))
+        .map(|rest| {
+            rest.rsplit(':')
+                .next()
+                .unwrap_or("")
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Parse `/etc/passwd` content into the *human* accounts: UID ≥ 1000 and not the
+/// `nobody` sentinel (65534). `wheel` membership marks the admin badge.
+pub fn parse_passwd(passwd: &str, wheel: &[String]) -> Vec<Account> {
+    passwd
+        .lines()
+        .filter_map(|l| {
+            let mut f = l.split(':');
+            let name = f.next()?;
+            let _pw = f.next()?;
+            let uid: u32 = f.next()?.parse().ok()?;
+            let _gid = f.next()?;
+            let gecos = f.next().unwrap_or("");
+            if uid < 1000 || uid == 65534 {
+                return None;
+            }
+            let full = gecos.split(',').next().unwrap_or("").trim();
+            Some(Account {
+                name: name.to_string(),
+                uid,
+                full: if full.is_empty() {
+                    name.to_string()
+                } else {
+                    full.to_string()
+                },
+                admin: wheel.iter().any(|w| w == name),
+            })
+        })
+        .collect()
+}
+
+/// Live enumeration of human accounts from `/etc/passwd` + `/etc/group` (matches
+/// `getent passwd` for the local files). Sorted by login name for a stable list.
+pub fn accounts() -> Vec<Account> {
+    let group = std::fs::read_to_string("/etc/group").unwrap_or_default();
+    let passwd = std::fs::read_to_string("/etc/passwd").unwrap_or_default();
+    let mut a = parse_passwd(&passwd, &parse_wheel(&group));
+    a.sort_by(|x, y| x.name.cmp(&y.name));
+    a
+}
+
 // --- CLI probes ------------------------------------------------------------
 
 fn cmd_line(bin: &str, args: &[&str]) -> Option<String> {
@@ -301,6 +372,13 @@ pub fn run(args: &[String]) -> ExitCode {
             for d in cat.devices {
                 println!("    {d}");
             }
+        }
+        return ExitCode::SUCCESS;
+    }
+    if args.iter().any(|a| a == "--users") {
+        for a in accounts() {
+            let role = if a.admin { "Administrator" } else { "Standard" };
+            println!("{:<16} uid={:<6} {role:<13} {}", a.name, a.uid, a.full);
         }
         return ExitCode::SUCCESS;
     }
@@ -374,5 +452,38 @@ mod tests {
         assert_eq!(parse_cpu_model(""), None);
         assert_eq!(count_cores(""), 0);
         assert_eq!(parse_meminfo_total(""), 0);
+    }
+
+    const GROUP: &str = "root:x:0:\nwheel:x:10:ada,grace\nusers:x:100:\nnobody:x:65534:\n";
+    const PASSWD: &str = "root:x:0:0:root:/root:/bin/bash\n\
+        daemon:x:2:2:daemon:/sbin:/usr/sbin/nologin\n\
+        ada:x:1000:1000:Ada Lovelace,,,:/home/ada:/bin/bash\n\
+        grace:x:1001:1001::/home/grace:/bin/bash\n\
+        guest:x:1002:1002:Guest User:/home/guest:/bin/bash\n\
+        nobody:x:65534:65534:Nobody:/:/usr/sbin/nologin\n";
+
+    #[test]
+    fn wheel_members_parsed() {
+        assert_eq!(parse_wheel(GROUP), vec!["ada", "grace"]);
+        assert!(parse_wheel("root:x:0:\nwheel:x:10:\n").is_empty());
+        assert!(parse_wheel("").is_empty());
+    }
+
+    #[test]
+    fn passwd_keeps_humans_and_badges_admins() {
+        let users = parse_passwd(PASSWD, &parse_wheel(GROUP));
+        // root/daemon (UID < 1000) and nobody (65534) are filtered out.
+        let names: Vec<_> = users.iter().map(|a| a.name.as_str()).collect();
+        assert_eq!(names, vec!["ada", "grace", "guest"]);
+        // GECOS full name, falling back to login when the field is empty.
+        let ada = &users[0];
+        assert_eq!(ada.full, "Ada Lovelace");
+        assert!(ada.admin); // in wheel
+        let grace = &users[1];
+        assert_eq!(grace.full, "grace"); // empty GECOS → login name
+        assert!(grace.admin);
+        let guest = &users[2];
+        assert_eq!(guest.full, "Guest User");
+        assert!(!guest.admin); // not in wheel → Standard
     }
 }

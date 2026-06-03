@@ -61,7 +61,10 @@ fn spawn(cmd: &str) {
 
 /// Dispatch: headless flags print; otherwise open the GUI dialog.
 pub fn run(args: &[String]) -> ExitCode {
-    if args.iter().any(|a| a == "--info" || a == "--devices") {
+    if args
+        .iter()
+        .any(|a| a == "--info" || a == "--devices" || a == "--users")
+    {
         return sysinfo::run(args);
     }
     let r = iced::application(|_: &SysProps| "System Properties".to_string(), update, view)

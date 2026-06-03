@@ -205,6 +205,8 @@ enum Kind {
     Cellular,
     /// The native Accounts ▸ Your info page (E10.3).
     AccountInfo,
+    /// The native Accounts ▸ Family & other users page (E10.4): the real account list.
+    FamilyUsers,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -393,8 +395,8 @@ const CATEGORIES: &[Category] = &[
                 kind: Kind::AccountInfo,
             },
             Page {
-                title: "Users",
-                kind: Kind::Tool("seahorse"),
+                title: "Family & other users",
+                kind: Kind::FamilyUsers,
             },
             Page {
                 title: "Sign-in options",
@@ -569,6 +571,9 @@ struct Settings {
     /// Accounts ▸ Your info (E10.3): friendly name + avatar path, mirroring `state`.
     display_name: String,
     account_picture: String,
+    /// Accounts ▸ Family & other users (E10.4): the enumerated local accounts,
+    /// (re)read on each visit to that page.
+    accounts: Vec<crate::sysinfo::Account>,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -751,6 +756,7 @@ fn list() -> ExitCode {
                 Kind::DataUsage => "(native: Data usage)".to_string(),
                 Kind::Cellular => "(native: Cellular)".to_string(),
                 Kind::AccountInfo => "(native: Your info)".to_string(),
+                Kind::FamilyUsers => "(native: Family & other users)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -831,6 +837,7 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 wifi_radio: false,
                 display_name: st.display_name.clone(),
                 account_picture: st.account_picture.clone(),
+                accounts: Vec::new(),
                 usage: Vec::new(),
                 data_limit: if st.data_limit_mb > 0 {
                     st.data_limit_mb.to_string()
@@ -1321,6 +1328,11 @@ fn maybe_load(state: &mut Settings) -> Task<Message> {
             state.usage = crate::nm::all_device_bytes();
             Task::none()
         }
+        Some(Kind::FamilyUsers) => {
+            // Cheap synchronous /etc read; refresh on each visit (E10.5 will mutate it).
+            state.accounts = crate::sysinfo::accounts();
+            Task::none()
+        }
         _ => Task::none(),
     }
 }
@@ -1522,6 +1534,7 @@ fn open_current(state: &mut Settings) {
         | Kind::DataUsage
         | Kind::Cellular
         | Kind::AccountInfo
+        | Kind::FamilyUsers
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1827,6 +1840,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::DataUsage => data_usage_page(state),
         Kind::Cellular => cellular_page(),
         Kind::AccountInfo => account_info_page(state),
+        Kind::FamilyUsers => family_users_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -2265,6 +2279,80 @@ fn account_info_page(state: &Settings) -> Element<'_, Message> {
                         .width(Length::Fixed(220.0)),
                 ),
         )
+        .into()
+}
+
+/// Accounts ▸ Family & other users (E10.4): the real local-account list (read from
+/// `/etc/passwd`, UID ≥ 1000), each row a user glyph + name/login + an
+/// Administrator/Standard badge from `wheel` membership. Add/Change/Remove land in
+/// E10.5 — this page is the read-only enumeration.
+fn family_users_page(state: &Settings) -> Element<'_, Message> {
+    let me = std::env::var("USER").unwrap_or_default();
+    let mut list = Column::new().spacing(4.0);
+    for a in &state.accounts {
+        let (badge, badge_col) = if a.admin {
+            ("Administrator", palette::accent())
+        } else {
+            ("Standard user", palette::color(palette::GRAY_TEXT))
+        };
+        let sub = if a.name == me {
+            format!("{} — signed in", a.name)
+        } else {
+            a.name.clone()
+        };
+        let row = Row::new()
+            .spacing(10.0)
+            .align_y(iced::alignment::Vertical::Center)
+            .push(
+                text("\u{f007}") // nf-fa-user
+                    .size(metrics::TILE_GLYPH_PX)
+                    .font(mde_ui::font::NERD)
+                    .color(palette::color(palette::WINDOW_TEXT)),
+            )
+            .push(
+                Column::new()
+                    .width(Length::Fill)
+                    .push(
+                        text(a.full.clone())
+                            .size(metrics::UI_PX)
+                            .color(palette::color(palette::WINDOW_TEXT)),
+                    )
+                    .push(
+                        text(sub)
+                            .size(metrics::BADGE_PX)
+                            .color(palette::color(palette::GRAY_TEXT)),
+                    ),
+            )
+            .push(
+                container(text(badge).size(metrics::BADGE_PX).color(badge_col))
+                    .padding(Padding::from([2.0, 8.0]))
+                    .style(|_| container::Style {
+                        border: Border {
+                            color: palette::color(palette::WINDOW_FRAME),
+                            width: 1.0,
+                            radius: 2.0.into(),
+                        },
+                        ..container::Style::default()
+                    }),
+            );
+        list = list.push(container(row).padding(Padding::from([6.0, 4.0])));
+    }
+    let body: Element<Message> = if state.accounts.is_empty() {
+        text("No other accounts on this PC.")
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT))
+            .into()
+    } else {
+        scrollable(list).style(mde_ui::scrollbar).into()
+    };
+    Column::new()
+        .spacing(10.0)
+        .push(
+            text("People who use this PC")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(container(body).height(Length::Fill))
         .into()
 }
 
