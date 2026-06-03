@@ -39,6 +39,10 @@ wayland-protocols = { version = "0.32", features = ["client", "staging"] }
 # pulls tokio in (its "tokio" feature); this only declares it directly. Same locked
 # version, so nothing new is fetched.
 tokio = { version = "1", features = ["rt"] }
+# PIN sign-in (E10.6): the user's PIN is stored only as an Argon2id hash in
+# ~/.config/mde/pin.hash — never plaintext, never a hand-rolled digest. Pure Rust,
+# no C/openssl; `std` (default) brings the OsRng salt source via password-hash.
+argon2 = "0.5"
 
 [dev-dependencies]
 # Accuracy harness (tests/accuracy.rs): decode grim PNG captures and parse the

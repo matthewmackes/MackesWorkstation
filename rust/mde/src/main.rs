@@ -35,6 +35,7 @@ mod notifyd;
 mod outputs;
 mod packages;
 mod panel;
+mod pin;
 mod popup;
 mod search;
 mod settings;
@@ -74,7 +75,8 @@ COMMANDS:
     filedialog [--save] [--filter ...]   Common Open/Save file dialog (prints path)
     run              Run dialog (type a command to launch)
     properties NAME TARGET   Launcher/file Properties dialog
-    system-properties [--info|--devices]   System facts / Device Manager data
+    system-properties [--info|--devices|--users]   System facts / Device Manager / accounts
+    pin [--set N|--check|--verify N|--clear]   Manage the sign-in PIN (argon2 hash)
     taskbar-properties   Taskbar and Start Menu Properties
     setup [--tui|--gui|--dry-run]   Install/configure MDE-Retro
     install [--assets]   Fetch Chicago95 + Win2k assets (first run)
@@ -176,6 +178,7 @@ fn main() -> ExitCode {
         }
         "about" => about::run(rest),
         "system-properties" => system_properties::run(rest),
+        "pin" => pin::run(rest),
         "taskbar-properties" => taskbar_properties::run(rest),
         "__wlr-list" => {
             wlr::debug_list();

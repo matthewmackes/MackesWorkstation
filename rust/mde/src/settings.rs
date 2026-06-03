@@ -207,6 +207,8 @@ enum Kind {
     AccountInfo,
     /// The native Accounts ▸ Family & other users page (E10.4): the real account list.
     FamilyUsers,
+    /// The native Accounts ▸ Sign-in options page (E10.6): PIN + password + Hello.
+    SignIn,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -400,7 +402,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "Sign-in options",
-                kind: Kind::Deferred,
+                kind: Kind::SignIn,
             },
             Page {
                 title: "Sync your settings",
@@ -577,6 +579,12 @@ struct Settings {
     /// E10.5: the "add a user" name field + the login pending a remove-confirm.
     new_user: String,
     confirm_remove: Option<String>,
+    /// Accounts ▸ Sign-in options (E10.6): whether a PIN is enrolled, the two PIN
+    /// entry fields, and a transient status/error line.
+    pin_set: bool,
+    pin1: String,
+    pin2: String,
+    pin_msg: String,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -675,6 +683,12 @@ enum Message {
     CancelRemove,
     ConfirmRemove(String),
     AccountsReloaded,
+    // Accounts ▸ Sign-in options (E10.6).
+    Pin1(String),
+    Pin2(String),
+    SavePin,
+    RemovePin,
+    ChangePassword,
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -768,6 +782,7 @@ fn list() -> ExitCode {
                 Kind::Cellular => "(native: Cellular)".to_string(),
                 Kind::AccountInfo => "(native: Your info)".to_string(),
                 Kind::FamilyUsers => "(native: Family & other users)".to_string(),
+                Kind::SignIn => "(native: Sign-in options)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -851,6 +866,10 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 accounts: Vec::new(),
                 new_user: String::new(),
                 confirm_remove: None,
+                pin_set: false,
+                pin1: String::new(),
+                pin2: String::new(),
+                pin_msg: String::new(),
                 usage: Vec::new(),
                 data_limit: if st.data_limit_mb > 0 {
                     st.data_limit_mb.to_string()
@@ -1216,6 +1235,49 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             return pkexec_then_reload(crate::sysinfo::userdel_cmd(&name));
         }
         Message::AccountsReloaded => state.accounts = crate::sysinfo::accounts(),
+        // Keep PIN entry to digits (a Windows-style numeric PIN), capped at 8.
+        Message::Pin1(p) => {
+            state.pin1 = p.chars().filter(char::is_ascii_digit).take(8).collect();
+            state.pin_msg.clear();
+        }
+        Message::Pin2(p) => {
+            state.pin2 = p.chars().filter(char::is_ascii_digit).take(8).collect();
+            state.pin_msg.clear();
+        }
+        Message::SavePin => {
+            if state.pin1.len() < 4 {
+                state.pin_msg = "PIN must be at least 4 digits.".into();
+            } else if state.pin1 != state.pin2 {
+                state.pin_msg = "The PINs don't match.".into();
+            } else {
+                match crate::pin::set_pin(&state.pin1) {
+                    Ok(()) => {
+                        state.pin_set = true;
+                        state.pin_msg = "PIN saved.".into();
+                    }
+                    Err(e) => state.pin_msg = format!("Couldn't save PIN: {e}"),
+                }
+                state.pin1.clear();
+                state.pin2.clear();
+            }
+        }
+        Message::RemovePin => {
+            let _ = crate::pin::clear();
+            state.pin_set = false;
+            state.pin1.clear();
+            state.pin2.clear();
+            state.pin_msg = "PIN removed.".into();
+        }
+        Message::ChangePassword => {
+            let user = std::env::var("USER").unwrap_or_default();
+            let inner =
+                format!("pkexec passwd '{user}'; printf '\\nPress Enter to close… '; read _");
+            crate::installer::spawn_terminal(
+                "Change password",
+                &palette::hex(palette::HIGHLIGHT),
+                &inner,
+            );
+        }
     }
     Task::none()
 }
@@ -1386,8 +1448,12 @@ fn maybe_load(state: &mut Settings) -> Task<Message> {
             Task::none()
         }
         Some(Kind::FamilyUsers) => {
-            // Cheap synchronous /etc read; refresh on each visit (E10.5 will mutate it).
+            // Cheap synchronous /etc read; refresh on each visit (E10.5 mutates it).
             state.accounts = crate::sysinfo::accounts();
+            Task::none()
+        }
+        Some(Kind::SignIn) => {
+            state.pin_set = crate::pin::is_set();
             Task::none()
         }
         _ => Task::none(),
@@ -1592,6 +1658,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Cellular
         | Kind::AccountInfo
         | Kind::FamilyUsers
+        | Kind::SignIn
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1898,6 +1965,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Cellular => cellular_page(),
         Kind::AccountInfo => account_info_page(state),
         Kind::FamilyUsers => family_users_page(state),
+        Kind::SignIn => sign_in_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -2495,6 +2563,119 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
                         .style(tile_style),
                 ),
         )
+        .into()
+}
+
+/// Accounts ▸ Sign-in options (E10.6): Windows-Hello Face/Fingerprint shown as
+/// advisory unavailable rows (§3 — no fake toggles), a working **PIN** enrol/change
+/// (argon2-hashed `pin.hash` via `pin::set_pin`), and **Password** → `pkexec passwd`
+/// in a Win10-blue `foot` terminal.
+fn sign_in_page(state: &Settings) -> Element<'_, Message> {
+    // A dimmed "unavailable" Windows Hello row.
+    let hello = |title: &str| -> Element<Message> {
+        Column::new()
+            .spacing(1.0)
+            .push(
+                text(title.to_string())
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+            )
+            .push(
+                text("This option is currently unavailable.")
+                    .size(metrics::BADGE_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+            )
+            .into()
+    };
+
+    // PIN section: status + two secure fields + Save/Change (+ Remove when set).
+    let pin_status = if state.pin_set {
+        "A PIN is set."
+    } else {
+        "No PIN is set."
+    };
+    let mut pin_buttons = Row::new().spacing(8.0).push(
+        button(
+            text(if state.pin_set {
+                "Change PIN"
+            } else {
+                "Set PIN"
+            })
+            .size(metrics::UI_PX),
+        )
+        .on_press(Message::SavePin)
+        .padding(Padding::from([4.0, 12.0]))
+        .style(tile_style),
+    );
+    if state.pin_set {
+        pin_buttons = pin_buttons.push(
+            button(text("Remove").size(metrics::UI_PX))
+                .on_press(Message::RemovePin)
+                .padding(Padding::from([4.0, 12.0]))
+                .style(tile_style),
+        );
+    }
+    let mut pin_section = Column::new()
+        .spacing(8.0)
+        .push(
+            text("PIN")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            text(pin_status)
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .push(
+            text_input("Enter PIN", &state.pin1)
+                .on_input(Message::Pin1)
+                .secure(true)
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(180.0)),
+        )
+        .push(
+            text_input("Confirm PIN", &state.pin2)
+                .on_input(Message::Pin2)
+                .on_submit(Message::SavePin)
+                .secure(true)
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(180.0)),
+        )
+        .push(pin_buttons);
+    if !state.pin_msg.is_empty() {
+        pin_section = pin_section.push(
+            text(state.pin_msg.clone())
+                .size(metrics::BADGE_PX)
+                .color(palette::accent()),
+        );
+    }
+
+    let password_section = Column::new()
+        .spacing(8.0)
+        .push(
+            text("Password")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            text("Change your account password.")
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .push(
+            button(text("Change").size(metrics::UI_PX))
+                .on_press(Message::ChangePassword)
+                .padding(Padding::from([4.0, 12.0]))
+                .style(tile_style),
+        );
+
+    Column::new()
+        .spacing(18.0)
+        .push(hello("Windows Hello Face"))
+        .push(hello("Windows Hello Fingerprint"))
+        .push(pin_section)
+        .push(password_section)
         .into()
 }
 

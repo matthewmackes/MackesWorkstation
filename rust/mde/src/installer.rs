@@ -113,6 +113,20 @@ fn launch_tui_terminal(dry: bool, packages: Option<Vec<String>>) -> ExitCode {
     }
 }
 
+/// Open `inner` (a `sh -c` script) in a themed `foot` window, detached. The shared
+/// "run a command in a colored terminal" primitive (E10.6): the installer's
+/// Win2000-blue setup terminal and the Sign-in password terminal both route here so
+/// the foot invocation lives in one place. `bg_hex` may carry a leading `#`.
+pub fn spawn_terminal(title: &str, bg_hex: &str, inner: &str) {
+    let bg = bg_hex.trim_start_matches('#');
+    let _ = std::process::Command::new("foot")
+        .args(["--title", title, "-o", &format!("colors.background={bg}")])
+        .arg("sh")
+        .arg("-c")
+        .arg(inner)
+        .spawn();
+}
+
 /// Hand the chosen component set to the privileged TUI engine in its own
 /// Win2000-blue terminal, detached, then let the GUI exit (Q10: GUI collects →
 /// TUI installs — one engine).
@@ -125,17 +139,7 @@ fn handoff(packages: &[String]) {
         "pkexec '{exe}' setup --tui --packages='{}'",
         packages.join(",")
     );
-    let _ = std::process::Command::new("foot")
-        .args([
-            "--title",
-            "MDE-Retro Setup",
-            "-o",
-            "colors.background=0a246a",
-        ])
-        .arg("sh")
-        .arg("-c")
-        .arg(inner)
-        .spawn();
+    spawn_terminal("MDE-Retro Setup", "0a246a", &inner);
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
