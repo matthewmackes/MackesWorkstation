@@ -280,6 +280,14 @@ const CATEGORIES: &[Category] = &[
                 title: "Touchpad",
                 kind: Kind::Deferred,
             },
+            Page {
+                title: "Typing",
+                kind: Kind::Deferred,
+            },
+            Page {
+                title: "AutoPlay",
+                kind: Kind::Deferred,
+            },
         ],
     },
     Category {
