@@ -17,6 +17,7 @@ mod apps;
 mod browser;
 mod browser_jumplist;
 mod catalogue;
+mod clipboard;
 mod control_panel;
 mod dialogs;
 mod display;
@@ -83,6 +84,7 @@ COMMANDS:
     pin [--set N|--check|--verify N|--clear]   Manage the sign-in PIN (argon2 hash)
     security         Windows Security dashboard (firewall/encryption/AV/TPM posture)
     greeter [--css|--conf [BG]]   Emit the LightDM Win10 greeter theme (palette-sourced)
+    clipboard daemon|--list   Clipboard history watcher (wl-paste) + 25-entry ring
     taskbar-properties   Taskbar and Start Menu Properties
     setup [--tui|--gui|--dry-run]   Install/configure MDE-Retro
     install [--assets]   Fetch Chicago95 + Win2k assets (first run)
@@ -188,6 +190,7 @@ fn main() -> ExitCode {
         "security" => security::run(rest),
         "pin" => pin::run(rest),
         "greeter" => greeter::run(rest),
+        "clipboard" => clipboard::run(rest),
         "taskbar-properties" => taskbar_properties::run(rest),
         "__wlr-list" => {
             wlr::debug_list();
