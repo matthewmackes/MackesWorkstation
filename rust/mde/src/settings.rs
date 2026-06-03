@@ -392,6 +392,8 @@ enum Kind {
     AutoPlay,
     /// The native System ▸ Storage page (E17.4): usage bars + Storage Sense + apps.
     Storage,
+    /// The native Update & Security ▸ Backup page (E17.6): Timeshift drive picker.
+    Backup,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -661,7 +663,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "Backup",
-                kind: Kind::Deferred,
+                kind: Kind::Backup,
             },
             Page {
                 title: "Recovery",
@@ -822,6 +824,10 @@ struct Settings {
     storage_clean: bool,
     confirm_clean: bool,
     last_freed: Option<u64>,
+    /// Update & Security ▸ Backup (E17.6): the Timeshift snapshot device + the
+    /// automatic-backup toggle, mirroring menu.json.
+    backup_drive: String,
+    auto_backup: bool,
     /// Accounts ▸ Family & other users (E10.4): the enumerated local accounts,
     /// (re)read on each visit to that page.
     accounts: Vec<crate::sysinfo::Account>,
@@ -995,6 +1001,10 @@ enum Message {
     CancelClean,
     ConfirmClean,
     Cleaned(u64),
+    // Update & Security ▸ Backup (E17.6).
+    SetBackupDrive(String),
+    RemoveBackupDrive,
+    SetAutoBackup(bool),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -1027,6 +1037,23 @@ pub fn run(args: &[String]) -> ExitCode {
             let verb = if dry { "would free" } else { "freed" };
             println!("{verb} {}", crate::sysinfo::human_bytes(freed));
             return ExitCode::SUCCESS;
+        }
+    }
+    // `mde settings backup --add-drive <dev>` (E17.6): persist the Timeshift backup
+    // device to menu.json and print the privileged config command (CI-safe; the GUI
+    // runs the pkexec).
+    if args.iter().any(|a| a == "backup") {
+        if let Some(i) = args.iter().position(|a| a == "--add-drive") {
+            if let Some(dev) = args.get(i + 1) {
+                let mut st = crate::state::load();
+                st.backup_drive = dev.clone();
+                let _ = crate::state::save(&st);
+                println!(
+                    "backup drive set to {dev}\npkexec {}",
+                    crate::sysinfo::timeshift_device_cmd(dev).join(" ")
+                );
+                return ExitCode::SUCCESS;
+            }
         }
     }
     if args.iter().any(|a| a == "--list") {
@@ -1067,12 +1094,17 @@ pub fn run(args: &[String]) -> ExitCode {
         }
     }
     let cat_arg = cat_arg.trim().to_string();
-    // `mde settings storage` is a shortcut straight to System ▸ Storage (E17.4) —
-    // "storage" is a page, not a category, so without this it would fall through to
-    // a Home search. (`backup`/`recovery` join it as they land.)
-    let (initial_cat, initial_page) = if cat_arg.eq_ignore_ascii_case("storage") {
-        let c = category_index("system");
-        let p = c.and_then(|c| page_index(c, "storage")).unwrap_or(0);
+    // `mde settings storage`/`backup` are shortcuts straight to their pages (E17.4/
+    // E17.6) — those are pages, not categories, so without this they'd fall through
+    // to a Home search. (`recovery` joins as it lands.)
+    let page_shortcut = match cat_arg.to_lowercase().as_str() {
+        "storage" => Some(("system", "storage")),
+        "backup" => Some(("update", "backup")),
+        _ => None,
+    };
+    let (initial_cat, initial_page) = if let Some((cat, page)) = page_shortcut {
+        let c = category_index(cat);
+        let p = c.and_then(|c| page_index(c, page)).unwrap_or(0);
         (c, p)
     } else {
         let cat = category_index(&cat_arg);
@@ -1148,6 +1180,7 @@ fn list() -> ExitCode {
                 Kind::Typing => "(native: Typing)".to_string(),
                 Kind::AutoPlay => "(native: AutoPlay)".to_string(),
                 Kind::Storage => "(native: Storage)".to_string(),
+                Kind::Backup => "(native: Backup)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -1262,6 +1295,8 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 storage_clean: std::env::var("MDE_STORAGE_VIEW").as_deref() == Ok("clean"),
                 confirm_clean: false,
                 last_freed: None,
+                backup_drive: st.backup_drive.clone(),
+                auto_backup: st.auto_backup,
                 accounts: Vec::new(),
                 new_user: String::new(),
                 confirm_remove: None,
@@ -1852,6 +1887,31 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
                 .spawn();
             return storage_load_task();
         }
+        // Update & Security ▸ Backup (E17.6).
+        Message::SetBackupDrive(dev) => {
+            state.backup_drive = dev.clone();
+            persist(state);
+            // Point Timeshift at the chosen device (root-level config), off-thread.
+            let args = crate::sysinfo::timeshift_device_cmd(&dev);
+            return Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        let _ = std::process::Command::new("pkexec").args(&args).status();
+                    })
+                    .await
+                    .ok();
+                },
+                |_| Message::Noop,
+            );
+        }
+        Message::RemoveBackupDrive => {
+            state.backup_drive.clear();
+            persist(state);
+        }
+        Message::SetAutoBackup(on) => {
+            state.auto_backup = on;
+            persist(state);
+        }
         // Keep PIN entry to digits (a Windows-style numeric PIN), capped at 8.
         Message::Pin1(p) => {
             state.pin1 = p.chars().filter(char::is_ascii_digit).take(8).collect();
@@ -2085,6 +2145,8 @@ fn maybe_load(state: &mut Settings) -> Task<Message> {
             }
             Task::batch(tasks)
         }
+        // Backup reuses the storage breakdown for its candidate-drive list (E17.6).
+        Some(Kind::Backup) if state.storage.is_none() => storage_load_task(),
         _ => Task::none(),
     }
 }
@@ -2411,6 +2473,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Typing
         | Kind::AutoPlay
         | Kind::Storage
+        | Kind::Backup
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -2483,6 +2546,8 @@ fn persist(state: &Settings) {
     st.autoplay_removable = state.autoplay_removable.key().to_string();
     st.autoplay_memcard = state.autoplay_memcard.key().to_string();
     st.storage_sense = state.storage_sense;
+    st.backup_drive = state.backup_drive.clone();
+    st.auto_backup = state.auto_backup;
     st.update_paused_until = state.update_paused_until;
     st.update_active_start = state.active_start;
     st.update_active_end = state.active_end;
@@ -2781,6 +2846,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Typing => typing_page(state),
         Kind::AutoPlay => autoplay_page(state),
         Kind::Storage => storage_page(state),
+        Kind::Backup => backup_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -4421,6 +4487,98 @@ fn clean_drill_in(state: &Settings) -> Element<'_, Message> {
         );
     }
     col.into()
+}
+
+/// Update & Security ▸ Backup (E17.6): pick a Timeshift snapshot drive from the
+/// live filesystems, the automatic-backup toggle, and the current target.
+fn backup_page(state: &Settings) -> Element<'_, Message> {
+    let Some(u) = &state.storage else {
+        return text("Reading drives…")
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT))
+            .into();
+    };
+
+    let mut col = Column::new()
+        .spacing(12.0)
+        .push(
+            text("Back up using Timeshift")
+                .size(metrics::INFO_TITLE_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            text("Pick a drive to hold restore points; Timeshift snapshots the system to it.")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+
+    if !state.backup_drive.is_empty() {
+        col = col
+            .push(
+                text(format!("Backing up to {}", state.backup_drive))
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::STATUS_OK)),
+            )
+            .push(
+                checkbox("Automatically back up on a schedule", state.auto_backup)
+                    .on_toggle(Message::SetAutoBackup)
+                    .size(metrics::UI_PX)
+                    .text_size(metrics::UI_PX)
+                    .spacing(8.0)
+                    .style(mde_ui::checkbox_style),
+            )
+            .push(
+                button(text("Remove drive").size(metrics::UI_PX))
+                    .on_press(Message::RemoveBackupDrive)
+                    .padding(Padding::from([3.0, 12.0]))
+                    .style(mde_ui::button_ghost),
+            );
+    } else {
+        col = col.push(
+            text("Add a drive")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+        // One row per distinct backing device (several mounts can share a disk).
+        let mut seen: Vec<String> = Vec::new();
+        for m in &u.mounts {
+            if seen.contains(&m.source) {
+                continue;
+            }
+            seen.push(m.source.clone());
+            let dev = m.source.clone();
+            let row = Row::new()
+                .spacing(10.0)
+                .align_y(iced::alignment::Vertical::Center)
+                .push(
+                    Column::new()
+                        .width(Length::Fill)
+                        .push(
+                            text(m.source.clone())
+                                .size(metrics::UI_PX)
+                                .color(palette::color(palette::WINDOW_TEXT)),
+                        )
+                        .push(
+                            text(format!(
+                                "{} free of {} · mounted at {}",
+                                crate::sysinfo::human_bytes(m.avail),
+                                crate::sysinfo::human_bytes(m.total),
+                                m.target
+                            ))
+                            .size(metrics::BADGE_PX)
+                            .color(palette::color(palette::GRAY_TEXT)),
+                        ),
+                )
+                .push(
+                    button(text("Use this drive").size(metrics::UI_PX))
+                        .on_press(Message::SetBackupDrive(dev))
+                        .padding(Padding::from([3.0, 10.0]))
+                        .style(mde_ui::button_primary),
+                );
+            col = col.push(container(row).padding(Padding::from([4.0, 4.0])));
+        }
+    }
+    scrollable(col).style(mde_ui::scrollbar).into()
 }
 
 /// Network & Internet ▸ Cellular (E15.12): a greyed, disabled "Cellular" toggle +

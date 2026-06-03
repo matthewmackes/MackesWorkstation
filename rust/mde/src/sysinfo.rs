@@ -684,6 +684,12 @@ pub fn clean_now(dry: bool) -> u64 {
     before.saturating_sub(after).max(estimate)
 }
 
+/// `timeshift --snapshot-device <dev>` — set the Timeshift backup device (E17.6).
+/// Returns the argv (run via `pkexec`). Pure.
+pub fn timeshift_device_cmd(dev: &str) -> Vec<String> {
+    vec!["timeshift".into(), "--snapshot-device".into(), dev.into()]
+}
+
 // --- headless entry point --------------------------------------------------
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -750,6 +756,14 @@ tmpfs             16000000000            0  16000000000 /run/user/1000
         assert_eq!(human_bytes(512), "512 B");
         assert_eq!(human_bytes(1536), "1.5 KB");
         assert_eq!(human_bytes(5_368_709_120), "5.0 GB");
+    }
+
+    #[test]
+    fn timeshift_device_command_shaped() {
+        assert_eq!(
+            timeshift_device_cmd("/dev/sdb1"),
+            vec!["timeshift", "--snapshot-device", "/dev/sdb1"]
+        );
     }
 
     #[test]
