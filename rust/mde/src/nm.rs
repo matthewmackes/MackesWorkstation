@@ -212,6 +212,24 @@ fn gset(schema: &str, key: &str, value: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Per-interface `(name, rx, tx)` byte counters for every non-loopback device, for
+/// the Data-usage page (E15.11). Sorted by name.
+pub fn all_device_bytes() -> Vec<(String, u64, u64)> {
+    let mut v = Vec::new();
+    if let Ok(rd) = std::fs::read_dir("/sys/class/net") {
+        for e in rd.flatten() {
+            let name = e.file_name().to_string_lossy().to_string();
+            if name == "lo" {
+                continue;
+            }
+            let (rx, tx) = device_bytes(&name);
+            v.push((name, rx, tx));
+        }
+    }
+    v.sort_by(|a, b| a.0.cmp(&b.0));
+    v
+}
+
 /// The GNOME proxy mode (`none`/`manual`/`auto`) — the Proxy page (E15.9) reads it.
 pub fn proxy_mode() -> String {
     let m = gget("org.gnome.system.proxy", "mode");

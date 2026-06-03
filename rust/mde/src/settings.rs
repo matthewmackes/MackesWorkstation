@@ -199,6 +199,8 @@ enum Kind {
     Proxy,
     /// The native Network & Internet ▸ Airplane mode page (E15.10).
     Airplane,
+    /// The native Network & Internet ▸ Data usage page (E15.11).
+    DataUsage,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -313,6 +315,10 @@ const CATEGORIES: &[Category] = &[
             Page {
                 title: "Proxy",
                 kind: Kind::Proxy,
+            },
+            Page {
+                title: "Data usage",
+                kind: Kind::DataUsage,
             },
         ],
     },
@@ -541,6 +547,10 @@ struct Settings {
     /// Airplane page (E15.10): airplane-mode + Wi-Fi-radio state, read on show.
     airplane: bool,
     wifi_radio: bool,
+    /// Data-usage page (E15.11): per-device (name, rx, tx) read on show, + the
+    /// editable monthly limit in MB (mirrors `state.data_limit_mb`).
+    usage: Vec<(String, u64, u64)>,
+    data_limit: String,
     /// Cached install state for the `fedora::TOOLS` command of a viewed Tool
     /// page (computed lazily — `is_installed` spawns subprocesses).
     installed: HashMap<&'static str, bool>,
@@ -624,6 +634,8 @@ enum Message {
     // Airplane page (E15.10).
     SetAirplane(bool),
     SetWifiRadio(bool),
+    // Data usage page (E15.11).
+    SetDataLimit(String),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -713,6 +725,7 @@ fn list() -> ExitCode {
                 Kind::Hotspot => "(native: Mobile hotspot)".to_string(),
                 Kind::Proxy => "(native: Proxy)".to_string(),
                 Kind::Airplane => "(native: Airplane mode)".to_string(),
+                Kind::DataUsage => "(native: Data usage)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -790,6 +803,12 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 proxy_port: crate::nm::proxy_http().1,
                 airplane: false,
                 wifi_radio: false,
+                usage: Vec::new(),
+                data_limit: if st.data_limit_mb > 0 {
+                    st.data_limit_mb.to_string()
+                } else {
+                    String::new()
+                },
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -1078,6 +1097,21 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             crate::nm::radio_wifi(on);
             state.wifi_radio = crate::nm::wifi_enabled();
         }
+        Message::SetDataLimit(s) => {
+            state.data_limit = s.chars().filter(|c| c.is_ascii_digit()).collect();
+            persist(state);
+            // Notify if the current usage already exceeds the new limit (E15.11).
+            let limit: u64 = state.data_limit.parse().unwrap_or(0);
+            let used_mb = state.usage.iter().map(|(_, rx, tx)| rx + tx).sum::<u64>() / 1_000_000;
+            if limit > 0 && used_mb > limit {
+                let _ = Command::new("notify-send")
+                    .args([
+                        "Data limit reached",
+                        &format!("You've used {used_mb} MB of your {limit} MB limit."),
+                    ])
+                    .spawn();
+            }
+        }
     }
     Task::none()
 }
@@ -1224,6 +1258,10 @@ fn maybe_load(state: &mut Settings) -> Task<Message> {
             // Cheap sync reads; refresh on each visit so the toggles match reality.
             state.airplane = crate::nm::airplane_on();
             state.wifi_radio = crate::nm::wifi_enabled();
+            Task::none()
+        }
+        Some(Kind::DataUsage) => {
+            state.usage = crate::nm::all_device_bytes();
             Task::none()
         }
         _ => Task::none(),
@@ -1424,6 +1462,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Hotspot
         | Kind::Proxy
         | Kind::Airplane
+        | Kind::DataUsage
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1481,6 +1520,7 @@ fn persist(state: &Settings) {
     st.update_restart_notify = state.restart_notify;
     st.hotspot_name = state.hotspot_name.clone();
     st.hotspot_password = state.hotspot_password.clone();
+    st.data_limit_mb = state.data_limit.parse().unwrap_or(0);
     let _ = crate::state::save(&st);
 }
 
@@ -1723,6 +1763,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Hotspot => hotspot_page(state),
         Kind::Proxy => proxy_page(state),
         Kind::Airplane => airplane_page(state),
+        Kind::DataUsage => data_usage_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -2084,6 +2125,99 @@ fn update_advanced_page(state: &Settings) -> Element<'_, Message> {
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT)),
         )
+        .into()
+}
+
+/// Human-readable byte count (decimal) for the Data-usage page (E15.11).
+fn human_bytes(b: u64) -> String {
+    const U: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut v = b as f64;
+    let mut i = 0;
+    while v >= 1000.0 && i < U.len() - 1 {
+        v /= 1000.0;
+        i += 1;
+    }
+    if i == 0 {
+        format!("{b} B")
+    } else {
+        format!("{v:.1} {}", U[i])
+    }
+}
+
+/// Network & Internet ▸ Data usage (E15.11): per-device rx+tx with a proportional
+/// bar (vs the busiest device), a total, and an editable monthly limit (MB) that
+/// notifies when the current usage already exceeds it. Read live on show.
+fn data_usage_page(state: &Settings) -> Element<'_, Message> {
+    let max = state
+        .usage
+        .iter()
+        .map(|(_, rx, tx)| rx + tx)
+        .max()
+        .unwrap_or(1)
+        .max(1);
+    let total: u64 = state.usage.iter().map(|(_, rx, tx)| rx + tx).sum();
+    let mut list = Column::new().spacing(6.0);
+    for (name, rx, tx) in &state.usage {
+        let used = rx + tx;
+        let filled = ((used * 100 / max) as u16).max(1);
+        let bar = Row::new()
+            .height(Length::Fixed(8.0))
+            .push(
+                container(Space::new(Length::Fill, Length::Fill))
+                    .width(Length::FillPortion(filled))
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(palette::accent())),
+                        ..container::Style::default()
+                    }),
+            )
+            .push(Space::new(
+                Length::FillPortion(100 - filled + 1),
+                Length::Shrink,
+            ));
+        list = list.push(
+            Column::new()
+                .spacing(2.0)
+                .push(
+                    Row::new()
+                        .push(
+                            text(name.clone())
+                                .size(metrics::UI_PX)
+                                .width(Length::Fill)
+                                .color(palette::color(palette::WINDOW_TEXT)),
+                        )
+                        .push(
+                            text(human_bytes(used))
+                                .size(metrics::UI_PX)
+                                .color(palette::color(palette::GRAY_TEXT)),
+                        ),
+                )
+                .push(bar),
+        );
+    }
+    let limit = Row::new()
+        .spacing(8.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(
+            text("Monthly limit (MB)")
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(150.0))
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            text_input("none", &state.data_limit)
+                .on_input(Message::SetDataLimit)
+                .size(metrics::UI_PX)
+                .width(Length::Fixed(100.0)),
+        );
+    Column::new()
+        .spacing(14.0)
+        .push(
+            text(format!("Total since boot: {}", human_bytes(total)))
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill))
+        .push(limit)
         .into()
 }
 

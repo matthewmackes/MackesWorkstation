@@ -232,6 +232,9 @@ pub struct MenuState {
     pub hotspot_name: String,
     #[serde(default)]
     pub hotspot_password: String,
+    /// Settings ▸ Network ▸ Data usage (E15.11): monthly limit in MB; 0 = no limit.
+    #[serde(default)]
+    pub data_limit_mb: u64,
     /// Win10 Explorer ▸ Quick access user-pinned folders (E8.3): appended to the
     /// auto-pinned standard folders in the Frequent-folders list.
     #[serde(default)]
@@ -297,6 +300,7 @@ impl Default for MenuState {
             update_restart_notify: false,
             hotspot_name: def_hotspot_name(),
             hotspot_password: String::new(),
+            data_limit_mb: 0,
             explorer_pins: Vec::new(),
             explorer_landing: def_explorer_landing(),
         }
@@ -416,6 +420,7 @@ mod tests {
             update_restart_notify: true,
             hotspot_name: "MyHotspot".into(),
             hotspot_password: "s3cret".into(),
+            data_limit_mb: 2048,
             explorer_pins: vec![PathBuf::from("/home/me/Projects")],
             explorer_landing: "thispc".into(),
         };
