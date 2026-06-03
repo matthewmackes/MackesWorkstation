@@ -817,6 +817,11 @@ struct Settings {
     storage_apps: bool,
     packages: Vec<crate::fedora::Package>,
     confirm_uninstall: Option<String>,
+    /// System ▸ Storage ▸ Configure Storage Sense / Clean now (E17.5): the sub-view
+    /// flag, a pending clean-now confirm, and the last run's freed bytes.
+    storage_clean: bool,
+    confirm_clean: bool,
+    last_freed: Option<u64>,
     /// Accounts ▸ Family & other users (E10.4): the enumerated local accounts,
     /// (re)read on each visit to that page.
     accounts: Vec<crate::sysinfo::Account>,
@@ -984,6 +989,12 @@ enum Message {
     AskUninstall(String),
     CancelUninstall,
     ConfirmUninstall(String),
+    ShowClean,
+    BackFromClean,
+    AskClean,
+    CancelClean,
+    ConfirmClean,
+    Cleaned(u64),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -1007,6 +1018,15 @@ pub fn run(args: &[String]) -> ExitCode {
                 println!("pkexec {}", cmd.join(" "));
                 return ExitCode::SUCCESS;
             }
+        }
+        // `--clean-now [--dry-run]` runs the cleanup (E17.5). `--dry-run` deletes
+        // nothing and needs no root — it reports the would-free estimate.
+        if args.iter().any(|a| a == "--clean-now") {
+            let dry = args.iter().any(|a| a == "--dry-run");
+            let freed = crate::sysinfo::clean_now(dry);
+            let verb = if dry { "would free" } else { "freed" };
+            println!("{verb} {}", crate::sysinfo::human_bytes(freed));
+            return ExitCode::SUCCESS;
         }
     }
     if args.iter().any(|a| a == "--list") {
@@ -1235,10 +1255,13 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 autoplay_memcard: AutoAction::from_key(&st.autoplay_memcard),
                 storage: None,
                 storage_sense: st.storage_sense,
-                // Gallery/bench seam: start in the Apps & features drill-in.
+                // Gallery/bench seam: start in the Apps drill-in / Clean-now sub-view.
                 storage_apps: std::env::var("MDE_STORAGE_VIEW").as_deref() == Ok("apps"),
                 packages: Vec::new(),
                 confirm_uninstall: None,
+                storage_clean: std::env::var("MDE_STORAGE_VIEW").as_deref() == Ok("clean"),
+                confirm_clean: false,
+                last_freed: None,
                 accounts: Vec::new(),
                 new_user: String::new(),
                 confirm_remove: None,
@@ -1797,6 +1820,37 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
                 },
                 Message::PackagesLoaded,
             );
+        }
+        Message::ShowClean => state.storage_clean = true,
+        Message::BackFromClean => {
+            state.storage_clean = false;
+            state.confirm_clean = false;
+        }
+        Message::AskClean => state.confirm_clean = true,
+        Message::CancelClean => state.confirm_clean = false,
+        Message::ConfirmClean => {
+            state.confirm_clean = false;
+            // The cleanup shells pkexec; run it off the UI thread (E17.5).
+            return Task::perform(
+                async {
+                    tokio::task::spawn_blocking(|| crate::sysinfo::clean_now(false))
+                        .await
+                        .unwrap_or(0)
+                },
+                Message::Cleaned,
+            );
+        }
+        Message::Cleaned(freed) => {
+            state.last_freed = Some(freed);
+            // Re-read the breakdown so the bars reflect the reclaimed space.
+            state.storage = None;
+            let _ = std::process::Command::new("notify-send")
+                .args([
+                    "Storage cleaned",
+                    &format!("Freed {}", crate::sysinfo::human_bytes(freed)),
+                ])
+                .spawn();
+            return storage_load_task();
         }
         // Keep PIN entry to digits (a Windows-style numeric PIN), capped at 8.
         Message::Pin1(p) => {
@@ -4112,6 +4166,9 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
     if state.storage_apps {
         return apps_drill_in(state);
     }
+    if state.storage_clean {
+        return clean_drill_in(state);
+    }
 
     let root = u.mounts.iter().find(|m| m.target == "/");
     // Bars show each category's share of the *used* space (so they compose what's
@@ -4179,6 +4236,12 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
             text("Free up space automatically by deleting temporary files and emptying the Trash on a schedule.")
                 .size(metrics::BADGE_PX)
                 .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .push(
+            button(text("Configure Storage Sense or run it now").size(metrics::UI_PX))
+                .on_press(Message::ShowClean)
+                .padding(Padding::from([4.0, 12.0]))
+                .style(mde_ui::button_ghost),
         );
 
     // Other drives.
@@ -4291,6 +4354,70 @@ fn apps_drill_in(state: &Settings) -> Element<'_, Message> {
                                 .style(mde_ui::button_ghost),
                         ),
                 ),
+        );
+    }
+    col.into()
+}
+
+/// Configure Storage Sense / Clean now (E17.5): a Clean now button that purges the
+/// thumbnail cache + Trash and reclaims package/journal space (via pkexec), behind
+/// a confirm, reporting the freed bytes.
+fn clean_drill_in(state: &Settings) -> Element<'_, Message> {
+    let back = button(text("\u{2190} Storage").size(metrics::UI_PX))
+        .on_press(Message::BackFromClean)
+        .padding(Padding::from([3.0, 10.0]))
+        .style(mde_ui::button_ghost);
+
+    let mut col = Column::new()
+        .spacing(12.0)
+        .push(back)
+        .push(
+            text("Free up space now")
+                .size(metrics::INFO_TITLE_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            text("Empties the thumbnail cache and Trash, clears the package cache (dnf clean all), and vacuums old system logs.")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+
+    if let Some(freed) = state.last_freed {
+        col = col.push(
+            text(format!("Freed {}.", crate::sysinfo::human_bytes(freed)))
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::STATUS_OK)),
+        );
+    }
+
+    if state.confirm_clean {
+        col = col.push(
+            Row::new()
+                .spacing(8.0)
+                .push(
+                    text("Clean now? This empties the Trash.")
+                        .size(metrics::UI_PX)
+                        .color(palette::color(palette::WINDOW_TEXT)),
+                )
+                .push(
+                    button(text("Clean now").size(metrics::UI_PX))
+                        .on_press(Message::ConfirmClean)
+                        .padding(Padding::from([3.0, 12.0]))
+                        .style(mde_ui::button_primary),
+                )
+                .push(
+                    button(text("Cancel").size(metrics::UI_PX))
+                        .on_press(Message::CancelClean)
+                        .padding(Padding::from([3.0, 12.0]))
+                        .style(mde_ui::button_ghost),
+                ),
+        );
+    } else {
+        col = col.push(
+            button(text("Clean now").size(metrics::UI_PX))
+                .on_press(Message::AskClean)
+                .padding(Padding::from([4.0, 14.0]))
+                .style(mde_ui::button_primary),
         );
     }
     col.into()

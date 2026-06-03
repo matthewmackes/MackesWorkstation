@@ -635,6 +635,55 @@ pub fn apply_storage_sense(on: bool) {
         .status();
 }
 
+/// Root-device used bytes (for measuring freed space).
+fn root_used() -> u64 {
+    mounts()
+        .iter()
+        .find(|m| m.target == "/")
+        .map(|m| m.used)
+        .unwrap_or(0)
+}
+
+/// Remove the *contents* of a directory, keeping the directory itself.
+fn purge_dir_contents(path: &str) {
+    if let Ok(rd) = std::fs::read_dir(path) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                let _ = std::fs::remove_dir_all(&p);
+            } else {
+                let _ = std::fs::remove_file(&p);
+            }
+        }
+    }
+}
+
+/// Free up space (E17.5): purge the thumbnail cache + Trash (user-level, no root),
+/// then `dnf clean all` + `journalctl --vacuum-time` via `pkexec`. Returns the
+/// bytes freed (root-device df delta, floored at the user-level purge estimate).
+///
+/// With `dry == true` it deletes nothing and runs **no** privileged step — it just
+/// returns the would-free estimate, so the CI/bench path needs no root.
+pub fn clean_now(dry: bool) -> u64 {
+    let thumbs = home_dir(".cache/thumbnails");
+    let trash = home_dir(".local/share/Trash");
+    let estimate = dir_bytes(&thumbs) + dir_bytes(&trash);
+    if dry {
+        return estimate;
+    }
+    let before = root_used();
+    // User-level purge (no root needed).
+    let _ = std::fs::remove_dir_all(&thumbs);
+    purge_dir_contents(&format!("{trash}/files"));
+    purge_dir_contents(&format!("{trash}/info"));
+    // System-level reclaim (root) — one pkexec prompt, best-effort.
+    let _ = Command::new("pkexec")
+        .args(["sh", "-c", "dnf clean all; journalctl --vacuum-time=7d"])
+        .status();
+    let after = root_used();
+    before.saturating_sub(after).max(estimate)
+}
+
 // --- headless entry point --------------------------------------------------
 
 pub fn run(args: &[String]) -> ExitCode {
