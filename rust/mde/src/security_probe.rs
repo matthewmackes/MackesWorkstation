@@ -161,6 +161,11 @@ fn out(bin: &str, args: &[&str]) -> Option<String> {
     Some(String::from_utf8_lossy(&o.stdout).to_string())
 }
 
+/// ClamAV engine version if installed, for the Virus & threat page (E14.7).
+pub fn antivirus_version() -> Option<String> {
+    out("clamscan", &["--version"]).and_then(|s| parse_clamav_version(&s))
+}
+
 /// firewalld detail for the Firewall page (E14.5): running, default zone, and the
 /// active zones (mapped to Win10 network profiles in the view).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

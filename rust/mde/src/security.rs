@@ -20,6 +20,7 @@ enum Pane {
     Home,
     Firewall,
     Encryption,
+    Antivirus,
 }
 
 struct Security {
@@ -32,6 +33,8 @@ struct Security {
     /// A plain device the user asked to "turn on" — shows the advisory luksFormat
     /// command (never auto-run).
     confirm_format: Option<String>,
+    /// Antivirus page (E14.7): the ClamAV version (or `None` = absent) once loaded.
+    av: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +47,8 @@ enum Message {
     CancelConfirm,
     BackupKey(String),
     KeyBackedUp(String, Option<String>), // (device, chosen save path)
+    QuickScan,
+    InstallAv,
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -59,6 +64,7 @@ pub fn run(args: &[String]) -> ExitCode {
     let deep = args.iter().find_map(|a| match a.as_str() {
         "firewall" => Some(Pane::Firewall),
         "encryption" => Some(Pane::Encryption),
+        "antivirus" => Some(Pane::Antivirus),
         _ => None,
     });
     let r = iced::application(|_: &Security| "Windows Security".to_string(), update, view)
@@ -73,16 +79,26 @@ pub fn run(args: &[String]) -> ExitCode {
         .run_with(move || {
             // The probes shell out (firewall-cmd/mokutil/lsblk/clamscan), so run
             // them off-thread and let the window appear immediately.
-            let (pane, fw, devs) = match deep {
+            let (pane, fw, devs, av) = match deep {
                 Some(Pane::Firewall) => (
                     Pane::Firewall,
                     Some(security_probe::firewall_detail()),
                     Vec::new(),
+                    None,
                 ),
-                Some(Pane::Encryption) => {
-                    (Pane::Encryption, None, security_probe::encryption_detail())
-                }
-                _ => (Pane::Home, None, Vec::new()),
+                Some(Pane::Encryption) => (
+                    Pane::Encryption,
+                    None,
+                    security_probe::encryption_detail(),
+                    None,
+                ),
+                Some(Pane::Antivirus) => (
+                    Pane::Antivirus,
+                    None,
+                    Vec::new(),
+                    Some(security_probe::antivirus_version()),
+                ),
+                _ => (Pane::Home, None, Vec::new(), None),
             };
             (
                 Security {
@@ -91,6 +107,7 @@ pub fn run(args: &[String]) -> ExitCode {
                     fw,
                     devs,
                     confirm_format: None,
+                    av,
                 },
                 Task::perform(async { Box::new(security_probe::probe()) }, Message::Loaded),
             )
@@ -114,6 +131,10 @@ fn update(state: &mut Security, message: Message) -> Task<Message> {
             state.confirm_format = None;
             state.pane = Pane::Encryption;
         }
+        Message::Open(Pane::Antivirus) => {
+            state.av = Some(security_probe::antivirus_version());
+            state.pane = Pane::Antivirus;
+        }
         Message::Open(pane) => state.pane = pane,
         Message::Back => {
             state.pane = Pane::Home;
@@ -136,6 +157,20 @@ fn update(state: &mut Security, message: Message) -> Task<Message> {
                 .spawn();
         }
         Message::KeyBackedUp(_, None) => {}
+        Message::QuickScan => {
+            // Scan the home folder in a visible Win10-blue terminal (the installer
+            // terminal pattern), so the user sees progress rather than a silent run.
+            crate::installer::spawn_terminal(
+                "ClamAV Quick scan",
+                &palette::hex(palette::HIGHLIGHT),
+                "clamscan -r \"$HOME\"; printf '\\nPress Enter to close… '; read _",
+            );
+        }
+        Message::InstallAv => {
+            let _ = std::process::Command::new("pkexec")
+                .args(["dnf", "install", "-y", "clamav", "clamav-update"])
+                .spawn();
+        }
     }
     Task::none()
 }
@@ -247,6 +282,7 @@ fn view(state: &Security) -> Element<'_, Message> {
         Pane::Home => home_view(s),
         Pane::Firewall => firewall_view(state.fw.as_ref()),
         Pane::Encryption => encryption_view(state),
+        Pane::Antivirus => antivirus_view(state.av.as_ref()),
     }
 }
 
@@ -260,7 +296,7 @@ fn home_view(s: &SecurityStatus) -> Element<'_, Message> {
     // (E14.5); the rest gain theirs in E14.6–E14.9.
     let advisory = advisory_tile();
     let tiles: [(&'static str, &Tile, Option<Pane>); 6] = [
-        ("\u{f188}", &s.antivirus, None),
+        ("\u{f188}", &s.antivirus, Some(Pane::Antivirus)),
         ("\u{f132}", &s.firewall, Some(Pane::Firewall)),
         ("\u{f0ac}", &advisory, None),
         ("\u{f023}", &s.encryption, Some(Pane::Encryption)),
@@ -466,6 +502,83 @@ fn encryption_view(state: &Security) -> Element<'_, Message> {
                             ),
                     )
                     .push(action),
+            );
+        }
+    }
+
+    col.padding(Padding::from(16.0)).into()
+}
+
+/// Virus & threat detail (E14.7): if ClamAV is installed, a Quick scan of the home
+/// folder; otherwise an advisory with install-on-click. No fake real-time shield.
+fn antivirus_view(av: Option<&Option<String>>) -> Element<'_, Message> {
+    let back = button(text("← Back").size(metrics::UI_PX))
+        .on_press(Message::Back)
+        .padding(Padding::from([4.0, 12.0]))
+        .style(mde_ui::button_ghost);
+    let mut col = Column::new().spacing(10.0).push(back).push(
+        text("Virus & threat protection")
+            .size(metrics::INFO_TITLE_PX)
+            .color(palette::color(palette::WINDOW_TEXT)),
+    );
+
+    let status_row = |level: Level, msg: String| {
+        let (mark, role) = level_mark(level);
+        Row::new()
+            .spacing(8.0)
+            .align_y(iced::alignment::Vertical::Center)
+            .push(
+                text(mark)
+                    .font(mde_ui::font::NERD)
+                    .size(metrics::BUTTON_GLYPH_PX)
+                    .color(palette::color(role)),
+            )
+            .push(
+                text(msg)
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::WINDOW_TEXT)),
+            )
+    };
+
+    match av {
+        Some(Some(version)) => {
+            col = col
+                .push(status_row(
+                    Level::Ok,
+                    format!("ClamAV {version} is installed."),
+                ))
+                .push(
+                    text("Run an on-demand scan of your home folder.")
+                        .size(metrics::BADGE_PX)
+                        .color(palette::color(palette::GRAY_TEXT)),
+                )
+                .push(
+                    button(text("Quick scan").size(metrics::UI_PX))
+                        .on_press(Message::QuickScan)
+                        .padding(Padding::from([4.0, 12.0]))
+                        .style(mde_ui::button_primary),
+                );
+        }
+        Some(None) => {
+            col = col
+                .push(status_row(Level::Warn, "No antivirus is installed.".into()))
+                .push(
+                    text("Install ClamAV for on-demand virus scanning.")
+                        .size(metrics::BADGE_PX)
+                        .color(palette::color(palette::GRAY_TEXT)),
+                )
+                .push(
+                    button(text("Install ClamAV").size(metrics::UI_PX))
+                        .on_press(Message::InstallAv)
+                        .padding(Padding::from([4.0, 12.0]))
+                        .style(mde_ui::button_primary),
+                );
+        }
+        None => {
+            col = col.push(
+                text("Checking…")
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
             );
         }
     }
