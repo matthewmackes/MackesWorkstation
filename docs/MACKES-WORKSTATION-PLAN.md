@@ -8,6 +8,15 @@
 
 ## 0. Decisions (answered by the owner)
 
+*Strategic positioning (2026-06-03) — THE FRAMING:*
+- **Mackes Workstation is the SUCCESSOR.** It **preempts and EOLs both** MDE
+  (MackesDE for Workgroups / MDE4WG) **and** MDE-Retro. They do **not** continue as
+  independent projects — both are retired/archived; the Mackes Workstation monorepo
+  is the single go-forward codebase. *(Resolves Q2/Q3 definitively: subsumed + EOL,
+  not coexisting.)* Implication: no parallel maintenance of the old repos; their
+  packages (MDE `mde-core`/`mde-desktop`, the MDE-Retro RPM) are superseded by the
+  Mackes Workstation deployment-role RPM; all future epics target the successor.
+
 *Load-bearing four — 2026-06-03:*
 - **Q8 Compositor → labwc.** Keep MDE-Retro's labwc substrate; MDE's sway-specific
   bits adapt to labwc/wlroots. The Win10 shell is the primary UX.
