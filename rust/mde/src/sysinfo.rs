@@ -813,6 +813,36 @@ pub fn apply_backup_schedule(oncalendar: &str) {
         .status();
 }
 
+// --- recovery (Settings ▸ Update & Security ▸ Recovery, E17.9) --------------
+
+/// "Reset this PC — keep my files": resync every package to the release (repairs a
+/// broken system without touching `/home`). Returns the `pkexec` argv. Pure.
+pub fn reset_keep_cmd() -> Vec<String> {
+    vec!["dnf".into(), "distro-sync".into(), "-y".into()]
+}
+
+/// "Restart now" into the firmware/UEFI setup — `systemctl reboot
+/// --firmware-setup`. Returns the `pkexec` argv. Pure.
+pub fn restart_firmware_cmd() -> Vec<String> {
+    vec![
+        "systemctl".into(),
+        "reboot".into(),
+        "--firmware-setup".into(),
+    ]
+}
+
+/// "Uninstall updates" — roll back the last dnf transaction (`dnf history undo
+/// last`). Returns the `pkexec` argv. Pure.
+pub fn uninstall_updates_cmd() -> Vec<String> {
+    vec![
+        "dnf".into(),
+        "history".into(),
+        "undo".into(),
+        "last".into(),
+        "-y".into(),
+    ]
+}
+
 // --- headless entry point --------------------------------------------------
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -879,6 +909,19 @@ tmpfs             16000000000            0  16000000000 /run/user/1000
         assert_eq!(human_bytes(512), "512 B");
         assert_eq!(human_bytes(1536), "1.5 KB");
         assert_eq!(human_bytes(5_368_709_120), "5.0 GB");
+    }
+
+    #[test]
+    fn recovery_commands_shaped() {
+        assert_eq!(reset_keep_cmd(), vec!["dnf", "distro-sync", "-y"]);
+        assert_eq!(
+            restart_firmware_cmd(),
+            vec!["systemctl", "reboot", "--firmware-setup"]
+        );
+        assert_eq!(
+            uninstall_updates_cmd(),
+            vec!["dnf", "history", "undo", "last", "-y"]
+        );
     }
 
     #[test]

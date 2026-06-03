@@ -296,6 +296,60 @@ impl std::fmt::Display for AutoAction {
     }
 }
 
+/// Update & Security ▸ Recovery (E17.9): a destructive recovery action, each gated
+/// behind a typed confirmation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RecoveryAction {
+    ResetKeep,
+    ResetRemove,
+    Restart,
+    UninstallUpdates,
+}
+impl RecoveryAction {
+    /// The exact word the user must type to enable the action.
+    fn confirm_word(self) -> &'static str {
+        match self {
+            RecoveryAction::ResetKeep => "RESET",
+            RecoveryAction::ResetRemove => "REMOVE",
+            RecoveryAction::Restart => "RESTART",
+            RecoveryAction::UninstallUpdates => "UNDO",
+        }
+    }
+    fn title(self) -> &'static str {
+        match self {
+            RecoveryAction::ResetKeep => "Reset this PC — keep my files",
+            RecoveryAction::ResetRemove => "Reset this PC — remove everything",
+            RecoveryAction::Restart => "Restart to firmware settings",
+            RecoveryAction::UninstallUpdates => "Uninstall the latest updates",
+        }
+    }
+    /// The privileged argv, or `None` when the action launches the installer.
+    fn pkexec_cmd(self) -> Option<Vec<String>> {
+        match self {
+            RecoveryAction::ResetKeep => Some(crate::sysinfo::reset_keep_cmd()),
+            RecoveryAction::Restart => Some(crate::sysinfo::restart_firmware_cmd()),
+            RecoveryAction::UninstallUpdates => Some(crate::sysinfo::uninstall_updates_cmd()),
+            RecoveryAction::ResetRemove => None,
+        }
+    }
+    /// The human-readable command preview (the dry-run line).
+    fn preview(self) -> String {
+        match self.pkexec_cmd() {
+            Some(c) => format!("pkexec {}", c.join(" ")),
+            None => "launch the installer (mde setup) to wipe + reinstall".to_string(),
+        }
+    }
+    fn from_flag(s: &str) -> Option<RecoveryAction> {
+        match s {
+            "--reset-keep" => Some(RecoveryAction::ResetKeep),
+            "--reset-remove" => Some(RecoveryAction::ResetRemove),
+            "--restart" => Some(RecoveryAction::Restart),
+            "--uninstall-updates" => Some(RecoveryAction::UninstallUpdates),
+            _ => None,
+        }
+    }
+}
+
 /// Update & Security ▸ Backup ▸ More options (E17.7): how often to snapshot →
 /// systemd `OnCalendar=`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -472,6 +526,8 @@ enum Kind {
     Storage,
     /// The native Update & Security ▸ Backup page (E17.6): Timeshift drive picker.
     Backup,
+    /// The native Update & Security ▸ Recovery page (E17.9): Reset this PC + more.
+    Recovery,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -745,7 +801,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "Recovery",
-                kind: Kind::Deferred,
+                kind: Kind::Recovery,
             },
         ],
     },
@@ -913,6 +969,10 @@ struct Settings {
     backup_schedule: Schedule,
     backup_retention: Retention,
     backup_includes: Vec<String>,
+    /// Update & Security ▸ Recovery (E17.9): the destructive action awaiting a typed
+    /// confirmation, and the text the user has typed so far.
+    recovery_pending: Option<RecoveryAction>,
+    recovery_typed: String,
     /// Accounts ▸ Family & other users (E10.4): the enumerated local accounts,
     /// (re)read on each visit to that page.
     accounts: Vec<crate::sysinfo::Account>,
@@ -1102,6 +1162,11 @@ enum Message {
     AddInclude,
     IncludeAdded(Option<String>),
     RemoveInclude(String),
+    // Update & Security ▸ Recovery (E17.9).
+    AskRecovery(RecoveryAction),
+    RecoveryTyped(String),
+    CancelRecovery,
+    ConfirmRecovery,
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -1156,6 +1221,9 @@ pub fn run(args: &[String]) -> ExitCode {
         if args.iter().any(|a| a == "--restore") {
             return crate::restore::run(args);
         }
+        // `--restore` opens the File-History snapshot restore browser (E17.8) — kept
+        // first so it isn't shadowed by the recovery flags below if both are passed.
+        // (Already handled above; this comment just documents the order.)
         // `--backup-now [--dry-run]` — create a Timeshift snapshot (E17.7). Dry-run
         // prints the exact privileged command without running it (CI-safe).
         if args.iter().any(|a| a == "--backup-now") {
@@ -1176,6 +1244,26 @@ pub fn run(args: &[String]) -> ExitCode {
                         "snapshot failed"
                     }
                 );
+            }
+            return ExitCode::SUCCESS;
+        }
+    }
+    // `mde settings recovery --<action> [--dry-run]` (E17.9): each destructive
+    // action prints its exact command in dry-run; without --dry-run it runs it.
+    if args.iter().any(|a| a == "recovery") {
+        if let Some(action) = args.iter().find_map(|a| RecoveryAction::from_flag(a)) {
+            if args.iter().any(|a| a == "--dry-run") {
+                println!("{}", action.preview());
+                return ExitCode::SUCCESS;
+            }
+            match action.pkexec_cmd() {
+                Some(cmd) => {
+                    let _ = std::process::Command::new("pkexec").args(&cmd).status();
+                }
+                None => {
+                    let exe = std::env::current_exe().unwrap_or_else(|_| "mde".into());
+                    let _ = std::process::Command::new(exe).arg("setup").status();
+                }
             }
             return ExitCode::SUCCESS;
         }
@@ -1224,6 +1312,7 @@ pub fn run(args: &[String]) -> ExitCode {
     let page_shortcut = match cat_arg.to_lowercase().as_str() {
         "storage" => Some(("system", "storage")),
         "backup" => Some(("update", "backup")),
+        "recovery" => Some(("update", "recovery")),
         _ => None,
     };
     let (initial_cat, initial_page) = if let Some((cat, page)) = page_shortcut {
@@ -1305,6 +1394,7 @@ fn list() -> ExitCode {
                 Kind::AutoPlay => "(native: AutoPlay)".to_string(),
                 Kind::Storage => "(native: Storage)".to_string(),
                 Kind::Backup => "(native: Backup)".to_string(),
+                Kind::Recovery => "(native: Recovery)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -1430,6 +1520,13 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 } else {
                     st.backup_includes.clone()
                 },
+                // Capture seam: open straight into a recovery typed-confirm.
+                recovery_pending: match std::env::var("MDE_RECOVERY_VIEW").as_deref() {
+                    Ok("remove") => Some(RecoveryAction::ResetRemove),
+                    Ok("restart") => Some(RecoveryAction::Restart),
+                    _ => None,
+                },
+                recovery_typed: String::new(),
                 accounts: Vec::new(),
                 new_user: String::new(),
                 confirm_remove: None,
@@ -2104,6 +2201,43 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             state.backup_includes.retain(|x| x != &p);
             persist(state);
         }
+        // Update & Security ▸ Recovery (E17.9). Each action is gated behind typing
+        // its exact confirm word; only then does ConfirmRecovery run it.
+        Message::AskRecovery(a) => {
+            state.recovery_pending = Some(a);
+            state.recovery_typed.clear();
+        }
+        Message::RecoveryTyped(t) => state.recovery_typed = t,
+        Message::CancelRecovery => {
+            state.recovery_pending = None;
+            state.recovery_typed.clear();
+        }
+        Message::ConfirmRecovery => {
+            if let Some(a) = state.recovery_pending {
+                if state.recovery_typed.trim() == a.confirm_word() {
+                    state.recovery_pending = None;
+                    state.recovery_typed.clear();
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || match a.pkexec_cmd() {
+                                Some(cmd) => {
+                                    let _ =
+                                        std::process::Command::new("pkexec").args(&cmd).status();
+                                }
+                                None => {
+                                    let exe =
+                                        std::env::current_exe().unwrap_or_else(|_| "mde".into());
+                                    let _ = std::process::Command::new(exe).arg("setup").spawn();
+                                }
+                            })
+                            .await
+                            .ok();
+                        },
+                        |_| Message::Noop,
+                    );
+                }
+            }
+        }
         // Keep PIN entry to digits (a Windows-style numeric PIN), capped at 8.
         Message::Pin1(p) => {
             state.pin1 = p.chars().filter(char::is_ascii_digit).take(8).collect();
@@ -2696,6 +2830,7 @@ fn open_current(state: &mut Settings) {
         | Kind::AutoPlay
         | Kind::Storage
         | Kind::Backup
+        | Kind::Recovery
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -3072,6 +3207,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::AutoPlay => autoplay_page(state),
         Kind::Storage => storage_page(state),
         Kind::Backup => backup_page(state),
+        Kind::Recovery => recovery_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -4932,6 +5068,148 @@ fn backup_more_page(state: &Settings) -> Element<'_, Message> {
     );
 
     scrollable(col).style(mde_ui::scrollbar).into()
+}
+
+/// Update & Security ▸ Recovery (E17.9): Reset this PC (keep / remove), Restart to
+/// firmware, and Uninstall updates — each behind a typed confirmation.
+fn recovery_page(state: &Settings) -> Element<'_, Message> {
+    if let Some(a) = state.recovery_pending {
+        return recovery_confirm(state, a);
+    }
+    let action = |title: &'static str,
+                  desc: &'static str,
+                  label: &'static str,
+                  a: RecoveryAction|
+     -> Element<'_, Message> {
+        Column::new()
+            .spacing(3.0)
+            .push(
+                text(title)
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::WINDOW_TEXT)),
+            )
+            .push(
+                text(desc)
+                    .size(metrics::BADGE_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+            )
+            .push(
+                button(text(label).size(metrics::UI_PX))
+                    .on_press(Message::AskRecovery(a))
+                    .padding(Padding::from([4.0, 12.0]))
+                    .style(mde_ui::button_ghost),
+            )
+            .into()
+    };
+
+    let col = Column::new()
+        .spacing(16.0)
+        .push(
+            text("Reset this PC")
+                .size(metrics::INFO_TITLE_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(action(
+            "Keep my files",
+            "Reinstalls the system (dnf distro-sync) but keeps everything in your home folder.",
+            "Get started",
+            RecoveryAction::ResetKeep,
+        ))
+        .push(action(
+            "Remove everything",
+            "Wipes the system and reinstalls from scratch via Setup. Your files are erased.",
+            "Get started",
+            RecoveryAction::ResetRemove,
+        ))
+        .push(
+            text("Advanced startup")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .push(action(
+            "Restart to firmware settings",
+            "Reboot into the UEFI/BIOS setup screen.",
+            "Restart now",
+            RecoveryAction::Restart,
+        ))
+        .push(action(
+            "Uninstall the latest updates",
+            "Roll back the most recent dnf transaction if an update caused problems.",
+            "Uninstall updates",
+            RecoveryAction::UninstallUpdates,
+        ));
+
+    scrollable(col).style(mde_ui::scrollbar).into()
+}
+
+/// The typed-confirmation gate for a recovery action (E17.9): shows the exact
+/// command, requires typing the confirm word, and (for "remove everything") the
+/// blkdiscard data-wipe note. The Confirm button is disabled until the word matches.
+fn recovery_confirm(state: &Settings, a: RecoveryAction) -> Element<'_, Message> {
+    let word = a.confirm_word();
+    let armed = state.recovery_typed.trim() == word;
+
+    let mut confirm = button(
+        text("Confirm")
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::HIGHLIGHT_TEXT)),
+    )
+    .padding(Padding::from([4.0, 14.0]))
+    .style(if armed {
+        mde_ui::button_primary
+    } else {
+        mde_ui::button_ghost
+    });
+    if armed {
+        confirm = confirm.on_press(Message::ConfirmRecovery);
+    }
+
+    let mut col = Column::new()
+        .spacing(10.0)
+        .push(
+            text(a.title())
+                .size(metrics::INFO_TITLE_PX)
+                .color(palette::color(palette::STATUS_RISK)),
+        )
+        .push(
+            text("This can't be undone. The command that will run:")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        )
+        .push(
+            text(a.preview())
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+
+    if a == RecoveryAction::ResetRemove {
+        col = col.push(
+            text("To also securely erase the disk, run `blkdiscard` on the data device from a live session afterwards — that is destructive and not done here.")
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::STATUS_WARN)),
+        );
+    }
+
+    col.push(
+        text(format!("Type {word} to confirm."))
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::WINDOW_TEXT)),
+    )
+    .push(
+        text_input(word, &state.recovery_typed)
+            .on_input(Message::RecoveryTyped)
+            .size(metrics::UI_PX)
+            .width(Length::Fixed(220.0)),
+    )
+    .push(
+        Row::new().spacing(8.0).push(confirm).push(
+            button(text("Cancel").size(metrics::UI_PX))
+                .on_press(Message::CancelRecovery)
+                .padding(Padding::from([4.0, 12.0]))
+                .style(mde_ui::button_ghost),
+        ),
+    )
+    .into()
 }
 
 /// Network & Internet ▸ Cellular (E15.12): a greyed, disabled "Cellular" toggle +
