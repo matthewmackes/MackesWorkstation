@@ -83,15 +83,15 @@ the deployment‑role architecture — lives in
 
 ```sh
 # the toolchain is pinned (rust-toolchain.toml → 1.94)
-cargo build --workspace        # or: cargo check --workspace
+# the audio chain links ALSA, so install the system dev libs first (Fedora):
+sudo dnf install -y gtk3-devel alsa-lib-devel
 
-# four crates need system dev libs (a Fedora dev box):
-sudo dnf install gtk3-devel alsa-lib-devel
-# then re-include mackes-panel + the audio chain in Cargo.toml [workspace.exclude]
+cargo build --workspace        # or: cargo check --workspace
 ```
 
-`cargo check --workspace` is green out of the box; the four crates above are excluded
-by default because they bind system libraries (see [`MIGRATION.md`](MIGRATION.md)).
+`cargo check --workspace` is green over the whole tree (no crates excluded since E0.2;
+`.cargo/config.toml` carries a CMake-4 fix for the vendored Opus). See
+[`MIGRATION.md`](MIGRATION.md).
 
 ## Status
 

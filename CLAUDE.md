@@ -142,19 +142,20 @@ runtime entry point and observably works**:
 ## §4 — Build · test (run from repo root)
 
 ```sh
-cargo check --workspace        # green out of the box (4 crates excluded — see below)
+cargo check --workspace        # green; whole tree (no crates excluded since E0.2)
 cargo build --workspace
 cargo test                     # accuracy + unit tests
 cargo clippy --all-targets     # lint (warnings are work)
 cargo fmt --all
 ```
 
-> **4 crates are excluded** in `Cargo.toml [workspace] exclude` because they bind
-> system dev libs absent in the sandbox: `crates/legacy/mackes-panel` (gtk3-devel,
-> **retiring** — the iced shell replaces it) and the audio chain
-> `crates/services/mde-music{,d}` + `crates/workbench/mde-workbench` (alsa-lib-devel).
-> To build them: `sudo dnf install gtk3-devel alsa-lib-devel`, then re-include in
-> `Cargo.toml`. Re-including the audio chain / Workbench is tracked E0 follow-up.
+> **System dev libs required** (E0.2, 2026-06-03): the audio chain
+> (`crates/services/mde-music{,d}`, `crates/workbench/mde-workbench`) links ALSA, so a
+> full build needs `sudo dnf install -y gtk3-devel alsa-lib-devel`. There are no longer
+> any excluded crates — the audio chain is back in `members` and the legacy gtk3
+> `mackes-panel` is retired (deleted; the iced shell's `panel.rs` replaces it).
+> `.cargo/config.toml` sets `CMAKE_POLICY_VERSION_MINIMUM=3.5` so the vendored Opus
+> (`opus`→`audiopus_sys`) configures under CMake 4 — see that file's comment.
 
 ## §5 — Worklist & planning
 

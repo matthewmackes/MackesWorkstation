@@ -85,13 +85,14 @@ _Depends: none_
     - [ ] Every former consumer compiles against `mackes-config` / `mackes-mesh-types` / `mackesd` directly; `cargo check --workspace` passes with 0 errors.
     - [ ] A round-trip parse of `panel.toml` through `mackes-config` yields the same struct the old `mde-config` produced (existing config still loads at runtime).
 
-- [ ] **E0.2: E0 — Re-include + fix the 4 system-lib crates (mde-music/mde-musicd/mde-workbench on alsa-lib-devel); retire legacy mackes-panel (gtk3, replaced by the iced shell)**
+- [✓] **E0.2: E0 — Re-include + fix the 4 system-lib crates (mde-music/mde-musicd/mde-workbench on alsa-lib-devel); retire legacy mackes-panel (gtk3, replaced by the iced shell)**
   **As** a build engineer, **I want** the four ALSA-dependent crates back in the default workspace and the gtk3 `mackes-panel` retired, **so that** the full audio/Workbench stack builds and the dead gtk panel no longer shadows the iced shell.
   *Reuse:* mde-music/mde-musicd (§9 adapt), mde-workbench (§9 rebuild-or-reskin); mackes-panel (§9 retire — superseded by `mde` panel.rs). *Deps:* E0.1.
   **Acceptance** (runtime-observable):
     - [ ] With `alsa-lib-devel` present, the four crates appear in `[workspace] members` and `cargo check --workspace` builds them (no `exclude` for music/musicd/workbench).
     - [ ] `mde-musicd` starts and exposes its Bus surface without panicking when ALSA is reachable; degrades gracefully with no audio device (logs and continues, never panics).
     - [ ] `cargo tree` shows no crate depending on `mackes-panel` and no `gtk`/`gtk3` in the default build graph; the panel surface is reached only via `mde panel`.
+  **Done (2026-06-03):** audio chain re-included in `members`, legacy `mackes-panel` deleted, full `cargo check --workspace` green. Surfaced + mitigated a CMake-4 vs vendored-Opus (`opus`→`audiopus_sys`) configure break via `.cargo/config.toml` (`CMAKE_POLICY_VERSION_MINIMUM=3.5`). _Follow-up:_ update opus/audiopus_sys to drop the workaround.
 
 - [ ] **E0.3: E0 — mde-bus foundation: retire MDE-internal D-Bus -> Bus topics (keep only org.freedesktop.* FDO interop)**
   **As** a platform developer, **I want** every MDE-internal IPC moved off private D-Bus onto `mde-bus` topics, keeping only `org.freedesktop.*` for FDO interop, **so that** surfaces and mackesd workers speak one mesh-aware transport.

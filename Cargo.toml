@@ -37,6 +37,8 @@ members = [
     "crates/platform/mde-bus",
     "crates/services/mde-clipd",
     "crates/services/mde-files",
+    "crates/services/mde-music",
+    "crates/services/mde-musicd",
     "crates/services/mde-voice-config",
     "crates/services/mde-voice-hud",
     "crates/shared/mackes-theme",
@@ -56,16 +58,12 @@ members = [
     "crates/shell/mde-ui",
     "crates/shell/mde-wizard",
     "crates/workbench/mde-virtual",
-]
-exclude = [
-    # Need system dev libraries (build on a box with them; see MIGRATION.md):
-    #   mackes-panel → gtk3-devel (legacy GTK panel, retiring)
-    #   mde-musicd/mde-music/mde-workbench → alsa-lib-devel (cpal audio)
-    "crates/legacy/mackes-panel",
-    "crates/services/mde-music",
-    "crates/services/mde-musicd",
     "crates/workbench/mde-workbench",
 ]
+# E0.2 (2026-06-03): the audio chain (mde-music/mde-musicd/mde-workbench) is back in
+# the workspace now that alsa-lib-devel is on the dev box, and the legacy gtk3
+# mackes-panel is retired (deleted — superseded by the iced shell's panel.rs). No
+# crates are excluded; `cargo check --workspace` covers the whole tree.
 
 [workspace.package]
 version      = "10.0.0"

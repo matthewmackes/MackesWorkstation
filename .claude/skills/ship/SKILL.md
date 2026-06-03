@@ -58,9 +58,9 @@ For each open `[ ]` task, highest priority first:
      `provenance/mde-retro/` and is not yet staged at the repo root). Until staged,
      fall back to building + launching `timeout 3 ./target/debug/mde <sub>` and
      inspecting.
-   - Note: 4 crates are excluded from the default build (need gtk3-devel /
-     alsa-lib-devel): `crates/legacy/mackes-panel`, `crates/services/mde-music`,
-     `crates/services/mde-musicd`, `crates/workbench/mde-workbench`.
+   - Note: a full build needs the system dev libs (`sudo dnf install -y gtk3-devel
+     alsa-lib-devel`) — the audio chain links ALSA. Since E0.2 no crates are excluded;
+     `.cargo/config.toml` sets `CMAKE_POLICY_VERSION_MINIMUM=3.5` for the vendored Opus.
 4. Commit named pathspecs with a why-not-what message + the `Co-Authored-By`
    trailer:
    `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`.

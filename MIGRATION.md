@@ -19,9 +19,15 @@ development can begin:
   4 system-lib crates excluded in `Cargo.toml` (see below) for libs absent in the build
   sandbox — they build on a box with `gtk3-devel` / `alsa-lib-devel`.
 
-**Remaining to fully close E0:** archive the 3 old repos (read-only); verify the 4
-excluded crates on a box with the system libs (or retire `mackes-panel`, re-include the
-audio chain); wire `mde-bus`; resolve the lint warnings. Then E1–E8 per the plan.
+**Remaining to fully close E0:** archive the 3 old repos (read-only); wire `mde-bus`;
+the E0.1/E0.3–E0.10 worklist tasks; resolve the lint warnings. Then E1–E8 per the plan.
+
+> **Update 2026-06-03 (E0.2 done):** the 4 "excluded crates" are resolved — the audio
+> chain (`mde-music`/`mde-musicd`/`mde-workbench`) is back in `[workspace] members`
+> (`alsa-lib-devel` installed on the dev box) and the legacy gtk3 `mackes-panel` is
+> **deleted** (the iced shell's `panel.rs` replaces it). `cargo check --workspace` is
+> green over the **whole** tree; `.cargo/config.toml` carries the CMake-4 Opus fix. The
+> "excluded crates" tables below are historical.
 
 ## Done — structural import (history preserved)
 
