@@ -40,6 +40,7 @@ mod mouse;
 mod net_flyout;
 mod nm;
 mod notifyd;
+mod oobe;
 mod outputs;
 mod packages;
 mod panel;

@@ -47,6 +47,11 @@ enum Msg {
 ///   in-session       launch that same real TUI installer, privileged, in a
 ///                    Win2000-styled terminal.
 pub fn dispatch(args: &[String]) -> ExitCode {
+    // The Windows 10 first-run OOBE (E11) is an additive branch — the classic
+    // Win2000 component-picker Setup below is unchanged. `mde setup --era=win10`.
+    if args.iter().any(|a| a == "--era=win10") {
+        return crate::oobe::run(args);
+    }
     let tui = args.iter().any(|a| a == "--tui");
     let gui = args.iter().any(|a| a == "--gui");
     let dry = args.iter().any(|a| a == "--dry-run");

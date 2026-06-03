@@ -346,6 +346,21 @@ pub struct MenuState {
     /// (paired devices). Read by `files::run` (E8.4, E8.5, E8.7).
     #[serde(default = "def_explorer_landing")]
     pub explorer_landing: String,
+    /// Win10 first-run OOBE (E11): set true once the GUI OOBE has been completed, so
+    /// `mde setup --era=win10` (no `--force`) shows the wizard only once.
+    #[serde(default)]
+    pub oobe_done: bool,
+    /// OOBE Privacy stage (E11.7): the four Win10 privacy toggles, each defaulting
+    /// **on** (Win10's pre-checked defaults). `find_my_device` is the one persisted
+    /// here; Location/Diagnostics/Advertising also write the config they control.
+    #[serde(default = "def_true")]
+    pub privacy_location: bool,
+    #[serde(default = "def_true")]
+    pub privacy_diagnostics: bool,
+    #[serde(default = "def_true")]
+    pub privacy_find_device: bool,
+    #[serde(default = "def_true")]
+    pub privacy_ads: bool,
 }
 
 fn def_scroll_lines() -> u8 {
@@ -466,6 +481,11 @@ impl Default for MenuState {
             account_picture: String::new(),
             explorer_pins: Vec::new(),
             explorer_landing: def_explorer_landing(),
+            oobe_done: false,
+            privacy_location: true,
+            privacy_diagnostics: true,
+            privacy_find_device: true,
+            privacy_ads: true,
         }
     }
 }
@@ -635,6 +655,11 @@ mod tests {
             account_picture: "/home/me/.face".into(),
             explorer_pins: vec![PathBuf::from("/home/me/Projects")],
             explorer_landing: "thispc".into(),
+            oobe_done: true,
+            privacy_location: false,
+            privacy_diagnostics: true,
+            privacy_find_device: false,
+            privacy_ads: true,
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);
