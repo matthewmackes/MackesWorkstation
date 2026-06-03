@@ -237,6 +237,9 @@ pub struct DesiredOutput {
     pub transform: String,
     pub x: i32,
     pub y: i32,
+    /// Whether the output is on. `false` ⇒ `wlr-randr --output NAME --off` (the
+    /// Project pane's single-screen modes, E12.10). Default true.
+    pub enabled: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -270,6 +273,7 @@ impl DesiredOutput {
             transform: o.transform.clone(),
             x: o.x,
             y: o.y,
+            enabled: true,
         }
     }
 }
@@ -283,6 +287,9 @@ pub fn desired_from(outputs: &[Output]) -> Vec<DesiredOutput> {
 
 /// The `wlr-randr` arguments that realise one output's desired state.
 pub fn output_args(d: &DesiredOutput) -> Vec<String> {
+    if !d.enabled {
+        return vec!["--output".into(), d.name.clone(), "--off".into()];
+    }
     let m = Mode {
         width: d.width,
         height: d.height,
@@ -651,12 +658,29 @@ mod tests {
             transform: "90".into(),
             x: 100,
             y: 0,
+            enabled: true,
         };
         let a = output_args(&d).join(" ");
         assert_eq!(
             a,
             "--output DP-1 --mode 1920x1080@60.000Hz --transform 90 --scale 1.50 --pos 100,0"
         );
+    }
+
+    #[test]
+    fn disabled_output_is_switched_off() {
+        let d = DesiredOutput {
+            name: "HDMI-A-1".into(),
+            width: 1920,
+            height: 1080,
+            refresh_mhz: 60000,
+            scale: 1.0,
+            transform: "normal".into(),
+            x: 0,
+            y: 0,
+            enabled: false,
+        };
+        assert_eq!(output_args(&d).join(" "), "--output HDMI-A-1 --off");
     }
 
     #[test]
@@ -671,6 +695,7 @@ mod tests {
                 transform: "normal".into(),
                 x: 0,
                 y: 0,
+                enabled: true,
             }],
             wallpaper: None,
             screensaver: None,

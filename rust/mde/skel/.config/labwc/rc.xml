@@ -114,6 +114,10 @@
     <!-- Win10 Settings (Win+I). `mde settings` is the modern Settings app; under
          non-Win10 eras `mde control-panel` is the gear target instead. -->
     <keybind key="W-i"><action name="Execute"><command>mde settings</command></action></keybind>
+    <!-- Project / multi-display pane (Win+P — the Windows projection shortcut).
+         Win10-only; `mde project` exits without drawing under the classic eras,
+         so the bind is inert there (use Display Properties instead). -->
+    <keybind key="W-p"><action name="Execute"><command>mde project</command></action></keybind>
     <keybind key="W-r"><action name="Execute"><command>mde run</command></action></keybind>
     <keybind key="W-Return"><action name="Execute"><command>foot</command></action></keybind>
 
