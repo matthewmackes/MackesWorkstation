@@ -211,6 +211,8 @@ enum Kind {
     SignIn,
     /// The native Devices ▸ Bluetooth page (E12.2): BlueZ adapter + device list.
     Bluetooth,
+    /// The native Devices ▸ Printers & scanners page (E12.4): CUPS queue list.
+    Printers,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -268,7 +270,7 @@ const CATEGORIES: &[Category] = &[
         pages: &[
             Page {
                 title: "Printers & scanners",
-                kind: Kind::Tool("system-config-printer"),
+                kind: Kind::Printers,
             },
             Page {
                 title: "Bluetooth & other devices",
@@ -593,6 +595,13 @@ struct Settings {
     /// Devices ▸ Bluetooth (E12.2): the BlueZ adapter + device snapshot, loaded
     /// off-thread on first visit and after each action.
     bt: Option<crate::bluez::BtState>,
+    /// Devices ▸ Printers (E12.4): the CUPS queue list + last discovery scan,
+    /// loaded off-thread; `manage_default` mirrors `win10_manage_default_printer`.
+    printers: Option<crate::cups::CupsState>,
+    manage_default: bool,
+    /// Set once "+ Add a printer" has run, so an empty scan shows "no devices
+    /// found" rather than looking like a no-op (E12.4).
+    printers_scanned: bool,
     /// Accounts ▸ Family & other users (E10.4): the enumerated local accounts,
     /// (re)read on each visit to that page.
     accounts: Vec<crate::sysinfo::Account>,
@@ -719,6 +728,14 @@ enum Message {
     BtPair(String),
     BtConnectToggle(String, bool), // (path, currently-connected)
     BtRemove(String),
+    // Devices ▸ Printers (E12.4).
+    PrintersLoaded(Box<crate::cups::CupsState>),
+    PrintersDiscover,
+    PrintersAdd(String, String), // (queue name, device uri)
+    PrintersSetDefault(String),
+    PrintersTest(String),
+    PrintersRemove(String),
+    SetManageDefaultPrinter(bool),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -825,6 +842,7 @@ fn list() -> ExitCode {
                 Kind::FamilyUsers => "(native: Family & other users)".to_string(),
                 Kind::SignIn => "(native: Sign-in options)".to_string(),
                 Kind::Bluetooth => "(native: Bluetooth)".to_string(),
+                Kind::Printers => "(native: Printers & scanners)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -909,6 +927,9 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 display_name: st.display_name.clone(),
                 account_picture: st.account_picture.clone(),
                 bt: None,
+                printers: None,
+                manage_default: st.win10_manage_default_printer,
+                printers_scanned: false,
                 accounts: Vec::new(),
                 new_user: String::new(),
                 confirm_remove: None,
@@ -1318,6 +1339,30 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         Message::BtRemove(path) => {
             return bt_action_task(move || crate::bluez::remove(&path));
         }
+        // --- Devices ▸ Printers (E12.4). Set-default + test page run as the user;
+        // add/remove change the system queue config and go through pkexec. Each
+        // re-reads the CUPS list so the page reflects what actually changed.
+        Message::PrintersLoaded(s) => state.printers = Some(*s),
+        Message::PrintersDiscover => {
+            state.printers_scanned = true;
+            return printers_discover_task();
+        }
+        Message::PrintersSetDefault(name) => {
+            return printers_action_task(move || crate::cups::set_default(&name));
+        }
+        Message::PrintersTest(name) => {
+            return printers_action_task(move || crate::cups::print_test_page(&name));
+        }
+        Message::PrintersAdd(name, uri) => {
+            return printers_pkexec_task(crate::cups::add_cmd(&name, &uri));
+        }
+        Message::PrintersRemove(name) => {
+            return printers_pkexec_task(crate::cups::remove_cmd(&name));
+        }
+        Message::SetManageDefaultPrinter(on) => {
+            state.manage_default = on;
+            persist(state);
+        }
         // Keep PIN entry to digits (a Windows-style numeric PIN), capped at 8.
         Message::Pin1(p) => {
             state.pin1 = p.chars().filter(char::is_ascii_digit).take(8).collect();
@@ -1540,6 +1585,7 @@ fn maybe_load(state: &mut Settings) -> Task<Message> {
             Task::none()
         }
         Some(Kind::Bluetooth) if state.bt.is_none() => bt_load_task(),
+        Some(Kind::Printers) if state.printers.is_none() => printers_load_task(),
         _ => Task::none(),
     }
 }
@@ -1570,6 +1616,68 @@ fn bt_action_task<F: FnOnce() + Send + 'static>(action: F) -> Task<Message> {
             .unwrap_or_default()
         },
         |s| Message::BtLoaded(Box::new(s)),
+    )
+}
+
+/// Read the CUPS queue list off the UI thread (E12.4) — `lpstat` shells out, so it
+/// runs on tokio's blocking pool and delivers `Message::PrintersLoaded`.
+fn printers_load_task() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(crate::cups::state)
+                .await
+                .unwrap_or_default()
+        },
+        |s| Message::PrintersLoaded(Box::new(s)),
+    )
+}
+
+/// Discovery scan for "+ Add a printer": re-read the queues *and* probe for new
+/// devices (`lpinfo`, slow), merging both into one snapshot (E12.4).
+fn printers_discover_task() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(|| {
+                let mut st = crate::cups::state();
+                st.discovered = crate::cups::discover();
+                st
+            })
+            .await
+            .unwrap_or_default()
+        },
+        |s| Message::PrintersLoaded(Box::new(s)),
+    )
+}
+
+/// Run a per-user CUPS action (set-default / test page) off-thread, then re-read
+/// the queue list (E12.4).
+fn printers_action_task<F: FnOnce() + Send + 'static>(action: F) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || {
+                action();
+                crate::cups::state()
+            })
+            .await
+            .unwrap_or_default()
+        },
+        |s| Message::PrintersLoaded(Box::new(s)),
+    )
+}
+
+/// Run an `lpadmin` add/remove through `pkexec` (system queue change), then
+/// re-read the list (E12.4) — the same privilege path Accounts uses.
+fn printers_pkexec_task(args: Vec<String>) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(move || {
+                let _ = std::process::Command::new("pkexec").args(&args).status();
+                crate::cups::state()
+            })
+            .await
+            .unwrap_or_default()
+        },
+        |s| Message::PrintersLoaded(Box::new(s)),
     )
 }
 
@@ -1773,6 +1881,7 @@ fn open_current(state: &mut Settings) {
         | Kind::FamilyUsers
         | Kind::SignIn
         | Kind::Bluetooth
+        | Kind::Printers
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1826,6 +1935,7 @@ fn persist(state: &Settings) {
     st.win10_show_taskview = state.show_taskview;
     st.win10_autohide = state.autohide;
     st.win10_small_buttons = state.small_buttons;
+    st.win10_manage_default_printer = state.manage_default;
     st.update_paused_until = state.update_paused_until;
     st.update_active_start = state.active_start;
     st.update_active_end = state.active_end;
@@ -2084,6 +2194,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::FamilyUsers => family_users_page(state),
         Kind::SignIn => sign_in_page(state),
         Kind::Bluetooth => bluetooth_page(state),
+        Kind::Printers => printers_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -2922,6 +3033,168 @@ fn bluetooth_page(state: &Settings) -> Element<'_, Message> {
     }
     col.push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill))
         .into()
+}
+
+/// Devices ▸ Printers & scanners (E12.4): the CUPS queue list (per-printer Set as
+/// default / Print test page / Remove), a "+ Add a printer or scanner" discovery
+/// scan that installs a driverless queue, and the "Let Windows manage my default
+/// printer" toggle that hides Set-as-default when on (Win10 behaviour). Set-default
+/// and the test page run as the user; add/remove go through pkexec.
+fn printers_page(state: &Settings) -> Element<'_, Message> {
+    let Some(cups) = &state.printers else {
+        return text("Checking printers…")
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT))
+            .into();
+    };
+    if !cups.present {
+        return text("CUPS printing is not installed on this PC.")
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT))
+            .into();
+    }
+
+    let mut col = Column::new().spacing(12.0).push(
+        button(
+            text(if cups.discovered.is_empty() && !state.printers_scanned {
+                "+ Add a printer or scanner"
+            } else {
+                "+ Search again"
+            })
+            .size(metrics::UI_PX),
+        )
+        .on_press(Message::PrintersDiscover)
+        .padding(Padding::from([4.0, 12.0]))
+        .style(mde_ui::button_primary),
+    );
+
+    // Discovered devices (after a scan) — each addable as a driverless queue.
+    if !cups.discovered.is_empty() {
+        let mut found = Column::new().spacing(4.0).push(
+            text("Found these printers")
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+        for d in &cups.discovered {
+            let name = crate::cups::sanitize_queue_name(&d.info);
+            let uri = d.uri.clone();
+            let row = Row::new()
+                .spacing(10.0)
+                .align_y(iced::alignment::Vertical::Center)
+                .push(
+                    Column::new()
+                        .width(Length::Fill)
+                        .push(
+                            text(d.info.clone())
+                                .size(metrics::UI_PX)
+                                .color(palette::color(palette::WINDOW_TEXT)),
+                        )
+                        .push(
+                            text(d.uri.clone())
+                                .size(metrics::BADGE_PX)
+                                .color(palette::color(palette::GRAY_TEXT)),
+                        ),
+                )
+                .push(
+                    button(text("Add device").size(metrics::UI_PX))
+                        .on_press(Message::PrintersAdd(name, uri))
+                        .padding(Padding::from([3.0, 10.0]))
+                        .style(mde_ui::button_primary),
+                );
+            found = found.push(container(row).padding(Padding::from([4.0, 4.0])));
+        }
+        col = col.push(found);
+    } else if state.printers_scanned {
+        col = col.push(
+            text("No new printers were found. Make sure the printer is on and connected.")
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+    }
+
+    // The installed queues.
+    let mut list = Column::new().spacing(4.0);
+    if cups.printers.is_empty() {
+        list = list.push(
+            text("No printers are installed yet.")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+    }
+    for p in &cups.printers {
+        let mut info_col = Column::new().width(Length::Fill).push(
+            text(p.name.clone())
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::WINDOW_TEXT)),
+        );
+        let status = if p.is_default {
+            format!("Default · {}", p.state.label())
+        } else {
+            p.state.label().to_string()
+        };
+        info_col = info_col.push(
+            text(status)
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        );
+        let mut row = Row::new()
+            .spacing(10.0)
+            .align_y(iced::alignment::Vertical::Center)
+            .push(
+                text("\u{f02f}") // nf-fa-print
+                    .font(mde_ui::font::NERD)
+                    .size(metrics::TILE_GLYPH_PX)
+                    .color(palette::color(if p.is_default {
+                        palette::WINDOW_TEXT
+                    } else {
+                        palette::GRAY_TEXT
+                    })),
+            )
+            .push(info_col);
+        // "Set as default" is hidden when Windows manages the default, or when this
+        // queue already is the default.
+        if !state.manage_default && !p.is_default {
+            let n = p.name.clone();
+            row = row.push(
+                button(text("Set as default").size(metrics::UI_PX))
+                    .on_press(Message::PrintersSetDefault(n))
+                    .padding(Padding::from([3.0, 10.0]))
+                    .style(mde_ui::button_ghost),
+            );
+        }
+        let test_name = p.name.clone();
+        let rm_name = p.name.clone();
+        row = row
+            .push(
+                button(text("Print test page").size(metrics::UI_PX))
+                    .on_press(Message::PrintersTest(test_name))
+                    .padding(Padding::from([3.0, 10.0]))
+                    .style(mde_ui::button_ghost),
+            )
+            .push(
+                button(text("Remove").size(metrics::UI_PX))
+                    .on_press(Message::PrintersRemove(rm_name))
+                    .padding(Padding::from([3.0, 10.0]))
+                    .style(mde_ui::button_ghost),
+            );
+        list = list.push(container(row).padding(Padding::from([4.0, 4.0])));
+    }
+
+    col = col.push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill));
+
+    // The Win10 "let Windows manage my default printer" toggle, below the list.
+    col.push(
+        checkbox(
+            "Let Windows manage my default printer",
+            state.manage_default,
+        )
+        .on_toggle(Message::SetManageDefaultPrinter)
+        .size(metrics::UI_PX)
+        .text_size(metrics::UI_PX)
+        .spacing(8.0)
+        .style(mde_ui::checkbox_style),
+    )
+    .into()
 }
 
 /// Network & Internet ▸ Cellular (E15.12): a greyed, disabled "Cellular" toggle +

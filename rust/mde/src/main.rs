@@ -20,6 +20,7 @@ mod browser_jumplist;
 mod catalogue;
 mod clipboard;
 mod control_panel;
+mod cups;
 mod dialogs;
 mod display;
 mod embedded_icons;
@@ -206,6 +207,10 @@ fn main() -> ExitCode {
         }
         "__bt-list" => {
             bluez::debug_list();
+            ExitCode::SUCCESS
+        }
+        "__cups-list" => {
+            cups::debug_list();
             ExitCode::SUCCESS
         }
         "__nm-list" => {
