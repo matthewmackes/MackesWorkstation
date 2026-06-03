@@ -701,6 +701,17 @@ pub fn run(args: &[String]) -> ExitCode {
         print!("{}", lock_script());
         return ExitCode::SUCCESS;
     }
+    // Era gate (E10.7): the Settings app is the Windows 10 modern config surface;
+    // the classic eras (Win2000 / Carbon) use the Control Panel. Under any non-Win10
+    // theme, exit without drawing rather than render a modern app in a classic shell.
+    // (main.rs has already set the palette from menu.json by now; the headless
+    // --list/--lock-script debug paths above stay theme-independent for tests.)
+    if !palette::is_windows10() {
+        eprintln!(
+            "mde settings: the Settings app is a Windows 10-era surface — use the Control Panel in this theme."
+        );
+        return ExitCode::SUCCESS;
+    }
     // Parse a positional category name plus an optional `--page <name>` deep-link
     // (E7.3): `mde settings personalization --page taskbar`. A positional that
     // isn't a category pre-fills the Home search box instead (`mde settings
