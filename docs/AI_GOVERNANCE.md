@@ -254,7 +254,7 @@ list. Closes AI_PLATFORM_REFERENCE.md §11.5.
 
 | Decision | Lock | Source |
 |---|---|---|
-| Commit cadence | Small commits direct to main; every worklist task = 1+ commits | Q61 |
+| Commit cadence | **[MONOREPO] Per-epic squash** (50-Q survey R12, 2026-06-03): work tasks in small local commits, squash to **one commit per E0–E8 epic at epic close**. Supersedes Q61's "small commits direct to main; every task = 1+ commits" (newest wins). Per-task DoD §3 unchanged. | R12 (was Q61) |
 | PR lane | UX-* visual work only (`ux/<task-id>` branches with screenshots) | Q62 |
 | Pre-commit gates (§0.7) | **9 total**: module-smoke, tests, ruff, RPM, CSS, voice, legacy-mesh + **D-Bus shape lint** + **Material Symbols lint** | Q63 |
 | Definition of Done (§0.8) | **8 gates**: existing 7 + **security review for new public ports / D-Bus methods / `{{exec}}` templates** | Q64 |

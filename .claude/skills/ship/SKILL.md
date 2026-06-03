@@ -67,6 +67,14 @@ For each open `[ ]` task, highest priority first:
    Flip the task `[✓]`. **Do not push** (§0) — that stays gated.
 5. Run independent tasks in parallel where they don't touch the same files.
 
+**Commit cadence — per-epic squash (50-Q survey lock R12, 2026-06-03).** Work an
+epic's tasks in small local commits as above, then **squash to one commit per epic at
+epic close** (when every task in that `E<n>` is `[✓]`). One squashed commit per master
+epic lands the epic's whole diff with a summary body that enumerates the tasks. This
+**supersedes** the older "small commits direct to `main`, every task = 1+ commits"
+default (governance §8 / Q61) — newest wins. Per-task DoD (§3) is unchanged: each task
+must be individually runtime-reachable and stub-free before it folds into the squash.
+
 ## Stop conditions
 
 Worklist empty (only gated items remain) · a push/release/cutover moment · a
