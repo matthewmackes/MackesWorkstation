@@ -160,6 +160,34 @@ impl std::fmt::Display for BgSource {
     }
 }
 
+/// Devices ▸ Mouse (E12.6): which physical button is "primary". Right ⇒ labwc
+/// `<leftHanded>yes</leftHanded>`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PrimaryButton {
+    Left,
+    Right,
+}
+impl PrimaryButton {
+    const ALL: [PrimaryButton; 2] = [PrimaryButton::Left, PrimaryButton::Right];
+}
+impl std::fmt::Display for PrimaryButton {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PrimaryButton::Left => "Left",
+            PrimaryButton::Right => "Right",
+        })
+    }
+}
+
+/// A "lines to scroll" pick_list item (1–10) that renders as "N lines" (E12.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Lines(u8);
+impl std::fmt::Display for Lines {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} lines", self.0)
+    }
+}
+
 const COLS: usize = 4;
 
 /// What a settings page does when opened.
@@ -213,6 +241,8 @@ enum Kind {
     Bluetooth,
     /// The native Devices ▸ Printers & scanners page (E12.4): CUPS queue list.
     Printers,
+    /// The native Devices ▸ Mouse page (E12.6): labwc libinput in rc.xml.
+    Mouse,
     /// Spawn one of mde's own subcommands (`mde <sub>`).
     Mde(&'static str),
     /// Launch a `fedora::TOOLS` entry by its command (install-if-missing).
@@ -278,7 +308,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "Mouse",
-                kind: Kind::Deferred,
+                kind: Kind::Mouse,
             },
             Page {
                 title: "Touchpad",
@@ -602,6 +632,12 @@ struct Settings {
     /// Set once "+ Add a printer" has run, so an empty scan shows "no devices
     /// found" rather than looking like a no-op (E12.4).
     printers_scanned: bool,
+    /// Devices ▸ Mouse (E12.6): mirror of the menu.json mouse prefs. Changes to the
+    /// first three rewrite rc.xml; `scroll_inactive` is advisory (menu.json only).
+    mouse_left_handed: bool,
+    mouse_natural_scroll: bool,
+    mouse_scroll_lines: u8,
+    scroll_inactive: bool,
     /// Accounts ▸ Family & other users (E10.4): the enumerated local accounts,
     /// (re)read on each visit to that page.
     accounts: Vec<crate::sysinfo::Account>,
@@ -737,6 +773,11 @@ enum Message {
     PrintersRemove(String),
     PrintersSetupPdf,
     SetManageDefaultPrinter(bool),
+    // Devices ▸ Mouse (E12.6).
+    SetPrimaryButton(PrimaryButton),
+    SetMouseNatural(bool),
+    SetScrollLines(Lines),
+    SetScrollInactive(bool),
 }
 
 pub fn run(args: &[String]) -> ExitCode {
@@ -844,6 +885,7 @@ fn list() -> ExitCode {
                 Kind::SignIn => "(native: Sign-in options)".to_string(),
                 Kind::Bluetooth => "(native: Bluetooth)".to_string(),
                 Kind::Printers => "(native: Printers & scanners)".to_string(),
+                Kind::Mouse => "(native: Mouse)".to_string(),
                 Kind::LockScreen => "(native: Lock screen)".to_string(),
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
@@ -931,6 +973,10 @@ fn gui(initial: Option<usize>, initial_page: usize, initial_search: String) -> i
                 printers: None,
                 manage_default: st.win10_manage_default_printer,
                 printers_scanned: false,
+                mouse_left_handed: st.mouse_left_handed,
+                mouse_natural_scroll: st.mouse_natural_scroll,
+                mouse_scroll_lines: st.mouse_scroll_lines,
+                scroll_inactive: st.mouse_scroll_inactive,
                 accounts: Vec::new(),
                 new_user: String::new(),
                 confirm_remove: None,
@@ -1366,6 +1412,24 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         }
         Message::SetManageDefaultPrinter(on) => {
             state.manage_default = on;
+            persist(state);
+        }
+        // Devices ▸ Mouse (E12.6) — the first three rewrite rc.xml + reconfigure;
+        // "scroll inactive windows" is advisory (persisted, never in rc.xml).
+        Message::SetPrimaryButton(b) => {
+            state.mouse_left_handed = b == PrimaryButton::Right;
+            apply_mouse(state);
+        }
+        Message::SetMouseNatural(on) => {
+            state.mouse_natural_scroll = on;
+            apply_mouse(state);
+        }
+        Message::SetScrollLines(Lines(n)) => {
+            state.mouse_scroll_lines = n;
+            apply_mouse(state);
+        }
+        Message::SetScrollInactive(on) => {
+            state.scroll_inactive = on;
             persist(state);
         }
         // Keep PIN entry to digits (a Windows-style numeric PIN), capped at 8.
@@ -1887,6 +1951,7 @@ fn open_current(state: &mut Settings) {
         | Kind::SignIn
         | Kind::Bluetooth
         | Kind::Printers
+        | Kind::Mouse
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
@@ -1941,6 +2006,10 @@ fn persist(state: &Settings) {
     st.win10_autohide = state.autohide;
     st.win10_small_buttons = state.small_buttons;
     st.win10_manage_default_printer = state.manage_default;
+    st.mouse_left_handed = state.mouse_left_handed;
+    st.mouse_natural_scroll = state.mouse_natural_scroll;
+    st.mouse_scroll_lines = state.mouse_scroll_lines;
+    st.mouse_scroll_inactive = state.scroll_inactive;
     st.update_paused_until = state.update_paused_until;
     st.update_active_start = state.active_start;
     st.update_active_end = state.active_end;
@@ -1952,6 +2021,18 @@ fn persist(state: &Settings) {
     st.display_name = state.display_name.clone();
     st.account_picture = state.account_picture.clone();
     let _ = crate::state::save(&st);
+}
+
+/// Persist the mouse prefs, then push the rc.xml-backed three into labwc's
+/// `<libinput>` block and reconfigure (E12.6). The advisory `scroll_inactive` rides
+/// along in `persist` but `mouse::apply` never writes it to rc.xml.
+fn apply_mouse(state: &Settings) {
+    persist(state);
+    let _ = crate::mouse::apply(
+        state.mouse_left_handed,
+        state.mouse_natural_scroll,
+        state.mouse_scroll_lines,
+    );
 }
 
 // --- view ------------------------------------------------------------------
@@ -2200,6 +2281,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::SignIn => sign_in_page(state),
         Kind::Bluetooth => bluetooth_page(state),
         Kind::Printers => printers_page(state),
+        Kind::Mouse => mouse_page(state),
         Kind::LockScreen => lock_page(state),
         Kind::Deferred => text("This page is part of a later milestone.")
             .size(metrics::UI_PX)
@@ -3273,6 +3355,87 @@ fn print_to_pdf_row<'a>(
         }
     }
     container(row).padding(Padding::from([4.0, 4.0])).into()
+}
+
+/// Devices ▸ Mouse (E12.6): primary button, scroll lines, natural-scroll, and the
+/// advisory "scroll inactive windows" toggle. The first three rewrite labwc's
+/// `<libinput>` block live (apply on change); the advisory persists to menu.json
+/// only. Mirrors the Win10 Mouse page controls.
+fn mouse_page(state: &Settings) -> Element<'_, Message> {
+    let primary = if state.mouse_left_handed {
+        PrimaryButton::Right
+    } else {
+        PrimaryButton::Left
+    };
+    let label = |t: &'static str| {
+        text(t)
+            .size(metrics::UI_PX)
+            .width(Length::Fixed(230.0))
+            .color(palette::color(palette::WINDOW_TEXT))
+    };
+
+    let primary_row = Row::new()
+        .spacing(8.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(label("Select your primary button"))
+        .push(
+            pick_list(
+                PrimaryButton::ALL.to_vec(),
+                Some(primary),
+                Message::SetPrimaryButton,
+            )
+            .text_size(metrics::UI_PX),
+        );
+
+    let line_items: Vec<Lines> = (1u8..=10).map(Lines).collect();
+    let scroll_row = Row::new()
+        .spacing(8.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(label("Lines to scroll each time"))
+        .push(
+            pick_list(
+                line_items,
+                Some(Lines(state.mouse_scroll_lines)),
+                Message::SetScrollLines,
+            )
+            .text_size(metrics::UI_PX),
+        );
+
+    let natural = checkbox("Reverse scrolling direction", state.mouse_natural_scroll)
+        .on_toggle(Message::SetMouseNatural)
+        .size(metrics::UI_PX)
+        .text_size(metrics::UI_PX)
+        .spacing(8.0)
+        .style(mde_ui::checkbox_style);
+
+    let inactive = Column::new()
+        .spacing(2.0)
+        .push(
+            checkbox(
+                "Scroll inactive windows when I hover over them",
+                state.scroll_inactive,
+            )
+            .on_toggle(Message::SetScrollInactive)
+            .size(metrics::UI_PX)
+            .text_size(metrics::UI_PX)
+            .spacing(8.0)
+            .style(mde_ui::checkbox_style),
+        )
+        .push(
+            text(
+                "Saved preference — applied per-application; labwc has no global setting for this.",
+            )
+            .size(metrics::BADGE_PX)
+            .color(palette::color(palette::GRAY_TEXT)),
+        );
+
+    Column::new()
+        .spacing(14.0)
+        .push(primary_row)
+        .push(scroll_row)
+        .push(natural)
+        .push(inactive)
+        .into()
 }
 
 /// Network & Internet ▸ Cellular (E15.12): a greyed, disabled "Cellular" toggle +

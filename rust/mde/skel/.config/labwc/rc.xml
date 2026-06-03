@@ -35,6 +35,18 @@
     <topMaximize>yes</topMaximize>
   </snapping>
 
+  <!-- Pointer (libinput) defaults. Settings ▸ Devices ▸ Mouse (E12.6) rewrites
+       this whole <libinput> block from menu.json and runs `labwc --reconfigure`;
+       it never touches the <mouse> block below (§7). naturalScroll/leftHanded are
+       no by default; scrollFactor 1.00 = the neutral "3 lines" speed. -->
+  <libinput>
+    <device category="default">
+      <naturalScroll>no</naturalScroll>
+      <leftHanded>no</leftHanded>
+      <scrollFactor>1.00</scrollFactor>
+    </device>
+  </libinput>
+
   <!-- Virtual desktops (Win10 era). Four, to match the Task View fallback strip
        default (state.rs virtual_desktops). labwc owns the set (static); mde's
        ext-workspace client reads + switches them and Task View shows the band.

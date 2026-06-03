@@ -223,6 +223,21 @@ pub struct MenuState {
     /// is hidden — Windows defers the default to the last-used queue.
     #[serde(default = "def_true")]
     pub win10_manage_default_printer: bool,
+    /// Devices ▸ Mouse (E12.6): primary button on the right (left-handed) → labwc
+    /// `<leftHanded>`. The Mouse page mirrors these into `rc.xml`.
+    #[serde(default)]
+    pub mouse_left_handed: bool,
+    /// Devices ▸ Mouse: reverse wheel direction → labwc `<naturalScroll>`.
+    #[serde(default)]
+    pub mouse_natural_scroll: bool,
+    /// Devices ▸ Mouse: lines per wheel notch (1–10, default 3) → `<scrollFactor>`.
+    #[serde(default = "def_scroll_lines")]
+    pub mouse_scroll_lines: u8,
+    /// Devices ▸ Mouse: "scroll inactive windows on hover" — an advisory toggle
+    /// only (labwc/wlroots has no such knob); persisted here, never written to
+    /// rc.xml. Default on (matches Win10).
+    #[serde(default = "def_true")]
+    pub mouse_scroll_inactive: bool,
     /// Win10 taskbar search affordance: "button" (default), "box", or "hidden"
     /// (E2.9). All open `mde search`; "box" is a wider labelled pill.
     #[serde(default = "def_search_mode")]
@@ -266,6 +281,10 @@ pub struct MenuState {
     /// (paired devices). Read by `files::run` (E8.4, E8.5, E8.7).
     #[serde(default = "def_explorer_landing")]
     pub explorer_landing: String,
+}
+
+fn def_scroll_lines() -> u8 {
+    3
 }
 
 fn def_true() -> bool {
@@ -318,6 +337,10 @@ impl Default for MenuState {
             win10_autohide: false,
             win10_small_buttons: false,
             win10_manage_default_printer: true,
+            mouse_left_handed: false,
+            mouse_natural_scroll: false,
+            mouse_scroll_lines: def_scroll_lines(),
+            mouse_scroll_inactive: true,
             win10_search_mode: def_search_mode(),
             update_paused_until: 0,
             update_active_start: def_active_start(),
@@ -444,6 +467,10 @@ mod tests {
             win10_autohide: true,
             win10_small_buttons: true,
             win10_manage_default_printer: false,
+            mouse_left_handed: true,
+            mouse_natural_scroll: true,
+            mouse_scroll_lines: 7,
+            mouse_scroll_inactive: false,
             win10_search_mode: "box".into(),
             update_paused_until: 1_900_000_000,
             update_active_start: 9,

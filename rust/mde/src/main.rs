@@ -34,6 +34,7 @@ mod installer;
 mod lock;
 mod menu;
 mod mount;
+mod mouse;
 mod net_flyout;
 mod nm;
 mod notifyd;
@@ -211,6 +212,10 @@ fn main() -> ExitCode {
         }
         "__cups-list" => {
             cups::debug_list();
+            ExitCode::SUCCESS
+        }
+        "__mouse-rc" => {
+            mouse::debug_apply();
             ExitCode::SUCCESS
         }
         "__nm-list" => {
