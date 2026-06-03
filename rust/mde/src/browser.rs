@@ -328,6 +328,36 @@ mod tests {
     }
 
     #[test]
+    fn exposes_only_the_web_browser_default_app_entry_points() {
+        // E18.8: the Settings ▸ Default apps Web-browser row needs exactly a reader
+        // and a set-default writer from browser.rs. Bind them to their signatures so
+        // a rename breaks the build (these ARE the entry points the page wires).
+        let _read: fn() -> Browser = default_browser;
+        let _set: fn() = set_default;
+        // The set path is one fixed xdg command set — no per-app-category split.
+        assert_eq!(set_default_cmds().len(), 4);
+        // Guard: Email is a different epic's backend, and Win10's Maps/Music default
+        // rows have no shipped app here — none of those must leak into browser.rs.
+        // Scan only the production code (before the test module) so this test's own
+        // forbidden-name list doesn't trip the check.
+        let src = include_str!("browser.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        for forbidden in [
+            "default_maps",
+            "default_music",
+            "default_email",
+            "default_mail",
+        ] {
+            assert!(
+                !src.contains(forbidden),
+                "browser.rs must not expose `{forbidden}` (E18.8: web-browser row only)"
+            );
+        }
+    }
+
+    #[test]
     fn set_default_builds_the_exact_xdg_commands() {
         // Pin the argv so a test covers the side effect without mutating the
         // session default (E18.2). Web-browser handler + http/https/html mime.

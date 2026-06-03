@@ -522,6 +522,8 @@ enum Kind {
     Typing,
     /// The native Devices ▸ AutoPlay page (E12.9): removable-media defaults.
     AutoPlay,
+    /// The native Apps ▸ Default apps page (E18.8): the Web-browser row only.
+    DefaultApps,
     /// The native System ▸ Storage page (E17.4): usage bars + Storage Sense + apps.
     Storage,
     /// The native Update & Security ▸ Backup page (E17.6): Timeshift drive picker.
@@ -706,7 +708,7 @@ const CATEGORIES: &[Category] = &[
             },
             Page {
                 title: "Default apps",
-                kind: Kind::Deferred,
+                kind: Kind::DefaultApps,
             },
             Page {
                 title: "Startup",
@@ -945,6 +947,11 @@ struct Settings {
     autoplay_enabled: bool,
     autoplay_removable: AutoAction,
     autoplay_memcard: AutoAction,
+    /// Apps ▸ Default apps (E18.8): the current default web browser's name + icon
+    /// key, read live from `browser::default_browser` on each visit. Empty until the
+    /// page is first shown (the render falls back to the Firefox default).
+    default_browser: String,
+    default_browser_icon: String,
     /// System ▸ Storage (E17.4): the breakdown (loaded off-thread on first visit),
     /// the Storage Sense toggle (mirrors menu.json), and the Apps & features
     /// drill-in (its package list + a pending uninstall confirm).
@@ -1114,6 +1121,10 @@ enum Message {
     PrintersRemove(String),
     PrintersSetupPdf,
     SetManageDefaultPrinter(bool),
+    // Apps ▸ Default apps (E18.8): make Firefox the default browser, then re-read
+    // the (name, icon-key) the row paints.
+    SetDefaultBrowser,
+    DefaultBrowserLoaded(String, String),
     // Devices ▸ Mouse (E12.6).
     SetPrimaryButton(PrimaryButton),
     SetMouseNatural(bool),
@@ -1425,6 +1436,7 @@ fn list() -> ExitCode {
                 Kind::Touchpad => "(native: Touchpad)".to_string(),
                 Kind::Typing => "(native: Typing)".to_string(),
                 Kind::AutoPlay => "(native: AutoPlay)".to_string(),
+                Kind::DefaultApps => "(native: Default apps)".to_string(),
                 Kind::Storage => "(native: Storage)".to_string(),
                 Kind::Backup => "(native: Backup)".to_string(),
                 Kind::Recovery => "(native: Recovery)".to_string(),
@@ -1583,6 +1595,8 @@ fn gui(
                 } else {
                     String::new()
                 },
+                default_browser: String::new(),
+                default_browser_icon: String::new(),
                 installed: HashMap::new(),
             };
             cache_install(&mut s);
@@ -1989,6 +2003,11 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         }
         Message::PrintersSetDefault(name) => {
             return printers_action_task(move || crate::cups::set_default(&name));
+        }
+        Message::SetDefaultBrowser => return set_default_browser_task(),
+        Message::DefaultBrowserLoaded(name, icon) => {
+            state.default_browser = name;
+            state.default_browser_icon = icon;
         }
         Message::PrintersTest(name) => {
             return printers_action_task(move || crate::cups::print_test_page(&name));
@@ -2532,6 +2551,14 @@ fn maybe_load(state: &mut Settings) -> Task<Message> {
             state.pin_set = crate::pin::is_set();
             Task::none()
         }
+        Some(Kind::DefaultApps) => {
+            // Cheap synchronous `xdg-settings get`; refresh on each visit so the row
+            // reflects the live default (it can change while Settings is open, E18.8).
+            let b = crate::browser::default_browser();
+            state.default_browser = b.name;
+            state.default_browser_icon = b.icon;
+            Task::none()
+        }
         Some(Kind::Bluetooth) if state.bt.is_none() => bt_load_task(),
         Some(Kind::Printers) if state.printers.is_none() => printers_load_task(),
         Some(Kind::Storage) => {
@@ -2681,6 +2708,24 @@ fn printers_action_task<F: FnOnce() + Send + 'static>(action: F) -> Task<Message
             .unwrap_or_default()
         },
         |s| Message::PrintersLoaded(Box::new(s)),
+    )
+}
+
+/// Make Firefox the system default browser off the UI thread (E18.8) — the
+/// `xdg-settings`/`xdg-mime` calls block — then re-read the resolved (name, icon)
+/// so the Default-apps row reflects the change.
+fn set_default_browser_task() -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(|| {
+                crate::browser::set_default();
+                let b = crate::browser::default_browser();
+                (b.name, b.icon)
+            })
+            .await
+            .unwrap_or_else(|_| ("Firefox".into(), "firefox".into()))
+        },
+        |(name, icon)| Message::DefaultBrowserLoaded(name, icon),
     )
 }
 
@@ -2905,6 +2950,7 @@ fn open_current(state: &mut Settings) {
         | Kind::Touchpad
         | Kind::Typing
         | Kind::AutoPlay
+        | Kind::DefaultApps
         | Kind::Storage
         | Kind::Backup
         | Kind::Recovery
@@ -3282,6 +3328,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Touchpad => touchpad_page(state),
         Kind::Typing => typing_page(state),
         Kind::AutoPlay => autoplay_page(state),
+        Kind::DefaultApps => default_apps_page(state),
         Kind::Storage => storage_page(state),
         Kind::Backup => backup_page(state),
         Kind::Recovery => recovery_page(state),
@@ -4634,6 +4681,68 @@ fn autoplay_page(state: &Settings) -> Element<'_, Message> {
             state.autoplay_memcard,
             Message::SetAutoplayMemcard,
         ))
+        .into()
+}
+
+/// Apps ▸ Default apps (E18.8): the in-scope **Web browser** row only — the current
+/// default (icon + name from `browser::default_browser`) with a "Make Firefox the
+/// default" button when it isn't already Firefox, calling `browser::set_default`.
+/// Email is a different epic's backend, and Win10's Maps/Music rows have no shipped
+/// app here — neither is rendered, by design.
+fn default_apps_page(state: &Settings) -> Element<'_, Message> {
+    // Before the first live read the field is empty; fall back to the resolver's own
+    // Firefox default so the row is never blank.
+    let (name, icon) = if state.default_browser.is_empty() {
+        ("Firefox", "firefox")
+    } else {
+        (
+            state.default_browser.as_str(),
+            state.default_browser_icon.as_str(),
+        )
+    };
+    let is_firefox = name == "Firefox";
+
+    let mut row = Row::new()
+        .spacing(10.0)
+        .align_y(iced::alignment::Vertical::Center)
+        .push(crate::icons::icon_any(&[icon], 32))
+        .push(
+            Column::new()
+                .width(Length::Fill)
+                .push(
+                    text("Web browser")
+                        .size(metrics::BADGE_PX)
+                        .color(palette::color(palette::GRAY_TEXT)),
+                )
+                .push(
+                    text(name.to_string())
+                        .size(metrics::UI_PX)
+                        .color(palette::color(palette::WINDOW_TEXT)),
+                ),
+        );
+    row = if is_firefox {
+        row.push(
+            text("Default")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        )
+    } else {
+        row.push(
+            button(text("Make Firefox the default").size(metrics::UI_PX))
+                .on_press(Message::SetDefaultBrowser)
+                .padding(Padding::from([3.0, 10.0]))
+                .style(mde_ui::button_primary),
+        )
+    };
+
+    Column::new()
+        .spacing(12.0)
+        .push(
+            text("Choose default apps")
+                .size(metrics::UI_PX)
+                .color(palette::color(palette::GRAY_TEXT)),
+        )
+        .push(row)
         .into()
 }
 

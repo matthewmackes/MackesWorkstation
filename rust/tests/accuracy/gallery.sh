@@ -172,6 +172,10 @@ CUPS
         export MDE_CUPS_FIXTURE="$era_cfg/cups.txt" MDE_CUPS_DEFAULT=Office_LaserJet MDE_CUPS_PDF=Cups-PDF
         shot "settings-devices-printers"  --wait 2.6 settings devices --page printers
         unset MDE_CUPS_FIXTURE MDE_CUPS_DEFAULT MDE_CUPS_PDF
+        # Apps ▸ Default apps (E18.8) — the in-scope Web-browser row (current default
+        # + "Make Firefox the default"). Reads the live xdg-settings default.
+        printf '{"theme":"windows10","theme_mode":"dark"}\n' > "$era_cfg/mde/menu.json"
+        shot "settings-apps-default"      --wait 2.6 settings apps --page "default apps"
         # Project pane (E12.10) — the Win+P projection flyout.
         shot "project"                    --wait 2.6 project
         # Seed two notifications (swaync owns the live bus here, so the daemon
