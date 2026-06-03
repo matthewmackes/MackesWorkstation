@@ -4,7 +4,7 @@
 //! CB-1.8 partial: replaces the v1.x
 //! `mackes/workbench/network/mesh_join.py` (which itself was
 //! a thin GTK wrapper around the wizard's MeshJoinPage).
-//! v2.0.0 routes joining through `mded enroll --passcode
+//! v2.0.0 routes joining through `mackesd enroll --passcode
 //! <16-char>` (the same subcommand the CLI uses), so the
 //! panel collapses to: passcode text input + Enroll button +
 //! output area showing the enrollment-request JSON the leader
@@ -72,7 +72,7 @@ impl MeshJoinPanel {
                 let passcode = self.passcode_input.clone();
                 let name = self.name_input.trim().to_string();
                 Task::perform(
-                    async move { Message::Finished(run_mded_enroll(&passcode, &name).await) },
+                    async move { Message::Finished(run_mackesd_enroll(&passcode, &name).await) },
                     crate::Message::MeshJoin,
                 )
             }
@@ -114,7 +114,7 @@ impl MeshJoinPanel {
             text("Join a mesh").size(20),
             text(
                 "Paste the shared 16-character passcode another peer \
-                 generated with `mded generate-passcode`. Optionally give \
+                 generated with `mackesd generate-passcode`. Optionally give \
                  this node a display name. Enroll emits a signed \
                  enrollment-request JSON the leader peer ingests.",
             )
@@ -137,7 +137,7 @@ impl MeshJoinPanel {
 }
 
 /// Validate the passcode input matches the 16-character
-/// URL-safe shape `mded` expects. Returns an Err with a
+/// URL-safe shape `mackesd` expects. Returns an Err with a
 /// friendly message on any failure so the panel surfaces the
 /// validation before shelling out.
 pub fn validate_passcode(input: &str) -> Result<(), String> {
@@ -160,10 +160,10 @@ pub fn validate_passcode(input: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Shell out to `mded enroll --passcode <code>` (with an
+/// Shell out to `mackesd enroll --passcode <code>` (with an
 /// optional `--name <name>` flag). Returns the stdout
 /// (enrollment-request JSON) on success.
-pub async fn run_mded_enroll(passcode: &str, name: &str) -> Result<String, String> {
+pub async fn run_mackesd_enroll(passcode: &str, name: &str) -> Result<String, String> {
     let mut argv: Vec<String> = vec![
         "enroll".to_string(),
         "--passcode".to_string(),
@@ -173,8 +173,8 @@ pub async fn run_mded_enroll(passcode: &str, name: &str) -> Result<String, Strin
         argv.push("--name".to_string());
         argv.push(name.to_string());
     }
-    let Ok(output) = Command::new("mded").args(&argv).output().await else {
-        return Err("`mded` not on PATH — install mackes-shell or check $PATH.".into());
+    let Ok(output) = Command::new("mackesd").args(&argv).output().await else {
+        return Err("`mackesd` not on PATH — install MackesWorkstation or check $PATH.".into());
     };
     if output.status.success() {
         Ok(String::from_utf8(output.stdout)
@@ -183,7 +183,7 @@ pub async fn run_mded_enroll(passcode: &str, name: &str) -> Result<String, Strin
             .to_string())
     } else {
         let stderr = String::from_utf8(output.stderr).unwrap_or_default();
-        Err(format!("mded enroll failed: {}", stderr.trim()))
+        Err(format!("mackesd enroll failed: {}", stderr.trim()))
     }
 }
 

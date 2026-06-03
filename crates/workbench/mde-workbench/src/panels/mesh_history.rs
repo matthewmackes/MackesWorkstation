@@ -1,10 +1,10 @@
 //! Network → Mesh History panel — audit-log viewer over
-//! `mded events list --json`.
+//! `mackesd events list --json`.
 //!
 //! CB-1.8 partial: replaces the v1.x
 //! `mackes/workbench/network/mesh_history.py`. Mesh
 //! history in v2.0.0 is the hash-chained `events` table
-//! mded's audit-verify already validates; this panel
+//! mackesd's audit-verify already validates; this panel
 //! surfaces the same rows for human inspection without
 //! requiring the user to run audit-verify by hand.
 
@@ -87,7 +87,7 @@ impl MeshHistoryPanel {
     pub fn load() -> Task<crate::Message> {
         Task::perform(
             async move {
-                let raw = run_mded_events_list().await;
+                let raw = run_mackesd_events_list().await;
                 match parse_events_json(&raw) {
                     Ok(rows) => Message::Loaded(rows),
                     Err(e) => Message::Error(e),
@@ -156,7 +156,7 @@ impl MeshHistoryPanel {
             let _ = refresh_btn;
             let state = EmptyState::with_cta(
                 "Audit chain empty",
-                "mded hasn't recorded any events yet. Enroll a peer or apply a \
+                "mackesd hasn't recorded any events yet. Enroll a peer or apply a \
                  desired-config revision to populate the log, then refresh.",
                 "Refresh",
             )
@@ -265,7 +265,7 @@ fn days_to_ymd(days: i64) -> (i32, u32, u32) {
     (year as i32, mo as u32, d as u32)
 }
 
-/// Pure JSON parser for `mded events list --json` output.
+/// Pure JSON parser for `mackesd events list --json` output.
 ///
 /// # Errors
 ///
@@ -278,7 +278,7 @@ pub fn parse_events_json(raw: &str) -> Result<Vec<EventRow>, String> {
         return Ok(Vec::new());
     }
     let v: serde_json::Value =
-        serde_json::from_str(trimmed).map_err(|e| format!("invalid mded output: {e}"))?;
+        serde_json::from_str(trimmed).map_err(|e| format!("invalid mackesd output: {e}"))?;
     let arr = v
         .as_array()
         .ok_or_else(|| "expected JSON array at top level".to_string())?;
@@ -301,11 +301,11 @@ pub fn parse_events_json(raw: &str) -> Result<Vec<EventRow>, String> {
         .collect())
 }
 
-/// Shell out to `mded events list --json`. Returns stdout on
+/// Shell out to `mackesd events list --json`. Returns stdout on
 /// success; empty on failure (consumer surfaces "audit chain
 /// empty" empty-state).
-pub async fn run_mded_events_list() -> String {
-    let Ok(output) = Command::new("mded")
+pub async fn run_mackesd_events_list() -> String {
+    let Ok(output) = Command::new("mackesd")
         .args(["events", "list", "--json"])
         .output()
         .await
@@ -403,8 +403,8 @@ mod tests {
     fn error_message_clears_busy_and_stores_msg() {
         let mut panel = MeshHistoryPanel::new();
         panel.busy = true;
-        let _ = panel.update(Message::Error("mded not on PATH".into()));
-        assert_eq!(panel.status, "mded not on PATH");
+        let _ = panel.update(Message::Error("mackesd not on PATH".into()));
+        assert_eq!(panel.status, "mackesd not on PATH");
         assert!(!panel.busy);
     }
 

@@ -153,7 +153,7 @@ _Depends: none_
     - [ ] A clean `main` commit produces an all-green run with the four ALSA/Workbench crates compiled (full workspace, no excluded members).
   **Note (2026-06-03):** `.github/workflows/ci.yml` written + YAML-valid; cargo cmds match the green local baseline. Fedora container installs gtk3-devel/alsa-lib-devel (forward-ready for E0.2). CI-green confirmation is **push-gated** → flips to [✓] after the first push.
 
-- [ ] **E0.10: E0 — Port the 15-gate lint suite to install-helpers/ + wire the pre-commit + commit-msg git hooks**
+- [>] **E0.10: E0 — Port the 15-gate lint suite to install-helpers/ + wire the pre-commit + commit-msg git hooks**
   **As** a contributor, **I want** the 15-gate lint suite in `install-helpers/` wired into pre-commit and commit-msg hooks, **so that** stub/hex/mesh/design-token violations are blocked before they land.
   *Reuse:* mde/install-helpers/lint-*.sh (§9 as-is, the §3 enforcement suite). *Deps:* none.
   **Acceptance** (runtime-observable):
@@ -178,13 +178,14 @@ _Depends: none_
     - [ ] Pushing to an archived repo is rejected (read-only enforced at the remote).
     - [ ] The monorepo README/MIGRATION points to the archived repos as the provenance of record and the single origin remote is the monorepo.
 
-- [ ] **E0.13: E0 — Rename the runtime `mded` command → `mackesd` (mde-workbench panels + mesh-status applet)**
+- [✓] **E0.13: E0 — Rename the runtime `mded` command → `mackesd` (mde-workbench panels + mesh-status applet)**
   **As** an operator, **I want** every `Command::new("mded")` call to invoke the canonical `mackesd` binary, **so that** fleet/mesh/health CLI calls work without a legacy `mded` alias on PATH.
   *Reuse:* `mackesd` (§9 as-is; bin `mackesd`, CLI subcommands). *Deps:* E0.1. Surfaced by E0.1 (facade unify).
   **Acceptance** (runtime-observable):
     - [ ] `mde-workbench` panels (mesh_join/mesh_history/inventory/fleet_settings) + the mesh-status applet spawn `mackesd <sub>`, not `mded`; `rg "Command::new(\"mded\")"` returns nothing.
     - [ ] `mackesd healthz` (and the fleet/mesh subcommands those panels call) return the expected output at runtime.
     - [ ] Degrades gracefully when `mackesd` is absent from PATH (panel shows an error, never panics).
+  **Done (2026-06-03):** renamed `Command::new("mded")` → `"mackesd"` + all command-ref strings/comments + the `run_mded*` helper fns → `run_mackesd*` across the 5 call-sites (mde-workbench mesh_join/mesh_history/inventory/fleet_settings/fleet_revisions + mesh-status applet). Scoped to those files so the `mded.db` filename in mackesd stays put. `mackesd`'s bin has the subcommands (healthz/events/nodes/fleet). cargo check --workspace + test type-check green. Live `mackesd healthz` round-trip is runtime/HW-bench.
 
 ### E1 — Deployment-Role Install
 _Depends: E0_

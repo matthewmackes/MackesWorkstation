@@ -1,9 +1,9 @@
 //! Fleet Revisions panel — lists desired_config revisions
-//! from mded + rolls back to a chosen revision id.
+//! from mackesd + rolls back to a chosen revision id.
 //!
 //! CB-1.5 partial: replaces the v1.x
 //! `mackes/workbench/fleet/revisions.py` GTK3 panel. F.12
-//! shipped the Python wrapper around the same `mded
+//! shipped the Python wrapper around the same `mackesd
 //! revisions` subcommand tree; this Iced port mirrors it.
 
 use iced::widget::{column, container, row, scrollable, text};
@@ -13,9 +13,9 @@ use serde::Deserialize;
 
 use crate::controls::{variant_button, ButtonVariant};
 use crate::panel_chrome::{empty_state, panel_container};
-use crate::panels::fleet_settings::run_mded;
+use crate::panels::fleet_settings::run_mackesd;
 
-/// One row from `mded revisions list --json`.
+/// One row from `mackesd revisions list --json`.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct Revision {
     pub revision_id: String,
@@ -61,7 +61,7 @@ impl FleetRevisionsPanel {
         let args = list_args();
         Task::perform(
             async move {
-                let stdout = run_mded(&args).await?;
+                let stdout = run_mackesd(&args).await?;
                 parse_revisions_json(&stdout).map_err(|e| e.to_string())
             },
             |result| crate::Message::FleetRevisions(Message::RefreshCompleted(result)),
@@ -101,7 +101,7 @@ impl FleetRevisionsPanel {
                 self.busy = true;
                 self.status = format!("Rolling back to {id}…");
                 let args = rollback_args(&id, "all");
-                Task::perform(async move { run_mded(&args).await }, |result| {
+                Task::perform(async move { run_mackesd(&args).await }, |result| {
                     crate::Message::FleetRevisions(Message::RollbackCompleted(result))
                 })
             }
@@ -148,7 +148,7 @@ impl FleetRevisionsPanel {
             let state = EmptyState::with_cta(
                 "No revisions yet",
                 "Applied desired-config revisions show up here. Push a \
-                 configuration through the Fleet panel (or via `mded apply`) \
+                 configuration through the Fleet panel (or via `mackesd apply`) \
                  to create the first one.",
                 "Refresh",
             )
@@ -214,7 +214,7 @@ fn revision_row<'a>(rev: &'a Revision, busy: bool) -> Element<'a, crate::Message
         .into()
 }
 
-/// Pure-fn arg builder for `mded revisions list --json`.
+/// Pure-fn arg builder for `mackesd revisions list --json`.
 #[must_use]
 pub fn list_args() -> Vec<String> {
     vec![
@@ -224,7 +224,7 @@ pub fn list_args() -> Vec<String> {
     ]
 }
 
-/// Pure-fn arg builder for `mded revisions rollback <id> --peers <sel>`.
+/// Pure-fn arg builder for `mackesd revisions rollback <id> --peers <sel>`.
 #[must_use]
 pub fn rollback_args(id: &str, peers: &str) -> Vec<String> {
     vec![
@@ -236,7 +236,7 @@ pub fn rollback_args(id: &str, peers: &str) -> Vec<String> {
     ]
 }
 
-/// Parse the JSON array `mded revisions list --json` prints.
+/// Parse the JSON array `mackesd revisions list --json` prints.
 /// Empty input parses as an empty list — matches the
 /// `(no revisions)` text-mode fallback.
 pub fn parse_revisions_json(s: &str) -> Result<Vec<Revision>, serde_json::Error> {

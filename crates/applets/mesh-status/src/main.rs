@@ -49,14 +49,14 @@ fn run_meshfs_status() -> String {
 }
 
 fn current_chip() -> String {
-    let raw = run_mded_healthz();
+    let raw = run_mackesd_healthz();
     format_chip(&parse_healthz(&raw))
 }
 
-/// Shell out to `mded healthz`. Empty string on any failure
+/// Shell out to `mackesd healthz`. Empty string on any failure
 /// — the parser produces an `unknown` / 0 report from empty.
-fn run_mded_healthz() -> String {
-    let Ok(output) = Command::new("mded").arg("healthz").output() else {
+fn run_mackesd_healthz() -> String {
+    let Ok(output) = Command::new("mackesd").arg("healthz").output() else {
         return String::new();
     };
     if !output.status.success() {

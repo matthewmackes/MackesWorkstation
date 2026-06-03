@@ -1,4 +1,4 @@
-//! Fleet → Inventory panel — node roster pulled from `mded
+//! Fleet → Inventory panel — node roster pulled from `mackesd
 //! nodes list --json` (CB-1.5.a). Mirrors the v1.x
 //! `mackes/workbench/fleet/inventory.py` panel.
 //!
@@ -17,7 +17,7 @@ use crate::controls::{variant_button, ButtonVariant};
 use crate::panel_chrome::{empty_state, panel_container, status_badge, BadgeSeverity};
 
 /// One row of the inventory list — projection of the JSON object
-/// `mded nodes list --json` emits.
+/// `mackesd nodes list --json` emits.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NodeRow {
     pub node_id: String,
@@ -58,7 +58,7 @@ impl InventoryPanel {
     pub fn load() -> Task<crate::Message> {
         Task::perform(
             async move {
-                let raw = run_mded(&["nodes", "list", "--json"]).await;
+                let raw = run_mackesd(&["nodes", "list", "--json"]).await;
                 match parse_nodes_json(&raw) {
                     Ok(rows) => Message::Loaded(rows),
                     Err(e) => Message::Error(e),
@@ -88,7 +88,7 @@ impl InventoryPanel {
                 self.status = "Loading peer detail…".into();
                 Task::perform(
                     async move {
-                        let raw = run_mded(&["peers-why", &node_id]).await;
+                        let raw = run_mackesd(&["peers-why", &node_id]).await;
                         Message::FocusLoaded(raw)
                     },
                     crate::Message::Inventory,
@@ -138,7 +138,7 @@ impl InventoryPanel {
             let _ = refresh_btn;
             let state = EmptyState::with_cta(
                 "No peers enrolled",
-                "Enroll a peer with `mded enroll --passcode <16-char>` on the \
+                "Enroll a peer with `mackesd enroll --passcode <16-char>` on the \
                  joining node, then refresh to see it appear here.",
                 "Refresh",
             )
@@ -259,7 +259,7 @@ fn health_severity(health: &str) -> BadgeSeverity {
     }
 }
 
-/// Pure JSON parser for `mded nodes list --json` payloads.
+/// Pure JSON parser for `mackesd nodes list --json` payloads.
 /// Returns a friendly error message instead of bubbling
 /// serde_json::Error so the reducer can lay it into the panel
 /// status row without crashing.
@@ -275,7 +275,7 @@ pub fn parse_nodes_json(raw: &str) -> Result<Vec<NodeRow>, String> {
         return Ok(Vec::new());
     }
     let v: serde_json::Value =
-        serde_json::from_str(trimmed).map_err(|e| format!("invalid mded output: {e}"))?;
+        serde_json::from_str(trimmed).map_err(|e| format!("invalid mackesd output: {e}"))?;
     let arr = v
         .as_array()
         .ok_or_else(|| "expected JSON array at top level".to_string())?;
@@ -314,12 +314,12 @@ pub fn parse_nodes_json(raw: &str) -> Result<Vec<NodeRow>, String> {
         .collect())
 }
 
-/// Shell out to `mded` with the given args; returns stdout on
+/// Shell out to `mackesd` with the given args; returns stdout on
 /// success, an empty string on any failure mode. The reducer
 /// surfaces the empty as an Error message via the panel
 /// status row.
-pub async fn run_mded(args: &[&str]) -> String {
-    let Ok(output) = Command::new("mded").args(args).output().await else {
+pub async fn run_mackesd(args: &[&str]) -> String {
+    let Ok(output) = Command::new("mackesd").args(args).output().await else {
         return String::new();
     };
     if !output.status.success() {
@@ -415,8 +415,8 @@ mod tests {
     fn error_message_clears_busy_and_stores_msg() {
         let mut panel = InventoryPanel::new();
         panel.busy = true;
-        let _ = panel.update(Message::Error("mded not on PATH".into()));
-        assert_eq!(panel.status, "mded not on PATH");
+        let _ = panel.update(Message::Error("mackesd not on PATH".into()));
+        assert_eq!(panel.status, "mackesd not on PATH");
         assert!(!panel.busy);
     }
 

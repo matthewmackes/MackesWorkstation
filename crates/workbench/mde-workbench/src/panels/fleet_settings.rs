@@ -1,9 +1,9 @@
 //! Fleet Settings panel — push one setting key to the
-//! fleet's reconcile loop via `mded fleet push-setting`.
+//! fleet's reconcile loop via `mackesd fleet push-setting`.
 //!
 //! CB-1.5 partial: replaces the v1.x
 //! `mackes/workbench/fleet/settings.py` GTK3 panel. F.11
-//! already shipped the Python wrapper around the same `mded`
+//! already shipped the Python wrapper around the same `mackesd`
 //! subcommand (Phase G.4); this Iced port mirrors the
 //! grammar.
 
@@ -80,7 +80,7 @@ impl FleetSettingsPanel {
                 self.busy = true;
                 self.status = "Pushing…".into();
                 let args = push_setting_args(&key, &value, &peers_arg);
-                Task::perform(async move { run_mded(&args).await }, |result| {
+                Task::perform(async move { run_mackesd(&args).await }, |result| {
                     crate::Message::FleetSettings(Message::PushCompleted(result))
                 })
             }
@@ -142,7 +142,7 @@ impl FleetSettingsPanel {
     }
 }
 
-/// Pure-fn argument builder — the exact argv `mded` sees when
+/// Pure-fn argument builder — the exact argv `mackesd` sees when
 /// the Push button fires. Lifted so tests can assert the
 /// grammar without invoking the binary.
 #[must_use]
@@ -157,11 +157,11 @@ pub fn push_setting_args(key: &str, value: &str, peers: &str) -> Vec<String> {
     ]
 }
 
-/// Spawn `mded <args>` and return stdout on success, an
+/// Spawn `mackesd <args>` and return stdout on success, an
 /// error message on failure (binary missing / non-zero exit
 /// status / output decode failure).
-pub async fn run_mded(args: &[String]) -> Result<String, String> {
-    let output = Command::new("mded")
+pub async fn run_mackesd(args: &[String]) -> Result<String, String> {
+    let output = Command::new("mackesd")
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -169,15 +169,15 @@ pub async fn run_mded(args: &[String]) -> Result<String, String> {
         .await
         .map_err(|e| {
             if e.kind() == std::io::ErrorKind::NotFound {
-                "`mded` not on PATH — install mackes-shell or check $PATH".into()
+                "`mackesd` not on PATH — install MackesWorkstation or check $PATH".into()
             } else {
-                format!("spawning mded failed: {e}")
+                format!("spawning mackesd failed: {e}")
             }
         })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(format!(
-            "mded exited {} — {}",
+            "mackesd exited {} — {}",
             output.status.code().unwrap_or(-1),
             stderr.trim()
         ));
