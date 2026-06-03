@@ -4,6 +4,25 @@ The successor monorepo. It **EOLs and absorbs** both upstream projects plus the 
 Connect host; see [`docs/MACKES-WORKSTATION-PLAN.md`](docs/MACKES-WORKSTATION-PLAN.md)
 for the full plan (decisions §0, reuse table §9, shell changes §10, epics §11, layout §12).
 
+## ✅ E0 MERGE COMPLETE (2026-06-03)
+
+The three repos are fused into **one monorepo, builds green, pushed to GitHub** —
+development can begin:
+
+- **`github.com/matthewmackes/MackesWorkstation`** (private; flip public after review).
+- **History preserved** — 1,635 commits, all three repos' full history reachable; the
+  `target/` bloat was stripped with `git-filter-repo` (`.git` 681M → 51M).
+- **§12 layout** — `crates/{platform,mesh,shell,workbench,services,shared,applets,kdc,legacy}/`;
+  shared embeds at `assets/`, `data/`, `crates/shell/assets`; `skel/`, `packaging/`, `docs/`;
+  source-repo reference under `provenance/`.
+- **`cargo check --workspace` green** (rustc 1.94, pinned by `rust-toolchain.toml`), minus
+  4 system-lib crates excluded in `Cargo.toml` (see below) for libs absent in the build
+  sandbox — they build on a box with `gtk3-devel` / `alsa-lib-devel`.
+
+**Remaining to fully close E0:** archive the 3 old repos (read-only); verify the 4
+excluded crates on a box with the system libs (or retire `mackes-panel`, re-include the
+audio chain); wire `mde-bus`; resolve the lint warnings. Then E1–E8 per the plan.
+
 ## Done — structural import (history preserved)
 
 All three repos are merged in via the built-in subtree-merge (`merge -s ours` +
