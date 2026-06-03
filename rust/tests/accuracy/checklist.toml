@@ -79,3 +79,63 @@ x = 400
 y = 120
 hex = "ffffff"
 tol = 10
+
+# ---------------------------------------------------------------------------
+# Windows 10 era accent points (E20.5). These read the four-era gallery captures
+# (tests/accuracy/gallery.sh → captures/gallery/<era>/<file>) and assert that the
+# Win10 UI accent paints where it should. The expected color is NOT a literal hex:
+# `role = "HIGHLIGHT"` + `era = "windows10"` resolves to `palette::color(HIGHLIGHT)`
+# under Theme::Windows10 (dark) at test time — i.e. the live `win10()` accent
+# (`carbon_accent()` dark = #4589ff today). Bump that token in palette.rs and these
+# update with it; no magic hex to drift. The dark gallery seed (theme_mode=dark)
+# matches `dark = true`. Coordinates were located in the captured frames (the
+# accent's only solid blocks): the taskbar accent line, an "on" Action Center
+# quick-action tile, and the focused Settings nav entry's ring. (The Start rail and
+# Search box show the accent only on hover/focus/selection, so the static default
+# capture has no solid accent there — not asserted, to avoid a flaky point.)
+
+[capture.win10-taskbar]
+file = "gallery/windows10/panel.png"
+era = "windows10"
+dark = true
+# The 1px accent line along the top edge of the Win10 taskbar (accent-on-taskbar).
+
+[[capture.win10-taskbar.point]]
+label = "Win10 taskbar accent top line (HIGHLIGHT)"
+x = 640
+y = 0
+role = "HIGHLIGHT"
+tol = 12
+
+[capture.win10-action-center]
+file = "gallery/windows10/action-center.png"
+era = "windows10"
+dark = true
+# An enabled quick-action tile (accent-filled) in the Action Center grid.
+
+[[capture.win10-action-center.point]]
+label = "Action Center on-tile accent fill (HIGHLIGHT)"
+x = 966
+y = 776
+role = "HIGHLIGHT"
+tol = 12
+
+[capture.win10-settings-nav]
+file = "gallery/windows10/settings-apps-default.png"
+era = "windows10"
+dark = true
+# The accent focus ring around the selected Settings rail entry ("Default apps").
+
+[[capture.win10-settings-nav.point]]
+label = "Settings nav selected-entry accent ring, left edge (HIGHLIGHT)"
+x = 186
+y = 257
+role = "HIGHLIGHT"
+tol = 12
+
+[[capture.win10-settings-nav.point]]
+label = "Settings nav selected-entry accent ring, top edge (HIGHLIGHT)"
+x = 250
+y = 244
+role = "HIGHLIGHT"
+tol = 12

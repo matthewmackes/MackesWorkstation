@@ -16,6 +16,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
+use mde_ui::palette::{self, Theme};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -26,6 +27,15 @@ struct Checklist {
 #[derive(Debug, Deserialize)]
 struct Capture {
     file: String,
+    /// Era for role-based points (E20.5): when a point uses `role` instead of a
+    /// literal `hex`, the expected color is `palette::color(role)` resolved under
+    /// this theme — so the assertion tracks `win10()`'s output, never a magic hex.
+    /// Absent → the literal-hex (Win2000) groups, unchanged.
+    #[serde(default)]
+    era: Option<String>,
+    /// Light/dark mode for role resolution (Win10 gallery captures are dark).
+    #[serde(default)]
+    dark: bool,
     #[serde(default)]
     point: Vec<Point>,
 }
@@ -35,8 +45,53 @@ struct Point {
     label: String,
     x: i32,
     y: i32,
-    hex: String,
+    /// A literal ground-truth color (Win2000 points). Exactly one of `hex`/`role`.
+    #[serde(default)]
+    hex: Option<String>,
+    /// A palette role name (E20.5) resolved through `palette::color()` under the
+    /// capture's `era`/`dark` — e.g. `HIGHLIGHT` → the live Win10 accent.
+    #[serde(default)]
+    role: Option<String>,
     tol: u8,
+}
+
+/// Map a checklist role name to its `palette` role constant. Only the roles the
+/// checklist actually asserts are listed; an unknown name is a checklist typo.
+fn role_rgb(name: &str) -> palette::Rgb {
+    match name {
+        "HIGHLIGHT" => palette::HIGHLIGHT,
+        "ACTIVE_TITLE" => palette::ACTIVE_TITLE,
+        "WINDOW" => palette::WINDOW,
+        "WINDOW_TEXT" => palette::WINDOW_TEXT,
+        "MENU" => palette::MENU,
+        "BACKGROUND" => palette::BACKGROUND,
+        other => panic!("accuracy: unknown palette role '{other}' in checklist.toml"),
+    }
+}
+
+/// The expected RGB for a point: its literal `hex`, or — for a role point — the
+/// `palette::color(role)` output under the capture's era/mode (E20.5). Setting the
+/// theme mutates the process-global palette, but only role points read it and the
+/// literal-hex groups never call `color()`, so the interleaving is safe.
+fn want_rgb(cap: &Capture, p: &Point) -> (u8, u8, u8) {
+    if let Some(role) = &p.role {
+        match cap.era.as_deref() {
+            Some("windows10") => palette::set_theme(Theme::Windows10),
+            Some("carbon") => palette::set_theme(Theme::Carbon),
+            Some("win2000") => palette::set_theme(Theme::Win2000),
+            Some("beos") => palette::set_theme(Theme::Beos),
+            other => panic!("accuracy: role point needs a known capture `era`, got {other:?}"),
+        }
+        palette::set_dark(cap.dark);
+        // palette::hex() applies the same theme remap as color(), as `#rrggbb`.
+        parse_hex(palette::hex(role_rgb(role)).trim_start_matches('#'))
+    } else {
+        parse_hex(
+            p.hex
+                .as_deref()
+                .expect("checklist point needs `hex` or `role`"),
+        )
+    }
 }
 
 struct Image {
@@ -111,7 +166,7 @@ fn rendered_components_match_win2000_palette() {
         for p in &cap.point {
             let (x, y) = (resolve(p.x, img.w), resolve(p.y, img.h));
             let got = img.at(x, y);
-            let want = parse_hex(&p.hex);
+            let want = want_rgb(cap, p);
             let d = |a: u8, b: u8| (a as i16 - b as i16).unsigned_abs();
             let off = d(got.0, want.0).max(d(got.1, want.1)).max(d(got.2, want.2));
             checked += 1;
