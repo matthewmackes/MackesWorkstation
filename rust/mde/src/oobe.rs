@@ -41,6 +41,8 @@ enum Stage {
     Region,
     Keyboard,
     SecondKeyboard,
+    Network,
+    Account,
     Pin,
     Privacy,
     YourPhone,
@@ -48,12 +50,15 @@ enum Stage {
     Finalize,
 }
 
-/// The stages in flow order. `next`/`prev` index into this, so adding a stage is a
-/// one-line edit and forward/back can never desync.
+/// The canonical stage order. The *live* flow (`Oobe::flow`) is this minus any stage
+/// that doesn't apply (e.g. Network is dropped when a wired link is already up,
+/// E11.4), so adding a stage is a one-line edit and navigation can't desync.
 const FLOW: &[Stage] = &[
     Stage::Region,
     Stage::Keyboard,
     Stage::SecondKeyboard,
+    Stage::Network,
+    Stage::Account,
     Stage::Pin,
     Stage::Privacy,
     Stage::YourPhone,
@@ -61,16 +66,15 @@ const FLOW: &[Stage] = &[
     Stage::Finalize,
 ];
 
-impl Stage {
-    fn pos(self) -> usize {
-        FLOW.iter().position(|&s| s == self).unwrap_or(0)
-    }
-    fn next(self) -> Option<Stage> {
-        FLOW.get(self.pos() + 1).copied()
-    }
-    fn prev(self) -> Option<Stage> {
-        self.pos().checked_sub(1).and_then(|i| FLOW.get(i).copied())
-    }
+/// The stage after `s` in `flow`, or `None` at the end.
+fn flow_next(flow: &[Stage], s: Stage) -> Option<Stage> {
+    let i = flow.iter().position(|&x| x == s)?;
+    flow.get(i + 1).copied()
+}
+/// The stage before `s` in `flow`, or `None` at the start.
+fn flow_prev(flow: &[Stage], s: Stage) -> Option<Stage> {
+    let i = flow.iter().position(|&x| x == s)?;
+    i.checked_sub(1).and_then(|j| flow.get(j).copied())
 }
 
 /// The four UI accent choices (Personalize, E11.9) — the icon_color keys + their
@@ -84,6 +88,8 @@ const ACCENTS: &[(&str, &str)] = &[
 
 struct Oobe {
     stage: Stage,
+    /// The live stage order (FLOW minus skipped stages, e.g. Network when wired).
+    flow: Vec<Stage>,
     /// Echo backend commands instead of running them (`--dry-run`).
     dry: bool,
     region: usize,
@@ -95,6 +101,14 @@ struct Oobe {
     p_ads: bool,
     /// Second-keyboard stage (E11.3): an optional additional layout (None = skipped).
     second_layout: Option<usize>,
+    /// Network stage (E11.4): the scanned Wi-Fi list, the chosen SSID + its password.
+    wifis: Vec<crate::nm::Wifi>,
+    wifi_sel: Option<usize>,
+    wifi_pw: String,
+    /// Account stage (E11.5): the local-account fields.
+    username: String,
+    password: String,
+    password2: String,
     /// Your-Phone stage (E11.8): the phone number the user types (informational —
     /// real pairing is the Your Phone app's job once `mde connect` lands).
     phone: String,
@@ -108,6 +122,11 @@ enum Msg {
     PickRegion(usize),
     PickLayout(usize),
     PickSecond(usize),
+    SelectWifi(usize),
+    WifiPw(String),
+    Username(String),
+    Password(String),
+    Password2(String),
     TogglePrivacy(u8),
     PickAccent(usize),
     SetMode(bool), // true = light
@@ -155,6 +174,14 @@ fn detected_layout() -> usize {
         .unwrap_or(0)
 }
 
+/// Is a wired (ethernet) connection already up? Then the OOBE skips the Network
+/// stage (E11.4) — a live `802-3-ethernet` in `nm::active_connections`.
+fn is_wired() -> bool {
+    crate::nm::active_connections()
+        .iter()
+        .any(|c| c.kind.contains("ethernet") && c.state == "activated")
+}
+
 pub fn run(args: &[String]) -> ExitCode {
     let dry = args.iter().any(|a| a == "--dry-run");
     let force = args.iter().any(|a| a == "--force");
@@ -187,6 +214,8 @@ pub fn run(args: &[String]) -> ExitCode {
             "region" => Some(Stage::Region),
             "keyboard" => Some(Stage::Keyboard),
             "secondkeyboard" => Some(Stage::SecondKeyboard),
+            "network" => Some(Stage::Network),
+            "account" => Some(Stage::Account),
             "pin" => Some(Stage::Pin),
             "privacy" => Some(Stage::Privacy),
             "yourphone" => Some(Stage::YourPhone),
@@ -196,12 +225,33 @@ pub fn run(args: &[String]) -> ExitCode {
         })
         .unwrap_or(Stage::Region);
 
+    // A live wired link skips the Network stage (E11.4): drop it from the flow.
+    let wired = is_wired();
+    let flow: Vec<Stage> = FLOW
+        .iter()
+        .copied()
+        .filter(|s| !(*s == Stage::Network && wired))
+        .collect();
+    // Scan Wi-Fi once up front only when the Network stage will be shown.
+    let wifis = if wired {
+        Vec::new()
+    } else {
+        crate::nm::wifi_list()
+    };
+
     let init = Oobe {
         stage,
+        flow,
         dry,
         region: detected_region(),
         layout: detected_layout(),
         second_layout: None,
+        wifis,
+        wifi_sel: None,
+        wifi_pw: String::new(),
+        username: String::new(),
+        password: String::new(),
+        password2: String::new(),
         phone: String::new(),
         p_location: st.privacy_location,
         p_diagnostics: st.privacy_diagnostics,
@@ -350,8 +400,48 @@ fn apply_second_keymap(primary: &str, second: Option<&str>, dry: bool) {
         .status();
 }
 
+/// Connect to the chosen Wi-Fi (E11.4): `nm::wifi_connect` (= `nmcli device wifi
+/// connect`), echoed under dry-run. No selection → nothing to do (e.g. "Skip").
+fn commit_network(state: &Oobe) {
+    let Some(i) = state.wifi_sel else { return };
+    let ssid = &state.wifis[i].ssid;
+    if state.dry {
+        println!("  + nmcli device wifi connect '{ssid}'");
+        return;
+    }
+    let _ = crate::nm::wifi_connect(ssid, &state.wifi_pw);
+}
+
+/// Create the local account (E11.5): `useradd -m -G wheel <user>` + set its password,
+/// echoed under dry-run (the only path). Blank/mismatched fields are a no-op (the
+/// view keeps Next disabled until they agree, so this is defensive).
+fn commit_account(state: &Oobe) {
+    if state.username.is_empty() || state.password.is_empty() || state.password != state.password2 {
+        return;
+    }
+    if state.dry {
+        println!(
+            "  + useradd -m -G wheel {}\n  + passwd {} (password set via chpasswd)",
+            state.username, state.username
+        );
+        return;
+    }
+    // The privileged engine owns the real write; the OOBE shells it through pkexec.
+    let _ = Command::new("pkexec")
+        .args(["useradd", "-m", "-G", "wheel", &state.username])
+        .status();
+    let _ = Command::new("pkexec")
+        .arg("sh")
+        .arg("-c")
+        .arg(format!(
+            "printf '%s:%s' '{}' '{}' | chpasswd",
+            state.username, state.password
+        ))
+        .status();
+}
+
 fn advance(state: &mut Oobe) {
-    if let Some(n) = state.stage.next() {
+    if let Some(n) = flow_next(&state.flow, state.stage) {
         state.stage = n;
     }
 }
@@ -361,6 +451,11 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
         Msg::PickRegion(i) => state.region = i,
         Msg::PickLayout(i) => state.layout = i,
         Msg::PickSecond(i) => state.second_layout = Some(i),
+        Msg::SelectWifi(i) => state.wifi_sel = Some(i),
+        Msg::WifiPw(s) => state.wifi_pw = s,
+        Msg::Username(s) => state.username = s,
+        Msg::Password(s) => state.password = s,
+        Msg::Password2(s) => state.password2 = s,
         Msg::TogglePrivacy(which) => match which {
             0 => state.p_location = !state.p_location,
             1 => state.p_diagnostics = !state.p_diagnostics,
@@ -379,7 +474,7 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
             advance(state);
         }
         Msg::Back => {
-            if let Some(p) = state.stage.prev() {
+            if let Some(p) = flow_prev(&state.flow, state.stage) {
                 state.stage = p;
             }
         }
@@ -395,6 +490,8 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
                     state.second_layout.map(|i| crate::keyboard::LAYOUTS[i].0),
                     state.dry,
                 ),
+                Stage::Network => commit_network(state),
+                Stage::Account => commit_account(state),
                 Stage::Privacy => commit_privacy(state),
                 Stage::Personalize => commit_personalize(state),
                 // Pin (E11.6) and Your Phone (E11.8) collect nothing to commit yet —
@@ -662,6 +759,75 @@ fn personalize_body(state: &Oobe) -> Element<'_, Msg> {
         .into()
 }
 
+fn network_body(state: &Oobe) -> Element<'_, Msg> {
+    if state.wifis.is_empty() {
+        return text("No Wi-Fi networks found. You can connect later from the taskbar.")
+            .size(metrics::UI_PX)
+            .color(dim())
+            .into();
+    }
+    let list = picker(
+        state.wifis.iter().enumerate().map(|(i, w)| {
+            (
+                i,
+                // (label is owned by the iterator's lifetime via the Wifi ssid)
+                w.ssid.as_str(),
+            )
+        }),
+        state.wifi_sel.unwrap_or(usize::MAX),
+        Msg::SelectWifi,
+    );
+    // Show a password field for the selected secured network.
+    let mut col = Column::new().spacing(10.0).push(list);
+    if let Some(i) = state.wifi_sel {
+        if state.wifis[i].secured {
+            col = col.push(
+                text_input("Network security key", &state.wifi_pw)
+                    .on_input(Msg::WifiPw)
+                    .secure(true)
+                    .size(metrics::UI_PX)
+                    .padding(pad(6.0, 10.0, 6.0, 10.0))
+                    .width(Length::Fixed(260.0)),
+            );
+        }
+    }
+    col.into()
+}
+
+fn account_body(state: &Oobe) -> Element<'_, Msg> {
+    let field = |placeholder: &'static str, value: &str, on: fn(String) -> Msg, secure: bool| {
+        text_input(placeholder, value)
+            .on_input(on)
+            .secure(secure)
+            .size(metrics::UI_PX)
+            .padding(pad(6.0, 10.0, 6.0, 10.0))
+            .width(Length::Fixed(280.0))
+    };
+    let mut col = Column::new()
+        .spacing(12.0)
+        .padding(pad(16.0, 8.0, 0.0, 8.0))
+        .push(text("User name").size(metrics::UI_PX).color(dim()))
+        .push(field("User name", &state.username, Msg::Username, false))
+        .push(text("Password").size(metrics::UI_PX).color(dim()))
+        .push(field("Password", &state.password, Msg::Password, true))
+        .push(text("Confirm password").size(metrics::UI_PX).color(dim()))
+        .push(field(
+            "Confirm password",
+            &state.password2,
+            Msg::Password2,
+            true,
+        ));
+    // A live mismatch hint (the commit also guards defensively).
+    if !state.password.is_empty() && state.password != state.password2 {
+        col = col.push(
+            text("Passwords don't match yet.")
+                .size(metrics::BADGE_PX)
+                .color(palette::color(palette::URGENT)),
+        );
+    }
+    col.into()
+}
+
 fn your_phone_body(state: &Oobe) -> Element<'_, Msg> {
     Column::new()
         .spacing(12.0)
@@ -719,6 +885,18 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
                 Msg::PickSecond,
             ),
             actions_full(true, Some("Skip"), "Add layout", Msg::Next),
+        ),
+        Stage::Network => frame(
+            "Let's connect you to a network",
+            "Pick a Wi-Fi network to get updates and finish setup, or skip for now.",
+            network_body(state),
+            actions_full(true, Some("Skip for now"), "Connect", Msg::Next),
+        ),
+        Stage::Account => frame(
+            "Who's going to use this PC?",
+            "Create a local account. You'll use this name and password to sign in.",
+            account_body(state),
+            actions(true, "Next", Msg::Next),
         ),
         Stage::Pin => {
             let body = Column::new()
@@ -793,15 +971,31 @@ mod tests {
 
     #[test]
     fn stage_flow_is_linear_and_terminates() {
-        // FLOW is a single ordered list; next/prev walk it and terminate cleanly.
-        assert_eq!(Stage::Region.next(), Some(Stage::Keyboard));
-        assert_eq!(Stage::Region.prev(), None);
-        assert_eq!(FLOW.last().copied().unwrap().next(), None);
+        // The canonical FLOW: flow_next/flow_prev walk it and terminate cleanly.
+        assert_eq!(flow_next(FLOW, Stage::Region), Some(Stage::Keyboard));
+        assert_eq!(flow_prev(FLOW, Stage::Region), None);
+        assert_eq!(flow_next(FLOW, *FLOW.last().unwrap()), None);
         // Round-trip every adjacent pair: prev(next(s)) == s.
         for w in FLOW.windows(2) {
-            assert_eq!(w[0].next(), Some(w[1]));
-            assert_eq!(w[1].prev(), Some(w[0]));
+            assert_eq!(flow_next(FLOW, w[0]), Some(w[1]));
+            assert_eq!(flow_prev(FLOW, w[1]), Some(w[0]));
         }
+    }
+
+    #[test]
+    fn wired_link_drops_the_network_stage() {
+        // E11.4: the live flow excludes Network when wired; Account follows
+        // SecondKeyboard directly.
+        let flow: Vec<Stage> = FLOW
+            .iter()
+            .copied()
+            .filter(|s| *s != Stage::Network)
+            .collect();
+        assert_eq!(
+            flow_next(&flow, Stage::SecondKeyboard),
+            Some(Stage::Account)
+        );
+        assert!(!flow.contains(&Stage::Network));
     }
 
     #[test]
