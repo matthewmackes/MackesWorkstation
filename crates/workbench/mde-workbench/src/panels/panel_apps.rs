@@ -1,7 +1,7 @@
 //! v4.0.1 WB-2.d — Apps → Panel Apps editor.
 //!
 //! Per-applet visibility toggles for the mde-panel tray. Reads
-//! `~/.config/mde/panel.toml` (via `mde_config::PanelConfig`),
+//! `~/.config/mde/panel.toml` (via `mackes_config::PanelConfig`),
 //! shows one checkbox per well-known tray applet (audio,
 //! network, mesh, status, clipboard, notifications), and writes
 //! changes back. `mde-panel`'s `top_bar.rs` consults the same
@@ -267,7 +267,7 @@ pub fn load_visible_applets() -> Vec<String> {
     let candidates = config_paths();
     for path in &candidates {
         if let Ok(raw) = std::fs::read_to_string(path) {
-            if let Ok(cfg) = mde_config::parse(&raw) {
+            if let Ok(cfg) = mackes_config::parse(&raw) {
                 return cfg.top_bar.status_items;
             }
         }
@@ -295,10 +295,10 @@ pub fn save_visible_applets(visible: &[String]) -> Result<(), String> {
     // round-trip back to TOML so other sections survive.
     let mut cfg = std::fs::read_to_string(&path)
         .ok()
-        .and_then(|raw| mde_config::parse(&raw).ok())
-        .unwrap_or_else(mde_config::default_config);
+        .and_then(|raw| mackes_config::parse(&raw).ok())
+        .unwrap_or_else(mackes_config::default_config);
     cfg.top_bar.status_items = visible.to_vec();
-    let text = mde_config::to_toml_string(&cfg)
+    let text = mackes_config::to_toml_string(&cfg)
         .map_err(|e| format!("encode: {e}"))?;
     std::fs::write(&path, text).map_err(|e| format!("write {}: {e}", path.display()))?;
     Ok(())

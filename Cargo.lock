@@ -4675,13 +4675,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mde-config"
-version = "10.0.0"
-dependencies = [
- "mackes-config",
-]
-
-[[package]]
 name = "mde-drawer"
 version = "10.0.0"
 dependencies = [
@@ -4809,13 +4802,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mde-mesh-types"
-version = "10.0.0"
-dependencies = [
- "mackes-mesh-types",
-]
-
-[[package]]
 name = "mde-music"
 version = "10.0.0"
 dependencies = [
@@ -4857,10 +4843,10 @@ dependencies = [
  "dirs 5.0.1",
  "iced 0.13.1",
  "iced_layershell 0.13.7",
+ "mackes-config",
+ "mackes-mesh-types",
  "mackes-theme",
  "mde-applet-api",
- "mde-config",
- "mde-mesh-types",
  "serde",
  "serde_json",
  "tempfile",
@@ -4877,8 +4863,8 @@ dependencies = [
  "clap",
  "dirs 5.0.1",
  "iced 0.14.0",
+ "mackes-mesh-types",
  "mde-drawer",
- "mde-mesh-types",
  "mde-theme",
  "serde",
  "serde_json",
@@ -5013,7 +4999,7 @@ dependencies = [
  "clap",
  "dirs 5.0.1",
  "iced 0.14.0",
- "mde-config",
+ "mackes-config",
  "serde",
  "serde_json",
  "tempfile",
@@ -5030,11 +5016,11 @@ dependencies = [
  "clap",
  "futures",
  "iced 0.14.0",
+ "mackes-config",
+ "mackes-mesh-types",
  "mde-bus",
  "mde-card",
- "mde-config",
  "mde-iced-components",
- "mde-mesh-types",
  "mde-musicd",
  "mde-theme",
  "serde",
@@ -5046,13 +5032,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "zbus 5.16.0",
-]
-
-[[package]]
-name = "mded"
-version = "10.0.0"
-dependencies = [
- "mackesd",
 ]
 
 [[package]]

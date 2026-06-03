@@ -48,7 +48,7 @@ pub fn load_visible_applets_from_config() -> Vec<String> {
     ];
     for candidate in candidates.iter().flatten() {
         if let Ok(raw) = std::fs::read_to_string(candidate) {
-            if let Ok(cfg) = mde_config::parse(&raw) {
+            if let Ok(cfg) = mackes_config::parse(&raw) {
                 return cfg.top_bar.status_items;
             }
         }

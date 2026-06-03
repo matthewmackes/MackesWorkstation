@@ -37,7 +37,7 @@ use std::path::PathBuf;
 pub use mde_drawer::{DRAWER_WIDTH_PX, SLIDE_DURATION_MS};
 
 pub use enrich::{Enrichment, EnrichmentCacheKey};
-pub use mde_mesh_types::{
+pub use mackes_mesh_types::{
     BatterySnapshot, ConnectFacts, NebulaFacts, NebulaRole, PairingState, PeerKind,
 };
 pub use probe::{NatClass, PeerProbe};

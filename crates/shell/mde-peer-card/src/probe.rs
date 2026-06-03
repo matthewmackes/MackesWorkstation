@@ -1,5 +1,5 @@
 //! Peer-probe schema — back-compat re-export from
-//! `mde_mesh_types::peer_probe` (PC-2 production home).
+//! `mackes_mesh_types::peer_probe` (PC-2 production home).
 //!
 //! Until PC-2 (2026-05-21) the schema lived here as a
 //! placeholder per PC-1's acceptance. It now lives in
@@ -9,7 +9,7 @@
 //! existing call sites (`use mde_peer_card::probe::PeerProbe`)
 //! continue to work without churn.
 
-pub use mde_mesh_types::peer_probe::{
+pub use mackes_mesh_types::peer_probe::{
     BusTopology, Descriptors, KernelDriver, NatClass, PeerProbe, PowerThermal,
 };
 

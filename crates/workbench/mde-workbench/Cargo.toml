@@ -57,7 +57,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 # tree (panel layout, per-panel preferences) lives under
 # `~/.config/mde/workbench/` once CB-1 closes; mde-config is the
 # typed read/write surface.
-mde-config = { path = "../../mesh/mde-config" }
+mackes-config = { path = "../../mesh/mackes-config" }
 # MESH-PROBE-9.a — the Network Hosts panel deserializes the probe
 # inventory (`Vec<mde_card::Card>`) + reuses `mde_card::probe`'s
 # Card→facts extractors, so the workbench depends on mde-card directly.
@@ -65,7 +65,7 @@ mde-card = { path = "../../shared/mde-card" }
 # CB-1.5 (Fleet group) consumes the same mesh-types value objects
 # the panel + mackesd share, so the workbench depends on them
 # directly rather than re-importing through mackesd-core.
-mde-mesh-types = { path = "../../mesh/mde-mesh-types" }
+mackes-mesh-types = { path = "../../mesh/mackes-mesh-types" }
 # UX-3 (2026-05-21) — design-token consumer. `features = ["iced"]`
 # enables the `Rgba::into_iced_color()` helper so the workbench
 # can derive its `iced::Theme::Custom` palette from

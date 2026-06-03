@@ -43,8 +43,8 @@ zbus       = { version = "5", default-features = false, features = ["tokio"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "time"] }
 
 # v2.0.0 Phase 0.2 — MDE config (panel.toml schema).
-mde-config = { path = "../../mesh/mde-config" }
-mde-mesh-types = { path = "../../mesh/mde-mesh-types" }
+mackes-config = { path = "../../mesh/mackes-config" }
+mackes-mesh-types = { path = "../../mesh/mackes-mesh-types" }
 
 # v2.0.0 Phase E1.1 — applet manifest discovery.
 mde-applet-api = { path = "../../applets/applet-api" }

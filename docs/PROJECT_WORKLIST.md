@@ -77,13 +77,14 @@ E0 ──┬─ E1 ──┬───────────────┬─ 
 ### E0 — Monorepo Bootstrap
 _Depends: none_
 
-- [ ] **E0.1: E0 — Unify the mde-*/mackes-* facade crates (mde-config->mackes-config, mde-mesh-types->mackes-mesh-types, mded->mackesd)**
+- [✓] **E0.1: E0 — Unify the mde-*/mackes-* facade crates (mde-config->mackes-config, mde-mesh-types->mackes-mesh-types, mded->mackesd)**
   **As** a workspace maintainer, **I want** the three legacy `mde-*` re-export facades folded into their canonical `mackes-*` crates, **so that** there is one name per type and no duplicate config/mesh-type/daemon symbols across the tree.
   *Reuse:* mde-config / mde-mesh-types / mded (§9 as-is re-export facades → merge into mackes-config / mackes-mesh-types / mackesd). *Deps:* none.
   **Acceptance** (runtime-observable):
     - [ ] `cargo tree -i mde-config` and `-i mde-mesh-types` and `-i mded` each return no in-workspace dependents (facades carry only a deprecation re-export or are dropped from `members`).
     - [ ] Every former consumer compiles against `mackes-config` / `mackes-mesh-types` / `mackesd` directly; `cargo check --workspace` passes with 0 errors.
     - [ ] A round-trip parse of `panel.toml` through `mackes-config` yields the same struct the old `mde-config` produced (existing config still loads at runtime).
+  **Done (2026-06-03):** facade crates `mde-config`/`mde-mesh-types`/`mded` deleted; dependents (mde-workbench/mde-panel/mde-wizard/mde-peer-card) repointed to `mackes-config`/`mackes-mesh-types`; full `cargo check --workspace` green. The `mded` facade had zero real dependents. Runtime `Command::new("mded")` binary calls are a separate command-rename → filed as E0.13.
 
 - [✓] **E0.2: E0 — Re-include + fix the 4 system-lib crates (mde-music/mde-musicd/mde-workbench on alsa-lib-devel); retire legacy mackes-panel (gtk3, replaced by the iced shell)**
   **As** a build engineer, **I want** the four ALSA-dependent crates back in the default workspace and the gtk3 `mackes-panel` retired, **so that** the full audio/Workbench stack builds and the dead gtk panel no longer shadows the iced shell.
@@ -175,6 +176,14 @@ _Depends: none_
     - [ ] Each of the three predecessor repos is set archived/read-only via `gh` only after explicit operator confirmation (no auto-archive; the gate blocks until the operator approves).
     - [ ] Pushing to an archived repo is rejected (read-only enforced at the remote).
     - [ ] The monorepo README/MIGRATION points to the archived repos as the provenance of record and the single origin remote is the monorepo.
+
+- [ ] **E0.13: E0 — Rename the runtime `mded` command → `mackesd` (mde-workbench panels + mesh-status applet)**
+  **As** an operator, **I want** every `Command::new("mded")` call to invoke the canonical `mackesd` binary, **so that** fleet/mesh/health CLI calls work without a legacy `mded` alias on PATH.
+  *Reuse:* `mackesd` (§9 as-is; bin `mackesd`, CLI subcommands). *Deps:* E0.1. Surfaced by E0.1 (facade unify).
+  **Acceptance** (runtime-observable):
+    - [ ] `mde-workbench` panels (mesh_join/mesh_history/inventory/fleet_settings) + the mesh-status applet spawn `mackesd <sub>`, not `mded`; `rg "Command::new(\"mded\")"` returns nothing.
+    - [ ] `mackesd healthz` (and the fleet/mesh subcommands those panels call) return the expected output at runtime.
+    - [ ] Degrades gracefully when `mackesd` is absent from PATH (panel shows an error, never panics).
 
 ### E1 — Deployment-Role Install
 _Depends: E0_

@@ -10,8 +10,7 @@
 //! [`peer_probe::PeerProbe`] + its section types live here as
 //! their production home (PC-2 lock, 2026-05-21). Consumers
 //! (`mded`'s peer-join worker, `mde-peer-card`, future tooling)
-//! import via `use mackes_mesh_types::peer_probe::*;` or the
-//! `mde_mesh_types::peer_probe::*` facade.
+//! import via `use mackes_mesh_types::peer_probe::*;`.
 
 #![forbid(unsafe_code)]
 
