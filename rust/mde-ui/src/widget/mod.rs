@@ -137,6 +137,78 @@ pub fn radio_style(_theme: &iced::Theme, _status: radio::Status) -> radio::Style
     }
 }
 
+/// Blend two colours by `t` (0 → `a`, 1 → `b`). Used to tint the accent for
+/// hover/press states without naming a second hex (the colour stays derived from
+/// the palette accent, so §2.1 holds).
+fn mix(a: Color, b: Color, t: f32) -> Color {
+    Color {
+        r: a.r + (b.r - a.r) * t,
+        g: a.g + (b.g - a.g) * t,
+        b: a.b + (b.b - a.b) * t,
+        a: a.a + (b.a - a.a) * t,
+    }
+}
+
+/// A **primary** (accent-filled) push button — the affirmative call-to-action on a
+/// flat-era surface (Carbon / Win10). Accent fill + light label; hover lightens and
+/// press darkens the accent. Pass to `button(...).style(mde_ui::button_primary)`.
+/// (Under the 3D Win2000/BeOS eras forms use the bevelled [`Button`] instead; this
+/// still renders sensibly — a square accent fill — if ever used there.)
+pub fn button_primary(
+    _theme: &iced::Theme,
+    status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    use iced::widget::button::Status;
+    let accent = palette::accent();
+    let light = palette::color(palette::HIGHLIGHT_TEXT);
+    let bg = match status {
+        Status::Hovered => mix(accent, light, 0.14),
+        Status::Pressed => mix(accent, palette::color(palette::WINDOW_FRAME), 0.20),
+        Status::Disabled => mix(accent, palette::color(palette::WINDOW), 0.55),
+        Status::Active => accent,
+    };
+    iced::widget::button::Style {
+        background: Some(Background::Color(bg)),
+        text_color: light,
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: ctl_radius(),
+        },
+        shadow: Shadow::default(),
+    }
+}
+
+/// A **ghost** (text-only) push button — a low-emphasis / secondary action.
+/// Transparent at rest with accent-coloured text; a faint accent wash on hover and
+/// a stronger one on press. Pass to `button(...).style(mde_ui::button_ghost)`.
+pub fn button_ghost(
+    _theme: &iced::Theme,
+    status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    use iced::widget::button::Status;
+    let accent = palette::accent();
+    let wash = |alpha: f32| Background::Color(Color { a: alpha, ..accent });
+    let background = match status {
+        Status::Hovered => Some(wash(0.14)),
+        Status::Pressed => Some(wash(0.22)),
+        _ => None,
+    };
+    iced::widget::button::Style {
+        background,
+        text_color: match status {
+            Status::Disabled => palette::color(palette::GRAY_TEXT),
+            _ => accent,
+        },
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: ctl_radius(),
+        },
+        shadow: Shadow::default(),
+    }
+}
+
 /// Fill an axis-aligned rectangle with a solid color (skips degenerate rects).
 /// The one quad primitive every Win2000 edge is built from.
 pub(crate) fn fill<R: renderer::Renderer>(r: &mut R, x: f32, y: f32, w: f32, h: f32, c: Color) {
@@ -232,5 +304,34 @@ pub(crate) fn draw_edge<R: renderer::Renderer>(
             h - 2.0,
             palette::color(bevel.inner_br),
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iced::widget::button::Status;
+
+    #[test]
+    fn primary_button_is_accent_filled() {
+        palette::set_theme(palette::Theme::Carbon);
+        let p = button_primary(&iced::Theme::Dark, Status::Active);
+        assert_eq!(p.background, Some(Background::Color(palette::accent())));
+        assert_eq!(p.text_color, palette::color(palette::HIGHLIGHT_TEXT));
+        // Hover shifts the fill towards the light label — distinct from rest.
+        let hov = button_primary(&iced::Theme::Dark, Status::Hovered);
+        assert_ne!(hov.background, p.background);
+    }
+
+    #[test]
+    fn ghost_button_is_transparent_with_accent_text() {
+        palette::set_theme(palette::Theme::Carbon);
+        let g = button_ghost(&iced::Theme::Dark, Status::Active);
+        assert!(g.background.is_none(), "ghost is transparent at rest");
+        assert_eq!(g.text_color, palette::accent());
+        // Hover paints a faint accent wash.
+        assert!(button_ghost(&iced::Theme::Dark, Status::Hovered)
+            .background
+            .is_some());
     }
 }

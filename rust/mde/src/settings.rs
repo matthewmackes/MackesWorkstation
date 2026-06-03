@@ -2539,7 +2539,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
                                 button(text("Cancel").size(metrics::UI_PX))
                                     .on_press(Message::CancelRemove)
                                     .padding(Padding::from([4.0, 12.0]))
-                                    .style(tile_style),
+                                    .style(mde_ui::button_ghost),
                             ),
                     ),
             )
@@ -2571,7 +2571,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
                     button(text("Add account").size(metrics::UI_PX))
                         .on_press(Message::AddUser)
                         .padding(Padding::from([4.0, 12.0]))
-                        .style(tile_style),
+                        .style(mde_ui::button_primary),
                 ),
         )
         .into()
@@ -2616,14 +2616,14 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
         )
         .on_press(Message::SavePin)
         .padding(Padding::from([4.0, 12.0]))
-        .style(tile_style),
+        .style(mde_ui::button_primary),
     );
     if state.pin_set {
         pin_buttons = pin_buttons.push(
             button(text("Remove").size(metrics::UI_PX))
                 .on_press(Message::RemovePin)
                 .padding(Padding::from([4.0, 12.0]))
-                .style(tile_style),
+                .style(mde_ui::button_ghost),
         );
     }
     let mut pin_section = Column::new()

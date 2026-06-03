@@ -131,7 +131,7 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   Explorer "Send to", MPRIS, run-commands, SMS); [ ] "Mobile Devices" Control Panel
   applet. LAN-only; remote-input deferred. Config at ~/.config/mde/connect/.
 - [✓] **B — Add/Remove Programs** (custom dnf-backed package manager, replaces dnfdragora which hung on every launch and couldn't be killed). **Done (B.1).** New `mde add-remove` surface (`packages.rs`): a themed iced window listing `catalogue::catalogue()` grouped by category, each row showing the package + its rpm-read installed state with an **Install** / **Remove** button (mandatory base-session packages shown locked "Required"). Install/Remove run `pkexec dnf install|remove -y` **off the UI thread** (Task::perform + spawn_blocking; polkit prompts), then re-read rpm to refresh the row; one transaction at a time (buttons disable while busy). **dnfdragora fully removed**: dropped from `requires`; the Control Panel "Add/Remove Programs" applet (launched via the running binary through a new `control_panel` Activate special-case for `mde <sub>` tools), the Win10 Settings ▸ Apps "Apps & features" page (`Kind::Mde("add-remove")`), and the Start "Uninstall" context action all point here; the "Automatic Updates"/"MackesDE Update" entries now run `sudo dnf upgrade` in a terminal. Verified: gallery capture shows the categorized list with Required/Install/Remove + Carbon theming + "60 programs"; build/clippy/fmt clean, 56+ tests, no-panic launch. **Follow-ups:** **[[B.2a]] search/filter box — ✓ done** (a header `text_input`; live case-insensitive substring filter over name + package id, hides empty categories, "M of N programs" status; `pkg_matches` unit-tested; gallery-verified). Remaining: [ ] **B.2b** per-transaction progress (stream dnf output rather than the spinner-less busy flag); [✓] **B.2c** a dedicated Updates view (`dnf check-update` list + Update-all). — **Done.** Add/Remove Programs now has a **Programs | Updates** tab strip. The Updates tab lists pending updates parsed from `dnf check-update` (a pure, unit-tested `parse_check_update`: `name.arch → version` rows, epoch versions preserved, the metadata line + the trailing "Obsoleting Packages" block excluded) and offers **Check for updates** (re-runs the check) + **Update all** (`pkexec dnf upgrade -y`), both off the UI thread via the existing `Task::perform`+`spawn_blocking` pattern, one transaction at a time (controls disable while busy/checking). The tab auto-checks on first open; `mde add-remove --updates` deep-links straight to it (a target the "MackesDE Update" Control Panel entry can repoint to). dnf exit codes are honoured — 0 = "up to date", 100 = parse the list, other = a surfaced error, so "couldn't check" is distinct from "no updates". **Verified by gallery capture (real data):** the Updates tab on this host parsed **229 real Fedora-44 updates** with correct package/version columns (incl. epochs) + the enabled Check/Update-all controls + "229 updates available" status; the Programs tab is unchanged but for the new tab strip. 3 parser/filter unit tests green, build/clippy/fmt clean, both launch paths no-panic. **B is now fully done** (B.1 + B.2a + B.2c; only [[B.2b]] per-transaction progress streaming remains as a separate follow-up).
-- [ ] Carbon polish (from the theme survey): primary-blue / ghost button variants
+- [✓] Carbon polish (from the theme survey): primary-blue / ghost button variants
   (current Carbon buttons are flat secondary); explicit accent-tinted labwc
   titlebar buttons; popup.rs context menus still bottom-anchored under the top bar.
   — **popup-anchoring sub-item ✓ done:** `popup::view` now anchors the menu to the
@@ -140,11 +140,18 @@ confirmed; full table in `docs/COMPLIANCE.md`). All 14 resolved this pass:**
   Win10-top → top-left. Previously every popup floated bottom-left, so under the
   Carbon top bar the taskbar right-click menu appeared at the *opposite* edge,
   disconnected from the bar. Verified by captures: Carbon now anchors top-left
-  (flat chrome), Win2000 stays bottom-left (silver 3D) — both correct. **Remaining
-  (still open):** primary-blue / ghost Carbon button variants. (The "accent-tinted
-  labwc titlebar buttons" sub-item is **superseded by the MackesDE rebrand** —
-  commit `92bc4e4` made the Win10 labwc titlebar match Carbon and `895f53c` retired
-  the per-era accent, so there's no separate accent tint to apply.)
+  (flat chrome), Win2000 stays bottom-left (silver 3D) — both correct. **primary-blue
+  / ghost button variants ✓ done:** new shared `mde_ui::button_primary` (accent-filled
+  CTA, light label, hover/press tint the accent via a palette-derived `mix` — no second
+  hex, §2.1) + `mde_ui::button_ghost` (transparent, accent text, faint accent wash on
+  hover) in `widget/mod.rs`, flat-radius-aware via `ctl_radius()`, unit-tested. Wired to
+  real CTAs: Sign-in ▸ **Set/Change PIN** → primary, **Remove** → ghost; Family & other
+  users ▸ **Add account** → primary, the remove-confirm **Cancel** → ghost (destructive
+  "Delete account" deliberately stays neutral, not blue). Capture confirms the three-tier
+  hierarchy (blue-filled primary vs text-only ghost vs flat secondary). (The "accent-tinted
+  labwc titlebar buttons" sub-item is **superseded by the MackesDE rebrand** — commit
+  `92bc4e4` made the Win10 labwc titlebar match Carbon and `895f53c` retired the per-era
+  accent, so there's no separate accent tint to apply.) **Carbon polish fully done.**
 
 ## 2.0 — Windows 10 era
 
