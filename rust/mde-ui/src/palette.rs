@@ -84,6 +84,14 @@ pub const LOGO_TEXT_ACCENT: Rgb = (0x6f, 0x9f, 0xe0);
 /// strip; under Win2000/BeOS it reads as the classic silver bar.
 pub const SHELL_HEADER: Rgb = (0xd4, 0xd0, 0xc7);
 
+/// Security status semantics (E14.2), consumed by the Windows 10 Security
+/// dashboard (E14.4): OK / WARN / RISK. Identity values are classic-era
+/// green / amber / red; the Carbon (and Win10) remap repaints them to the IBM
+/// Carbon support palette (Green 50 / Yellow 30 / Red 60).
+pub const STATUS_OK: Rgb = (0x00, 0x80, 0x00);
+pub const STATUS_WARN: Rgb = (0xc0, 0x60, 0x00);
+pub const STATUS_RISK: Rgb = (0xc0, 0x00, 0x00);
+
 // --- Runtime theme switch --------------------------------------------------
 // The palette constants above are the canonical Win2000 role keys. Alternate
 // themes are applied by remapping those role colors at the `color()` edge — so
@@ -377,6 +385,31 @@ fn carbon(rgb: Rgb) -> Rgb {
                 (0xa6, 0xc8, 0xff)
             } else {
                 (0x52, 0x52, 0x52)
+            }
+        }
+        // Security status (E14.2) -> IBM Carbon support palette.
+        (0x00, 0x80, 0x00) => {
+            // STATUS_OK -> support-success (Green 40 dark / Green 50 light).
+            if dark {
+                (0x42, 0xbe, 0x65)
+            } else {
+                (0x24, 0xa1, 0x48)
+            }
+        }
+        (0xc0, 0x60, 0x00) => {
+            // STATUS_WARN -> support-warning (Yellow 30 dark / darker amber light).
+            if dark {
+                (0xf1, 0xc2, 0x1b)
+            } else {
+                (0xb2, 0x8a, 0x00)
+            }
+        }
+        (0xc0, 0x00, 0x00) => {
+            // STATUS_RISK -> support-error (Red 50 dark / Red 60 light).
+            if dark {
+                (0xfa, 0x4d, 0x56)
+            } else {
+                (0xda, 0x1e, 0x28)
             }
         }
         // Brand flag art and anything else -> unchanged.

@@ -56,6 +56,9 @@ pub const LOCK_CLOCK_PX: f32 = 72.0;
 pub const TITLE_FONT_BOLD: bool = true;
 /// The Windows 10 Task View window-tile size (px) — a square-ish window card.
 pub const TASKVIEW_TILE: f32 = 200.0;
+/// The Windows 10 Security dashboard status-tile size (px), E14.2 — a square
+/// tile (icon + title + status line) in the 6-up home grid.
+pub const SECURITY_TILE: f32 = 150.0;
 
 // --- Nerd-glyph / badge sizes (§2.3) ----------------------------------------
 // The shell's chrome glyphs are sized larger than body text. Named here so each

@@ -170,6 +170,40 @@ fn windows10_uses_carbon_coloring() {
     palette::set_dark(true);
 }
 
+/// E14.2: pin the security-status roles (OK / WARN / RISK) + the dashboard tile
+/// metric. Identity values are the classic-era green / amber / red; Carbon (and
+/// Win10, the Security era) repaint them to the IBM Carbon support palette. Holds
+/// THEME_GUARD and restores the Win2000 default before releasing.
+#[test]
+fn security_status_palette_pins() {
+    use mde_ui::palette::Theme;
+    assert_eq!(palette::STATUS_OK, (0x00, 0x80, 0x00));
+    assert_eq!(palette::STATUS_WARN, (0xc0, 0x60, 0x00));
+    assert_eq!(palette::STATUS_RISK, (0xc0, 0x00, 0x00));
+    assert_eq!(metrics::SECURITY_TILE, 150.0);
+
+    let _g = THEME_GUARD.lock().unwrap();
+    let rgb = |c: iced::Color| (ch(c.r), ch(c.g), ch(c.b));
+    palette::set_theme(Theme::Carbon);
+    palette::set_dark(true);
+    assert_eq!(rgb(palette::color(palette::STATUS_OK)), (0x42, 0xbe, 0x65));
+    assert_eq!(
+        rgb(palette::color(palette::STATUS_WARN)),
+        (0xf1, 0xc2, 0x1b)
+    );
+    assert_eq!(
+        rgb(palette::color(palette::STATUS_RISK)),
+        (0xfa, 0x4d, 0x56)
+    );
+    // Win10 shares Carbon's coloring → identical support colors.
+    palette::set_theme(Theme::Windows10);
+    palette::set_dark(true);
+    assert_eq!(rgb(palette::color(palette::STATUS_OK)), (0x42, 0xbe, 0x65));
+
+    palette::set_theme(Theme::Win2000);
+    palette::set_dark(true);
+}
+
 /// E15.12: pin the palette roles the Windows 10 network surfaces paint with — the
 /// **accent** (flyout toggle pills, Wi-Fi signal bars, data-usage bars, selection)
 /// and the page **surface / caption neutrals** — so the Networking look can't drift
