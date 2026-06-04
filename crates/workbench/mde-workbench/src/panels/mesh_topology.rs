@@ -11,7 +11,7 @@
 //!
 //! Data source: `mackesd Fleet.Files.Peers` via the same
 //! shell-out path the workbench already uses for Mesh Pending
-//! (avoids a fresh DBusBackend dep in mde-workbench). Empty
+//! (avoids a fresh settings-backend dep in mde-workbench). Empty
 //! when mackesd isn't on the bus or no peers are enrolled —
 //! that's the honest state; the panel says so.
 //!

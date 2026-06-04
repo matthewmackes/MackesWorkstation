@@ -4029,6 +4029,48 @@ fn run_serve(
                 );
             }
         }
+        // E0.3.4 — Settings store on the mesh Bus at
+        // action/settings/<verb> (get/set/list-keys/snapshot/restore;
+        // args in the request body), replacing the never-registered
+        // dev.mackes.MDE.Settings D-Bus interface. Registering it makes
+        // the store genuinely reachable for the first time. Own OS
+        // thread (Persist/rusqlite isn't Send); no tokio runtime (the
+        // settings free fns are synchronous).
+        match mde_bus::default_data_dir()
+            .ok_or_else(|| "no XDG data dir for bus".to_string())
+            .and_then(|d| mde_bus::persist::Persist::open(d).map_err(|e| e.to_string()))
+        {
+            Ok(persist) => {
+                let settings_svc = mackesd_core::ipc::settings::SettingsService;
+                let resp_shutdown = Arc::clone(&shutdown);
+                std::thread::Builder::new()
+                    .name("settings-bus-responder".into())
+                    .spawn(move || {
+                        mackesd_core::ipc::settings::serve_bus(&persist, &settings_svc, || {
+                            resp_shutdown.load(Ordering::Relaxed)
+                        });
+                    })
+                    .map(|_handle| {
+                        tracing::info!(
+                            "Settings Bus responder spawned; serving \
+                             action/settings/{{get,set,list-keys,snapshot,restore}}"
+                        );
+                    })
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(error = %e, "Settings Bus responder thread spawn failed");
+                    });
+                worker_names
+                    .lock()
+                    .expect("worker_names mutex")
+                    .push("settings_bus_responder".into());
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Settings Bus responder: bus persist open failed; responder skipped"
+                );
+            }
+        }
         match mackesd_core::store::open(&db_path) {
             Ok(conn) => {
                 let store = Arc::new(tokio::sync::Mutex::new(conn));

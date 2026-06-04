@@ -70,6 +70,21 @@ pub fn nebula_request_with_timeout(verb: &str, timeout: Duration) -> Option<Stri
 /// on no Bus data-dir / persist error / timeout / no-responder.
 #[must_use]
 pub fn action_request(topic: &str, timeout: Duration) -> Option<String> {
+    action_request_with_body(topic, None, timeout)
+}
+
+/// As [`action_request`] but carries a request `body` — the verb's
+/// argument (e.g. a settings key for `action/settings/get`, or a
+/// `{"key","value_json"}` object for `action/settings/set`). Same
+/// current-thread-runtime contract as [`action_request`]: MUST be
+/// called OUTSIDE an async runtime; callers on the iced executor
+/// wrap it in `tokio::task::spawn_blocking`.
+#[must_use]
+pub fn action_request_with_body(
+    topic: &str,
+    body: Option<&str>,
+    timeout: Duration,
+) -> Option<String> {
     let bus_dir = mde_bus::default_data_dir()?;
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -77,11 +92,29 @@ pub fn action_request(topic: &str, timeout: Duration) -> Option<String> {
         .ok()?;
     rt.block_on(async {
         let persist = Persist::open(bus_dir).ok()?;
-        match request(&persist, topic, Priority::Default, None, None, timeout).await {
+        match request(&persist, topic, Priority::Default, None, body, timeout).await {
             Ok(reply) => reply.body,
             Err(_) => None,
         }
     })
+}
+
+/// Fire-and-forget Bus publish: enqueue one request to `topic` with
+/// `body` and return WITHOUT awaiting a reply. For best-effort
+/// propagation pushes — e.g. `RemoteBackend`'s settings write-through
+/// to mackesd's Settings responder, where the change rides onward via
+/// the `fs_sync` worker and the caller never consumes the reply.
+/// Synchronous + cheap (a single `Persist` write), so an absent
+/// responder costs one db write, not a timeout. Returns `true` on a
+/// successful enqueue.
+pub fn action_publish(topic: &str, body: &str) -> bool {
+    let Some(bus_dir) = mde_bus::default_data_dir() else {
+        return false;
+    };
+    let Ok(persist) = Persist::open(bus_dir) else {
+        return false;
+    };
+    mde_bus::rpc::publish_request(&persist, topic, Priority::Default, None, Some(body)).is_ok()
 }
 
 /// Normalise a focus-request body into the slug to submit. Trims

@@ -28,7 +28,7 @@ pub mod sidebar;
 pub mod single_instance;
 
 pub use app::{App, Message};
-pub use backend::{Backend, BackendError, DBusBackend, DemoBackend, FileBackend, RemoteBackend};
+pub use backend::{Backend, BackendError, DemoBackend, FileBackend, RemoteBackend};
 pub use dbus::{
     poll_once as focus_poll_once, serve_bus as serve_focus_bus, slug_from_body, PendingFocus,
     ACTION_TOPIC,

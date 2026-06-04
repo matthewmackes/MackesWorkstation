@@ -324,7 +324,7 @@ impl App {
     }
 
     /// Build an [`App`] over a specific [`Backend`] — used by
-    /// `main.rs` to wire the live [`crate::DBusBackend`] and
+    /// `main.rs` to wire the live [`crate::RemoteBackend`] and
     /// by tests to substitute [`DemoBackend`] with seeded
     /// values.
     #[must_use]

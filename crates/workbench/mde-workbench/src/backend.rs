@@ -1,22 +1,25 @@
-//! Backend abstraction over `dev.mackes.MDE.Settings.Get/Set`.
+//! Backend abstraction over mackesd's Settings store, reached on
+//! the mesh **Bus** at `action/settings/{get,set}` (E0.3.4).
 //!
-//! Panels call into a `Arc<dyn Backend>` rather than zbus
+//! Panels call into a `Arc<dyn Backend>` rather than the Bus
 //! directly so unit tests can substitute [`DemoBackend`] (an
-//! in-memory HashMap) for the real [`DBusBackend`] (live zbus
-//! to mackesd). Matches the mde-files Phase 2.1 pattern.
+//! in-memory HashMap) for the real [`RemoteBackend`] (local store
+//! + best-effort live Bus push to mackesd). Matches the mde-files
+//! Phase 2.1 pattern.
 //!
 //! CB-1.6 lock: Iced Look & Feel panels read + write `theme.*`
-//! and `font.*` keys via `dev.mackes.MDE.Settings`. The
-//! interface (in `crates/mackesd/src/ipc/settings.rs`)
-//! already ships the Get/Set/Snapshot/Restore/ListKeys
-//! methods; this module is the workbench-side adapter.
+//! and `font.*` keys via the Settings store. E0.3.4 migrated that
+//! store off the never-registered `dev.mackes.MDE.Settings` D-Bus
+//! interface onto the Bus responder in
+//! `crates/mesh/mackesd/src/ipc/settings.rs` (verbs `get`/`set`/
+//! `list-keys`/`snapshot`/`restore`); this module is the
+//! workbench-side adapter.
 
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use zbus::Connection;
 
 /// Errors a [`Backend`] call can return. Kept narrow on
 /// purpose — the panel layer maps everything onto a generic
@@ -24,12 +27,14 @@ use zbus::Connection;
 /// per-fault.
 #[derive(Debug, Clone)]
 pub enum BackendError {
-    /// Setting key isn't registered (DemoBackend) or
-    /// `dev.mackes.MDE.Settings.Get` returned a Failed reply.
+    /// Setting key isn't registered (DemoBackend) or the
+    /// `action/settings/get` reply carried an `unknown setting
+    /// key` error envelope.
     UnknownKey(String),
-    /// Bus call failed (connection lost, method timeout,
-    /// service unavailable). Carries the upstream message
-    /// so the panel can surface it in an error state.
+    /// Bus call failed (no responder, request timeout, persist
+    /// error, or an `{"error":…}` reply envelope). Carries the
+    /// upstream message so the panel can surface it in an error
+    /// state.
     Bus(String),
 }
 
@@ -53,9 +58,10 @@ pub trait Backend: Send + Sync + 'static {
     /// install before any apply lands).
     async fn get(&self, key: &str) -> Result<String, BackendError>;
 
-    /// Write `value_json` for `key`. The Phase C appliers run
-    /// the side effect (gsettings call, fontconfig rewrite,
-    /// etc.) inside `dev.mackes.MDE.Settings.Set`.
+    /// Write `value_json` for `key`. On the live path the appliers
+    /// run the side effect (gsettings call, fontconfig rewrite,
+    /// etc.) inside mackesd's `action/settings/set` responder
+    /// (`crate::settings::apply`).
     async fn set(&self, key: &str, value_json: &str) -> Result<(), BackendError>;
 }
 
@@ -111,8 +117,9 @@ impl Backend for DemoBackend {
 /// fallback to `$HOME/.config/mde/`); reads happen against
 /// the in-memory cache that's populated on construction.
 /// Closes the half of AF-2.3.a that doesn't depend on mackesd:
-/// settings PERSISTENCE. The cross-mesh PUSH half stays on
-/// the DBusBackend route, captured as AF-2.3.b.
+/// settings PERSISTENCE. The cross-mesh PUSH half rides
+/// [`RemoteBackend`]'s `action/settings/set` Bus publish,
+/// captured as AF-2.3.b.
 ///
 /// File format: TOML with `[settings]` table whose keys are
 /// the same dot-notated setting names the API uses (e.g.
@@ -251,135 +258,45 @@ pub fn serialize_settings(values: &HashMap<String, String>) -> String {
     out
 }
 
-/// `dev.mackes.MDE.Settings` client proxy. Generated from the
-/// same interface name + method signatures the service in
-/// `crates/mackesd/src/ipc/settings.rs` exposes.
-#[zbus::proxy(
-    interface = "dev.mackes.MDE.Settings",
-    default_service = "dev.mackes.MDE.Settings",
-    default_path = "/dev/mackes/MDE/Settings"
-)]
-trait Settings {
-    fn get(&self, key: &str) -> zbus::Result<String>;
-    fn set(&self, key: &str, value_json: &str) -> zbus::Result<()>;
-}
-
-/// Live backend that talks to mackesd over the session bus.
-/// Holds an `Arc<Connection>` so panels can clone the backend
-/// cheaply into `Task::perform` futures.
-#[derive(Clone)]
-pub struct DBusBackend {
-    conn: Arc<Connection>,
-}
-
-impl fmt::Debug for DBusBackend {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DBusBackend").finish_non_exhaustive()
-    }
-}
-
-impl DBusBackend {
-    #[must_use]
-    pub fn new(conn: Arc<Connection>) -> Self {
-        Self { conn }
-    }
-}
-
-#[async_trait]
-impl Backend for DBusBackend {
-    async fn get(&self, key: &str) -> Result<String, BackendError> {
-        let proxy = SettingsProxy::new(&self.conn)
-            .await
-            .map_err(|e| BackendError::Bus(e.to_string()))?;
-        proxy
-            .get(key)
-            .await
-            .map_err(|e| BackendError::Bus(e.to_string()))
-    }
-
-    async fn set(&self, key: &str, value_json: &str) -> Result<(), BackendError> {
-        let proxy = SettingsProxy::new(&self.conn)
-            .await
-            .map_err(|e| BackendError::Bus(e.to_string()))?;
-        proxy
-            .set(key, value_json)
-            .await
-            .map_err(|e| BackendError::Bus(e.to_string()))
-    }
-}
-
 /// v4.0.1 AF-2.3.b (2026-05-23) — write-through wrapper that
-/// persists every `set` to BOTH the local FileBackend AND
-/// `dev.mackes.MDE.Settings.Set` on the session bus. Reads
-/// fall through to the local FileBackend (canonical for the
-/// local node; bus pushes are for downstream propagation to
-/// peers via mackesd's fs_sync worker, not for canonicality).
+/// persists every `set` to BOTH the local FileBackend AND mackesd's
+/// Settings store on the mesh **Bus** (`action/settings/set`). Reads
+/// fall through to the local FileBackend (canonical for the local
+/// node; the Bus push is for downstream propagation to peers via
+/// mackesd's `fs_sync` worker, not for canonicality).
 ///
-/// The bus connection is lazy: the first `set` triggers a
-/// `zbus::Connection::session()` attempt cached in a
-/// `OnceCell<Option<DBusBackend>>`. If the connection fails
-/// (mackesd not running, missing session bus, etc.) the cell
-/// stores `None` and subsequent `set` calls skip the push
-/// without retrying — the local write always succeeds so the
-/// operator's setting never disappears.
+/// E0.3.4: the push is now a **fire-and-forget** Bus publish (it was
+/// a `dev.mackes.MDE.Settings.Set` D-Bus call). Because propagation
+/// doesn't need the reply, we don't wait for one — an absent
+/// responder (headless, mackesd down) costs a single `Persist` write
+/// rather than a request timeout, and the canonical local write
+/// always succeeds so the operator's setting never disappears.
 pub struct RemoteBackend {
     local: FileBackend,
-    bus: Arc<tokio::sync::OnceCell<Option<DBusBackend>>>,
 }
 
 impl fmt::Debug for RemoteBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RemoteBackend")
             .field("local", &self.local)
-            .field("bus_initialized", &self.bus.initialized())
             .finish()
     }
 }
 
 impl RemoteBackend {
-    /// Construct with the canonical FileBackend (production
-    /// path). Bus connection is deferred until the first
-    /// `set` call.
+    /// Construct with the canonical FileBackend (production path).
     #[must_use]
     pub fn new() -> Self {
         Self {
             local: FileBackend::new(),
-            bus: Arc::new(tokio::sync::OnceCell::new()),
         }
     }
 
-    /// Construct around an explicit FileBackend — used by
-    /// tests that need a tempfile-backed local store.
+    /// Construct around an explicit FileBackend — used by tests that
+    /// need a tempfile-backed local store.
     #[must_use]
     pub fn with_local(local: FileBackend) -> Self {
-        Self {
-            local,
-            bus: Arc::new(tokio::sync::OnceCell::new()),
-        }
-    }
-
-    /// Best-effort bus lazy-init. Returns `Some(&DBusBackend)`
-    /// when the session bus connection (and the
-    /// `dev.mackes.MDE.Settings` proxy) are reachable; `None`
-    /// otherwise. Cached after the first call so we don't
-    /// re-attempt connecting on every `set`.
-    async fn lazy_bus(&self) -> Option<&DBusBackend> {
-        self.bus
-            .get_or_init(|| async {
-                match Connection::session().await {
-                    Ok(conn) => Some(DBusBackend::new(Arc::new(conn))),
-                    Err(e) => {
-                        tracing::warn!(
-                            error = %e,
-                            "RemoteBackend: session bus unreachable; \
-                             cross-mesh push disabled for this session"
-                        );
-                        None
-                    }
-                }
-            })
-            .await
-            .as_ref()
+        Self { local }
     }
 }
 
@@ -396,17 +313,25 @@ impl Backend for RemoteBackend {
     }
 
     async fn set(&self, key: &str, value_json: &str) -> Result<(), BackendError> {
-        // Local write first — guarantees the setting survives
-        // even if the bus push errors. Only propagate the
-        // local error; bus failures are best-effort and logged.
+        // Canonical local write first — guarantees the setting
+        // survives even when the mesh push is a no-op. Only the
+        // local error propagates.
         self.local.set(key, value_json).await?;
-        if let Some(bus) = self.lazy_bus().await {
-            if let Err(e) = bus.set(key, value_json).await {
-                tracing::warn!(
-                    key, error = %e,
-                    "RemoteBackend: bus push failed; local write succeeded",
-                );
-            }
+        // Best-effort, fire-and-forget propagation to mackesd's
+        // Settings responder so its `fs_sync` worker can push the
+        // change to peers. No reply is awaited.
+        let body = serde_json::json!({ "key": key, "value_json": value_json }).to_string();
+        let pushed = tokio::task::spawn_blocking(move || {
+            crate::dbus::action_publish("action/settings/set", &body)
+        })
+        .await
+        .unwrap_or(false);
+        if !pushed {
+            tracing::debug!(
+                key,
+                "RemoteBackend: mesh settings push skipped (no Bus / responder); \
+                 local write is canonical"
+            );
         }
         Ok(())
     }
