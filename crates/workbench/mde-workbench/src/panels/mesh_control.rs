@@ -81,9 +81,19 @@ impl MeshControlPanel {
     }
 
     pub fn load() -> Task<crate::Message> {
-        Task::perform(async { probe_cluster() }, |snap| {
-            crate::Message::MeshControl(Message::Loaded(snap))
-        })
+        Task::perform(
+            async {
+                // probe_cluster() does blocking I/O (healthz, leader
+                // lock, + the Nebula Bus probe, which spins its own
+                // current-thread runtime). Run it off the async
+                // executor via spawn_blocking so block_on never nests
+                // a runtime, and to keep the worker responsive.
+                tokio::task::spawn_blocking(probe_cluster)
+                    .await
+                    .expect("probe_cluster task panicked")
+            },
+            |snap| crate::Message::MeshControl(Message::Loaded(snap)),
+        )
     }
 
     pub fn update(&mut self, msg: Message) -> Task<crate::Message> {
@@ -616,29 +626,17 @@ pub async fn run_take_leadership_force() -> (bool, String) {
     }
 }
 
-/// NF-11.3 — Synchronously shell out to `dbus-send` for the
-/// `dev.mackes.MDE.Nebula.Status.SelfNode` method. Returns the
-/// raw JSON-string reply (the daemon serializes
-/// `SelfNodeSnapshot` as JSON); empty string when dbus-send is
-/// missing or the call fails.
+/// NF-11.3 / E0.3.1.a — Request the SelfNode snapshot over the mesh
+/// Bus (`action/nebula/self-node`), replacing the prior `dbus-send`
+/// read of the (dual-served, retiring)
+/// `dev.mackes.MDE.Nebula.Status.SelfNode` D-Bus method. Returns
+/// the raw JSON reply body (the daemon serializes `SelfNodeSnapshot`
+/// as JSON, parsed by [`parse_self_node_epoch`]); empty string when
+/// the responder is down / times out. Sync because its only caller,
+/// [`probe_cluster`], runs under `spawn_blocking`.
 #[must_use]
 pub fn read_nebula_self_node() -> String {
-    let out = std::process::Command::new("dbus-send")
-        .args([
-            "--session",
-            "--print-reply=literal",
-            "--dest=org.mackes.mackesd",
-            "/dev/mackes/MDE/Nebula/Status",
-            "dev.mackes.MDE.Nebula.Status.SelfNode",
-        ])
-        .output();
-    let Ok(out) = out else {
-        return String::new();
-    };
-    if !out.status.success() {
-        return String::new();
-    }
-    String::from_utf8_lossy(&out.stdout).trim().to_string()
+    crate::dbus::nebula_request("self-node").unwrap_or_default()
 }
 
 /// NF-11.3 — Parse the SelfNode reply for the cert epoch +

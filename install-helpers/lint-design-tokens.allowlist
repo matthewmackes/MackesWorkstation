@@ -271,9 +271,9 @@ crates/workbench/mde-workbench/src/panels/home.rs:101
 crates/workbench/mde-workbench/src/panels/home.rs:102
 crates/workbench/mde-workbench/src/panels/home.rs:103
 crates/workbench/mde-workbench/src/panels/home.rs:104
-crates/workbench/mde-workbench/src/panels/home.rs:1160
-crates/workbench/mde-workbench/src/panels/mesh_control.rs:296
-crates/workbench/mde-workbench/src/panels/mesh_control.rs:308
+crates/workbench/mde-workbench/src/panels/home.rs:1157
+crates/workbench/mde-workbench/src/panels/mesh_control.rs:306
+crates/workbench/mde-workbench/src/panels/mesh_control.rs:318
 crates/workbench/mde-workbench/src/panels/mesh_pending.rs:287
 crates/workbench/mde-workbench/src/panels/mesh_pending.rs:331
 crates/workbench/mde-workbench/src/panels/mesh_services.rs:271

@@ -518,18 +518,15 @@ pub async fn reprobe_for_event(event: DbusEvent) -> (Vec<CapabilityRow>, bool) {
 // --- Nebula ----------------------------------------------------------------
 
 async fn probe_nebula() -> ProbeOutcome {
-    // dev.mackes.MDE.Nebula.Status.Status returns a JSON
-    // dictionary; we only need active_transport for the pill.
-    let raw = match dbus_call(
-        "org.mackes.mackesd",
-        "/dev/mackes/MDE/Nebula/Status",
-        "dev.mackes.MDE.Nebula.Status",
-        "Status",
-    )
-    .await
-    {
-        Ok(s) => s,
-        Err(_) => return ProbeOutcome::unknown(),
+    // action/nebula/status returns a JSON dictionary; we only need
+    // active_transport for the pill. E0.3.1.a — read it over the
+    // mesh Bus instead of the (dual-served, retiring) Nebula.Status
+    // D-Bus method. The Bus client spins its own current-thread
+    // runtime (Persist isn't Send), so run it via spawn_blocking to
+    // keep this future Send for the iced executor.
+    let raw = match tokio::task::spawn_blocking(|| crate::dbus::nebula_request("status")).await {
+        Ok(Some(s)) => s,
+        _ => return ProbeOutcome::unknown(),
     };
     let transport = extract_json_string_field(&raw, "active_transport").unwrap_or_default();
     if transport.is_empty() || transport == "offline" {

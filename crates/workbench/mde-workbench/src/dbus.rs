@@ -19,14 +19,58 @@
 //! exception per EPIC-RETIRE-DBUS finding #3. Only the method moved.
 
 use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 
 use mde_bus::hooks::config::Priority;
 use mde_bus::persist::Persist;
-use mde_bus::rpc::{reply_topic, INTERACTIVE_POLL_INTERVAL};
+use mde_bus::rpc::{reply_topic, request, INTERACTIVE_POLL_INTERVAL};
 
 /// Bus action topic the `focus(slug)` hand-off publishes to. The
 /// slug travels in the message body (empty body = "raise only").
 pub const ACTION_TOPIC: &str = "action/shell/workbench-focus";
+
+/// E0.3.1.a — read-side timeout for the Nebula status Bus probes.
+/// Matches the wizard preview page's 2 s budget.
+const NEBULA_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// E0.3.1.a — synchronous Bus client for mackesd's Nebula status
+/// read verbs (`action/nebula/{status,self-node,list-peers}`),
+/// replacing the panels' `dbus-send` / D-Bus reads of the
+/// (dual-served, retiring) `dev.mackes.MDE.Nebula.Status`
+/// interface. Publishes one request + blocks for the reply body on
+/// a private current-thread runtime (`Persist`/rusqlite isn't
+/// `Send`, so it can't ride a shared multi-thread executor).
+///
+/// MUST be called OUTSIDE an async runtime (it builds + drives its
+/// own) — callers on the iced executor wrap it in
+/// `tokio::task::spawn_blocking`. Returns `None` on no Bus
+/// data-dir / persist error / timeout / no-responder; callers map
+/// that to their daemon-down rendering.
+#[must_use]
+pub fn nebula_request(verb: &str) -> Option<String> {
+    let bus_dir = mde_bus::default_data_dir()?;
+    let topic = format!("action/nebula/{verb}");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .ok()?;
+    rt.block_on(async {
+        let persist = Persist::open(bus_dir).ok()?;
+        match request(
+            &persist,
+            &topic,
+            Priority::Default,
+            None,
+            None,
+            NEBULA_PROBE_TIMEOUT,
+        )
+        .await
+        {
+            Ok(reply) => reply.body,
+            Err(_) => None,
+        }
+    })
+}
 
 /// Normalise a focus-request body into the slug to submit. Trims
 /// surrounding whitespace; a missing or whitespace-only body means

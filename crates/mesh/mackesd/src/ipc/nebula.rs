@@ -378,64 +378,22 @@ impl NebulaStatusService {
     }
 }
 
-// E0.3.1 (EPIC-RETIRE-DBUS): the three read-projection verbs —
-// `Status()` / `ListPeers()` / `SelfNode()` — now ALSO serve on
+// E0.3.1 / E0.3.1.a (EPIC-RETIRE-DBUS): the three read-projection
+// verbs — `Status()` / `ListPeers()` / `SelfNode()` — have been
+// RETIRED from this `#[interface]` block. They now serve ONLY on
 // the mesh Bus at `action/nebula/{status,list-peers,self-node}`
-// via [`serve_bus`] below, which is the migration target. The
-// wizard preview page already reads over the Bus. But these reads
-// are kept HERE on D-Bus too (dual-served) because live consumers
-// still call them: `mesh_backend` (mde-files), and the
-// `mesh_control` + `home` panels (mde-workbench). Per the SAME
-// strategy as `RegenCerts` / `Enroll` / the signals — a verb stays
-// on D-Bus until its consumers migrate — the reads retire only once
-// those three consumers move to the Bus (E0.3.1.a). The pure
-// builders (`build_status_snapshot` / `build_peer_list` /
-// `build_self_node`) are the single source both paths share.
+// via [`serve_bus`] below, over the same `build_status_snapshot` /
+// `build_peer_list` / `build_self_node` builders. All four read
+// consumers migrated to the Bus (mde-wizard/preview,
+// mde-files/mesh_backend, mde-workbench/{mesh_control,home}); no
+// D-Bus reader of these verbs remains.
+//
+// The verbs still below (`RegenCerts`, `Enroll`, the signals) keep
+// live D-Bus consumers (mesh_control panel, Overview subscription)
+// and migrate in a later E0.3 substep — so the `ipc/` allow-list
+// entry for this file stays until those land.
 #[interface(name = "dev.mackes.MDE.Nebula.Status")]
 impl NebulaStatusService {
-    /// `Status()` — full overlay status snapshot serialized as a
-    /// JSON `StatusSnapshot`. Thin D-Bus wrapper over the shared
-    /// [`Self::build_status_snapshot`] builder (the Bus responder's
-    /// `action/nebula/status` verb wraps the identical builder).
-    /// Dual-served pending consumer migration — see the block
-    /// comment above.
-    async fn status(&self) -> zbus::fdo::Result<String> {
-        let snap = self
-            .build_status_snapshot()
-            .await
-            .map_err(|e| zbus::fdo::Error::Failed(format!("status: {e}")))?;
-        serde_json::to_string(&snap)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("status encode: {e}")))
-    }
-
-    /// `ListPeers()` — the peer roster serialized as a JSON
-    /// `Vec<PeerRow>`. Thin D-Bus wrapper over the shared
-    /// [`Self::build_peer_list`] builder (mirrors the Bus
-    /// responder's `action/nebula/list-peers` verb). Dual-served
-    /// pending consumer migration.
-    async fn list_peers(&self) -> zbus::fdo::Result<String> {
-        let peers = self
-            .build_peer_list()
-            .await
-            .map_err(|e| zbus::fdo::Error::Failed(format!("list_peers: {e}")))?;
-        serde_json::to_string(&peers)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("list_peers encode: {e}")))
-    }
-
-    /// `SelfNode()` — this node's identity + cert-epoch snapshot
-    /// serialized as a JSON `SelfNodeSnapshot`. Thin D-Bus wrapper
-    /// over the shared [`Self::build_self_node`] builder (mirrors
-    /// the Bus responder's `action/nebula/self-node` verb).
-    /// Dual-served pending consumer migration.
-    async fn self_node(&self) -> zbus::fdo::Result<String> {
-        let s = self
-            .build_self_node()
-            .await
-            .map_err(|e| zbus::fdo::Error::Failed(format!("self_node: {e}")))?;
-        serde_json::to_string(&s)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("self_node encode: {e}")))
-    }
-
     /// Trigger a CA-epoch bump. Returns a human-readable
     /// status string the wizard's confirmation modal can
     /// display verbatim.
