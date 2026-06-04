@@ -21,6 +21,9 @@
 //!     peers + per-peer overlay IP + cert fingerprint + reachable.
 //!   * `action/nebula/self-node` → JSON [`SelfNodeSnapshot`]
 //!     {overlay_ip, role, cert_epoch, cert_expires_at, mesh_id}.
+//!   * `action/nebula/regen-certs` → JSON { ok, message } — the CA
+//!     epoch-bump WRITE (E0.3.1.b); runs [`NebulaStatusService::
+//!     regen_certs_inner`], which shells `nebula-cert`.
 //!
 //! The pure async builders ([`NebulaStatusService::
 //! build_status_snapshot`] etc.) are unchanged — the responder
@@ -29,12 +32,15 @@
 //! pre-migration D-Bus methods produced (so consumers parse the
 //! same JSON).
 //!
-//! The remaining `#[interface]` block carries the verbs that have
-//! NOT yet migrated to the Bus (`RegenCerts` — mesh_control panel;
-//! `Enroll` — wizard convenience; the three `#[zbus(signal)]`
-//! declarations the Overview's live subscription pins against).
-//! Those retire in a later E0.3 substep; the three read verbs
-//! migrated here are removed from the interface.
+//! The remaining `#[interface]` block carries ONLY the three
+//! `#[zbus(signal)]` declarations the Overview's live subscription
+//! pins against (`peer_state_changed` / `transport_changed` /
+//! `enrollment_completed`). The reads + the `RegenCerts` write
+//! migrated to the Bus (E0.3.1 / E0.3.1.a / E0.3.1.b); the `Enroll`
+//! D-Bus method was removed as dead (the `mackesd enroll` CLI +
+//! CSR-watcher path drive enrollment, not D-Bus). The signals
+//! retire to a Bus event topic in the final E0.3.1.b substep,
+//! which drops this block + the lint-dbus-shape allowlist entry.
 //!
 //! Reads come from the live SQLite tables (`nebula_ca` +
 //! `nebula_peer_certs` from migration 0011, `nodes` from the
@@ -422,42 +428,17 @@ impl NebulaStatusService {
 // mde-workbench/{mesh_control,home}); no D-Bus reader/rotator
 // remains.
 //
-// Still below: the `Enroll` verb (currently DEAD — panels use the
-// `mackesd enroll` CLI, not D-Bus) + the three signals (live:
-// workers emit via the dispatcher, the Overview panel subscribes).
-// Removing those + dropping the `ipc/` allow-list entry is the
+// Still below: ONLY the three signals (live — workers emit via the
+// dispatcher, the Overview panel subscribes). The `Enroll` D-Bus
+// method was REMOVED (E0.3.1.b) — it had no consumer: panels shell
+// the `mackesd enroll` CLI, which drives the CSR-watcher path, and
+// that worker already emits `EnrollmentCompleted` via the
+// dispatcher. The inherent `enroll_inner` (the CLI's actual entry)
+// is untouched. Migrating the three signals to a Bus event topic +
+// dropping this whole block + the `ipc/` allow-list entry is the
 // remainder of E0.3.1.b.
 #[interface(name = "dev.mackes.MDE.Nebula.Status")]
 impl NebulaStatusService {
-    /// NF-3.6 (v2.5) — Enroll this peer into the mesh named in
-    /// the supplied join token. Convenience wrapper over the
-    /// `mackesd enroll --token` CLI flow (NF-3.6.a) — the
-    /// wizard / panel can call this directly via D-Bus instead
-    /// of shelling out.
-    ///
-    /// Returns a human-readable summary on success (the same
-    /// shape the CLI prints) or a `zbus::fdo::Error::Failed`
-    /// with `EnrollError::Display` text on any failure mode
-    /// (invalid token, publish failed, lighthouse-timeout,
-    /// bundle-corrupt). The wizard's Apply page consumes the
-    /// reply verbatim for its progress banner.
-    ///
-    /// Synchronous enroll_with_token runs inside
-    /// `tokio::task::spawn_blocking` so the 30 s lighthouse-
-    /// wait doesn't pin the zbus runtime.
-    async fn enroll(
-        &self,
-        #[zbus(signal_emitter)] emitter: zbus::object_server::SignalEmitter<'_>,
-        token: String,
-    ) -> zbus::fdo::Result<String> {
-        let reply = self.enroll_inner(token).await?;
-        // OV-7 — fire EnrollmentCompleted so any subscriber
-        // (Workbench Overview, applets) re-probes capability
-        // status immediately rather than waiting for a poll.
-        let _ = Self::enrollment_completed(&emitter, &self.node_id).await;
-        Ok(reply)
-    }
-
     /// Signal: a peer's reachability flipped. Fired by the
     /// reconcile worker when it observes a node's `health` row
     /// change (online → idle, idle → offline, etc.). OV-7.a
