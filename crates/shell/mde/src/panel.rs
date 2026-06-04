@@ -66,6 +66,10 @@ struct Panel {
     /// The wlr-foreign-toplevel client: the window list + focus/minimize control.
     wm: Option<wlr::Wm>,
     clock: String,
+    /// The short date (`M/D/YYYY`) for the Win10 two-line taskbar clock (E4.4),
+    /// set alongside `clock` each tick. Shown as the second line under the time on
+    /// the stock 40px bar; the compact 30px bar stays time-only (like Win10).
+    date: String,
     /// Quick Launch pins, loaded from ~/.config/mde/menu.json at startup.
     pinned: Vec<crate::state::PinnedItem>,
     /// The StatusNotifier tray handle (the background watcher) and the latest
@@ -439,6 +443,7 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
             // them every 5th tick — cutting ~3 forks/sec to ~0.6/sec.
             if state.tick % 5 == 0 {
                 state.clock = clock_now(state.clock_offset);
+                state.date = date_now(state.clock_offset);
                 state.volume = poll_volume();
                 state.net = poll_net();
                 state.battery = poll_battery();
@@ -983,12 +988,33 @@ fn win10_ac_button(state: &Panel) -> Element<'_, Message> {
     .into()
 }
 
+/// The Win10 taskbar clock (E4.4): two lines — time over the short date — on the
+/// stock 40px bar, collapsing to time-only on the compact 30px ("small buttons")
+/// bar so the date line never overflows. Matches Win10, which also drops the date
+/// line on the small taskbar. Both lines are `palette::color()`-themed and sized
+/// from the metrics module (time `UI_PX`, date `BADGE_PX`).
+fn win10_clock(state: &Panel) -> Element<'_, Message> {
+    let text_c = palette::color(palette::WINDOW_TEXT);
+    let time = text(state.clock.clone()).size(metrics::UI_PX).color(text_c);
+    if WIN10_SMALL.load(Ordering::Relaxed) {
+        return time.into();
+    }
+    Column::new()
+        .align_x(iced::Alignment::Center)
+        .push(time)
+        .push(
+            text(state.date.clone())
+                .size(metrics::BADGE_PX)
+                .color(text_c),
+        )
+        .into()
+}
+
 fn view_win10(state: &Panel) -> Element<'_, Message> {
     // Side-docked (left/right) → a vertical column layout (E7.9b).
     if WIN10_VERTICAL.load(Ordering::Relaxed) {
         return view_win10_vertical(state);
     }
-    let text_c = palette::color(palette::WINDOW_TEXT);
     let mut bar = Row::new()
         .spacing(0.0)
         .height(Length::Fill)
@@ -1029,7 +1055,7 @@ fn view_win10(state: &Panel) -> Element<'_, Message> {
                 .align_y(iced::Alignment::Center)
                 .height(Length::Fill)
                 .push(tray)
-                .push(text(state.clock.clone()).size(metrics::UI_PX).color(text_c))
+                .push(win10_clock(state))
                 .push(win10_ac_button(state)),
         )
         .height(Length::Fill)
@@ -1681,6 +1707,32 @@ fn clock_now(offset_secs: i32) -> String {
     format_clock(now, offset_secs)
 }
 
+/// The Win10 short date `M/D/YYYY` for the two-line taskbar clock (E4.4). Converts
+/// the local epoch to a civil date with Howard Hinnant's `civil_from_days` (no
+/// chrono dep — the panel already formats time in-process the same way).
+fn format_date(epoch_secs: u64, offset_secs: i32) -> String {
+    let local = epoch_secs as i64 + offset_secs as i64;
+    let days = local.div_euclid(86_400); // days since 1970-01-01
+    let z = days + 719_468;
+    let era = (if z >= 0 { z } else { z - 146_096 }) / 146_097;
+    let doe = z - era * 146_097; // [0, 146096]
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365; // [0, 399]
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // [0, 365]
+    let mp = (5 * doy + 2) / 153; // [0, 11]
+    let d = doy - (153 * mp + 2) / 5 + 1; // [1, 31]
+    let m = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!("{m}/{d}/{y}")
+}
+
+fn date_now(offset_secs: i32) -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    format_date(now, offset_secs)
+}
+
 /// Spawn this binary with `args`, returning the child handle so the panel can
 /// reap (and, for the menu, kill) it.
 fn spawn_child(args: &[&str]) -> Option<Child> {
@@ -1708,7 +1760,8 @@ fn truncate(s: &str, n: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        format_clock, parse_utc_offset, root_menu_xml, should_write_root_menu, GENERATED_MARKER,
+        format_clock, format_date, parse_utc_offset, root_menu_xml, should_write_root_menu,
+        GENERATED_MARKER,
     };
 
     #[test]
@@ -1798,5 +1851,19 @@ mod tests {
         assert_eq!(format_clock(12 * 3600, 0), "12:00 PM");
         // 00:30 UTC at -04:00 → previous day 20:30 → 8:30 PM
         assert_eq!(format_clock(30 * 60, -4 * 3600), "8:30 PM");
+    }
+
+    #[test]
+    fn date_formatting() {
+        // The Win10 two-line clock's date line (E4.4): epoch 0 = 1970-01-01.
+        assert_eq!(format_date(0, 0), "1/1/1970");
+        // +1 day.
+        assert_eq!(format_date(86_400, 0), "1/2/1970");
+        // 00:00 UTC pulled back a day by a -1d offset → 1969-12-31.
+        assert_eq!(format_date(0, -86_400), "12/31/1969");
+        // A leap-year boundary: 2024-02-29 (epoch 1709164800) stays Feb 29.
+        assert_eq!(format_date(1_709_164_800, 0), "2/29/2024");
+        // Day-of-month rollover into a new year: 2025-12-31 23:59 +2m → 2026-01-01.
+        assert_eq!(format_date(1_767_225_540 + 120, 0), "1/1/2026");
     }
 }
