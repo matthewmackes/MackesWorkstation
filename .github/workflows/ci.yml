@@ -29,9 +29,18 @@ jobs:
     steps:
       - name: Install system dependencies
         run: |
+          # cmake: the audio chain's audiopus_sys vendors + builds Opus via
+          #   CMake (the .cargo/config.toml CMAKE_POLICY_VERSION_MINIMUM fix
+          #   lets it configure under CMake 4).
+          # opus-devel: provides /usr/lib64/libopus.so so `-lopus` resolves
+          #   system-wide — audiopus_sys installs the vendored libopus.a to
+          #   out/lib64 but only adds out/lib to the link search (Fedora
+          #   GNUInstallDirs lib64 quirk), so without opus-devel the test +
+          #   build link fails `rust-lld: unable to find library -lopus`
+          #   (E0.14). cargo check doesn't link, so this only bites test/build.
           dnf install -y --setopt=install_weak_deps=False \
-            gcc gtk3-devel alsa-lib-devel pkgconf-pkg-config \
-            git findutils which curl
+            gcc gcc-c++ cmake gtk3-devel alsa-lib-devel opus-devel \
+            pkgconf-pkg-config git findutils which curl
       - uses: actions/checkout@v4
 
       - name: Install rustup + pinned toolchain
