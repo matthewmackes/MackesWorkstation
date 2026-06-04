@@ -673,6 +673,65 @@ const CATEGORIES: &[Category] = &[
                 title: "Data usage",
                 kind: Kind::DataUsage,
             },
+            // E4.15 — the mesh/advanced Workbench Network-group panels migrated
+            // into Settings ▸ Network as deep-link pages that focus the existing
+            // `mde-workbench` panel (`--focus network.<slug>`). §2.7 reuse: the
+            // panels stay in mde-workbench (no duplication), surfaced here. Wi-Fi
+            // + VPN are intentionally omitted — the native Kind::Wifi/Kind::Vpn
+            // pages above already cover them; these 13 are mesh/advanced surfaces
+            // with no native Settings equivalent.
+            Page {
+                title: "Mesh Control",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_control", false),
+            },
+            Page {
+                title: "Mesh Topology",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_topology", false),
+            },
+            Page {
+                title: "Mesh Federation",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_federation", false),
+            },
+            Page {
+                title: "Mesh Join",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_join", false),
+            },
+            Page {
+                title: "Mesh Pending",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_pending", false),
+            },
+            Page {
+                title: "Mesh History",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_history", false),
+            },
+            Page {
+                title: "Mesh Services",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_services", false),
+            },
+            Page {
+                title: "Mesh SSH",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_ssh", false),
+            },
+            Page {
+                title: "Mackes Bus",
+                kind: Kind::Cmd("mde-workbench --focus network.mesh_bus", false),
+            },
+            Page {
+                title: "Network Hosts",
+                kind: Kind::Cmd("mde-workbench --focus network.network_hosts", false),
+            },
+            Page {
+                title: "Service Publishing",
+                kind: Kind::Cmd("mde-workbench --focus network.service_publishing", false),
+            },
+            Page {
+                title: "Firewall",
+                kind: Kind::Cmd("mde-workbench --focus network.firewall", false),
+            },
+            Page {
+                title: "Remote Desktop",
+                kind: Kind::Cmd("mde-workbench --focus network.remote_desktop", false),
+            },
         ],
     },
     Category {

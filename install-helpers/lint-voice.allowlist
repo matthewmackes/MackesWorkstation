@@ -58,10 +58,10 @@ crates/shell/mde/src/panel.rs:204
 crates/shell/mde/src/panel.rs:212
 crates/shell/mde/src/popup.rs:211
 crates/shell/mde/src/popup.rs:215
-crates/shell/mde/src/settings.rs:3543
-crates/shell/mde/src/settings.rs:3906
-crates/shell/mde/src/settings.rs:4022
-crates/shell/mde/src/settings.rs:5488
-crates/shell/mde/src/settings.rs:5508
-crates/shell/mde/src/settings.rs:6219
-crates/shell/mde/src/settings.rs:6234
+crates/shell/mde/src/settings.rs:3602
+crates/shell/mde/src/settings.rs:3965
+crates/shell/mde/src/settings.rs:4081
+crates/shell/mde/src/settings.rs:5547
+crates/shell/mde/src/settings.rs:5567
+crates/shell/mde/src/settings.rs:6278
+crates/shell/mde/src/settings.rs:6293
