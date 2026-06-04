@@ -23,6 +23,12 @@ Type=notify
 # target waits, preventing other graphical units from racing the
 # session bring-up.
 NotifyAccess=main
+# E1.3 — role gate: the desktop session is Workstation-only (rank 2). On a
+# Lighthouse/Server the `mackesd role-gate` check exits non-zero, so systemd
+# SKIPS this unit (ExecCondition: condition-unmet, not a failure) and journals
+# the role conflict — a headless box never tries to bring up a compositor it
+# has no business running. On Workstation (and an unpinned dev box) it exits 0.
+ExecCondition=/usr/bin/mackesd role-gate --min-rank 2
 ExecStart=/usr/bin/mde-session
 # v4.0.1 BUG-4 — replace cosmic-files as the default folder handler.
 # xdg-mime is idempotent; the `-` prefix makes a missing binary or a
