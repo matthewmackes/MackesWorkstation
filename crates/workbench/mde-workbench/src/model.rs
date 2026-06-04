@@ -76,6 +76,20 @@ impl Group {
         ]
     }
 
+    /// The groups EXPOSED in the sidebar + the Ctrl+digit hotkeys —
+    /// `all()` minus `Network` (E4.15). The Network panels migrated to
+    /// Settings ▸ Network, so the Workbench no longer exposes the group
+    /// as a sidebar/hotkey destination; the panels themselves stay in
+    /// `all()`/`nav_model()` and remain reachable via
+    /// `mde-workbench --focus network.<panel>` (the Settings deep-links).
+    #[must_use]
+    pub fn sidebar_groups() -> Vec<Self> {
+        Self::all()
+            .into_iter()
+            .filter(|g| *g != Self::Network)
+            .collect()
+    }
+
     /// Parse a kebab-case slug back into the matching group.
     #[must_use]
     pub fn from_slug(slug: &str) -> Option<Self> {

@@ -111,11 +111,13 @@ pub fn interpret_key(key: Key, mods: Modifiers, current_pane: Pane) -> KeyAction
             KeyAction::FocusPane(target)
         }
         (Key::Escape, _) => KeyAction::CloseDetail,
-        (Key::Digit(n), m) if m.ctrl && (1..=9).contains(&n) => {
-            // Locked group-hotkey table: Ctrl+1 → first group,
-            // Ctrl+9 → ninth. Order comes from [`Group::all`].
+        (Key::Digit(n), m) if m.ctrl && (1..=8).contains(&n) => {
+            // Group-hotkey table: Ctrl+1 → first sidebar group, Ctrl+8 →
+            // eighth. Order comes from [`Group::sidebar_groups`] (E4.15:
+            // Network migrated to Settings, so it's no longer a sidebar/
+            // hotkey target; the panels stay reachable via `--focus`).
             let idx = (n - 1) as usize;
-            let group = Group::all()[idx];
+            let group = Group::sidebar_groups()[idx];
             KeyAction::JumpToGroup(group)
         }
         _ => KeyAction::Ignored,
@@ -166,7 +168,9 @@ mod tests {
     }
 
     #[test]
-    fn ctrl_digit_jumps_to_matching_group() {
+    fn ctrl_digit_jumps_to_matching_sidebar_group() {
+        // E4.15 — Network is no longer a sidebar/hotkey group, so the table
+        // is the 8 `sidebar_groups()` (System/Help shift down from 8/9 to 7/8).
         let cases = [
             (1, Group::Dashboard),
             (2, Group::Apps),
@@ -174,9 +178,8 @@ mod tests {
             (4, Group::Fleet),
             (5, Group::LookAndFeel),
             (6, Group::Maintain),
-            (7, Group::Network),
-            (8, Group::System),
-            (9, Group::Help),
+            (7, Group::System),
+            (8, Group::Help),
         ];
         for (n, expected) in cases {
             assert_eq!(
@@ -185,6 +188,11 @@ mod tests {
                 "Ctrl+{n} should land on {expected:?}",
             );
         }
+        // Ctrl+9 is now unbound (only 8 sidebar groups).
+        assert_eq!(
+            interpret_key(Key::Digit(9), Modifiers::ctrl(), Pane::Sidebar),
+            KeyAction::Ignored,
+        );
     }
 
     #[test]

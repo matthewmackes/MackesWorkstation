@@ -15,7 +15,7 @@
 //! density to scale spacing tokens only.
 
 use iced::widget::button::Status as ButtonStatus;
-use iced::widget::{button, column, container, row, text, Column, Rule, Space};
+use iced::widget::{button, column, container, row, text, Column, Space};
 use iced::{alignment, Background, Border, Color, Element, Length, Padding, Shadow};
 
 use mde_theme::{Density, Palette, Space as MdeSpace};
@@ -112,7 +112,14 @@ pub fn view<'a>(
 
     let mut col: Column<'a, crate::Message> = column![].spacing(0);
 
-    for (i, entry) in nav_model().into_iter().enumerate() {
+    // E4.15 — the Network group migrated to Settings ▸ Network; it's no longer
+    // exposed in the sidebar (its panels stay reachable via `--focus`). Filter
+    // before enumerate so the dividers/indices stay correct for the 8 visible.
+    for (i, entry) in nav_model()
+        .into_iter()
+        .filter(|e| e.group != Group::Network)
+        .enumerate()
+    {
         if i > 0 {
             col = col.push(section_divider(palette));
         }
