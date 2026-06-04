@@ -16,7 +16,10 @@
 //!   -out rsa_2048_pub_pkcs1.der
 //! ```
 
-use mde_kdc_proto::crypto::{verify_signature, CryptoError, PairingKeyPair};
+// E0.3/E0.9 — the crate was renamed to `mde-kdc-proto-legacy`; its own
+// integration test must reference it by the renamed crate name (the
+// `mde_kdc_proto` dep KEY only exists in consumers like mde-kdc).
+use mde_kdc_proto_legacy::crypto::{verify_signature, CryptoError, PairingKeyPair};
 
 fn private_key_der() -> Vec<u8> {
     std::fs::read("tests/fixtures/rsa_2048_pkcs8.der").expect("rsa_2048_pkcs8.der fixture missing")

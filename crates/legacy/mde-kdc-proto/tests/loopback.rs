@@ -27,12 +27,12 @@
 
 use std::collections::VecDeque;
 
-use mde_kdc_proto::codec::{encode_frame, FrameDecoder};
-use mde_kdc_proto::discovery::{Announce, DeviceType};
-use mde_kdc_proto::plugins::{
+use mde_kdc_proto_legacy::codec::{encode_frame, FrameDecoder};
+use mde_kdc_proto_legacy::discovery::{Announce, DeviceType};
+use mde_kdc_proto_legacy::plugins::{
     self, clipboard_packet, notification_packet, ClipboardBody, NotificationBody, PluginKind,
 };
-use mde_kdc_proto::wire::{CapabilitiesHeader, Packet};
+use mde_kdc_proto_legacy::wire::{CapabilitiesHeader, Packet};
 
 /// In-memory "peer" — holds a read buffer (bytes other peer has
 /// sent us) and a frame decoder that drains it.
@@ -78,7 +78,7 @@ impl LoopbackPeer {
             device_id: format!("{}-uuid", self.name),
             device_name: format!("{} [mde]", self.name),
             device_type: DeviceType::Desktop,
-            protocol_version: mde_kdc_proto::PROTOCOL_VERSION,
+            protocol_version: mde_kdc_proto_legacy::PROTOCOL_VERSION,
             incoming_capabilities: vec!["kdeconnect.clipboard".into()],
             outgoing_capabilities: vec!["kdeconnect.notification".into()],
         };
@@ -101,7 +101,7 @@ impl LoopbackPeer {
             device_id: format!("{}-uuid", self.name),
             device_name: self.name.clone(),
             device_type: DeviceType::Phone,
-            protocol_version: mde_kdc_proto::PROTOCOL_VERSION,
+            protocol_version: mde_kdc_proto_legacy::PROTOCOL_VERSION,
             incoming_capabilities: vec!["kdeconnect.clipboard".into()],
             outgoing_capabilities: vec![],
         };

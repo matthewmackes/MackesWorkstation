@@ -4,7 +4,7 @@
 //! contract (caller-side; library can't detect it but tests lock
 //! the documented invariant), key-length validation.
 
-use mde_kdc_proto::crypto::{
+use mde_kdc_proto_legacy::crypto::{
     generate_session_key, open_session, seal_session, CryptoError, SESSION_KEY_LEN,
     SESSION_NONCE_LEN,
 };
