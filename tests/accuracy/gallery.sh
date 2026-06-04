@@ -221,6 +221,8 @@ JSON
         printf '{"theme":"windows10","theme_mode":"dark"}\n' > "$era_cfg/mde/menu.json"
         shot "task-view" --wait 2.6 task-view
         shot "search"    --wait 2.6 search
+        # Security dashboard (E14) — the 5 posture tiles + STATUS_OK/WARN/RISK roles.
+        shot "security"  --wait 2.6 security
         # The Windows 10 OOBE wizard (E11), one shot per stage via the `--stage`
         # capture seam — `--dry-run` so no real locale/keymap/account write fires.
         for st in region keyboard secondkeyboard network account pin privacy yourphone personalize finalize; do
@@ -246,7 +248,7 @@ fi
 # fatal), so this assembles whatever the run captured.
 if command -v montage >/dev/null 2>&1; then
     win10_p0=()
-    for s in panel start-win10 menu search task-view action-center \
+    for s in panel start-win10 menu search task-view action-center security \
              settings-start settings-apps-default; do
         [[ -f "$out/windows10/$s.png" ]] && win10_p0+=("$out/windows10/$s.png")
     done
