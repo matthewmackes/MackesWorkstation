@@ -71,7 +71,7 @@ bytes = "1"
 # workspace lock (mackesd already pulls this version); `bundled`
 # would clash with mackesd's libsqlite3-sys link if we forked, so
 # we accept whatever feature set the workspace agreed on.
-rusqlite = "0.32"
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 # BUS-1.4 — message identifiers. ULIDs are sortable +
 # timestamp-prefixed, so list_since(topic, ulid) is an
