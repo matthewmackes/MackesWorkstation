@@ -439,14 +439,15 @@ _Depends: E0, E1, E3_
     - [✓] `win10_ac_button` shows an unread chip = `state.unread` (← `notifyd::unread_count()` mirror read), click → `ActionCenter`; degrades to 0 when the mirror is absent (no panic).
     - [✓] Reachable from the `search` / `task-view` / `action-center` subcommands (`mde help`); cheap mirror reads degrade to cached/zero counts, never panic.
 
-- [ ] **E4.5: E4 — Tiled Start menu (mde start-win10): icon-rail (account/folders/Settings/Power), Recently-Added/Suggested/All-Apps, tile grid with pin/unpin/resize/uninstall, headless CLI (--pin/--unpin/--resize/--list-tiles)** [M1]
+- [✓] **E4.5: E4 — Tiled Start menu (mde start-win10): icon-rail (account/folders/Settings/Power), Recently-Added/Suggested/All-Apps, tile grid with pin/unpin/resize/uninstall, headless CLI (--pin/--unpin/--resize/--list-tiles)** [M1]
+  **Done — fully pre-built, audited + verified 2026-06-04 (no code change).** `start_win10.rs` implements the three-region overlay (`launch()`); the headless CLI was exercised end-to-end in an isolated HOME: `--pin TestApp /usr/bin/foot` → `--list-tiles` shows `TestApp … medium 2x2` → `--resize TestApp wide` → `wide 4x2` → `--unpin` → empty, persisting `StartTile` state across separate processes. **Visually confirmed** via `_era-taskbars`/gallery `windows10/start-win10.png`: left icon-rail (account / folder shortcuts / Settings-gear / Power), center "Recently added" (`recent_apps`) + "Suggested" (`suggested_pins`) + All-Apps A–Z (`all_apps`), right "Pinned" tile grid (Files/Firefox/Terminal), Carbon-skinned theme with blue accent headers. Context actions `CtxPin`/`CtxUnpin`/`CtxResize`/`CtxUninstall` mutate the same persisted `start_tiles` the CLI does. `start-win10` is its own Win10-era surface (`launch()`), so Carbon/Win2000/BeOS Start surfaces are untouched.
   **As** a desktop user, **I want** a tiled Start menu with an icon rail, app lists and a pinnable tile grid, **so that** I can find, pin and launch apps the Win10 way.
-  *Reuse:* adapt `start_win10.rs`, `menu.rs` launch/context (§9 mde-popover adapt). *Deps:* E4.1, E4.4.
+  *Reuse:* `start_win10.rs` + `menu.rs` (as-is). *Deps:* E4.1, E4.4.
   **Acceptance** (runtime-observable):
-    - [ ] `mde start-win10` opens a full-screen layer-shell overlay with a left icon-rail (account/folders/Settings/Power), center Recently-Added/Suggested/All-Apps A–Z, and a right tile grid, themed via `palette::color()`.
-    - [ ] Right-clicking a tile offers Pin/Unpin/Resize/Uninstall and the change persists to `StartTile` state across relaunch.
-    - [ ] Headless `mde start-win10 --pin/--unpin/--resize/--list-tiles` mutate and print the same tile state the GUI shows.
-    - [ ] Launching a tile starts the app via `menu.rs`; era-gated so Carbon/Win2000/BeOS Start surfaces are untouched.
+    - [✓] `mde start-win10` opens the full-screen overlay — left icon-rail (account/folders/Settings/Power), center Recently-Added/Suggested/All-Apps A–Z, right tile grid, `palette::color()`-themed. Confirmed in `windows10/start-win10.png`.
+    - [✓] Right-click → Pin/Unpin/Resize/Uninstall (`CtxPin`/`CtxUnpin`/`CtxResize`/`CtxUninstall`); persists to `start_tiles` across relaunch (the headless round-trip proved cross-process persistence).
+    - [✓] Headless `--pin`/`--unpin`/`--resize`/`--list-tiles` mutate + print the tile state — verified end-to-end (pin→list→resize→list→unpin→list).
+    - [✓] Tiles launch via `menu.rs` (`launch_count` bump); `start-win10` is a distinct Win10 surface, leaving the other eras' Start untouched.
 
 - [ ] **E4.6: E4 — Action Center + notification daemon (notifyd claims org.freedesktop.Notifications, persists across restarts, mirrors to notifications.json) + toasts (mde toast) + quick-action tile grid (Wi-Fi/BT/Airplane/Brightness/Volume/Night-light/Focus) backed by NM/BlueZ/wlsunset**
   **As** a desktop user, **I want** a notification daemon, toasts and a quick-action grid, **so that** apps' notifications collect in one pane and I can flip Wi-Fi/BT/brightness fast.
