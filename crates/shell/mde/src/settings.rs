@@ -831,8 +831,12 @@ struct Settings {
     view: View,
     page: usize, // selected rail page within the current category
     dark: bool,
-    /// Windows 10 UI accent index (E7.5) — into `palette::WIN10_ACCENTS`; drives
-    /// selection/highlight via the `win10()` slot, persisted as `win10_accent`.
+    /// Legacy Windows 10 UI-accent index (E7.5), persisted as `win10_accent`.
+    /// The MackesDE rebrand RETIRED the per-user UI accent (`palette::win10` +
+    /// `WIN10_ACCENTS` were deleted; the UI accent is always Carbon Blue now), so
+    /// this no longer drives a live accent — it's kept only for state-compat
+    /// (§2.5: old `menu.json` carry it) and is snapshotted into custom themes.
+    /// The live accent knobs are `dark` (Light/Dark) + `accent_on_taskbar`.
     win10_accent: u8,
     /// E7.5a: "show accent color on Start & taskbar" — persisted as
     /// `win10_accent_on_taskbar`, consumed by `palette::chrome_accent` in panel.rs.

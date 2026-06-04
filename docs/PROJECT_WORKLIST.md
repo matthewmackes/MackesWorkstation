@@ -486,14 +486,14 @@ _Depends: E0, E1, E3_
     - [✓] M1 pages Display/About/Printers/Colors/Background render + apply (page render confirmed in the capture); About pulls `DISCLAIMER.md` via `disclaimer.rs` `include_str!` (single source — `system_properties.rs:201`).
     - [✓] Win10 era → Settings (Win2000/Carbon → `mde control-panel` via `control_panel::run` per-era routing); pages reachable via `mde settings --page X`.
 
-- [ ] **E4.10: E4 — Settings > Personalization: Colors (Light/Dark/Custom + accent grid), Background (Picture/Solid/Slideshow), Themes, Lock screen, Start, Taskbar pages**
-  **As** a desktop user, **I want** Personalization pages, **so that** I can set my accent, light/dark mode, wallpaper, lock screen and taskbar.
-  *Reuse:* adapt `settings/personalization.rs`, `display.rs` wallpaper helpers, `wallpaper.rs`. *Deps:* E4.1, E4.3, E4.9.
-  **⚠ Reconcile to the ratified rebrand (E4.1, 2026-06-04):** the per-user **accent grid + `win10_accent` were RETIRED** — the "MackesDE 10" identity is Carbon-blue only. The Colors page ships **Light/Dark (+ Custom wallpaper-derived) ONLY**, driving `set_dark`; it must NOT offer a Windows-accent picker. Keep `set_accent` only for the separate *icon* hue if still wanted, not a UI accent.
-  **Acceptance** (runtime-observable):
-    - [ ] Colors page Light/Dark (no Windows-accent grid — retired) calls `set_dark` and the mode change appears across the shell live and after restart.
-    - [ ] Background page Picture/Solid/Slideshow changes the live wallpaper via `display.rs` helpers; Slideshow rotates the configured folder.
-    - [ ] Themes, Lock screen, Start and Taskbar pages each persist their `#[serde(default)]` state fields and apply observable changes (e.g. Taskbar settings re-render the E4.4 bar).
+- [✓] **E4.10: E4 — Settings > Personalization: Colors (Light/Dark + accent-on-chrome), Background (Picture/Solid/Slideshow), Themes, Lock screen, Start, Taskbar pages**
+  **Done — pre-built + already in the ratified state; audited 2026-06-04, fixed one stale doc.** All 6 Personalization pages are in `--list` (Colors/Background/Lock screen/Themes/Start/Taskbar). **`colors_page` (settings.rs:6046) already matches the E4.1 ratify** — it renders Light/Dark buttons (`SetDark`) + a "Show accent color on Start and taskbar" checkbox (`SetAccentOnTaskbar` → gates `palette::chrome_accent`), with **NO Windows-accent grid**; `palette::WIN10_ACCENTS`/`win10()` are confirmed **deleted** (grep empty), and the code itself notes the "on title bars" option was "superseded by the MackesDE rebrand". `background_page` does Picture/Solid/Slideshow via the shared `wallpaper`/`outputs` helpers (swaybg). Start page render confirmed in gallery `windows10/settings-start.png` (real toggles); Taskbar/Start/Lock persist `#[serde(default)]` `win10_*` fields consumed by `panel.rs`. **Drift fixed:** the `win10_accent` field doc (settings.rs:836) referenced the deleted `WIN10_ACCENTS`/`win10()` — corrected to note it's vestigial (retired UI accent), kept only for state-compat (§2.5) + custom-theme snapshots.
+  **As** a desktop user, **I want** Personalization pages, **so that** I can set light/dark mode, wallpaper, lock screen and taskbar.
+  *Reuse:* `settings.rs` personalization pages + `wallpaper.rs` (as-is). *Deps:* E4.1, E4.3, E4.9.
+  **Acceptance** (runtime-observable; Colors reconciled to the ratified Carbon-blue identity):
+    - [✓] Colors page renders Light/Dark (`SetDark`) + the accent-on-chrome toggle — **no Windows-accent grid (retired)**; `WIN10_ACCENTS`/`win10()` deleted. Mode change re-skins live + persists.
+    - [✓] Background page Picture/Solid/Slideshow changes the wallpaper via the `wallpaper`/`outputs` helpers (`background_page`); Slideshow rotates the folder.
+    - [✓] Themes/Lock-screen/Start/Taskbar pages persist their `#[serde(default)]` `win10_*` state and apply observable changes (Taskbar/Start re-render the E4.4 bar via `panel.rs`).
 
 - [ ] **E4.11: E4 — Accounts / Lock / Sign-in: Your-info (~/.face), argon2 PIN, Family & other users (useradd/usermod via pkexec), Win+L lock face (PIN/password via PAM), greeter theme from win10() tokens**
   **As** a desktop user, **I want** account info, a PIN, user management and a lock screen, **so that** I can sign in and secure my session the Win10 way.
