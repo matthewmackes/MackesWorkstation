@@ -682,43 +682,47 @@ pub fn parse_self_node_epoch(raw: &str) -> (Option<i64>, String) {
     }
 }
 
-/// NF-11.3 — Async shell-out to `dbus-send` for the
-/// `dev.mackes.MDE.Nebula.Status.RegenCerts` method. Returns
-/// `(success, human-readable message)` so the panel's
-/// `last_op` field can quote the daemon's reply verbatim.
+/// NF-11.3 / E0.3.1.b — Trigger a CA-epoch rotation over the mesh
+/// Bus (`action/nebula/regen-certs`), replacing the prior
+/// `dbus-send` write to the retired
+/// `dev.mackes.MDE.Nebula.Status.RegenCerts` D-Bus method. Returns
+/// `(success, human-readable message)` so the panel's `last_op`
+/// field can quote the daemon's reply verbatim. The Bus client
+/// spins its own current-thread runtime, so it runs under
+/// `spawn_blocking`; the 30 s budget covers the `nebula-cert`
+/// subprocess work the rotation performs.
 pub async fn run_rotate_ca() -> (bool, String) {
-    use tokio::process::Command;
-    let out = Command::new("dbus-send")
-        .args([
-            "--session",
-            "--print-reply=literal",
-            "--dest=org.mackes.mackesd",
-            "/dev/mackes/MDE/Nebula/Status",
-            "dev.mackes.MDE.Nebula.Status.RegenCerts",
-        ])
-        .output()
-        .await;
-    match out {
-        Ok(o) => {
-            let stdout = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            let stderr = String::from_utf8_lossy(&o.stderr).trim().to_string();
-            if o.status.success() {
-                let msg = stdout
-                    .strip_prefix("string \"")
-                    .and_then(|s| s.strip_suffix('"'))
-                    .map(|s| s.to_string())
-                    .unwrap_or(stdout);
-                (true, msg)
-            } else {
-                let msg = if stderr.is_empty() {
-                    format!("dbus-send exit {}", o.status)
-                } else {
-                    stderr
-                };
-                (false, msg)
-            }
+    let reply = tokio::task::spawn_blocking(|| {
+        crate::dbus::nebula_request_with_timeout("regen-certs", std::time::Duration::from_secs(30))
+    })
+    .await;
+    match reply {
+        Ok(Some(body)) => parse_regen_reply(&body),
+        Ok(None) => (
+            false,
+            "mesh responder unavailable (mackesd down or timed out)".to_string(),
+        ),
+        Err(e) => (false, format!("rotate-ca task failed: {e}")),
+    }
+}
+
+/// Parse the `action/nebula/regen-certs` reply body
+/// (`{ "ok": bool, "message": str }`) into the panel's
+/// `(success, message)` shape. A malformed body is surfaced as a
+/// failure quoting the raw text.
+#[must_use]
+pub fn parse_regen_reply(body: &str) -> (bool, String) {
+    match serde_json::from_str::<serde_json::Value>(body) {
+        Ok(v) => {
+            let ok = v.get("ok").and_then(serde_json::Value::as_bool).unwrap_or(false);
+            let message = v
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            (ok, message)
         }
-        Err(e) => (false, format!("dbus-send exec failed: {e}")),
+        Err(_) => (false, format!("unparseable regen reply: {body}")),
     }
 }
 
@@ -862,6 +866,21 @@ mod tests {
         let (epoch, mesh_id) = parse_self_node_epoch(raw);
         assert_eq!(epoch, None);
         assert_eq!(mesh_id, "");
+    }
+
+    #[test]
+    fn parse_regen_reply_extracts_ok_and_message() {
+        // E0.3.1.b — the action/nebula/regen-certs reply shape.
+        let (ok, msg) = parse_regen_reply(r#"{"ok":true,"message":"CA rotated to epoch 4"}"#);
+        assert!(ok);
+        assert!(msg.contains("epoch 4"));
+        let (ok2, msg2) = parse_regen_reply(r#"{"ok":false,"message":"rotation: boom"}"#);
+        assert!(!ok2);
+        assert!(msg2.contains("boom"));
+        // A malformed body fails closed, quoting the raw text.
+        let (ok3, msg3) = parse_regen_reply("not json");
+        assert!(!ok3);
+        assert!(msg3.contains("unparseable"));
     }
 
     #[test]

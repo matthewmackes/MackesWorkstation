@@ -48,6 +48,14 @@ const NEBULA_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 /// that to their daemon-down rendering.
 #[must_use]
 pub fn nebula_request(verb: &str) -> Option<String> {
+    nebula_request_with_timeout(verb, NEBULA_PROBE_TIMEOUT)
+}
+
+/// As [`nebula_request`] but with an explicit timeout. WRITE verbs
+/// like `regen-certs` shell `nebula-cert` subprocesses and can run
+/// for seconds, so they need more headroom than the 2 s read budget.
+#[must_use]
+pub fn nebula_request_with_timeout(verb: &str, timeout: Duration) -> Option<String> {
     let bus_dir = mde_bus::default_data_dir()?;
     let topic = format!("action/nebula/{verb}");
     let rt = tokio::runtime::Builder::new_current_thread()
@@ -56,16 +64,7 @@ pub fn nebula_request(verb: &str) -> Option<String> {
         .ok()?;
     rt.block_on(async {
         let persist = Persist::open(bus_dir).ok()?;
-        match request(
-            &persist,
-            &topic,
-            Priority::Default,
-            None,
-            None,
-            NEBULA_PROBE_TIMEOUT,
-        )
-        .await
-        {
+        match request(&persist, &topic, Priority::Default, None, None, timeout).await {
             Ok(reply) => reply.body,
             Err(_) => None,
         }

@@ -64,7 +64,7 @@ pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(
 
 /// The read-projection verbs served on `action/nebula/<verb>`.
 /// Locked to the `action/<domain>/<verb>` Q96 convention.
-pub const ACTION_VERBS: [&str; 3] = ["status", "self-node", "list-peers"];
+pub const ACTION_VERBS: [&str; 4] = ["status", "self-node", "list-peers", "regen-certs"];
 
 /// Well-known D-Bus interface name.
 pub const NEBULA_STATUS_INTERFACE: &str = "dev.mackes.MDE.Nebula.Status";
@@ -376,48 +376,25 @@ impl NebulaStatusService {
             mesh_id,
         })
     }
-}
 
-// E0.3.1 / E0.3.1.a (EPIC-RETIRE-DBUS): the three read-projection
-// verbs — `Status()` / `ListPeers()` / `SelfNode()` — have been
-// RETIRED from this `#[interface]` block. They now serve ONLY on
-// the mesh Bus at `action/nebula/{status,list-peers,self-node}`
-// via [`serve_bus`] below, over the same `build_status_snapshot` /
-// `build_peer_list` / `build_self_node` builders. All four read
-// consumers migrated to the Bus (mde-wizard/preview,
-// mde-files/mesh_backend, mde-workbench/{mesh_control,home}); no
-// D-Bus reader of these verbs remains.
-//
-// The verbs still below (`RegenCerts`, `Enroll`, the signals) keep
-// live D-Bus consumers (mesh_control panel, Overview subscription)
-// and migrate in a later E0.3 substep — so the `ipc/` allow-list
-// entry for this file stays until those land.
-#[interface(name = "dev.mackes.MDE.Nebula.Status")]
-impl NebulaStatusService {
-    /// Trigger a CA-epoch bump. Returns a human-readable
-    /// status string the wizard's confirmation modal can
-    /// display verbatim.
+    /// E0.3.1.b — the CA-epoch bump logic, callable from the Bus
+    /// responder (`action/nebula/regen-certs`). Extracted from the
+    /// retired `#[interface] regen_certs` D-Bus method verbatim;
+    /// returns the human-readable status string on success (incl.
+    /// the BinaryMissing "skipped" hint, which is still a success
+    /// — nothing was rotated but the operator gets a clear next
+    /// step), or an error string the responder wraps in
+    /// `{ "ok": false, "message": ... }`.
     ///
-    /// NF-2.5 wired (2026-05-23): the underlying
-    /// `ca::epoch::bump_epoch` ships; this method calls it
-    /// in-line and surfaces the resulting RotationOutcome.
-    /// BinaryMissing (nebula-cert not on PATH) maps to a
-    /// human-readable "install the Fedora nebula package"
-    /// hint rather than a raw subprocess error.
-    async fn regen_certs(&self) -> zbus::fdo::Result<String> {
+    /// WRITE verb: shells `nebula-cert` subprocesses, so it can run
+    /// for seconds and briefly blocks the single-threaded responder
+    /// from answering reads — acceptable for a rare admin rotation.
+    pub async fn regen_certs_inner(&self) -> Result<String, String> {
         use crate::ca::epoch;
         use crate::ca::{CaError, SubprocessBackend};
         let mesh_id = self.mesh_id.clone();
         let mut conn = self.store.lock().await;
-        let outcome = epoch::bump_epoch(
-            &SubprocessBackend,
-            &mut *conn,
-            &mesh_id,
-            None,
-            None,
-            365,
-        );
-        match outcome {
+        match epoch::bump_epoch(&SubprocessBackend, &mut *conn, &mesh_id, None, None, 365) {
             Ok(o) => Ok(format!(
                 "CA rotated to epoch {} (retired {}); {} peer certs re-signed.",
                 o.new_epoch,
@@ -426,15 +403,32 @@ impl NebulaStatusService {
                     .unwrap_or_else(|| "none".to_string()),
                 o.re_signed,
             )),
-            Err(CaError::BinaryMissing) => Ok(
-                "CA rotation skipped: nebula-cert not on PATH. \
+            Err(CaError::BinaryMissing) => Ok("CA rotation skipped: nebula-cert not on PATH. \
                  Install the Fedora `nebula` package + retry."
-                    .to_string(),
-            ),
-            Err(e) => Err(zbus::fdo::Error::Failed(format!("rotation: {e}"))),
+                .to_string()),
+            Err(e) => Err(format!("rotation: {e}")),
         }
     }
+}
 
+// E0.3.1 / E0.3.1.a / E0.3.1.b (EPIC-RETIRE-DBUS): the three
+// read-projection verbs (`Status`/`ListPeers`/`SelfNode`) AND the
+// `RegenCerts` write verb have been RETIRED from this `#[interface]`
+// block. Reads + the CA-rotation write now serve ONLY on the mesh
+// Bus — `action/nebula/{status,list-peers,self-node,regen-certs}`
+// via [`serve_bus`] below, over the shared builders +
+// [`NebulaStatusService::regen_certs_inner`]. All consumers
+// migrated (mde-wizard/preview, mde-files/mesh_backend,
+// mde-workbench/{mesh_control,home}); no D-Bus reader/rotator
+// remains.
+//
+// Still below: the `Enroll` verb (currently DEAD — panels use the
+// `mackesd enroll` CLI, not D-Bus) + the three signals (live:
+// workers emit via the dispatcher, the Overview panel subscribes).
+// Removing those + dropping the `ipc/` allow-list entry is the
+// remainder of E0.3.1.b.
+#[interface(name = "dev.mackes.MDE.Nebula.Status")]
+impl NebulaStatusService {
     /// NF-3.6 (v2.5) — Enroll this peer into the mesh named in
     /// the supplied join token. Convenience wrapper over the
     /// `mackesd enroll --token` CLI flow (NF-3.6.a) — the
@@ -635,6 +629,17 @@ pub async fn build_reply(svc: &NebulaStatusService, verb: &str) -> String {
                 .unwrap_or_else(|e| json!({ "error": format!("encode: {e}") }).to_string()),
             Err(e) => json!({ "error": e }).to_string(),
         },
+        // WRITE verb (E0.3.1.b): rotates the CA epoch as a side effect.
+        // Replies `{ "ok": bool, "message": str }` so the caller
+        // (`mesh_control::run_rotate_ca`) gets an unambiguous
+        // success flag + a human string for its `last_op` banner.
+        "regen-certs" => {
+            let (ok, message) = match svc.regen_certs_inner().await {
+                Ok(msg) => (true, msg),
+                Err(e) => (false, e),
+            };
+            json!({ "ok": ok, "message": message }).to_string()
+        }
         other => json!({ "error": format!("unknown nebula verb: {other}") }).to_string(),
     }
 }
@@ -899,7 +904,7 @@ mod tests {
         // surfaces a human-readable hint rather than a raw
         // subprocess error.
         let svc = NebulaStatusService::new(fresh_store(), "peer:local", "host");
-        let msg = svc.regen_certs().await.expect("ok");
+        let msg = svc.regen_certs_inner().await.expect("ok");
         // Either the rotation succeeded (rare — only on a
         // bench host with nebula installed + writable
         // /var/lib/mackesd) or surfaced the install hint.
