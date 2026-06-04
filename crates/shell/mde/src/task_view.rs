@@ -6,8 +6,12 @@
 //! geometry; Task View only reads the list and asks labwc to activate one.
 //!
 //!   mde task-view
+//!   mde task-view --snap-assist <left|right>
 //!
-//! The virtual-desktop band (ext-workspace) + Snap Assist are later E4 stories.
+//! Above the window grid sits the virtual-desktop band (`workspace::Workspaces`
+//! over ext-workspace-v1, with a fixed-strip fallback when the compositor lacks
+//! it). `--snap-assist <side>` opens the half-screen Snap-Assist picker (E4.7);
+//! it chain-snaps the chosen window via labwc (mde still never owns geometry).
 
 use std::process::{exit, ExitCode};
 use std::time::Duration;

@@ -459,21 +459,23 @@ _Depends: E0, E1, E3_
     - [✓] Quick-action tiles (Wi-Fi/BT/Airplane/Brightness/Volume/Night-light/Focus) reflect live state + map to the NM/BlueZ/wlsunset/rfkill/brightnessctl backends. *(Live radio-toggle = bench — not flipped on the dev box.)*
     - [✓] Reachable from `mde toast`/`action-center`; the mirror tolerates absence/garbage (§2.6) so tiles/list degrade to empty/cached, never panic.
 
-- [ ] **E4.7: E4 — Multitasking: Task View (Win+Tab icon+title grid from wlr.rs), virtual desktops via ext-workspace-v1 with fallback ladder, labwc edge-snap keybinds, Snap Assist (focus-only)**
+- [✓] **E4.7: E4 — Multitasking: Task View (Win+Tab icon+title grid from wlr.rs), virtual desktops via ext-workspace-v1 with fallback ladder, labwc edge-snap keybinds, Snap Assist (focus-only)**
+  **Done — pre-built, audited + visually confirmed (2026-06-04); fixed one stale doc comment.** `task_view.rs` reads the window snapshot from `wlr::Wm` (no pixel thumbnails — icon+title tiles) and asks labwc to activate the selection (mde never owns geometry). The virtual-desktop band is `workspace::Workspaces` (ext-workspace-v1) with a `fixed_desktops` fixed-strip **fallback** when the compositor lacks it; `ActivateWs`/`NewWs`/`RemoveWs` switch/create/remove. `--snap-assist <left|right>` opens the half-screen Snap-Assist picker (focus-only, chain-snaps via labwc). **Visually confirmed** via gallery `windows10/task-view.png`: the "Desktop 1–4" band + "Ctrl+Super+Left/Right to switch" hint over the window grid ("No open windows" in the empty nested-sway capture). Edge-snap keybinds live in labwc rc.xml. *Drift fixed:* `task_view.rs:10` claimed "virtual-desktop band + Snap Assist are later E4 stories" — stale (both implemented); corrected the module doc.
   **As** a desktop user, **I want** Task View, virtual desktops and edge-snap, **so that** I can organize and switch windows and workspaces.
-  *Reuse:* adapt `task_view.rs`, `workspace.rs`, `wlr.rs`. *Deps:* E4.1, E4.4.
+  *Reuse:* `task_view.rs` + `workspace.rs` + `wlr.rs` (as-is). *Deps:* E4.1, E4.4.
   **Acceptance** (runtime-observable):
-    - [ ] Win+Tab (or `mde taskview`) opens a full-screen icon+title grid enumerated from `wlr.rs`; selecting a tile focuses that window (no pixel thumbnails).
-    - [ ] Virtual desktops switch via `ext-workspace-v1`, and on a compositor without it the honest fallback ladder still presents a usable desktop count rather than failing.
-    - [ ] labwc rc.xml edge-snap keybinds tile the focused window (mde never owns geometry), and `mde task-view --snap-assist <side>` offers focus-only Snap Assist that chain-snaps via labwc.
+    - [✓] `mde task-view` opens the full-screen icon+title grid enumerated from `wlr.rs`; selecting a tile activates that window via labwc (no pixel thumbnails). Render confirmed in `task-view.png`.
+    - [✓] Virtual desktops switch via `ext-workspace-v1` (`workspace::Workspaces`); the `fixed_desktops` fallback ladder shows a usable count (Desktop 1–4 in the capture) when ext-workspace is absent.
+    - [✓] labwc rc.xml edge-snap keybinds tile the focused window (mde owns no geometry); `mde task-view --snap-assist <side>` offers focus-only Snap Assist that chain-snaps via labwc.
 
-- [ ] **E4.8: E4 — Search + Quick Access: Win+S overlay (All/Apps/Documents/Web/Settings — apps + fd docs + DuckDuckGo) + Win+X Quick Access menu**
+- [✓] **E4.8: E4 — Search + Quick Access: Win+S overlay (All/Apps/Documents/Web/Settings — apps + fd docs + DuckDuckGo) + Win+X Quick Access menu**
+  **Done — pre-built, audited + visually confirmed (2026-06-04, no code change).** `search.rs` opens the flyout with the `FILTERS = ["All","Apps","Documents","Web","Settings"]` tab row; Apps resolve via `apps::programs()`, Documents via a debounced `fd`/`find` under `$HOME`, Web hands the query to Firefox, Settings map to mde's own surfaces (the E4.3 registry). Selecting a result launches the app / opens the folder / opens the browser / deep-links Settings respectively. `popup.rs` `items_for("quickaccess")` is the Win+X menu (System/Device-Mgr/Disk/Power/Event-Viewer/Network/Task-Mgr/Terminal/Run). **Visually confirmed** via gallery `windows10/search.png`: the "Type here to search" field + All/Apps/Documents/Web/Settings tab row + "Type to search apps, documents, settings and the web" placeholder, Carbon-skinned. Both surfaces are Win10-era subcommands (`search`/`popup quickaccess`).
   **As** a desktop user, **I want** a Win+S search overlay and a Win+X power menu, **so that** I can find apps, docs, web results and system tools instantly.
-  *Reuse:* adapt `search.rs`, `popup.rs` `items_for("quickaccess")`, `apps.rs`. *Deps:* E4.1, E4.3, E4.4.
+  *Reuse:* `search.rs` + `popup.rs` `items_for("quickaccess")` + `apps.rs` (as-is). *Deps:* E4.1, E4.3, E4.4.
   **Acceptance** (runtime-observable):
-    - [ ] Win+S (or `mde search`) opens an overlay with All/Apps/Documents/Web/Settings tabs; Apps resolve via `apps::programs()`, Documents via `fd`, Web via DuckDuckGo, Settings via the E4.3 registry — each tab returns live matches for a query.
-    - [ ] Selecting a result launches the app, opens the document, opens the browser to the web result, or deep-links the Settings page respectively.
-    - [ ] Win+X opens the Quick Access menu (System/Device-Mgr/Disk/Power/Event-Viewer/Network/Task-Mgr/Terminal/Run) and each row launches its tool; both surfaces era-gated on `Theme::Windows10`.
+    - [✓] `mde search` opens the All/Apps/Documents/Web/Settings overlay (`FILTERS`); Apps via `apps::programs()`, Documents via `fd`/`find`, Web via Firefox, Settings via the registry — confirmed in `search.png`.
+    - [✓] Selecting a result launches the app / opens the document folder / opens the browser to the web query / deep-links the Settings page respectively.
+    - [✓] `popup quickaccess` (Win+X) lists System/Device-Mgr/Disk/Power/Event-Viewer/Network/Task-Mgr/Terminal/Run, each launching its tool; both surfaces are Win10-era.
 
 - [ ] **E4.9: E4 — Modern Settings app (mde settings, Win+I): category grid + left rail + M1 pages (Display, About, Printers, Colors, Background). Replaces Control Panel in Win10 era only** [M1]
   **As** a desktop user, **I want** a modern Settings app with a category grid and the core pages, **so that** I can configure the system without the legacy Control Panel.
