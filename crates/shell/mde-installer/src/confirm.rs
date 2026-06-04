@@ -63,7 +63,9 @@ pub fn pick_profile_from<R: BufRead, W: Write>(
         writeln!(writer, "Select an install profile:")?;
         for (i, p) in choices.iter().enumerate() {
             let marker = if Some(*p) == default {
-                " (default)"
+                " (current)"
+            } else if default.is_some_and(|d| crate::profile::is_lossy_downgrade(d, *p)) {
+                " (downgrade — not offered; use --profile for a destructive reinstall)"
             } else {
                 ""
             };
@@ -91,12 +93,31 @@ pub fn pick_profile_from<R: BufRead, W: Write>(
             writeln!(writer, "  no default — please type 1, 2, or 3.")?;
             continue;
         }
-        match trimmed {
-            "1" => return Ok(Profile::Lighthouse),
-            "2" => return Ok(Profile::Headless),
-            "3" => return Ok(Profile::Full),
-            other => writeln!(writer, "  not a choice: {other:?} — type 1, 2, or 3.")?,
+        let chosen = match trimmed {
+            "1" => Profile::Lighthouse,
+            "2" => Profile::Headless,
+            "3" => Profile::Full,
+            other => {
+                writeln!(writer, "  not a choice: {other:?} — type 1, 2, or 3.")?;
+                continue;
+            }
+        };
+        // E1.4 #3 — the interactive picker offers only equal-or-higher-rank
+        // targets when a role is already pinned. A downgrade is a destructive
+        // reinstall that must be requested explicitly (`mde-install
+        // --profile=…`, which then takes the typed-prev NUKE confirm), so it is
+        // refused here rather than silently demoting the box from the picker.
+        if let Some(d) = default {
+            if crate::profile::is_lossy_downgrade(d, chosen) {
+                writeln!(
+                    writer,
+                    "  {chosen} is a downgrade from the current {d} — not offered here; run \
+                     `mde-install --profile={chosen}` for an explicit destructive reinstall."
+                )?;
+                continue;
+            }
         }
+        return Ok(chosen);
     }
 }
 
@@ -151,5 +172,29 @@ mod tests {
         let mut out = Vec::new();
         let p = pick_profile_from(&mut input, &mut out, None).unwrap();
         assert_eq!(p, Profile::Lighthouse);
+    }
+
+    #[test]
+    fn picker_refuses_a_downgrade_then_accepts_an_upgrade() {
+        // E1.4 #3 — pinned Headless: "1" (Lighthouse) is a downgrade and is
+        // refused; "3" (Full) is an upgrade and is accepted.
+        let mut input = Cursor::new(b"1\n3\n".to_vec());
+        let mut out = Vec::new();
+        let p = pick_profile_from(&mut input, &mut out, Some(Profile::Headless)).unwrap();
+        assert_eq!(p, Profile::Full);
+        let log = String::from_utf8(out).unwrap();
+        assert!(
+            log.contains("downgrade"),
+            "the refusal is surfaced to the operator"
+        );
+    }
+
+    #[test]
+    fn picker_never_returns_a_downgrade() {
+        // E1.4 #3 — pinned Full, only a downgrade offered then EOF: the picker
+        // refuses + errors rather than silently demoting the box.
+        let mut input = Cursor::new(b"1\n".to_vec());
+        let mut out = Vec::new();
+        assert!(pick_profile_from(&mut input, &mut out, Some(Profile::Full)).is_err());
     }
 }
