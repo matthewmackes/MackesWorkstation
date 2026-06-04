@@ -20,6 +20,11 @@ iced_layershell.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+# E0.3.6 — the `mde connect` daemon serves the device roster + the
+# `connect::devices()` client reads it over the mesh Bus
+# (action/connect/devices), replacing the org.mde.Connect1 D-Bus
+# interface. The org.mde.Connect *name* is kept (single-instance guard).
+mde-bus = { path = "../../platform/mde-bus" }
 ratatui = "0.29"
 crossterm = "0.28"
 # System tray: be the StatusNotifierWatcher + Host so SNI apps (nm-applet, etc.)

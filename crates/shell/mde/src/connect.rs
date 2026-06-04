@@ -2,16 +2,20 @@
 //!
 //! The daemon hosts the native KDE Connect stack (the `mde-kdc-host` crate: UDP
 //! discovery + the mutual-TLS LAN transport with its inbound listener) and exposes
-//! the **paired-device roster** — id, name, online, battery — over the session bus at
-//! `org.mde.Connect` so the short-lived shell surfaces (`mde phone`, the panel, the
-//! OOBE Your-Phone stage) can query it without each embedding the host.
+//! the **paired-device roster** — id, name, online, battery — over the mesh **Bus**
+//! at `action/connect/devices` (E0.3.6) so the short-lived shell surfaces (`mde
+//! phone`, the panel, the OOBE Your-Phone stage) can query it without each embedding
+//! the host. The `org.mde.Connect` D-Bus *name* is kept only as the single-instance
+//! guard — name ownership stays a D-Bus primitive (the documented EPIC-RETIRE-DBUS
+//! exception); the roster data itself moved off the `org.mde.Connect1` interface onto
+//! the Bus.
 //!
 //! Architecture mirrors `tray.rs` / `notifyd.rs`: the host runs on its own Tokio
 //! runtime on a background thread, folding `HostEvent`s into a shared map; the main
-//! thread serves the D-Bus interface (blocking zbus) reading that map. The roster is
-//! seeded from the on-disk `PairingStore` so it is populated even before any device
-//! connects, and the host bring-up is **best-effort**: if the UDP port can't bind
-//! (already in use, no permission) the daemon still serves the static roster.
+//! thread runs a Bus responder loop reading that map. The roster is seeded from the
+//! on-disk `PairingStore` so it is populated even before any device connects, and the
+//! host bring-up is **best-effort**: if the UDP port can't bind (already in use, no
+//! permission) the daemon still serves the static roster.
 //!
 //! Live device round-trips (a real phone connecting, sending battery) are the owner's
 //! post-release hardware bench; here the event→roster folding is unit-tested and the
@@ -27,9 +31,16 @@ use mde_kdc_host::{EventStream, HostEvent, LanTransport, PairingStore, Transport
 use mde_kdc_proto::discovery::{Announce, DeviceType};
 use mde_kdc_proto::plugins::battery::BatteryBody;
 
-/// The well-known bus name + object path the daemon claims and clients dial.
+/// The well-known D-Bus name the daemon claims for **single-instance**
+/// enforcement (name ownership stays a D-Bus primitive — the
+/// EPIC-RETIRE-DBUS exception); the roster *data* moved to the Bus.
 const BUS_NAME: &str = "org.mde.Connect";
-const OBJ_PATH: &str = "/org/mde/Connect";
+/// Bus action topic the daemon answers + clients query for the roster.
+const ACTION_TOPIC: &str = "action/connect/devices";
+/// How often the daemon's responder loop polls for new roster queries.
+const POLL_INTERVAL: Duration = Duration::from_millis(200);
+/// Client-side wait for the roster reply before giving up (→ empty).
+const QUERY_TIMEOUT: Duration = Duration::from_secs(2);
 /// KDE Connect's stock UDP/TCP port (identity broadcast + TLS link).
 const KDC_PORT: u16 = 1716;
 
@@ -204,35 +215,36 @@ fn spawn_host(roster: Roster) {
     });
 }
 
-/// The D-Bus object: serves the roster.
-struct ConnectDaemon {
-    roster: Roster,
+/// Wire shape for one roster row over the Bus. Unlike the old D-Bus
+/// tuple (battery `-1` for unknown — D-Bus has no optional int), JSON
+/// carries `battery` as a real `Option<u8>`.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct WireDevice {
+    id: String,
+    name: String,
+    online: bool,
+    battery: Option<u8>,
 }
 
-#[zbus::interface(name = "org.mde.Connect1")]
-impl ConnectDaemon {
-    /// The paired-device roster as `(id, name, online, battery)` tuples; battery is
-    /// `-1` when unknown (D-Bus has no optional int).
-    fn devices(&self) -> Vec<(String, String, bool, i32)> {
-        self.roster
-            .lock()
-            .map(|m| {
-                let mut v: Vec<_> = m
-                    .values()
-                    .map(|d| {
-                        (
-                            d.id.clone(),
-                            d.name.clone(),
-                            d.online,
-                            d.battery.map(i32::from).unwrap_or(-1),
-                        )
-                    })
-                    .collect();
-                v.sort_by(|a, b| a.0.cmp(&b.0));
-                v
-            })
-            .unwrap_or_default()
-    }
+/// Snapshot the roster as a sorted JSON array of [`WireDevice`] — the
+/// reply body for an `action/connect/devices` query. `"[]"` on a
+/// poisoned lock or encode error (an honest empty roster).
+fn roster_json(roster: &Roster) -> String {
+    let mut wires: Vec<WireDevice> = roster
+        .lock()
+        .map(|m| {
+            m.values()
+                .map(|d| WireDevice {
+                    id: d.id.clone(),
+                    name: d.name.clone(),
+                    online: d.online,
+                    battery: d.battery,
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    wires.sort_by(|a, b| a.id.cmp(&b.id));
+    serde_json::to_string(&wires).unwrap_or_else(|_| "[]".to_string())
 }
 
 /// `mde connect` — run the daemon (seed the roster, spawn the host, serve the bus).
@@ -269,54 +281,99 @@ pub fn run(args: &[String]) -> ExitCode {
     }
 }
 
-fn serve(roster: Roster) -> zbus::Result<()> {
-    let daemon = ConnectDaemon { roster };
-    let conn = zbus::blocking::connection::Builder::session()?
-        .serve_at(OBJ_PATH, daemon)?
-        .build()?;
-    // Single-owner service: if another `mde connect` already holds the name, exit
-    // rather than run a second host on the same port.
-    conn.request_name(BUS_NAME)?;
+/// Serve the roster on the Bus until the process exits. First holds
+/// the single-instance guard (`org.mde.Connect` D-Bus name ownership —
+/// a second `mde connect` fails `request_name` and exits rather than
+/// running a second host on `KDC_PORT`), then runs the responder loop
+/// answering `action/connect/devices` with [`roster_json`].
+fn serve(roster: Roster) -> anyhow::Result<()> {
+    // Single-owner guard: name ownership stays a D-Bus primitive (only
+    // the roster data moved to the Bus). `_guard` is held for the
+    // process lifetime — dropping the connection releases the name.
+    let _guard = zbus::blocking::Connection::session()?;
+    _guard.request_name(BUS_NAME)?;
+
+    let bus_dir = mde_bus::default_data_dir()
+        .ok_or_else(|| anyhow::anyhow!("no Bus data dir for the connect responder"))?;
+    let persist = mde_bus::persist::Persist::open(bus_dir)
+        .map_err(|e| anyhow::anyhow!("connect responder: bus persist: {e}"))?;
+    // Start at the latest ulid so we answer only queries that arrive
+    // after bring-up (not replay stale history into orphan replies).
+    let mut cursor: Option<String> = persist
+        .list_since(ACTION_TOPIC, None)
+        .ok()
+        .and_then(|m| m.last().map(|x| x.ulid.clone()));
     loop {
-        thread::sleep(Duration::from_secs(60));
+        match persist.list_since(ACTION_TOPIC, cursor.as_deref()) {
+            Ok(msgs) => {
+                for msg in msgs {
+                    cursor = Some(msg.ulid.clone());
+                    let body = roster_json(&roster);
+                    if let Err(e) = persist.write(
+                        &mde_bus::rpc::reply_topic(&msg.ulid),
+                        mde_bus::hooks::config::Priority::Default,
+                        None,
+                        Some(&body),
+                    ) {
+                        eprintln!("mde connect: reply write: {e}");
+                    }
+                }
+            }
+            Err(e) => eprintln!("mde connect: list_since: {e}"),
+        }
+        thread::sleep(POLL_INTERVAL);
     }
 }
 
 // ── Client (used by `mde phone`, the panel, the OOBE Your-Phone stage) ────────
 
-#[zbus::proxy(
-    interface = "org.mde.Connect1",
-    default_service = "org.mde.Connect",
-    default_path = "/org/mde/Connect"
-)]
-trait Connect {
-    fn devices(&self) -> zbus::Result<Vec<(String, String, bool, i32)>>;
-}
-
-/// Query the paired-device roster from the running `mde connect` daemon. Returns an
-/// empty list (never panics) when the daemon or the session bus isn't available, so
-/// callers render an honest "no devices" state rather than failing.
+/// Query the paired-device roster from the running `mde connect` daemon
+/// over the Bus (`action/connect/devices`). Returns an empty list
+/// (never panics) when the daemon, the Bus, or a timely reply isn't
+/// available, so callers render an honest "no devices" state.
+///
+/// Builds its own current-thread runtime and blocks, so it MUST be
+/// called outside an async runtime — async callers (e.g. `mde phone`)
+/// wrap it in `tokio::task::spawn_blocking`. The sync `mde connect
+/// --list` path calls it directly.
 #[must_use]
 pub fn devices() -> Vec<DeviceInfo> {
-    let Ok(conn) = zbus::blocking::Connection::session() else {
+    let Some(bus_dir) = mde_bus::default_data_dir() else {
         return Vec::new();
     };
-    let Ok(proxy) = ConnectProxyBlocking::new(&conn) else {
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
         return Vec::new();
     };
-    proxy
-        .devices()
-        .map(|v| {
-            v.into_iter()
-                .map(|(id, name, online, batt)| DeviceInfo {
-                    id,
-                    name,
-                    online,
-                    battery: u8::try_from(batt).ok().filter(|b| *b <= 100),
-                })
-                .collect()
+    let raw = rt.block_on(async {
+        let persist = mde_bus::persist::Persist::open(bus_dir).ok()?;
+        mde_bus::rpc::request(
+            &persist,
+            ACTION_TOPIC,
+            mde_bus::hooks::config::Priority::Default,
+            None,
+            None,
+            QUERY_TIMEOUT,
+        )
+        .await
+        .ok()?
+        .body
+    });
+    let Some(raw) = raw else {
+        return Vec::new();
+    };
+    let wires: Vec<WireDevice> = serde_json::from_str(&raw).unwrap_or_default();
+    wires
+        .into_iter()
+        .map(|w| DeviceInfo {
+            id: w.id,
+            name: w.name,
+            online: w.online,
+            battery: w.battery.filter(|b| *b <= 100),
         })
-        .unwrap_or_default()
+        .collect()
 }
 
 #[cfg(test)]
@@ -413,5 +470,39 @@ mod tests {
             },
         );
         assert!(m.is_empty());
+    }
+
+    #[test]
+    fn roster_json_round_trips_sorted_with_optional_battery() {
+        let mut map = HashMap::new();
+        map.insert(
+            "zeta".to_string(),
+            DeviceInfo {
+                id: "zeta".into(),
+                name: "Zeta".into(),
+                online: true,
+                battery: Some(80),
+            },
+        );
+        map.insert(
+            "alpha".to_string(),
+            DeviceInfo {
+                id: "alpha".into(),
+                name: "Alpha".into(),
+                online: false,
+                battery: None,
+            },
+        );
+        let roster: Roster = Arc::new(Mutex::new(map));
+        let json = roster_json(&roster);
+        let wires: Vec<WireDevice> = serde_json::from_str(&json).expect("decode roster json");
+        // Sorted by id (alpha before zeta); battery is a real Option
+        // (no -1 sentinel) over the Bus.
+        assert_eq!(wires.len(), 2);
+        assert_eq!(wires[0].id, "alpha");
+        assert_eq!(wires[0].battery, None);
+        assert_eq!(wires[1].id, "zeta");
+        assert!(wires[1].online);
+        assert_eq!(wires[1].battery, Some(80));
     }
 }

@@ -4442,6 +4442,7 @@ dependencies = [
  "crossterm",
  "iced 0.13.1",
  "iced_layershell 0.13.7",
+ "mde-bus",
  "mde-disclaimer",
  "mde-kdc-host",
  "mde-kdc-proto",

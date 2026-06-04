@@ -68,8 +68,16 @@ pub fn run(_args: &[String]) -> ExitCode {
                     selected: 0,
                     loaded: false,
                 },
-                // Query the daemon off the first paint (a session-bus round-trip).
-                Task::perform(async { connect::devices() }, Message::Loaded),
+                // Query the daemon off the first paint (a Bus round-trip; the sync
+                // client runs on the blocking pool so it never freezes the UI).
+                Task::perform(
+                    async {
+                        tokio::task::spawn_blocking(connect::devices)
+                            .await
+                            .unwrap_or_default()
+                    },
+                    Message::Loaded,
+                ),
             )
         });
     match r {
@@ -89,7 +97,14 @@ fn update(state: &mut Phone, message: Message) -> Task<Message> {
         }
         Message::SelectDevice(i) => state.selected = i,
         Message::Refresh => {
-            return Task::perform(async { connect::devices() }, Message::Loaded);
+            return Task::perform(
+                async {
+                    tokio::task::spawn_blocking(connect::devices)
+                        .await
+                        .unwrap_or_default()
+                },
+                Message::Loaded,
+            );
         }
     }
     Task::none()
