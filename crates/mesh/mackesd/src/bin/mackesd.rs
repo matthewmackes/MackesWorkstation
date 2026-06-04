@@ -4505,8 +4505,16 @@ fn explain_peer(node_id: &str, nodes: &[mackesd_core::store::NodeRow]) -> serde_
             };
             serde_json::json!({
                 "peer":       other.node_id,
+                // An edge is expected when both peers are healthy and
+                // neither is decommissioned. East-west (cross-region)
+                // is allowed by default today, so region does NOT gate
+                // `expected` (the `reasons` above still surface the
+                // region context). The previous `&& (same_region ||
+                // true)` term was always true — a logic bug (clippy
+                // overly_complex_bool_expr); a real
+                // `policy::allow_east_west` gate would re-add a
+                // `(same_region || allow_east_west)` term here.
                 "expected":   both_healthy
-                              && (same_region || true)
                               && subject.role != "decommissioned"
                               && other.role != "decommissioned",
                 "chain":      chain,
