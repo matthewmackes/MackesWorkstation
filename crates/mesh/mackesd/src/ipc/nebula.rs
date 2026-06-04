@@ -32,15 +32,19 @@
 //! pre-migration D-Bus methods produced (so consumers parse the
 //! same JSON).
 //!
-//! The remaining `#[interface]` block carries ONLY the three
-//! `#[zbus(signal)]` declarations the Overview's live subscription
-//! pins against (`peer_state_changed` / `transport_changed` /
-//! `enrollment_completed`). The reads + the `RegenCerts` write
-//! migrated to the Bus (E0.3.1 / E0.3.1.a / E0.3.1.b); the `Enroll`
-//! D-Bus method was removed as dead (the `mackesd enroll` CLI +
-//! CSR-watcher path drive enrollment, not D-Bus). The signals
-//! retire to a Bus event topic in the final E0.3.1.b substep,
-//! which drops this block + the lint-dbus-shape allowlist entry.
+//! The `dev.mackes.MDE.Nebula.Status` D-Bus interface is now FULLY
+//! RETIRED (E0.3.1.b): reads + the `RegenCerts` write serve on
+//! `action/nebula/*`; the three signals (`PeerStateChanged` /
+//! `TransportChanged` / `EnrollmentCompleted`) fan out as
+//! fire-and-forget rows on the [`NEBULA_EVENT_TOPIC`] Bus event
+//! topic via [`spawn_signal_dispatcher`] (a dedicated thread +
+//! `Persist`, since rusqlite isn't `Send`); the `Enroll` D-Bus
+//! method was removed as dead (the `mackesd enroll` CLI +
+//! CSR-watcher path drive enrollment). No `#[interface]` block and
+//! no object-server registration remain, so nebula.rs drops out of
+//! the lint-dbus-shape allowlist. Workers still emit via the
+//! unchanged [`NebulaSignal`] enum + mpsc; only the dispatcher's
+//! tail (D-Bus signal → Bus event row) changed.
 //!
 //! Reads come from the live SQLite tables (`nebula_ca` +
 //! `nebula_peer_certs` from migration 0011, `nodes` from the
@@ -59,7 +63,6 @@ use mde_bus::rpc::reply_topic;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio::sync::Mutex;
-use zbus::interface;
 
 /// Poll cadence for the `action/nebula/<verb>` topics. Control
 /// surface (not on a human's interactive path), so 400 ms keeps
@@ -72,16 +75,15 @@ pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(
 /// Locked to the `action/<domain>/<verb>` Q96 convention.
 pub const ACTION_VERBS: [&str; 4] = ["status", "self-node", "list-peers", "regen-certs"];
 
-/// Well-known D-Bus interface name.
-pub const NEBULA_STATUS_INTERFACE: &str = "dev.mackes.MDE.Nebula.Status";
-
-/// Object path the service is exposed at.
-pub const NEBULA_STATUS_OBJECT_PATH: &str = "/dev/mackes/MDE/Nebula/Status";
-
-/// Bus name (shared with FleetFiles per session-bus single-
-/// instance convention — both services live on the same
-/// daemon connection).
-pub const NEBULA_STATUS_BUS_NAME: &str = "org.mackes.mackesd";
+/// Bus event topic the signal dispatcher publishes to (E0.3.1.b).
+/// The retired `dev.mackes.MDE.Nebula.Status` D-Bus interface +
+/// its object-path/bus-name consts are gone — reads + the
+/// RegenCerts write serve on `action/nebula/*`, and the three
+/// signals fan out here as fire-and-forget event rows. Consumers
+/// (Workbench Overview) `list_since` this topic from a per-reader
+/// cursor. Keep the literal in sync with mde-workbench's
+/// `home::NEBULA_EVENT_TOPIC`.
+pub const NEBULA_EVENT_TOPIC: &str = "event/nebula/signals";
 
 /// JSON wire shape for the Status() reply.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -417,159 +419,102 @@ impl NebulaStatusService {
     }
 }
 
-// E0.3.1 / E0.3.1.a / E0.3.1.b (EPIC-RETIRE-DBUS): the three
-// read-projection verbs (`Status`/`ListPeers`/`SelfNode`) AND the
-// `RegenCerts` write verb have been RETIRED from this `#[interface]`
-// block. Reads + the CA-rotation write now serve ONLY on the mesh
-// Bus — `action/nebula/{status,list-peers,self-node,regen-certs}`
-// via [`serve_bus`] below, over the shared builders +
-// [`NebulaStatusService::regen_certs_inner`]. All consumers
-// migrated (mde-wizard/preview, mde-files/mesh_backend,
-// mde-workbench/{mesh_control,home}); no D-Bus reader/rotator
-// remains.
+// ----- signal dispatcher (E0.3.1.b) ----------------------------------
 //
-// Still below: ONLY the three signals (live — workers emit via the
-// dispatcher, the Overview panel subscribes). The `Enroll` D-Bus
-// method was REMOVED (E0.3.1.b) — it had no consumer: panels shell
-// the `mackesd enroll` CLI, which drives the CSR-watcher path, and
-// that worker already emits `EnrollmentCompleted` via the
-// dispatcher. The inherent `enroll_inner` (the CLI's actual entry)
-// is untouched. Migrating the three signals to a Bus event topic +
-// dropping this whole block + the `ipc/` allow-list entry is the
-// remainder of E0.3.1.b.
-#[interface(name = "dev.mackes.MDE.Nebula.Status")]
-impl NebulaStatusService {
-    /// Signal: a peer's reachability flipped. Fired by the
-    /// reconcile worker when it observes a node's `health` row
-    /// change (online → idle, idle → offline, etc.). OV-7.a
-    /// worker-side emission lands in the same epic; this
-    /// declaration is the public surface every subscriber
-    /// pins against today.
-    #[zbus(signal)]
-    pub async fn peer_state_changed(
-        emitter: &zbus::object_server::SignalEmitter<'_>,
-        node_id: &str,
-        reachable: &str,
-    ) -> zbus::Result<()>;
+// The `dev.mackes.MDE.Nebula.Status` D-Bus interface is fully
+// retired: no `#[interface]` block, no object-server registration,
+// no register helpers. Reads + the `RegenCerts` write serve on
+// `action/nebula/*` (above); the three signals fan out on the
+// `NEBULA_EVENT_TOPIC` Bus event topic via the dispatcher below.
+// Workers still emit `NebulaSignal`s through the unchanged mpsc;
+// only the dispatcher's tail changed (D-Bus signal → Bus row).
 
-    /// Signal: the mesh's active transport rotated. Fired by
-    /// `mesh_router` when its selector picks a different
-    /// transport (nebula_direct → nebula_lighthouse_relay,
-    /// nebula_https443 → kdc_tls, etc.). OV-7.b router-side
-    /// emission lands in the same epic; this declaration is
-    /// the public surface every subscriber pins against today.
-    #[zbus(signal)]
-    pub async fn transport_changed(
-        emitter: &zbus::object_server::SignalEmitter<'_>,
-        active_transport: &str,
-    ) -> zbus::Result<()>;
-
-    /// Signal: a peer (this one or any other) finished
-    /// enrollment into the mesh. Fired from `enroll()` above
-    /// on the local peer's enrollment success; the leader
-    /// fires it for remote peers in OV-7.c.
-    #[zbus(signal)]
-    pub async fn enrollment_completed(
-        emitter: &zbus::object_server::SignalEmitter<'_>,
-        node_id: &str,
-    ) -> zbus::Result<()>;
+/// Serialize a [`NebulaSignal`] to the JSON event body the
+/// dispatcher writes to [`NEBULA_EVENT_TOPIC`]. The `kind` tag lets
+/// one topic carry all three variants; mde-workbench's
+/// `home::nebula_event_from_body` is the matching decoder, so keep
+/// the `kind` strings in sync with it.
+#[must_use]
+pub fn signal_event_body(signal: &NebulaSignal) -> String {
+    match signal {
+        NebulaSignal::PeerStateChanged { node_id, reachable } => {
+            json!({ "kind": "peer-state-changed", "node_id": node_id, "reachable": reachable })
+                .to_string()
+        }
+        NebulaSignal::TransportChanged { active_transport } => {
+            json!({ "kind": "transport-changed", "active_transport": active_transport }).to_string()
+        }
+        NebulaSignal::EnrollmentCompleted { node_id } => {
+            json!({ "kind": "enrollment-completed", "node_id": node_id }).to_string()
+        }
+    }
 }
 
-/// Register the NebulaStatusService on an EXISTING zbus
-/// `Connection`. The connection is normally the one returned
-/// by `ipc::files::register_fleet_files`, which already
-/// claims the `org.mackes.mackesd` bus name; this function
-/// just hangs another object under that connection at the
-/// Nebula object path. Pattern matches the Phase G shell
-/// services that also share the FleetFiles connection.
+/// Spawn the Nebula signal-dispatch loop. Drains [`NebulaSignal`]
+/// events from the worker-facing mpsc and writes each as a row on
+/// the [`NEBULA_EVENT_TOPIC`] Bus event topic, replacing the old
+/// `dev.mackes.MDE.Nebula.Status.*` D-Bus signal emission
+/// (E0.3.1.b). Subscribers (Workbench Overview) `list_since` the
+/// topic from their own cursor.
 ///
-/// # Errors
-///
-/// Returns whatever zbus reports.
-pub async fn register_nebula_status_on(
-    conn: &zbus::Connection,
-    state: NebulaStatusService,
-) -> zbus::Result<()> {
-    conn.object_server()
-        .at(NEBULA_STATUS_OBJECT_PATH, state)
-        .await?;
-    Ok(())
-}
-
-/// Standalone register helper — used by tests / one-off
-/// servers that don't already have a FleetFiles connection.
-/// Builds a fresh `Connection` claiming the well-known bus
-/// name + serving only the Nebula surface.
-///
-/// # Errors
-///
-/// Returns whatever zbus reports.
-pub async fn register_nebula_status(
-    state: NebulaStatusService,
-) -> zbus::Result<zbus::Connection> {
-    zbus::connection::Builder::session()?
-        .name(NEBULA_STATUS_BUS_NAME)?
-        .serve_at(NEBULA_STATUS_OBJECT_PATH, state)?
-        .build()
-        .await
-}
-
-/// Spawn the Nebula signal-dispatch loop. Pulls
-/// [`NebulaSignal`] events from the receiver, looks up the
-/// already-registered `NebulaStatusService` interface ref on
-/// the supplied connection, and emits the matching
-/// `dev.mackes.MDE.Nebula.Status.*` signal for each one.
-///
-/// Returns the [`NebulaSignalSender`] every worker holds. The
-/// `slot` argument is filled with a clone of the same sender so
-/// workers spawned earlier in `run_serve()` (before this call
-/// site) can pick it up on their next tick.
-///
-/// # Errors
-///
-/// Returns whatever zbus reports when fetching the interface
-/// reference fails (typically: the service wasn't registered
-/// first via [`register_nebula_status_on`]).
-pub async fn spawn_signal_dispatcher(
-    conn: zbus::Connection,
-    slot: &SignalSenderSlot,
-) -> zbus::Result<NebulaSignalSender> {
+/// Runs on a dedicated OS thread with its own current-thread
+/// runtime holding one `Persist` — rusqlite isn't `Send`, so it
+/// can't ride the main multi-thread executor (same constraint +
+/// structure as [`serve_bus`]). Fills `slot` with the sender so
+/// workers spawned earlier in `run_serve()` pick it up on their
+/// next tick; also returns it (the slot's clone keeps the channel
+/// open for the daemon's lifetime, so callers may drop the return).
+pub fn spawn_signal_dispatcher(slot: &SignalSenderSlot) -> NebulaSignalSender {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<NebulaSignal>();
-    let iface_ref = conn
-        .object_server()
-        .interface::<_, NebulaStatusService>(NEBULA_STATUS_OBJECT_PATH)
-        .await?;
-    tokio::spawn(async move {
-        while let Some(signal) = rx.recv().await {
-            let ctx = iface_ref.signal_emitter();
-            let result = match signal {
-                NebulaSignal::PeerStateChanged { node_id, reachable } => {
-                    NebulaStatusService::peer_state_changed(ctx, &node_id, &reachable).await
-                }
-                NebulaSignal::TransportChanged { active_transport } => {
-                    NebulaStatusService::transport_changed(ctx, &active_transport).await
-                }
-                NebulaSignal::EnrollmentCompleted { node_id } => {
-                    NebulaStatusService::enrollment_completed(ctx, &node_id).await
+    if let Err(e) = std::thread::Builder::new()
+        .name("nebula-signal-dispatcher".into())
+        .spawn(move || {
+            let Some(bus_dir) = mde_bus::default_data_dir() else {
+                tracing::warn!("nebula dispatcher: no Bus data dir; signals unavailable");
+                return;
+            };
+            let persist = match Persist::open(bus_dir) {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::warn!("nebula dispatcher: opening Bus store: {e}");
+                    return;
                 }
             };
-            if let Err(e) = result {
-                tracing::warn!(error = %e, "nebula signal emission failed");
-            }
-        }
-    });
+            let rt = match tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(e) => {
+                    tracing::error!("nebula dispatcher: runtime build failed: {e}");
+                    return;
+                }
+            };
+            rt.block_on(async move {
+                while let Some(signal) = rx.recv().await {
+                    let body = signal_event_body(&signal);
+                    if let Err(e) =
+                        persist.write(NEBULA_EVENT_TOPIC, Priority::Default, None, Some(&body))
+                    {
+                        tracing::warn!(error = %e, "nebula dispatcher: event write failed");
+                    }
+                }
+            });
+        })
+    {
+        tracing::error!("nebula dispatcher: thread spawn failed: {e}");
+    }
     let sender = NebulaSignalSender { tx };
-    // Fill the shared slot for workers that spawned before IPC
-    // registration. `set` returns Err if the slot is already
-    // filled — that's a programmer error (called twice), so
-    // we surface it via tracing rather than silently overwriting.
+    // Fill the shared slot for workers that spawned before this call.
+    // `set` returns Err if already filled — a programmer error
+    // (called twice), surfaced via tracing rather than overwriting.
     if slot.set(sender.clone()).is_err() {
         tracing::warn!(
             "nebula signal-sender slot already filled; \
              ignoring duplicate spawn_signal_dispatcher call",
         );
     }
-    Ok(sender)
+    sender
 }
 
 // ----- Bus responder (E0.3.1) ----------------------------------------
@@ -763,9 +708,32 @@ mod tests {
     }
 
     #[test]
-    fn interface_path_locks() {
-        assert_eq!(NEBULA_STATUS_INTERFACE, "dev.mackes.MDE.Nebula.Status");
-        assert_eq!(NEBULA_STATUS_OBJECT_PATH, "/dev/mackes/MDE/Nebula/Status");
+    fn event_topic_locks() {
+        // E0.3.1.b — the signal fan-out topic; mde-workbench's
+        // home::NEBULA_EVENT_TOPIC must match this literal.
+        assert_eq!(NEBULA_EVENT_TOPIC, "event/nebula/signals");
+    }
+
+    #[test]
+    fn signal_event_body_round_trips_each_variant() {
+        // The dispatcher serializes each NebulaSignal to this JSON;
+        // mde-workbench's home::nebula_event_from_body parses it.
+        let peer = signal_event_body(&NebulaSignal::PeerStateChanged {
+            node_id: "peer:pine".into(),
+            reachable: "online".into(),
+        });
+        assert!(peer.contains("\"kind\":\"peer-state-changed\""));
+        assert!(peer.contains("peer:pine"));
+        let transport = signal_event_body(&NebulaSignal::TransportChanged {
+            active_transport: "nebula_direct".into(),
+        });
+        assert!(transport.contains("\"kind\":\"transport-changed\""));
+        assert!(transport.contains("nebula_direct"));
+        let enroll = signal_event_body(&NebulaSignal::EnrollmentCompleted {
+            node_id: "peer:birch".into(),
+        });
+        assert!(enroll.contains("\"kind\":\"enrollment-completed\""));
+        assert!(enroll.contains("peer:birch"));
     }
 
     #[test]

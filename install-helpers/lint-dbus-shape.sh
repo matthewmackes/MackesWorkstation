@@ -48,15 +48,17 @@ INTEROP_NAME_RE='name *= *"(org\.freedesktop\.|org\.mpris\.|org\.kde\.StatusNoti
 # this list with an internal interface name is net-new.
 #
 # crates/mesh/mackesd/src/ipc/*   — dev.mackes.MDE.{Shell,Settings,
-#                                   Fleet,Nebula.Status,...} services.
-#                                   E0.3.1 (2026-06-03): Nebula.Status's
-#                                   read verbs (Status/SelfNode/ListPeers)
-#                                   ported to the Bus
-#                                   (action/nebula/<verb>); the residual
-#                                   #[interface] block keeps only the
-#                                   not-yet-migrated verbs (RegenCerts,
-#                                   Enroll) + signals, so the ipc/ prefix
-#                                   stays allow-listed until those land.
+#                                   Fleet,...} services. E0.3.1/.a/.b
+#                                   (2026-06): Nebula.Status is FULLY
+#                                   migrated off D-Bus — reads + the
+#                                   RegenCerts write serve on
+#                                   action/nebula/<verb>, the three
+#                                   signals on the event/nebula/signals
+#                                   Bus topic; ipc/nebula.rs no longer
+#                                   declares any #[interface]. The ipc/
+#                                   prefix stays only for the remaining
+#                                   services (Shell/Settings/Fleet),
+#                                   shrinking to empty at E0.3.7.
 # crates/services/mde-files/src/dbus_backend.rs
 #                                 — dev.mackes.MDE.Shell.* +
 #                                   Fleet.Files file-transfer backend

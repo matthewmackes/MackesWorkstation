@@ -78,7 +78,7 @@ crates/legacy/mde-portal/src/portal_full_main.rs:2921
 crates/legacy/mde-portal/src/portal_full_main.rs:2929
 crates/legacy/mde-portal/src/portal_full_main.rs:2971
 crates/legacy/mde-portal/src/portal_full_main.rs:2972
-crates/mesh/mackesd/src/bin/mackesd.rs:4123
+crates/mesh/mackesd/src/bin/mackesd.rs:4083
 crates/mesh/mackesd/src/config/tag_manifest.rs:223
 crates/mesh/mackesd/src/config/tag_manifest.rs:231
 crates/mesh/mackesd/src/config/tag_manifest.rs:24
@@ -241,9 +241,9 @@ crates/shell/mde-wizard/src/pages/preset.rs:18
 crates/shell/mde-wizard/src/pages/preset.rs:24
 crates/shell/mde-wizard/src/pages/preset.rs:30
 crates/shell/mde-wizard/src/pages/preset.rs:91
-crates/workbench/mde-workbench/src/app.rs:1580
-crates/workbench/mde-workbench/src/app.rs:1581
-crates/workbench/mde-workbench/src/app.rs:1615
+crates/workbench/mde-workbench/src/app.rs:1583
+crates/workbench/mde-workbench/src/app.rs:1584
+crates/workbench/mde-workbench/src/app.rs:1618
 crates/workbench/mde-workbench/src/app.rs:62
 crates/workbench/mde-workbench/src/app.rs:73
 crates/workbench/mde-workbench/src/app.rs:75

@@ -3875,66 +3875,26 @@ fn run_serve(
                             "Fleet.Files dbus surface registered at {}",
                             mackesd_core::ipc::files::FLEET_FILES_OBJECT_PATH
                         );
-                        // NF-Bundle-0 (v2.5) — hang the Nebula
-                        // status surface on the same
-                        // connection so NF-10..NF-18
-                        // consumers (applets / workbench /
-                        // mde-files / wizard) can call it
-                        // without claiming a second bus name.
-                        let nebula = mackesd_core::ipc::nebula::NebulaStatusService::new(
-                            Arc::clone(&store),
-                            node_id.clone(),
-                            host.clone(),
-                        )
-                        .with_workgroup_root(workgroup_root.clone());
-                        match mackesd_core::ipc::nebula::register_nebula_status_on(
-                            &conn, nebula,
-                        )
-                        .await
-                        {
-                            Ok(()) => {
-                                tracing::info!(
-                                    "Nebula.Status dbus surface registered at {}",
-                                    mackesd_core::ipc::nebula::NEBULA_STATUS_OBJECT_PATH
-                                );
-                                // OV-7.a/c (v2.6) — spawn the
-                                // signal dispatcher loop now that
-                                // the interface is registered.
-                                // Fills nebula_signal_slot so the
-                                // health_reconciler + CSR watcher
-                                // workers (already spawned above)
-                                // pick up the sender on their
-                                // next tick.
-                                match mackesd_core::ipc::nebula::spawn_signal_dispatcher(
-                                    conn.clone(),
-                                    &nebula_signal_slot,
-                                )
-                                .await
-                                {
-                                    Ok(_sender) => {
-                                        tracing::info!(
-                                            "Nebula signal dispatcher spawned; \
-                                             health_reconciler + nebula_csr_watcher \
-                                             will emit on next state transition"
-                                        );
-                                    }
-                                    Err(e) => {
-                                        tracing::warn!(
-                                            error = %e,
-                                            "Nebula signal dispatcher spawn failed; \
-                                             signals will not fire until next mackesd restart"
-                                        );
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    error = %e,
-                                    "Nebula.Status dbus registration failed; \
-                                     NF-10..NF-18 consumers will see no peer data"
-                                );
-                            }
-                        }
+                        // E0.3.1.b — the Nebula status surface is
+                        // fully on the mesh Bus: reads + the RegenCerts
+                        // write answer on action/nebula/* (served by the
+                        // responder thread spawned in run_serve), and the
+                        // three signals fan out on the event/nebula/signals
+                        // topic. No D-Bus interface is registered. Spawn
+                        // the signal dispatcher (drains worker NebulaSignal
+                        // events → the Bus event topic) + fill
+                        // nebula_signal_slot so the health_reconciler +
+                        // nebula_csr_watcher workers (already spawned above)
+                        // pick up the sender on their next tick.
+                        let _nebula_sender = mackesd_core::ipc::nebula::spawn_signal_dispatcher(
+                            &nebula_signal_slot,
+                        );
+                        tracing::info!(
+                            "Nebula signal dispatcher spawned (Bus event topic {}); \
+                             health_reconciler + nebula_csr_watcher will emit on \
+                             next state transition",
+                            mackesd_core::ipc::nebula::NEBULA_EVENT_TOPIC,
+                        );
                         // v4.1 (2026-05-24) — Shell.{Healthz,Workers}
                         // surface on the same shared connection.
                         // Workers list is the shared Arc<Mutex<>>

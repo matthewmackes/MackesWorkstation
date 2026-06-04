@@ -1272,12 +1272,16 @@ fn extract_peer_count(row: &CapabilityRow) -> Option<u32> {
 // ---------------------------------------------------------------------------
 
 /// Iced subscription that bridges live D-Bus signals from
-/// `dev.mackes.MDE.Nebula.Status` (PeerStateChanged /
-/// TransportChanged / EnrollmentCompleted) and
 /// `dev.mackes.MDE.Fleet` (RevisionApplied) into
 /// `Message::Home(DbusEvent(...))`. The Overview re-fires its
 /// probe fan-out on each event, so status pills flip without
 /// the operator hitting Refresh.
+///
+/// E0.3.1.b — the `dev.mackes.MDE.Nebula.Status` signals
+/// (PeerStateChanged / TransportChanged / EnrollmentCompleted) no
+/// longer arrive here; they moved to the mesh Bus event topic,
+/// polled by [`nebula_event_subscription`]. Fleet stays on D-Bus
+/// until E0.3.3.
 ///
 /// systemd1 per-unit `PropertiesChanged` (OV-8.a, shipped
 /// 2026-05-25) is also subscribed: the loop calls
@@ -1305,6 +1309,109 @@ pub fn dbus_subscription() -> iced::Subscription<crate::Message> {
             }
         })
     })
+}
+
+/// Bus event topic the mackesd signal dispatcher fans the Nebula
+/// signals out on (E0.3.1.b). MUST match mackesd's
+/// `ipc::nebula::NEBULA_EVENT_TOPIC` literal.
+const NEBULA_EVENT_TOPIC: &str = "event/nebula/signals";
+
+/// E0.3.1.b — poll the Bus `event/nebula/signals` topic for the
+/// Nebula signals that used to arrive as `dev.mackes.MDE.Nebula.
+/// Status` D-Bus signals, mapping each to the same [`DbusEvent`]
+/// the Overview reprobes on. This is the subscribe side of the
+/// signal migration; `dbus_subscription` keeps only Fleet + systemd.
+///
+/// The cursor starts at the latest existing event so only NEW
+/// signals trigger reprobes (matching the fire-and-forget D-Bus
+/// semantics — a fresh subscriber doesn't replay history). Each
+/// poll opens a short-lived `Persist` inside `spawn_blocking`
+/// (rusqlite isn't `Send`, so it can't cross the executor's await
+/// points).
+pub fn nebula_event_subscription() -> iced::Subscription<crate::Message> {
+    use iced::futures::SinkExt;
+    use iced::stream;
+    iced::Subscription::run(|| {
+        stream::channel(
+            32,
+            |mut output: iced::futures::channel::mpsc::Sender<crate::Message>| async move {
+                let mut cursor = nebula_event_cursor_init().await;
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+                    let (events, next) = nebula_poll_events(cursor.clone()).await;
+                    cursor = next;
+                    for ev in events {
+                        let _ = output
+                            .send(crate::Message::Home(Message::DbusEvent(ev)))
+                            .await;
+                    }
+                }
+            },
+        )
+    })
+}
+
+/// Resolve the latest existing `event/nebula/signals` ulid so the
+/// subscription only reacts to events written AFTER it starts.
+/// `None` when the topic is empty / the Bus is unavailable (then
+/// the first poll picks up everything from the start, which is
+/// still "new since we started").
+async fn nebula_event_cursor_init() -> Option<String> {
+    tokio::task::spawn_blocking(|| {
+        let dir = mde_bus::default_data_dir()?;
+        let persist = mde_bus::persist::Persist::open(dir).ok()?;
+        let msgs = persist.list_since(NEBULA_EVENT_TOPIC, None).ok()?;
+        msgs.last().map(|m| m.ulid.clone())
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
+/// Poll the event topic since `cursor`; return the decoded
+/// [`DbusEvent`]s + the advanced cursor. On a join error the cursor
+/// is preserved (so the next poll doesn't replay from the start).
+async fn nebula_poll_events(cursor: Option<String>) -> (Vec<DbusEvent>, Option<String>) {
+    let fallback = cursor.clone();
+    tokio::task::spawn_blocking(move || {
+        let Some(dir) = mde_bus::default_data_dir() else {
+            return (Vec::new(), cursor);
+        };
+        let Ok(persist) = mde_bus::persist::Persist::open(dir) else {
+            return (Vec::new(), cursor);
+        };
+        let msgs = persist
+            .list_since(NEBULA_EVENT_TOPIC, cursor.as_deref())
+            .unwrap_or_default();
+        let mut next = cursor;
+        let mut events = Vec::new();
+        for m in msgs {
+            next = Some(m.ulid);
+            if let Some(body) = m.body {
+                if let Some(ev) = nebula_event_from_body(&body) {
+                    events.push(ev);
+                }
+            }
+        }
+        (events, next)
+    })
+    .await
+    .unwrap_or((Vec::new(), fallback))
+}
+
+/// Decode one `event/nebula/signals` body (written by mackesd's
+/// `ipc::nebula::signal_event_body`) into the matching
+/// [`DbusEvent`]. `PeerStateChanged` + `EnrollmentCompleted` both
+/// map to `PeerChanged` (same as the old D-Bus dispatch). Unknown
+/// or malformed bodies yield `None`.
+#[must_use]
+pub fn nebula_event_from_body(body: &str) -> Option<DbusEvent> {
+    let v: serde_json::Value = serde_json::from_str(body).ok()?;
+    match v.get("kind")?.as_str()? {
+        "peer-state-changed" | "enrollment-completed" => Some(DbusEvent::PeerChanged),
+        "transport-changed" => Some(DbusEvent::TransportChanged),
+        _ => None,
+    }
 }
 
 /// systemd unit names the OV-8.a subscription cares about.
@@ -1343,28 +1450,15 @@ async fn run_subscription(
         .map_err(|e| format!("DBus proxy: {e}"))?;
 
     let mut rules = Vec::new();
-    for (iface, member, event) in [
-        (
-            "dev.mackes.MDE.Nebula.Status",
-            "PeerStateChanged",
-            DbusEvent::PeerChanged,
-        ),
-        (
-            "dev.mackes.MDE.Nebula.Status",
-            "TransportChanged",
-            DbusEvent::TransportChanged,
-        ),
-        (
-            "dev.mackes.MDE.Nebula.Status",
-            "EnrollmentCompleted",
-            DbusEvent::PeerChanged,
-        ),
-        (
-            "dev.mackes.MDE.Fleet",
-            "RevisionApplied",
-            DbusEvent::FleetRevisionPushed,
-        ),
-    ] {
+    // E0.3.1.b — the Nebula.Status signals moved to the mesh Bus
+    // (event/nebula/signals, polled by `nebula_event_subscription`);
+    // only the Fleet signal stays on D-Bus here (Fleet migrates in
+    // E0.3.3), plus the systemd PropertiesChanged rule below.
+    for (iface, member, event) in [(
+        "dev.mackes.MDE.Fleet",
+        "RevisionApplied",
+        DbusEvent::FleetRevisionPushed,
+    )] {
         let rule = MatchRule::builder()
             .msg_type(zbus::message::Type::Signal)
             .interface(iface)
@@ -1438,19 +1532,14 @@ async fn run_subscription(
             // Match by interface+member; ignore other traffic on
             // the bus (zbus's per-rule fan-out lands here too).
             let want_iface_member = match ev {
-                DbusEvent::PeerChanged => {
-                    iface_str == "dev.mackes.MDE.Nebula.Status"
-                        && (member_str == "PeerStateChanged"
-                            || member_str == "EnrollmentCompleted")
-                }
-                DbusEvent::TransportChanged => {
-                    iface_str == "dev.mackes.MDE.Nebula.Status"
-                        && member_str == "TransportChanged"
-                }
+                // Nebula PeerChanged/TransportChanged now arrive over the
+                // Bus (nebula_event_subscription), not D-Bus.
                 DbusEvent::FleetRevisionPushed => {
                     iface_str == "dev.mackes.MDE.Fleet" && member_str == "RevisionApplied"
                 }
-                DbusEvent::UnitChanged(_) => false,
+                DbusEvent::PeerChanged
+                | DbusEvent::TransportChanged
+                | DbusEvent::UnitChanged(_) => false,
             };
             if want_iface_member {
                 let _ = output
@@ -1773,5 +1862,28 @@ mod tests {
         });
         assert_eq!(panel.snapshot.capabilities, rows);
         assert!(panel.snapshot.mackesd_reachable);
+    }
+
+    #[test]
+    fn nebula_event_from_body_maps_each_kind() {
+        // E0.3.1.b — decodes the bodies mackesd's signal_event_body
+        // writes; peer-state + enrollment both → PeerChanged.
+        assert!(matches!(
+            nebula_event_from_body(
+                r#"{"kind":"peer-state-changed","node_id":"p","reachable":"online"}"#
+            ),
+            Some(DbusEvent::PeerChanged)
+        ));
+        assert!(matches!(
+            nebula_event_from_body(r#"{"kind":"enrollment-completed","node_id":"p"}"#),
+            Some(DbusEvent::PeerChanged)
+        ));
+        assert!(matches!(
+            nebula_event_from_body(r#"{"kind":"transport-changed","active_transport":"nebula_direct"}"#),
+            Some(DbusEvent::TransportChanged)
+        ));
+        // Unknown kind + malformed JSON yield None (ignored).
+        assert!(nebula_event_from_body(r#"{"kind":"who-knows"}"#).is_none());
+        assert!(nebula_event_from_body("not json").is_none());
     }
 }
