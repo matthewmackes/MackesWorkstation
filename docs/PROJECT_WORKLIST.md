@@ -111,6 +111,7 @@ _Depends: none_
 - [ ] **E0.3.2: E0.3 — Migrate the 5 file-op D-Bus services -> Bus; rewire mde-files**
   **As** a user, **I want** Inbox/Outbox/Downloads/FileOperations/Fleet.Files served over Bus, **so that** Explorer mesh ops need no private D-Bus. *Reuse:* mackesd/src/ipc/files.rs + mde-files/src/dbus_backend.rs (-> a bus_backend). *Deps:* E0.3.1. *(Largest sub-task.)*
   **Acceptance** (runtime-observable): file ops route over Bus action/reply; mde-files mesh-browse works via the Bus backend (no D-Bus); allowlist drops files.rs + dbus_backend.rs. *(Round-trip = Bus bench.)*
+  **Rescue finding (2026-06-03):** `mackesd::orchestrator` (the Send-To state machine — Pending→Validating→Executing→Verifying, ProgressEvent stream, the "engine behind dev.mackes.MDE.Shell.Send") is a **dead module** (zero external refs; allowlisted by lint-runtime-reachability). It is intended infra, not speculative — **wire it as the engine behind the file-op flow** as part of this migration (the D-Bus file-op services bypass it today). FINISH, not REMOVE.
 
 - [ ] **E0.3.3: E0.3 — Migrate the Fleet D-Bus service -> Bus**
   **As** an admin, **I want** `dev.mackes.MDE.Fleet` over Bus. *Reuse:* mackesd/src/ipc/fleet.rs (the Workbench fleet panels already call the `mackesd` CLI per E0.13, so D-Bus consumers may be few). *Deps:* E0.3.1.
