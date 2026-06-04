@@ -95,15 +95,44 @@ _Depends: none_
     - [ ] `cargo tree` shows no crate depending on `mackes-panel` and no `gtk`/`gtk3` in the default build graph; the panel surface is reached only via `mde panel`.
   **Done (2026-06-03):** audio chain re-included in `members`, legacy `mackes-panel` deleted, full `cargo check --workspace` green. Surfaced + mitigated a CMake-4 vs vendored-Opus (`opus`→`audiopus_sys`) configure break via `.cargo/config.toml` (`CMAKE_POLICY_VERSION_MINIMUM=3.5`). _Follow-up:_ update opus/audiopus_sys to drop the workaround.
 
-- [ ] **E0.3: E0 — mde-bus foundation: retire MDE-internal D-Bus -> Bus topics (keep only org.freedesktop.* FDO interop)**
+- [>] **E0.3: E0 — mde-bus foundation: retire MDE-internal D-Bus -> Bus topics (keep only org.freedesktop.* FDO interop)**
   **As** a platform developer, **I want** every MDE-internal IPC moved off private D-Bus onto `mde-bus` topics, keeping only `org.freedesktop.*` for FDO interop, **so that** surfaces and mackesd workers speak one mesh-aware transport.
   *Reuse:* mde-bus (§9 as-is, platform IPC backbone); mde-session keeps its FDO carve-out. *Deps:* E0.1.
   **Acceptance** (runtime-observable):
     - [ ] `lint-dbus-shape.sh` / `lint-legacy-mesh.sh` pass: no MDE-private bus names remain; the only `dbus`/`zbus` claims are `org.freedesktop.*` (Notifications host, session FDO).
     - [ ] A surface publishes a Bus topic and a mackesd worker observes it at runtime (round-trip succeeds over `mde-bus`, not private D-Bus).
     - [ ] Bus calls degrade gracefully with no mesh / no peers (cached state, Bus timeouts, never panic).
+  **Decomposed (2026-06-03):** this is a multi-service, behavior-changing migration whose round-trips need a RUNNING Bus + mackesd to verify — too large/unverifiable for a blind loop fire. Split into per-service sub-tasks E0.3.1–E0.3.7 below. Pattern precedent: mde-session already serves its lifecycle verbs over the Bus (action/session/*). FDO interop (org.freedesktop.* / org.mpris.* / org.kde.StatusNotifier*) is KEPT, not migrated. Each sub-task: rewrite the mackesd `#[interface]` service → a Bus action/reply handler + rewire its consumers; the round-trip verification is a **Bus-bench** item (running broker + daemon). Best sequenced with E4.2 (Bus client foundation) or run on a Bus bench.
 
-- [ ] **E0.4: E0 — Import the labwc config + session assets into the monorepo**
+- [ ] **E0.3.1: E0.3 — Migrate the Nebula.Status D-Bus service -> Bus (SelfNode / ListPeers)**
+  **As** a platform dev, **I want** `dev.mackes.MDE.Nebula.Status` served as Bus action/reply, **so that** mesh-status reads need no private D-Bus. *Reuse:* mackesd/src/ipc/nebula.rs + the mde-session Bus precedent. *Deps:* none (read-only; good first/proof service). *Consumers:* mde-wizard/preview, mde-peer-card, mesh-status applet.
+  **Acceptance** (runtime-observable): `mackesd` answers a Bus `action/nebula/{self-node,list-peers}` query with a `reply/<ulid>`; the 3 consumers read peers over Bus (no `dev.mackes.MDE.Nebula.Status` D-Bus); `lint-dbus-shape` allowlist drops nebula.rs. *(Round-trip = Bus bench.)*
+
+- [ ] **E0.3.2: E0.3 — Migrate the 5 file-op D-Bus services -> Bus; rewire mde-files**
+  **As** a user, **I want** Inbox/Outbox/Downloads/FileOperations/Fleet.Files served over Bus, **so that** Explorer mesh ops need no private D-Bus. *Reuse:* mackesd/src/ipc/files.rs + mde-files/src/dbus_backend.rs (-> a bus_backend). *Deps:* E0.3.1. *(Largest sub-task.)*
+  **Acceptance** (runtime-observable): file ops route over Bus action/reply; mde-files mesh-browse works via the Bus backend (no D-Bus); allowlist drops files.rs + dbus_backend.rs. *(Round-trip = Bus bench.)*
+
+- [ ] **E0.3.3: E0.3 — Migrate the Fleet D-Bus service -> Bus**
+  **As** an admin, **I want** `dev.mackes.MDE.Fleet` over Bus. *Reuse:* mackesd/src/ipc/fleet.rs (the Workbench fleet panels already call the `mackesd` CLI per E0.13, so D-Bus consumers may be few). *Deps:* E0.3.1.
+  **Acceptance** (runtime-observable): fleet queries answered over Bus; allowlist drops fleet.rs. *(Round-trip = Bus bench.)*
+
+- [ ] **E0.3.4: E0.3 — Migrate the Settings D-Bus service -> Bus**
+  **As** a surface, **I want** `dev.mackes.MDE.Settings` over Bus. *Reuse:* mackesd/src/ipc/settings.rs. *Deps:* E0.3.1.
+  **Acceptance** (runtime-observable): settings get/set answered over Bus; allowlist drops settings.rs. *(Round-trip = Bus bench.)*
+
+- [ ] **E0.3.5: E0.3 — Migrate the Shell (+ root dev.mackes.MDE) D-Bus service -> Bus**
+  **As** a surface, **I want** the Shell control surface over Bus. *Reuse:* mackesd/src/ipc/shell.rs. *Deps:* E0.3.1.
+  **Acceptance** (runtime-observable): shell verbs answered over Bus; allowlist drops shell.rs. *(Round-trip = Bus bench.)*
+
+- [ ] **E0.3.6: E0.3 — Migrate the Connect (org.mde.Connect) D-Bus -> Bus**
+  **As** a user, **I want** the KDE Connect roster surface over Bus. *Reuse:* mde/src/connect.rs. *Deps:* E0.3.1; converges with **E2** (KDC). *Consumers:* mde-peer-card, notifications applet.
+  **Acceptance** (runtime-observable): the device roster reaches consumers over Bus (no org.mde.Connect D-Bus); allowlist drops connect.rs. *(Round-trip = Bus bench.)*
+
+- [ ] **E0.3.7: E0.3 — Final D-Bus retirement sweep**
+  **As** a maintainer, **I want** the lint-dbus-shape allowlist empty, **so that** only FDO interop remains. *Reuse:* install-helpers/lint-dbus-shape.allowlist. *Deps:* E0.3.1–E0.3.6.
+  **Acceptance** (runtime-observable): `lint-dbus-shape` passes with an EMPTY allowlist; a tree grep finds only `org.freedesktop.*` / `org.mpris.*` / `org.kde.StatusNotifier*` `#[interface]` blocks.
+
+- [✓] **E0.4: E0 — Import the labwc config + session assets into the monorepo**
   **As** a desktop integrator, **I want** the labwc `rc.xml`/`themerc`/autostart and session assets vendored into the repo, **so that** the compositor session is reproducible from a single tree instead of an external repo.
   *Reuse:* mde-session (§9 as-is, launches labwc); LABWC-MIGRATION.md provenance. *Deps:* none.
   **Acceptance** (runtime-observable):
