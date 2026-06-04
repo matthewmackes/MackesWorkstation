@@ -51,18 +51,35 @@ mod tests {
     use super::*;
     use std::sync::{Mutex, OnceLock};
     static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-    fn with_env<R>(key: &str, value: Option<&str>, body: impl FnOnce() -> R) -> R {
+    /// Apply every `(key, value)` to the process environment under ONE
+    /// `ENV_LOCK` acquisition, run `body`, then restore each key to its
+    /// prior value. Callers pass ALL keys a test needs in a single call:
+    /// `ENV_LOCK` is a non-reentrant `std::sync::Mutex`, so a NESTED
+    /// `with_env` self-deadlocks (the inner `.lock()` blocks forever on
+    /// the guard the outer call still holds). That nesting was the
+    /// deterministic `mde-session lock::tests` hang — it wedged
+    /// `cargo test` indefinitely (no test timeout) until CI's job
+    /// deadline; fixed 2026-06-04 by taking the keys as a slice here.
+    fn with_env<R>(vars: &[(&str, Option<&str>)], body: impl FnOnce() -> R) -> R {
         let lock = ENV_LOCK.get_or_init(|| Mutex::new(()));
         let _g = lock.lock().unwrap_or_else(|e| e.into_inner());
-        let prev = std::env::var_os(key);
-        match value {
-            Some(v) => std::env::set_var(key, v),
-            None => std::env::remove_var(key),
-        }
+        let prev: Vec<(&str, Option<std::ffi::OsString>)> = vars
+            .iter()
+            .map(|&(key, value)| {
+                let was = std::env::var_os(key);
+                match value {
+                    Some(v) => std::env::set_var(key, v),
+                    None => std::env::remove_var(key),
+                }
+                (key, was)
+            })
+            .collect();
         let r = body();
-        match prev {
-            Some(v) => std::env::set_var(key, v),
-            None => std::env::remove_var(key),
+        for (key, was) in prev.into_iter().rev() {
+            match was {
+                Some(v) => std::env::set_var(key, v),
+                None => std::env::remove_var(key),
+            }
         }
         r
     }
@@ -81,37 +98,38 @@ mod tests {
 
     #[test]
     fn lock_command_string_returns_default_when_env_unset() {
-        with_env("MDE_LOCK_CMD", None, || {
-            with_env("MACKES_LOCK_CMD", None, || {
-                assert_eq!(lock_command_string(), DEFAULT_LOCK_CMD);
-            });
+        with_env(&[("MDE_LOCK_CMD", None), ("MACKES_LOCK_CMD", None)], || {
+            assert_eq!(lock_command_string(), DEFAULT_LOCK_CMD);
         });
     }
 
     #[test]
     fn lock_command_string_honors_mde_env_var() {
-        with_env("MDE_LOCK_CMD", Some("xtrlock"), || {
-            with_env("MACKES_LOCK_CMD", None, || {
+        with_env(
+            &[("MDE_LOCK_CMD", Some("xtrlock")), ("MACKES_LOCK_CMD", None)],
+            || {
                 assert_eq!(lock_command_string(), "xtrlock");
-            });
-        });
+            },
+        );
     }
 
     #[test]
     fn lock_command_string_falls_back_to_legacy_macros_env_var() {
-        with_env("MDE_LOCK_CMD", None, || {
-            with_env("MACKES_LOCK_CMD", Some("i3lock"), || {
+        with_env(
+            &[("MDE_LOCK_CMD", None), ("MACKES_LOCK_CMD", Some("i3lock"))],
+            || {
                 assert_eq!(lock_command_string(), "i3lock");
-            });
-        });
+            },
+        );
     }
 
     #[test]
     fn lock_command_string_treats_whitespace_as_unset() {
-        with_env("MDE_LOCK_CMD", Some("   "), || {
-            with_env("MACKES_LOCK_CMD", None, || {
+        with_env(
+            &[("MDE_LOCK_CMD", Some("   ")), ("MACKES_LOCK_CMD", None)],
+            || {
                 assert_eq!(lock_command_string(), DEFAULT_LOCK_CMD);
-            });
-        });
+            },
+        );
     }
 }
