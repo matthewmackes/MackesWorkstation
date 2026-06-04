@@ -108,8 +108,12 @@ impl Image {
 }
 
 fn accuracy_dir() -> PathBuf {
-    // CARGO_MANIFEST_DIR = rust/mde ; the harness assets live in rust/tests.
+    // CARGO_MANIFEST_DIR = crates/shell/mde; the E0 §12 reorg moved the harness
+    // assets to the repo-root tests/accuracy (three levels up), not the old
+    // pre-merge rust/tests sibling.
     Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..")
         .join("..")
         .join("tests")
         .join("accuracy")
