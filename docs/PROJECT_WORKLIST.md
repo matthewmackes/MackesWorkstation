@@ -111,13 +111,14 @@ _Depends: none_
     - [ ] The Win10 era picker's themerc rewriter targets the vendored `themerc` path and a theme switch is observable at runtime (edge-snap keybinds present in the imported `rc.xml`).
     - [ ] No session asset path points outside the monorepo (all referenced files resolve under the repo tree).
 
-- [ ] **E0.5: E0 — mackesd systemd unit + verify the mde <subcommand> dispatch binary (every mde-<cmd> symlink resolves)**
+- [✓] **E0.5: E0 — mackesd systemd unit + verify the mde <subcommand> dispatch binary (every mde-<cmd> symlink resolves)**
   **As** an operator, **I want** a mackesd systemd unit and a verified multiplexed `mde` dispatcher, **so that** the control plane starts on boot and every `mde <sub>` path and `mde-<cmd>` symlink resolves to a real subcommand.
   *Reuse:* mackesd (§9 as-is, control plane); mde dispatcher (§9 as-is, argv0/argv1 routing in main.rs). *Deps:* E0.1, E0.2.
   **Acceptance** (runtime-observable):
     - [ ] `systemctl start mackesd` brings the daemon to active/running and it supervises its role worker subset (logs workers started; `systemctl status` shows healthy).
     - [ ] For every installed `mde-<cmd>` symlink, invoking it dispatches to the same handler as `mde <cmd>` (argv0 basename routing), and an unknown subcommand prints USAGE and exits non-zero.
     - [ ] `mde help` enumerates the full subcommand set and each listed subcommand is reachable (no "not implemented" path at runtime).
+  **Done (2026-06-03):** `mackesd.service` exists (ExecStart=`mackesd serve`, ExecStartPre=`mackesd migrate`); fixed its stale `After=…tailscaled.service` (monorepo is Nebula, not Tailscale) + `MAP2-RELEASES` doc URL → MackesWorkstation. Completed the `mde help` USAGE (added the Win10 surfaces start-win10/action-center/toast/task-view/search/settings/personalization/jumplist/about + theme/accent keybind helpers; fixed MDE-Retro branding). Runtime-verified: `mde --version`→`mde 10.0.0`, `mde help` lists the full set (exit 0), `mde bogus`→USAGE (exit 2), and the `mde-<cmd>` symlink path (`mde-help`→help) resolves. _Follow-up:_ retire the stale Tailscale-era units `data/systemd/mde-derper.service` + `mackes-tailscale-bootstrap.service` (legacy-mesh cleanup, tied to the Nebula transport retirement).
 
 - [✓] **E0.6: E0 — Single-source disclaimer embedding (disclaimer.rs include_str! wired into every surface)**
   **As** a compliance reviewer, **I want** every About/Info/Help surface to render the disclaimer from `disclaimer.rs include_str!`, **so that** the GUI text and `DISCLAIMER.md` can never drift from a single source.

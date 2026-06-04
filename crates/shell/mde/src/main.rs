@@ -70,7 +70,7 @@ mod wlr;
 mod workspace;
 
 const USAGE: &str = "\
-mde — Carbon/Win2000 desktop shell for labwc (MDE-Retro)
+mde — Mackes Workstation desktop shell for labwc (Win2000 / Carbon / Win10 / BeOS)
 
 USAGE:
     mde <COMMAND> [ARGS...]
@@ -90,6 +90,16 @@ COMMANDS:
     connect [--list]   KDE Connect daemon (roster on org.mde.Connect); --list prints it
     phone              Your Phone / Mobile Devices — KDE Connect device window (E9)
 
+    start-win10        Tiled Win10 Start overlay (--pin/--unpin/--resize/--list-tiles)
+    action-center      Win10 Action Center (Win+A): notifications + quick-action tiles
+    toast ID           Transient bottom-right toast for notification <ID>
+    task-view          Task View (Win+Tab): window grid + virtual desktops
+    search             Search overlay (Win+S): apps / docs / web / settings
+    settings [--page X]          Modern Win10 Settings (Win+I)
+    personalization [--page X]   Settings ▸ Personalization shortcut
+    jumplist           Taskbar jump-list popup
+    about              About Mackes Workstation (renders the disclaimer)
+
     display [--outputs]   Display Properties (resolution, wallpaper, screen saver)
     filedialog [--save] [--filter ...]   Common Open/Save file dialog (prints path)
     run              Run dialog (type a command to launch)
@@ -103,11 +113,14 @@ COMMANDS:
     project          Win+P projection pane (PC only · Duplicate · Extend · 2nd only)
     snip [rect|full]   Region/full screenshot → ~/Pictures/Screenshots + clipboard
     taskbar-properties   Taskbar and Start Menu Properties
-    setup [--tui|--gui|--dry-run]   Install/configure MDE-Retro
+    setup [--tui|--gui|--dry-run]   Install/configure Mackes Workstation
     install [--assets]   Fetch Chicago95 + Win2k assets (first run)
     logoff           Log Off / Win10 account flyout (Lock · Sign out)
     shutdown         Shut Down / Win10 power flyout (Sleep · Shut down · Restart)
     lock             Lock the session (loginctl lock-session)
+
+    windows10 | win2000        Switch the active theme  ·  blue | orange | red   Set accent
+    start                      Open the active theme's Start   (labwc keybind helpers)
 
     -h, --help       Show this help
     -V, --version    Show version
