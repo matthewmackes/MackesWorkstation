@@ -136,6 +136,15 @@ enum Cmd {
     /// Prints the RTT in ms (or "unreachable").
     VoipRtt,
 
+    /// E1.2 — list the mackesd workers a deployment role runs (the role-gated
+    /// worker subset per plan §12). With no ROLE, prints all three tiers. This
+    /// is the static counterpart to the live `worker_names` listing `serve`
+    /// builds, so an operator/installer can preview a role before pinning it.
+    RoleWorkers {
+        /// lighthouse | server | workstation (default: all three tiers).
+        role: Option<String>,
+    },
+
     /// MESH-A-6.5 (v5.0.0) — detect a DNS leak (R8-Q41): a configured
     /// /etc/resolv.conf resolver not in `--expected` (the mesh resolver
     /// set). Prints leaked resolvers + exits 1 when any.
@@ -1250,6 +1259,30 @@ fn main() -> anyhow::Result<()> {
             } else {
                 publish_link_rtt(&sample);
                 eprintln!("voip-rtt: published to {}", rtt_topic(&peer));
+            }
+        }
+        Cmd::RoleWorkers { role } => {
+            let show = |r: mde_role::Role| {
+                let mut names = mackesd_core::worker_role::workers_for_rank(r.rank());
+                names.sort_unstable();
+                println!("{} (rank {}) runs {} workers:", r, r.rank(), names.len());
+                for n in names {
+                    println!("  {n}");
+                }
+            };
+            match role {
+                Some(s) => match s.parse::<mde_role::Role>() {
+                    Ok(r) => show(r),
+                    Err(e) => {
+                        eprintln!("mackesd role-workers: {e}");
+                        std::process::exit(1);
+                    }
+                },
+                None => {
+                    for r in mde_role::Role::all() {
+                        show(r);
+                    }
+                }
             }
         }
         Cmd::DnsLeakCheck { expected } => {

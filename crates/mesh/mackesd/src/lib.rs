@@ -126,6 +126,8 @@ pub mod voice;
 // `mackesd voip-rtt` CLI (VOIP-4.a) + the 60s broadcast worker (VOIP-4.b).
 pub mod voip_rtt;
 pub mod worker;
+/// E1.2 — role-gated worker subsets (which workers `run_serve` spawns per role).
+pub mod worker_role;
 
 // v2.0.0 Phase A modules — async surface for the unified backend.
 // Gated behind `async-services` so the legacy sync read-API still

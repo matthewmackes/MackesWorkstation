@@ -78,6 +78,10 @@ mde-card = { path = "../../shared/mde-card" }
 # SWAY-4 (v6.0 Q89/Q94) — marks_state worker uses Persist + rpc::reply_topic
 # to serve action/marks/* Bus action topics. Optional (async-services gate).
 mde-bus = { path = "../../platform/mde-bus", optional = true }
+# E1.2 — role-gated worker subsets: run_serve gates each worker spawn by the
+# pinned deployment role (mde_role::load → rank). Non-optional + zero-dep, so
+# the gating logic is available regardless of feature set.
+mde-role = { path = "../../platform/mde-role" }
 
 # VV-1 / VV-1.5 (v4.1.0) — pure-function config generator for
 # the kamailio-mde + rtpengine-mde stack. Consumed by the

@@ -4336,6 +4336,7 @@ dependencies = [
  "mde-card",
  "mde-kdc",
  "mde-kdc-proto-legacy",
+ "mde-role",
  "mde-voice-config",
  "mdns-sd",
  "rand 0.8.6",

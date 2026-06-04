@@ -83,7 +83,7 @@ crates/legacy/mde-portal/src/portal_full_main.rs:2921
 crates/legacy/mde-portal/src/portal_full_main.rs:2929
 crates/legacy/mde-portal/src/portal_full_main.rs:2971
 crates/legacy/mde-portal/src/portal_full_main.rs:2972
-crates/mesh/mackesd/src/bin/mackesd.rs:4316
+crates/mesh/mackesd/src/bin/mackesd.rs:4349
 crates/mesh/mackesd/src/config/tag_manifest.rs:222
 crates/mesh/mackesd/src/config/tag_manifest.rs:230
 crates/mesh/mackesd/src/config/tag_manifest.rs:24
