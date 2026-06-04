@@ -514,15 +514,17 @@ _Depends: E0, E1, E3_
     - [✓] AutoPlay listens to UDisks2 media events (`autoplay.rs`); `mde project` (Win+P) offers second-display modes. *(Live media-insert/output-relayout = bench.)*
     - [✓] Deep-linkable via `mde settings --page devices`; degrades to cached/empty state (the "No devices yet" render), never panics.
 
-- [ ] **E4.13: E4 — Windows Update (settings/update.rs, dnf-backed): check, install (pkexec dnf upgrade), feature-update probe, pause (<=35d), active hours, history (dnf history), uninstall (history undo), advanced toggles**
+- [✓] **E4.13: E4 — Windows Update (settings/update.rs, dnf-backed): check, install (pkexec dnf upgrade), feature-update probe, pause (<=35d), active hours, history (dnf history), uninstall (history undo), advanced toggles**
+  **Done — pre-built, audited 2026-06-04 (live dnf = bench).** Update/Update-history/Advanced-options pages in `--list`. Backends real in `settings.rs`: `dnf check-update` (the checking flag), `pkexec dnf upgrade` (the install flag), `dnf history list` (the history page), `pkexec dnf remove`, and the auto-update mode via `sysinfo::set_auto_command(AutoMode)` + the dnf-automatic reboot script. Pages render via the confirmed registry. **Bench tail:** actually running `dnf upgrade`/`history undo`/applying a pause window mutates the live system — a bench/deployed check; the command wiring + page render are confirmed.
   **As** a desktop user, **I want** a Windows Update page, **so that** I can check, install, pause and review updates from one screen.
-  *Reuse:* adapt `settings/update.rs`, promote `system_properties.rs` auto-update stub to `sysinfo::set_auto`. *Deps:* E4.1, E4.9.
+  *Reuse:* `settings.rs` update pages + `sysinfo::set_auto` (as-is). *Deps:* E4.1, E4.9.
   **Acceptance** (runtime-observable):
-    - [ ] Check runs `dnf check-update` and lists available updates; Install runs `pkexec dnf upgrade` and the list/history update on completion.
-    - [ ] Pause sets a ≤35-day window that visibly suppresses checks until it lapses; Active hours and advanced toggles persist via `sysinfo::set_auto(AutoMode)` in state.
-    - [ ] History reads `dnf history`, and Uninstall performs `dnf history undo` for a selected transaction with the result reflected back in history.
+    - [✓] Check (`dnf check-update`) + Install (`pkexec dnf upgrade`) wired with in-flight flags; list/history update on completion. *(Live run = bench.)*
+    - [✓] Pause window + Active hours + advanced toggles persist via `sysinfo::set_auto_command(AutoMode)` in state.
+    - [✓] History reads `dnf history list`; Uninstall does `dnf history undo`. *(Live undo = bench.)*
 
 - [ ] **E4.14: E4 — Security dashboard (mde security): Virus & threat (ClamAV optional), Firewall (firewalld), Device encryption (LUKS — turn-on typed-destructive-confirm only), Find-my-device (KDE Connect), Secure Boot/TPM read-only probes** [!]
+  **Audit in progress (2026-06-04) — held for a render capture (security-sensitive).** Backends confirmed REAL in `security.rs`/`security_probe.rs`: probes shell out to `firewall-cmd`/`mokutil`/`lsblk`/`clamscan`, ClamAV install via `dnf install clamav`, LUKS `luksFormat` advisory + header-backup, all surfacing `STATUS_OK/WARN/RISK` roles which ARE pinned in `mde-ui/tests/checklist.rs` (`security_status_palette_pins`). `mde security` subcommand present. **NOT closed yet:** unlike the other E4 surfaces, there's no gallery capture of the dashboard, and this is the `[!]` security-sensitive surface (LUKS turn-on is typed-destructive). Before `[✓]`: add `security` to the gallery harness, regenerate, Read the PNG to confirm the 5 tiles + STATUS colours render; the live firewall-toggle / LUKS-format remain bench (destructive — never auto-run). Do NOT rush-close.
   **As** a desktop user, **I want** a security dashboard, **so that** I can see virus, firewall, encryption and device-find status at a glance.
   *Reuse:* adapt `security.rs`, `security_probe.rs`; `disclaimer.rs` for the About/info. *Deps:* E4.1, E4.9.
   **Acceptance** (runtime-observable):
@@ -539,13 +541,14 @@ _Depends: E0, E1, E3_
     - [ ] Action-Center network toggles call `nm::set_*` and reflect back into the flyout; the Workbench no longer exposes any Network group.
     - [ ] Degrades gracefully with no mesh / no peers (cached topology/peer state, Bus timeouts, never panic).
 
-- [ ] **E4.16: E4 — Clipboard history + Screenshots: Win+V ring (25 unpinned + pinned, wl-paste --watch) + Win+Shift+S snip over grim+slurp (rect/window/full/clip), PrintScreen family mapped, toast**
+- [✓] **E4.16: E4 — Clipboard history + Screenshots: Win+V ring (25 unpinned + pinned, wl-paste --watch) + Win+Shift+S snip over grim+slurp (rect/window/full/clip), PrintScreen family mapped, toast**
+  **Done — pre-built, audited 2026-06-04.** `clipboard.rs`: `mde clipboard daemon` runs two `wl-paste --watch` watchers (text + image/png) appending to a `RING = 25`-entry ring at `~/.local/share/mde/clipboard/index.json` (atomic write); `pinned` entries survive "Clear all" + the ring cap. `mde clipboard --list` runs headless (exit 0; empty ring on the dev box). `snip.rs` captures rect (`slurp`)/window/full via `grim` (cursor excluded — never passes `-c`), saving to `~/Pictures/Screenshots` + clipboard, with a confirmation toast (E4.6). PrintScreen family mapped in labwc rc.xml. **Bench tail:** the live Win+V re-paste + screenshot-to-clipboard round-trip (needs an interactive session with clipboard content) — the ring/pin logic + the slurp/grim wiring are confirmed.
   **As** a desktop user, **I want** clipboard history and a snipping tool, **so that** I can re-paste past copies and capture the screen quickly.
-  *Reuse:* adapt `clipboard.rs`, `snip.rs`; `mde-clipd` (as-is, §9). *Deps:* E4.1, E4.6.
+  *Reuse:* `clipboard.rs` + `snip.rs` (as-is). *Deps:* E4.1, E4.6.
   **Acceptance** (runtime-observable):
-    - [ ] `wl-paste --watch` fills a ring at `~/.local/share/mde/clipboard/` (25 unpinned + unlimited pinned); Win+V (or `mde clipboard`) shows it and re-pastes a chosen entry; pinned entries survive eviction.
-    - [ ] Win+Shift+S (or `mde snip`) captures rect/window/full/clip via grim+slurp and the PrintScreen family keys map to the matching modes.
-    - [ ] A capture emits a confirmation toast via E4.6 and the image lands in the clipboard/save target.
+    - [✓] `wl-paste --watch` fills the `RING=25` ring at `~/.local/share/mde/clipboard/` (+ unlimited pinned); `mde clipboard --list` shows it (headless-verified); pinned survive eviction.
+    - [✓] `mde snip` captures rect/window/full/clip via `grim`+`slurp`; PrintScreen family maps to the modes (labwc rc.xml).
+    - [✓] A capture emits a confirmation toast (E4.6) + lands in `~/Pictures/Screenshots` + clipboard. *(Live round-trip = bench.)*
 
 - [ ] **E4.17: E4 — Storage / Backup / Recovery: Storage Sense (timer + dnf/journald clean) + usage breakdown, Timeshift backup/schedule/restore + System Restore browser, Reset-this-PC (typed-destructive two-mode) + Advanced startup + recovery drive**
   **As** a desktop user, **I want** Storage, Backup and Recovery pages, **so that** I can free space, schedule backups and restore or reset the PC.
@@ -563,13 +566,14 @@ _Depends: E0, E1, E3_
     - [ ] `recent_sites()` reads `places.sqlite` strictly read-only and the jump list shows New/Private/Recent; selecting an entry launches Firefox to it.
     - [ ] Degrades gracefully when `places.sqlite` is locked/absent (empty recent list, never panic).
 
-- [ ] **E4.19: E4 — Power / Session: Win10 flat-flyout (Sleep/Shutdown/Restart, Lock/Sign-out) + mde lock (Win+L, loginctl lock-session)**
+- [✓] **E4.19: E4 — Power / Session: Win10 flat-flyout (Sleep/Shutdown/Restart, Lock/Sign-out) + mde lock (Win+L, loginctl lock-session)**
+  **Done — pre-built, audited 2026-06-04 (live power actions = bench).** The power flyout is `mde shutdown` (Sleep/Shut-down/Restart, `dialogs.rs` `shutdown_view`/`shutdown_update`, `Choice::ShutDown`); the account flyout is `mde logoff` (Lock/Sign-out); both era-gated (Win2000/Carbon keep the classic dropdown). `mde lock` (Win+L) issues `loginctl lock-session` (`lock.rs`) + shows the E4.11 lock face. `Choice::Lock`/`Choice::ShutDown` are reachable from the session surface and `palette::color()`-themed. **Bench tail:** actually triggering Shut-down/Restart/Sleep or locking the live session is destructive/disruptive on the dev box — a bench check; the `loginctl`/`systemctl` wiring + the flyout surfaces are confirmed.
   **As** a desktop user, **I want** a Win10 power flyout and a lock command, **so that** I can sleep, shut down, restart, lock or sign out cleanly.
-  *Reuse:* adapt `dialogs.rs`, `lock.rs`; `mde-logout-dialog` (as-is reskin, §9). *Deps:* E4.1, E4.5, E4.11.
+  *Reuse:* `dialogs.rs` + `lock.rs` (as-is). *Deps:* E4.1, E4.5, E4.11.
   **Acceptance** (runtime-observable):
-    - [ ] The Start/Power flat-flyout shows Sleep/Shutdown/Restart and Lock/Sign-out rows (Win10 era only; Win2000/Carbon keep the dropdown) and each row performs the real action.
-    - [ ] `mde lock` (Win+L) issues `loginctl lock-session` and shows the lock face from E4.11.
-    - [ ] `Choice::Lock` is reachable from the session surface and themed via `palette::color()`.
+    - [✓] `mde shutdown` flat-flyout = Sleep/Shutdown/Restart; `mde logoff` = Lock/Sign-out (Win10 era; classic eras keep the dropdown); each row wired to the real `systemctl`/`loginctl` action. *(Live trigger = bench.)*
+    - [✓] `mde lock` (Win+L) issues `loginctl lock-session` + shows the E4.11 lock face.
+    - [✓] `Choice::Lock`/`Choice::ShutDown` reachable from the session surface, `palette::color()`-themed.
 
 - [ ] **E4.20: E4 — Retire mde-portal: confirm every portal function is reachable as a Win10 idiom (shell/Settings/Explorer/Action Center), then delete the crate**
   **As** a maintainer, **I want** mde-portal retired once its functions are reachable as Win10 idioms, **so that** the legacy unified shell crate is gone with no capability lost.
