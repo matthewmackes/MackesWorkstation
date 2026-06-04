@@ -57,6 +57,16 @@ pub fn dispatch(args: &[String]) -> ExitCode {
     if let Some(profile) = args.iter().find_map(|a| a.strip_prefix("--profile=")) {
         return pin_role(profile);
     }
+    // E1.2 — the Win10 OOBE (--era=win10) and the GUI component picker (--gui)
+    // are desktop setup surfaces; refuse them on a pinned non-Workstation role.
+    // The headless --tui install and the --profile/--show role CLI above stay
+    // open on every role (so a Lighthouse can still be upgraded).
+    if args.iter().any(|a| a == "--era=win10" || a == "--gui") {
+        if let Err(why) = crate::role_gate::check_desktop_setup() {
+            eprintln!("mde setup: {why}");
+            return ExitCode::FAILURE;
+        }
+    }
     // The Windows 10 first-run OOBE (E11) is an additive branch — the classic
     // Win2000 component-picker Setup below is unchanged. `mde setup --era=win10`.
     if args.iter().any(|a| a == "--era=win10") {

@@ -231,7 +231,7 @@ crates/shell/mde/src/display.rs:901
 crates/shell/mde/src/display.rs:944
 crates/shell/mde/src/display.rs:946
 crates/shell/mde/src/icons.rs:157
-crates/shell/mde/src/installer.rs:304
+crates/shell/mde/src/installer.rs:314
 crates/shell/mde/src/oobe.rs:722
 crates/shell/mde/src/oobe.rs:826
 crates/shell/mde/src/oobe.rs:885

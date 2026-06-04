@@ -273,7 +273,7 @@ _Depends: E0_
     - [ ] Any code path reads role solely via the loader; `mde setup --show` prints the live role rank (0/1/2) parsed back from the on-disk `role.toml`.
     - [ ] A malformed or absent `role.toml` causes role-dependent commands to fail closed (lowest privilege / ENOENT), never defaulting to Workstation.
 
-- [ ] **E1.2: E1 — Role-gated mackesd worker subsets + role-gated surface install (desktop surfaces ENOENT on non-Workstation)**
+- [>] **E1.2: E1 — Role-gated mackesd worker subsets + role-gated surface install (desktop surfaces ENOENT on non-Workstation)** *(session=ship-2026-06-04; part 2 (mde dispatcher gating) landing first — gate pure-desktop subcommands + the desktop setup flows on a pinned non-Workstation, NEVER gate `setup --profile` (upgrades) / unpinned allows / malformed fails closed, a §6 recommended-path choice. Part 1 (31-worker role-tier gating in mackesd) follows — needs the plan §12 / MDE lighthouse-host-peer worker model.)*
   **As** an operator on a headless box, **I want** mackesd to spawn only the workers my role permits and desktop surfaces to be genuinely absent, **so that** a Lighthouse/Server never runs media/voice workers or exposes GUI entry points it cannot satisfy.
   *Reuse:* `mackesd` (§9 as-is — control plane) + `mde` dispatcher (new role-gate glue). *Deps:* E1.1.
   **Acceptance** (runtime-observable):

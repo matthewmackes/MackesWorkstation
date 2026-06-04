@@ -51,6 +51,7 @@ mod pin;
 mod popup;
 mod project;
 mod restore;
+mod role_gate;
 mod search;
 mod security;
 mod security_probe;
@@ -175,6 +176,14 @@ fn main() -> ExitCode {
             None => ("help", &[]),
         }
     };
+
+    // E1.2 — on a pinned non-Workstation role, the desktop subcommands are not
+    // available (the box is headless). Core CLI + the role/setup tools pass
+    // through; an unpinned box (pre-`mde setup`) runs everything.
+    if let Err(why) = role_gate::check(cmd) {
+        eprintln!("mde: {why}");
+        return ExitCode::FAILURE;
+    }
 
     match cmd {
         "panel" => panel::run(rest),
