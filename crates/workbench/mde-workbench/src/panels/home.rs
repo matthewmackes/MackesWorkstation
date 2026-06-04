@@ -282,8 +282,9 @@ pub enum DbusEvent {
     /// A systemd unit's PropertiesChanged fired — re-probe SSH,
     /// RDP, VNC, or Services depending on `unit`.
     UnitChanged(String),
-    /// Fleet pushed a revision — re-probe Fleet.
-    FleetRevisionPushed,
+    // E0.3.3 — `FleetRevisionPushed` retired with the dev.mackes.MDE.Fleet
+    // D-Bus surface; Phase G re-adds a Fleet event when revision-apply
+    // lands (via a Bus event topic + subscription, like Nebula's).
 }
 
 #[derive(Debug, Clone)]
@@ -682,18 +683,22 @@ async fn probe_mesh_services() -> ProbeOutcome {
 // --- Fleet -----------------------------------------------------------------
 
 async fn probe_fleet_revision() -> ProbeOutcome {
-    // dev.mackes.MDE.Fleet::ListRevisions returns a JSON array
-    // of revision IDs ("r-YYYY-MM-DD-NNNN") in descending order.
-    let raw = match dbus_call(
-        "org.mackes.mackesd",
-        "/dev/mackes/MDE/Fleet",
-        "dev.mackes.MDE.Fleet",
-        "ListRevisions",
-    )
+    // action/fleet/list-revisions over the mesh Bus (E0.3.3, was the
+    // dev.mackes.MDE.Fleet D-Bus ListRevisions). The verb is a Phase-G
+    // stub today → the reply is an error envelope → no "r-" id → the
+    // pill reads "No revisions pushed yet" (extract_first_revision_id
+    // finds no token). spawn_blocking: the Bus client spins its own
+    // current-thread runtime (Persist isn't Send).
+    let raw = match tokio::task::spawn_blocking(|| {
+        crate::dbus::action_request(
+            "action/fleet/list-revisions",
+            std::time::Duration::from_secs(2),
+        )
+    })
     .await
     {
-        Ok(s) => s,
-        Err(_) => return ProbeOutcome::unknown(),
+        Ok(Some(s)) => s,
+        _ => return ProbeOutcome::unknown(),
     };
     let latest = extract_first_revision_id(&raw);
     match latest {
@@ -1495,29 +1500,12 @@ async fn run_subscription(
         .await
         .map_err(|e| format!("DBus proxy: {e}"))?;
 
-    let mut rules = Vec::new();
-    // E0.3.1.b — the Nebula.Status signals moved to the mesh Bus
-    // (event/nebula/signals, polled by `nebula_event_subscription`);
-    // only the Fleet signal stays on D-Bus here (Fleet migrates in
-    // E0.3.3), plus the systemd PropertiesChanged rule below.
-    for (iface, member, event) in [(
-        "dev.mackes.MDE.Fleet",
-        "RevisionApplied",
-        DbusEvent::FleetRevisionPushed,
-    )] {
-        let rule = MatchRule::builder()
-            .msg_type(zbus::message::Type::Signal)
-            .interface(iface)
-            .map_err(|e| format!("rule interface {iface}: {e}"))?
-            .member(member)
-            .map_err(|e| format!("rule member {member}: {e}"))?
-            .build();
-        bus_proxy
-            .add_match_rule(rule.clone())
-            .await
-            .map_err(|e| format!("add_match_rule {iface}.{member}: {e}"))?;
-        rules.push((rule, event));
-    }
+    // E0.3.1.b + E0.3.3 — all MDE-internal D-Bus signals are retired:
+    // Nebula's moved to the Bus (event/nebula/signals, polled by
+    // `nebula_event_subscription`) and Fleet's RevisionApplied retired
+    // with the dev.mackes.MDE.Fleet surface (Phase G re-adds it as a
+    // Bus event). The only signal this subscription still bridges is
+    // systemd1 PropertiesChanged (FDO interop, kept), set up below.
 
     // ---- systemd1 PropertiesChanged subscription (OV-8.a) ---
     // Manager.Subscribe() is the prereq — without it systemd
@@ -1579,27 +1567,11 @@ async fn run_subscription(
             }
             continue;
         }
-
-        for (_rule, ev) in &rules {
-            // Match by interface+member; ignore other traffic on
-            // the bus (zbus's per-rule fan-out lands here too).
-            let want_iface_member = match ev {
-                // Nebula PeerChanged/TransportChanged now arrive over the
-                // Bus (nebula_event_subscription), not D-Bus.
-                DbusEvent::FleetRevisionPushed => {
-                    iface_str == "dev.mackes.MDE.Fleet" && member_str == "RevisionApplied"
-                }
-                DbusEvent::PeerChanged
-                | DbusEvent::TransportChanged
-                | DbusEvent::UnitChanged(_) => false,
-            };
-            if want_iface_member {
-                let _ = output
-                    .send(crate::Message::Home(Message::DbusEvent(ev.clone())))
-                    .await;
-                break;
-            }
-        }
+        // E0.3.3 — the Fleet RevisionApplied rule retired with the
+        // dev.mackes.MDE.Fleet D-Bus surface; the only MDE-internal
+        // signals (Nebula's) already moved to the Bus, so this stream
+        // now carries ONLY systemd PropertiesChanged. Anything else
+        // falls through and is ignored.
     }
     Err("message stream ended".to_string())
 }

@@ -83,7 +83,7 @@ crates/legacy/mde-portal/src/portal_full_main.rs:2921
 crates/legacy/mde-portal/src/portal_full_main.rs:2929
 crates/legacy/mde-portal/src/portal_full_main.rs:2971
 crates/legacy/mde-portal/src/portal_full_main.rs:2972
-crates/mesh/mackesd/src/bin/mackesd.rs:4187
+crates/mesh/mackesd/src/bin/mackesd.rs:4229
 crates/mesh/mackesd/src/config/tag_manifest.rs:222
 crates/mesh/mackesd/src/config/tag_manifest.rs:230
 crates/mesh/mackesd/src/config/tag_manifest.rs:24
@@ -276,7 +276,7 @@ crates/workbench/mde-workbench/src/panels/home.rs:101
 crates/workbench/mde-workbench/src/panels/home.rs:102
 crates/workbench/mde-workbench/src/panels/home.rs:103
 crates/workbench/mde-workbench/src/panels/home.rs:104
-crates/workbench/mde-workbench/src/panels/home.rs:1197
+crates/workbench/mde-workbench/src/panels/home.rs:1202
 crates/workbench/mde-workbench/src/panels/mesh_control.rs:328
 crates/workbench/mde-workbench/src/panels/mesh_control.rs:340
 crates/workbench/mde-workbench/src/panels/mesh_pending.rs:297

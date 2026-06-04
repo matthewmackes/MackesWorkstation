@@ -3987,6 +3987,48 @@ fn run_serve(
                 );
             }
         }
+        // E0.3.3 — Fleet control surface (push/list/diff/rollback) on
+        // the mesh Bus at action/fleet/<verb>, replacing the retired
+        // dev.mackes.MDE.Fleet D-Bus interface. Stub verbs today (the
+        // responder replies "not implemented until Phase G"); Phase G
+        // fills the real revision logic on the Bus. Own OS thread
+        // (Persist/rusqlite isn't Send); no tokio runtime (sync stubs).
+        match mde_bus::default_data_dir()
+            .ok_or_else(|| "no XDG data dir for bus".to_string())
+            .and_then(|d| mde_bus::persist::Persist::open(d).map_err(|e| e.to_string()))
+        {
+            Ok(persist) => {
+                let fleet_svc = mackesd_core::ipc::fleet::FleetService::default();
+                let resp_shutdown = Arc::clone(&shutdown);
+                std::thread::Builder::new()
+                    .name("fleet-bus-responder".into())
+                    .spawn(move || {
+                        mackesd_core::ipc::fleet::serve_bus(&persist, &fleet_svc, || {
+                            resp_shutdown.load(Ordering::Relaxed)
+                        });
+                    })
+                    .map(|_handle| {
+                        tracing::info!(
+                            "Fleet Bus responder spawned; serving \
+                             action/fleet/{{push-revision,list-revisions,diff-revisions,rollback}} \
+                             (Phase-G stubs)"
+                        );
+                    })
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(error = %e, "Fleet Bus responder thread spawn failed");
+                    });
+                worker_names
+                    .lock()
+                    .expect("worker_names mutex")
+                    .push("fleet_bus_responder".into());
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Fleet Bus responder: bus persist open failed; responder skipped"
+                );
+            }
+        }
         match mackesd_core::store::open(&db_path) {
             Ok(conn) => {
                 let store = Arc::new(tokio::sync::Mutex::new(conn));
