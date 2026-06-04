@@ -3790,6 +3790,77 @@ fn run_serve(
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| node_id.clone());
+
+        // E0.3.1 (EPIC-RETIRE-DBUS, 2026-06-03) — Nebula status
+        // Bus responder. The three read-projection verbs
+        // (`status` / `self-node` / `list-peers`) migrated off the
+        // retired `dev.mackes.MDE.Nebula.Status` D-Bus methods onto
+        // the mesh Bus at `action/nebula/<verb>`. The responder
+        // runs on its own OS thread with a current-thread tokio
+        // runtime — the pure builders hold an
+        // `Arc<Mutex<rusqlite::Connection>>` guard across `.await`,
+        // which is `!Send` and would not compile on the main
+        // multi-thread executor (same constraint mde-session's
+        // serve_bus solved this way). It opens its own SQLite
+        // handle + the per-peer Bus Persist index, loops until the
+        // shutdown flag flips. Graceful-degrade: a missing data-dir
+        // or a failed SQLite/Persist open logs + skips the thread
+        // (the consumers fall back to their empty/diagnostic
+        // rendering exactly as they did when the daemon was down).
+        match mde_bus::default_data_dir()
+            .ok_or_else(|| "no XDG data dir for bus".to_string())
+            .and_then(|d| mde_bus::persist::Persist::open(d).map_err(|e| e.to_string()))
+        {
+            Ok(persist) => match mackesd_core::store::open(&db_path) {
+                Ok(conn) => {
+                    let resp_store = Arc::new(tokio::sync::Mutex::new(conn));
+                    let resp_svc = mackesd_core::ipc::nebula::NebulaStatusService::new(
+                        Arc::clone(&resp_store),
+                        node_id.clone(),
+                        host.clone(),
+                    )
+                    .with_workgroup_root(workgroup_root.clone());
+                    let resp_shutdown = Arc::clone(&shutdown);
+                    std::thread::Builder::new()
+                        .name("nebula-bus-responder".into())
+                        .spawn(move || {
+                            mackesd_core::ipc::nebula::serve_bus(&persist, &resp_svc, || {
+                                resp_shutdown.load(Ordering::Relaxed)
+                            });
+                        })
+                        .map(|_handle| {
+                            tracing::info!(
+                                "Nebula Bus responder spawned; serving \
+                                 action/nebula/{{status,self-node,list-peers}}"
+                            );
+                        })
+                        .unwrap_or_else(|e| {
+                            tracing::warn!(
+                                error = %e,
+                                "Nebula Bus responder thread spawn failed; \
+                                 NF-10..NF-18 consumers will see no peer data"
+                            );
+                        });
+                    worker_names
+                        .lock()
+                        .expect("worker_names mutex")
+                        .push("nebula_bus_responder".into());
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        error = %e,
+                        db_path = %db_path.display(),
+                        "Nebula Bus responder: sqlite open failed; responder skipped"
+                    );
+                }
+            },
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Nebula Bus responder: bus persist open failed; responder skipped"
+                );
+            }
+        }
         match mackesd_core::store::open(&db_path) {
             Ok(conn) => {
                 let store = Arc::new(tokio::sync::Mutex::new(conn));

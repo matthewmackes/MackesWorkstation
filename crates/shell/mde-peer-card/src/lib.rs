@@ -110,9 +110,12 @@ pub struct PeerCardData {
     pub connect: Option<ConnectFacts>,
     /// NF-11.1 (v2.5) — Nebula overlay facts. `None` until
     /// the peer is signed under the active CA epoch. The
-    /// daemon-API layer fills it from
-    /// `dev.mackes.MDE.Nebula.Status.ListPeers()`; the
-    /// Nebula section (collapsed by default unless the peer
+    /// daemon-API layer fills it from the mesh Bus
+    /// `action/nebula/list-peers` reply (E0.3.1 migration target;
+    /// the reply is byte-identical to the legacy
+    /// `dev.mackes.MDE.Nebula.Status.ListPeers()` D-Bus method,
+    /// still dual-served during the migration — see E0.3.1.a);
+    /// the Nebula section (collapsed by default unless the peer
     /// is unhealthy) reads it from here.
     pub nebula: Option<NebulaFacts>,
     /// TUNE-15.d — federation info. `Some` when this peer belongs

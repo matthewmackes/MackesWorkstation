@@ -1,21 +1,40 @@
-//! NF-Bundle-0 (v2.5) — `dev.mackes.MDE.Nebula.Status`
-//! D-Bus surface.
+//! NF-Bundle-0 (v2.5) — Nebula status surface.
 //!
-//! Every NF-10..NF-18 desktop-surface consumer chains on this.
-//! The applets / workbench panels / mde-files / wizard call:
+//! E0.3.1 (EPIC-RETIRE-DBUS, 2026-06-03): the read-projection
+//! verbs migrated off the retired `dev.mackes.MDE.Nebula.Status`
+//! D-Bus interface onto the mesh **Bus** action/reply pattern
+//! (`action/nebula/<verb>`), mirroring the session lifecycle
+//! migration (`crates/shell/mde-session/src/session.rs`) and the
+//! cert-authority Bus responder (`workers::cert_authority`). The
+//! Bus responder ([`serve_bus`] / [`poll_once`]) is spawned from
+//! `mackesd` `run_serve` on its own OS thread (rusqlite isn't
+//! `Send`, so it runs a current-thread runtime off the main
+//! multi-thread executor — same constraint as `mde-session`).
 //!
-//!   * `Status()` → JSON snapshot covering active transport,
-//!     peer-cert epoch, lighthouse role, peer count, last
-//!     activation-state-machine transition.
-//!   * `ListPeers()` → JSON array of paired peers + per-peer
-//!     overlay IP + cert fingerprint + last-seen + reachable
-//!     status.
-//!   * `SelfNode()` → JSON {overlay_ip, role, cert_epoch,
-//!     cert_expires_at, mesh_id}.
-//!   * `RegenCerts()` → triggers a CA-epoch bump (calls
-//!     ca::epoch::bump_epoch internally; today returns a
-//!     human-readable "rotation deferred until NF-2.5 lands"
-//!     until that helper ships).
+//! The desktop-surface consumers (applets / workbench panels /
+//! mde-files / wizard) publish a request + await the reply:
+//!
+//!   * `action/nebula/status` → JSON [`StatusSnapshot`] covering
+//!     active transport, peer-cert epoch, lighthouse role, peer
+//!     count, mesh-id.
+//!   * `action/nebula/list-peers` → JSON `Vec<PeerRow>` of paired
+//!     peers + per-peer overlay IP + cert fingerprint + reachable.
+//!   * `action/nebula/self-node` → JSON [`SelfNodeSnapshot`]
+//!     {overlay_ip, role, cert_epoch, cert_expires_at, mesh_id}.
+//!
+//! The pure async builders ([`NebulaStatusService::
+//! build_status_snapshot`] etc.) are unchanged — the responder
+//! reuses them verbatim, then `serde_json`-encodes the result
+//! into the reply body, matching the exact wire shape the
+//! pre-migration D-Bus methods produced (so consumers parse the
+//! same JSON).
+//!
+//! The remaining `#[interface]` block carries the verbs that have
+//! NOT yet migrated to the Bus (`RegenCerts` — mesh_control panel;
+//! `Enroll` — wizard convenience; the three `#[zbus(signal)]`
+//! declarations the Overview's live subscription pins against).
+//! Those retire in a later E0.3 substep; the three read verbs
+//! migrated here are removed from the interface.
 //!
 //! Reads come from the live SQLite tables (`nebula_ca` +
 //! `nebula_peer_certs` from migration 0011, `nodes` from the
@@ -25,11 +44,27 @@
 
 #![cfg(feature = "async-services")]
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
+use mde_bus::hooks::config::Priority;
+use mde_bus::persist::Persist;
+use mde_bus::rpc::reply_topic;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tokio::sync::Mutex;
 use zbus::interface;
+
+/// Poll cadence for the `action/nebula/<verb>` topics. Control
+/// surface (not on a human's interactive path), so 400 ms keeps
+/// index-read churn low while staying well under the 30 s RPC
+/// timeout — matches `rpc::CONTROL_POLL_INTERVAL` +
+/// `workers::cert_authority::DEFAULT_POLL_INTERVAL`.
+pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
+
+/// The read-projection verbs served on `action/nebula/<verb>`.
+/// Locked to the `action/<domain>/<verb>` Q96 convention.
+pub const ACTION_VERBS: [&str; 3] = ["status", "self-node", "list-peers"];
 
 /// Well-known D-Bus interface name.
 pub const NEBULA_STATUS_INTERFACE: &str = "dev.mackes.MDE.Nebula.Status";
@@ -343,36 +378,62 @@ impl NebulaStatusService {
     }
 }
 
+// E0.3.1 (EPIC-RETIRE-DBUS): the three read-projection verbs —
+// `Status()` / `ListPeers()` / `SelfNode()` — now ALSO serve on
+// the mesh Bus at `action/nebula/{status,list-peers,self-node}`
+// via [`serve_bus`] below, which is the migration target. The
+// wizard preview page already reads over the Bus. But these reads
+// are kept HERE on D-Bus too (dual-served) because live consumers
+// still call them: `mesh_backend` (mde-files), and the
+// `mesh_control` + `home` panels (mde-workbench). Per the SAME
+// strategy as `RegenCerts` / `Enroll` / the signals — a verb stays
+// on D-Bus until its consumers migrate — the reads retire only once
+// those three consumers move to the Bus (E0.3.1.a). The pure
+// builders (`build_status_snapshot` / `build_peer_list` /
+// `build_self_node`) are the single source both paths share.
 #[interface(name = "dev.mackes.MDE.Nebula.Status")]
 impl NebulaStatusService {
-    /// JSON-encoded [`StatusSnapshot`].
+    /// `Status()` — full overlay status snapshot serialized as a
+    /// JSON `StatusSnapshot`. Thin D-Bus wrapper over the shared
+    /// [`Self::build_status_snapshot`] builder (the Bus responder's
+    /// `action/nebula/status` verb wraps the identical builder).
+    /// Dual-served pending consumer migration — see the block
+    /// comment above.
     async fn status(&self) -> zbus::fdo::Result<String> {
         let snap = self
             .build_status_snapshot()
             .await
-            .map_err(zbus::fdo::Error::Failed)?;
+            .map_err(|e| zbus::fdo::Error::Failed(format!("status: {e}")))?;
         serde_json::to_string(&snap)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("encode: {e}")))
+            .map_err(|e| zbus::fdo::Error::Failed(format!("status encode: {e}")))
     }
 
-    /// JSON-encoded `Vec<PeerRow>`.
+    /// `ListPeers()` — the peer roster serialized as a JSON
+    /// `Vec<PeerRow>`. Thin D-Bus wrapper over the shared
+    /// [`Self::build_peer_list`] builder (mirrors the Bus
+    /// responder's `action/nebula/list-peers` verb). Dual-served
+    /// pending consumer migration.
     async fn list_peers(&self) -> zbus::fdo::Result<String> {
         let peers = self
             .build_peer_list()
             .await
-            .map_err(zbus::fdo::Error::Failed)?;
+            .map_err(|e| zbus::fdo::Error::Failed(format!("list_peers: {e}")))?;
         serde_json::to_string(&peers)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("encode: {e}")))
+            .map_err(|e| zbus::fdo::Error::Failed(format!("list_peers encode: {e}")))
     }
 
-    /// JSON-encoded [`SelfNodeSnapshot`].
+    /// `SelfNode()` — this node's identity + cert-epoch snapshot
+    /// serialized as a JSON `SelfNodeSnapshot`. Thin D-Bus wrapper
+    /// over the shared [`Self::build_self_node`] builder (mirrors
+    /// the Bus responder's `action/nebula/self-node` verb).
+    /// Dual-served pending consumer migration.
     async fn self_node(&self) -> zbus::fdo::Result<String> {
         let s = self
             .build_self_node()
             .await
-            .map_err(zbus::fdo::Error::Failed)?;
+            .map_err(|e| zbus::fdo::Error::Failed(format!("self_node: {e}")))?;
         serde_json::to_string(&s)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("encode: {e}")))
+            .map_err(|e| zbus::fdo::Error::Failed(format!("self_node encode: {e}")))
     }
 
     /// Trigger a CA-epoch bump. Returns a human-readable
@@ -576,6 +637,106 @@ pub async fn spawn_signal_dispatcher(
         );
     }
     Ok(sender)
+}
+
+// ----- Bus responder (E0.3.1) ----------------------------------------
+
+/// Action topic for verb `verb`: `action/nebula/<verb>`.
+#[must_use]
+pub fn action_topic(verb: &str) -> String {
+    format!("action/nebula/{verb}")
+}
+
+/// Build the reply body for one `action/nebula/<verb>` request.
+///
+/// Mirrors the exact JSON the retired D-Bus methods produced:
+/// `status` → [`StatusSnapshot`], `self-node` → [`SelfNodeSnapshot`],
+/// `list-peers` → `Vec<PeerRow>`. On a builder error or an unknown
+/// verb the body is `{"error": "..."}` so the caller can surface a
+/// diagnostic rather than time out (the `serde_json::from_str` on
+/// the consumer side simply fails to decode the error envelope and
+/// falls back to its empty/default rendering, exactly as it did
+/// when the daemon was unreachable).
+///
+/// Split out from [`poll_once`] so a unit test can drive it
+/// without a `Persist` round-trip.
+pub async fn build_reply(svc: &NebulaStatusService, verb: &str) -> String {
+    match verb {
+        "status" => match svc.build_status_snapshot().await {
+            Ok(snap) => serde_json::to_string(&snap)
+                .unwrap_or_else(|e| json!({ "error": format!("encode: {e}") }).to_string()),
+            Err(e) => json!({ "error": e }).to_string(),
+        },
+        "self-node" => match svc.build_self_node().await {
+            Ok(s) => serde_json::to_string(&s)
+                .unwrap_or_else(|e| json!({ "error": format!("encode: {e}") }).to_string()),
+            Err(e) => json!({ "error": e }).to_string(),
+        },
+        "list-peers" => match svc.build_peer_list().await {
+            Ok(peers) => serde_json::to_string(&peers)
+                .unwrap_or_else(|e| json!({ "error": format!("encode: {e}") }).to_string()),
+            Err(e) => json!({ "error": e }).to_string(),
+        },
+        other => json!({ "error": format!("unknown nebula verb: {other}") }).to_string(),
+    }
+}
+
+/// Run the Bus responder loop on the current thread, building a
+/// local current-thread tokio runtime for the async builders
+/// (`Persist`/rusqlite isn't `Send`, so this runs off the main
+/// multi-thread executor — same constraint + structure as
+/// `mde-session`'s `serve_bus`). Loops until `should_stop()`.
+///
+/// `mackesd` `run_serve` spawns this on a dedicated `std::thread`
+/// so the responder is runtime-reachable at boot.
+pub fn serve_bus<F: Fn() -> bool>(persist: &Persist, svc: &NebulaStatusService, should_stop: F) {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            tracing::error!("nebula responder: runtime build failed: {e}");
+            return;
+        }
+    };
+    let mut cursors: HashMap<String, String> = HashMap::new();
+    while !should_stop() {
+        poll_once(persist, svc, &rt, &mut cursors);
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// One poll sweep across the action verbs (split out so a test
+/// can drive it without the sleep loop). For each new request on
+/// `action/nebula/<verb>`, runs the matching builder on `rt` and
+/// writes the JSON reply to `reply/<ulid>`.
+pub fn poll_once(
+    persist: &Persist,
+    svc: &NebulaStatusService,
+    rt: &tokio::runtime::Runtime,
+    cursors: &mut HashMap<String, String>,
+) {
+    for verb in ACTION_VERBS {
+        let topic = action_topic(verb);
+        let since = cursors.get(&topic).map(String::as_str);
+        let msgs = match persist.list_since(&topic, since) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::debug!(topic = %topic, error = %e, "nebula responder: list_since failed");
+                continue;
+            }
+        };
+        for msg in msgs {
+            cursors.insert(topic.clone(), msg.ulid.clone());
+            let reply = rt.block_on(build_reply(svc, verb));
+            if let Err(e) =
+                persist.write(&reply_topic(&msg.ulid), Priority::Default, None, Some(&reply))
+            {
+                tracing::warn!(ulid = %msg.ulid, error = %e, "nebula responder: reply write failed");
+            }
+        }
+    }
 }
 
 // ----- private SQL helpers -------------------------------------------
@@ -847,5 +1008,118 @@ mod tests {
         let svc = NebulaStatusService::new(fresh_store(), "peer:local", "anvil")
             .with_workgroup_root(custom.clone());
         assert_eq!(svc.workgroup_root, custom);
+    }
+
+    // ---- E0.3.1 Bus responder (action/reply) -----------------
+
+    #[test]
+    fn action_topic_is_canonical_three_segments() {
+        // rpc::publish_request rejects any topic outside the
+        // `action/` namespace; lock the `action/nebula/<verb>`
+        // three-segment shape so a future rename doesn't drift
+        // off the convention the consumers publish to.
+        for verb in ACTION_VERBS {
+            let topic = action_topic(verb);
+            assert!(topic.starts_with("action/"), "topic {topic:?} must be in action/ namespace");
+            let parts: Vec<&str> = topic.split('/').collect();
+            assert_eq!(parts.len(), 3, "topic {topic:?} must be action/<domain>/<verb>");
+            assert_eq!(parts[0], "action");
+            assert_eq!(parts[1], "nebula");
+            assert_eq!(parts[2], verb);
+        }
+    }
+
+    #[tokio::test]
+    async fn build_reply_unknown_verb_yields_error_envelope() {
+        let svc = NebulaStatusService::new(fresh_store(), "peer:local", "host")
+            .with_role_marker("/nonexistent/marker".into());
+        let body = build_reply(&svc, "frobnicate").await;
+        let v: serde_json::Value = serde_json::from_str(&body).expect("json");
+        assert!(v["error"].as_str().unwrap().contains("unknown nebula verb"));
+    }
+
+    #[test]
+    fn list_peers_round_trips_through_a_temp_persist() {
+        // Required E0.3.1 acceptance: a temp Persist + an
+        // in-memory NebulaStatusService, publish
+        // action/nebula/list-peers, run one responder poll, and
+        // assert the reply.body deserializes to Vec<PeerRow>.
+        //
+        // The responder builds its own current-thread runtime (as
+        // it does in production via serve_bus) since the SQLite
+        // guard held across the builder's await is !Send; this
+        // test therefore must NOT itself be a #[tokio::test].
+        use mde_bus::hooks::config::Priority;
+        use mde_bus::persist::Persist;
+        use mde_bus::rpc::{publish_request, reply_topic};
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let persist = Persist::open(tmp.path().to_path_buf()).expect("persist open");
+
+        // In-memory store seeded with one peer (excluding self) so
+        // build_peer_list returns a non-empty Vec<PeerRow>.
+        let conn = rusqlite::Connection::open_in_memory().expect("memory db");
+        crate::store::migrate(&conn).expect("migrate");
+        conn.execute(
+            "INSERT INTO nodes (node_id, name, public_key, role, health, enrolled_at) \
+             VALUES ('peer:local', 'self', 'pk', 'host', 'healthy', 1)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO nodes (node_id, name, public_key, role, health, enrolled_at) \
+             VALUES ('peer:anvil', 'anvil', 'pk', 'peer', 'healthy', 2)",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO nebula_peer_certs \
+             (node_id, epoch, cert_pem, overlay_ip, expires_at) \
+             VALUES ('peer:anvil', 0, 'PEM1234ABCDEF', '10.42.0.7', 9999999)",
+            [],
+        )
+        .unwrap();
+        let store = Arc::new(Mutex::new(conn));
+        let svc = NebulaStatusService::new(store, "peer:local", "host")
+            .with_role_marker("/nonexistent/marker".into());
+
+        // Consumer side: publish the request to the action topic.
+        let ulid = publish_request(
+            &persist,
+            &action_topic("list-peers"),
+            Priority::Default,
+            None,
+            None,
+        )
+        .expect("publish request");
+
+        // Responder side: one poll sweep writes the reply.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("rt");
+        let mut cursors: HashMap<String, String> = HashMap::new();
+        poll_once(&persist, &svc, &rt, &mut cursors);
+
+        // The reply landed on reply/<ulid> and deserializes to
+        // Vec<PeerRow> with the seeded peer.
+        let replies = persist
+            .list_since(&reply_topic(&ulid), None)
+            .expect("list replies");
+        assert_eq!(replies.len(), 1, "exactly one reply on reply/<ulid>");
+        let body = replies[0].body.as_deref().expect("reply body");
+        let peers: Vec<PeerRow> = serde_json::from_str(body).expect("decode Vec<PeerRow>");
+        assert_eq!(peers.len(), 1, "self excluded, one peer remains");
+        assert_eq!(peers[0].node_id, "peer:anvil");
+        assert_eq!(peers[0].overlay_ip, "10.42.0.7");
+        assert_eq!(peers[0].reachable, "online");
+
+        // A second poll with the advanced cursor writes no new
+        // reply (the request was already drained).
+        poll_once(&persist, &svc, &rt, &mut cursors);
+        let replies2 = persist
+            .list_since(&reply_topic(&ulid), None)
+            .expect("list replies again");
+        assert_eq!(replies2.len(), 1, "cursor advanced; no duplicate reply");
     }
 }

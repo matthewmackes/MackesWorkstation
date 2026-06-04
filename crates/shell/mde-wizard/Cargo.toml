@@ -25,6 +25,13 @@ dirs       = "5"
 tracing            = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 mackes-config = { path = "../../mesh/mackes-config" }
+# E0.3.1 (EPIC-RETIRE-DBUS) — the Preview page probes the Nebula
+# status surface over the mesh Bus (action/nebula/{self-node,
+# list-peers}) instead of the retired dev.mackes.MDE.Nebula.Status
+# D-Bus methods. tokio gives the sync probe() a current-thread
+# runtime to drive the async rpc::request round-trip.
+mde-bus = { path = "../../platform/mde-bus" }
+tokio   = { version = "1", features = ["rt", "time", "macros"] }
 
 [dev-dependencies]
 tempfile = "3"

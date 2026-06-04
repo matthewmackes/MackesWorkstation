@@ -15,11 +15,17 @@
 //!     unreachable / pre-enrollment / firewall blocking 4242)
 //!     rather than silently rendering an empty list.
 //!
-//! Data layer is shell-out only — `dbus-send` invocations
-//! against `dev.mackes.MDE.Nebula.Status` on the session bus.
-//! Mirrors the mesh_control panel pattern in
-//! `crates/mde-workbench/src/panels/mesh_control.rs` rather
-//! than pulling a zbus dependency into mde-wizard.
+//! Data layer (E0.3.1, EPIC-RETIRE-DBUS): the probe now rides the
+//! mesh **Bus** action/reply pattern — `mde_bus::rpc::request`
+//! against `action/nebula/self-node` + `action/nebula/list-peers`
+//! — instead of the retired `dev.mackes.MDE.Nebula.Status` D-Bus
+//! methods. mackesd serves these on its Bus responder thread
+//! (`crates/mesh/mackesd/src/ipc/nebula.rs::serve_bus`). The reply
+//! body is bare JSON (`SelfNodeSnapshot` / `Vec<PeerRow>`), so the
+//! parsers deserialize it directly — no dbus-send `string "…"`
+//! envelope to strip.
+
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -58,6 +64,11 @@ pub struct PeerRowView {
     /// in the existing PeerRow reply by cross-referencing
     /// node_id against the lighthouse list (when the daemon
     /// surfaces it); falls back to empty for v2.5 baseline.
+    ///
+    /// `#[serde(default)]` so the daemon's `PeerRow` JSON (which
+    /// carries no `role_hint` field) deserializes cleanly — the
+    /// field is wizard-local, not part of the Bus wire shape.
+    #[serde(default)]
     pub role_hint: String,
 }
 
@@ -106,7 +117,7 @@ pub fn diagnostic_message(snap: &PreviewSnapshot) -> String {
                 .to_string()
         }
         None => {
-            "No reply from `dev.mackes.MDE.Nebula.Status` after 30s. \
+            "No reply on `action/nebula/self-node` after 30s. \
              Is mackesd.service running? `systemctl status \
              mackesd.service` — if it's down, start it then click \
              Refresh."
@@ -115,90 +126,114 @@ pub fn diagnostic_message(snap: &PreviewSnapshot) -> String {
     }
 }
 
-/// Pure parser — strip the `string "..."` envelope dbus-send
-/// wraps the reply with, unescape inner quotes, and deserialize
-/// into [`SelfNodeView`]. Returns `None` on any parse failure;
-/// the page treats that as "probe failed" and shows the banner.
+/// Per-verb timeout for the Bus round-trip. The wizard's probe is
+/// interactive (operator is watching the Preview page), but the
+/// 30 s empty-roster diagnostics threshold already covers the
+/// "lighthouse is slow" case, so a short 2 s timeout per verb
+/// keeps a hung/absent daemon from freezing the refresh — the
+/// page falls back to its diagnostics banner.
+pub const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Pure parser — deserialize the `action/nebula/self-node` reply
+/// body (bare JSON `SelfNodeSnapshot`) into [`SelfNodeView`].
+/// Returns `None` on any parse failure (or an `{"error": …}`
+/// envelope); the page treats that as "probe failed" and shows
+/// the banner.
 #[must_use]
 pub fn parse_self_node(raw: &str) -> Option<SelfNodeView> {
-    let payload = unwrap_dbus_string(raw)?;
-    serde_json::from_str::<SelfNodeView>(&payload).ok()
-}
-
-/// Pure parser — same envelope-unwrap as [`parse_self_node`],
-/// then deserialize into `Vec<PeerRowView>`. Returns `Vec::new()`
-/// on parse failure (treated as "zero peers" so the page renders
-/// the diagnostics banner after the 30 s threshold).
-#[must_use]
-pub fn parse_peer_list(raw: &str) -> Vec<PeerRowView> {
-    let Some(payload) = unwrap_dbus_string(raw) else {
-        return Vec::new();
-    };
-    serde_json::from_str::<Vec<PeerRowView>>(&payload).unwrap_or_default()
-}
-
-/// Strip the dbus-send `string "..."` envelope + JSON-unescape
-/// inner quotes. Returns the bare JSON body or `None` if the
-/// input is empty.
-fn unwrap_dbus_string(raw: &str) -> Option<String> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
+    if raw.trim().is_empty() {
         return None;
     }
-    let unwrapped = if let Some(rest) = trimmed.strip_prefix("string \"") {
-        rest.strip_suffix('"').unwrap_or(rest)
-    } else {
-        trimmed
-    };
-    Some(unwrapped.replace("\\\"", "\"").replace("\\\\", "\\"))
+    serde_json::from_str::<SelfNodeView>(raw).ok()
 }
 
-/// Shell out to dbus-send for SelfNode + ListPeers. Returns a
-/// snapshot the page renders. Empty (`Default::default()`) when
-/// dbus-send isn't on PATH or the daemon is unreachable — the
-/// page renders the diagnostics banner once the timer fires.
+/// Pure parser — deserialize the `action/nebula/list-peers` reply
+/// body (bare JSON `Vec<PeerRow>`) into `Vec<PeerRowView>`.
+/// Returns `Vec::new()` on parse failure (treated as "zero peers"
+/// so the page renders the diagnostics banner after the 30 s
+/// threshold).
+#[must_use]
+pub fn parse_peer_list(raw: &str) -> Vec<PeerRowView> {
+    if raw.trim().is_empty() {
+        return Vec::new();
+    }
+    serde_json::from_str::<Vec<PeerRowView>>(raw).unwrap_or_default()
+}
+
+/// Probe the Nebula status surface over the mesh Bus
+/// (`action/nebula/self-node` + `action/nebula/list-peers`) and
+/// return a snapshot the page renders. Empty
+/// (`Default::default()`) when the Bus data-dir is unreachable;
+/// per-verb failures (timeout / no responder) leave that field at
+/// its default so the page renders the diagnostics banner once the
+/// timer fires.
+///
+/// Synchronous so the iced update loop can call it directly. The
+/// `mde_bus::rpc::request` round-trip is async, so this builds a
+/// short-lived current-thread runtime + `block_on`s the two
+/// requests — the same sync-over-async shape `mesh_backend.rs`
+/// used for its blocking D-Bus calls.
 #[must_use]
 pub fn probe() -> PreviewSnapshot {
-    if std::process::Command::new("dbus-send")
-        .arg("--version")
-        .output()
-        .is_err()
-    {
+    let Some(data_dir) = mde_bus::default_data_dir() else {
         return PreviewSnapshot {
-            error: "dbus-send not on PATH — install dbus".into(),
+            error: "no XDG data dir — cannot reach the mesh Bus".into(),
             ..PreviewSnapshot::default()
         };
-    }
-    let self_raw = std::process::Command::new("dbus-send")
-        .args([
-            "--session",
-            "--print-reply=literal",
-            "--dest=org.mackes.mackesd",
-            "/dev/mackes/MDE/Nebula/Status",
-            "dev.mackes.MDE.Nebula.Status.SelfNode",
-        ])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default();
-    let peers_raw = std::process::Command::new("dbus-send")
-        .args([
-            "--session",
-            "--print-reply=literal",
-            "--dest=org.mackes.mackesd",
-            "/dev/mackes/MDE/Nebula/Status",
-            "dev.mackes.MDE.Nebula.Status.ListPeers",
-        ])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-        .unwrap_or_default();
+    };
+    let persist = match mde_bus::persist::Persist::open(data_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            return PreviewSnapshot {
+                error: format!("mesh Bus unavailable: {e}"),
+                ..PreviewSnapshot::default()
+            };
+        }
+    };
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            return PreviewSnapshot {
+                error: format!("probe runtime build failed: {e}"),
+                ..PreviewSnapshot::default()
+            };
+        }
+    };
+    let (self_raw, peers_raw) = rt.block_on(async {
+        let self_raw = request_verb(&persist, "self-node").await;
+        let peers_raw = request_verb(&persist, "list-peers").await;
+        (self_raw, peers_raw)
+    });
     PreviewSnapshot {
-        self_node: parse_self_node(&self_raw),
-        peers: parse_peer_list(&peers_raw),
+        self_node: self_raw.as_deref().and_then(parse_self_node),
+        peers: peers_raw.as_deref().map(parse_peer_list).unwrap_or_default(),
         error: String::new(),
+    }
+}
+
+/// Publish one `action/nebula/<verb>` request + await the reply
+/// body. `None` on timeout / no-responder / persist error — the
+/// caller maps that to the page's empty/diagnostics rendering.
+async fn request_verb(persist: &mde_bus::persist::Persist, verb: &str) -> Option<String> {
+    let topic = format!("action/nebula/{verb}");
+    match mde_bus::rpc::request(
+        persist,
+        &topic,
+        mde_bus::hooks::config::Priority::Default,
+        None,
+        None,
+        PROBE_TIMEOUT,
+    )
+    .await
+    {
+        Ok(reply) => reply.body,
+        Err(e) => {
+            tracing::debug!(topic = %topic, error = %e, "nebula probe: no reply");
+            None
+        }
     }
 }
 
@@ -241,8 +276,12 @@ mod tests {
     // ---- parser coverage --------------------------------------
 
     #[test]
-    fn parse_self_node_decodes_dbus_envelope() {
-        let raw = r#"string "{\"node_id\":\"peer:anvil\",\"host\":\"anvil\",\"role\":\"host\",\"cert_epoch\":2,\"overlay_ip\":\"10.42.0.1\",\"mesh_id\":\"mesh-anvil\"}""#;
+    fn parse_self_node_decodes_bare_bus_reply() {
+        // E0.3.1 — the Bus reply body is bare JSON (no dbus-send
+        // `string "…"` envelope). Mirrors the exact
+        // SelfNodeSnapshot shape the responder serializes,
+        // including the cert_expires_at field SelfNodeView ignores.
+        let raw = r#"{"node_id":"peer:anvil","host":"anvil","role":"host","cert_epoch":2,"cert_expires_at":9999,"overlay_ip":"10.42.0.1","mesh_id":"mesh-anvil"}"#;
         let s = parse_self_node(raw).expect("decoded");
         assert_eq!(s.node_id, "peer:anvil");
         assert_eq!(s.role, "host");
@@ -252,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_self_node_decodes_bare_json() {
+    fn parse_self_node_decodes_minimal_json() {
         let raw = r#"{"node_id":"peer:b","host":"b","role":"peer","cert_epoch":1,"overlay_ip":"10.42.0.5","mesh_id":"m"}"#;
         let s = parse_self_node(raw).expect("decoded");
         assert_eq!(s.role, "peer");
@@ -268,16 +307,23 @@ mod tests {
     #[test]
     fn parse_self_node_returns_none_for_garbage() {
         assert!(parse_self_node("not json").is_none());
-        assert!(parse_self_node(r#"string "{ not valid""#).is_none());
+        // An {"error": …} envelope from the responder (unknown
+        // verb / builder failure) doesn't decode to SelfNodeView.
+        assert!(parse_self_node(r#"{"error":"unknown nebula verb"}"#).is_none());
     }
 
     #[test]
-    fn parse_peer_list_decodes_dbus_envelope() {
-        let raw = r#"string "[{\"node_id\":\"peer:b\",\"name\":\"b\",\"overlay_ip\":\"10.42.0.2\",\"reachable\":\"online\",\"role_hint\":\"\"}]""#;
+    fn parse_peer_list_decodes_bare_bus_reply() {
+        // Mirrors the responder's Vec<PeerRow> wire shape: the
+        // daemon emits no role_hint field (it's wizard-local with
+        // #[serde(default)]) but does emit fingerprint/cert fields
+        // PeerRowView ignores.
+        let raw = r#"[{"node_id":"peer:b","name":"b","overlay_ip":"10.42.0.2","fingerprint":"abc","cert_epoch":3,"cert_expires_at":0,"reachable":"online"}]"#;
         let peers = parse_peer_list(raw);
         assert_eq!(peers.len(), 1);
         assert_eq!(peers[0].node_id, "peer:b");
         assert_eq!(peers[0].reachable, "online");
+        assert_eq!(peers[0].role_hint, "", "role_hint defaults when absent");
     }
 
     #[test]
@@ -288,8 +334,7 @@ mod tests {
 
     #[test]
     fn parse_peer_list_decodes_empty_array() {
-        let raw = r#"string "[]""#;
-        assert!(parse_peer_list(raw).is_empty());
+        assert!(parse_peer_list("[]").is_empty());
     }
 
     // ---- diagnostic banner gating -----------------------------

@@ -105,10 +105,11 @@ pub fn build_apply_argv(steps: &[&str]) -> Vec<String> {
 /// pre-v2.5 16-char passcode — both are handled by the
 /// fallthrough path: NavNext-from-Apply silently skips enroll).
 ///
-/// The Preview page (NF-7.3) probes `dev.mackes.MDE.Nebula.Status`
-/// on land, so a successful enroll surfaces automatically; a
-/// failed one leaves the diagnostics banner to fire after 30 s
-/// with the daemon-down hint.
+/// The Preview page (NF-7.3) probes the Nebula status surface over
+/// the mesh Bus (`action/nebula/{self-node,list-peers}`) on land,
+/// so a successful enroll surfaces automatically; a failed one
+/// leaves the diagnostics banner to fire after 30 s with the
+/// daemon-down hint.
 #[must_use]
 pub fn build_enroll_argv(passcode_or_token: &str) -> Option<Vec<String>> {
     let trimmed = passcode_or_token.trim();

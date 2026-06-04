@@ -4950,9 +4950,11 @@ dependencies = [
  "dirs 5.0.1",
  "iced 0.14.0",
  "mackes-config",
+ "mde-bus",
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

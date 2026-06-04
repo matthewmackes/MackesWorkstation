@@ -4,11 +4,16 @@
 //! Phase E1.2.4 (original): polled `mded healthz` JSON for
 //! aggregate state + peer count.
 //!
-//! NF-10.1 (v2.5, 2026-05-23): also consumes
-//! `dev.mackes.MDE.Nebula.Status` for active-transport +
-//! lighthouse-role data. The healthz path remains as a
-//! back-compat fallback when the Nebula surface is
-//! unreachable. Output:
+//! NF-10.1 (v2.5, 2026-05-23): also consumes the Nebula status
+//! surface for active-transport + lighthouse-role data. E0.3.1
+//! (EPIC-RETIRE-DBUS) stands up that surface on the mesh **Bus**
+//! at `action/nebula/status` (mackesd's responder serves it) as
+//! the migration target; [`parse_nebula_status`] decodes the
+//! reply body, which is byte-identical to the legacy
+//! `dev.mackes.MDE.Nebula.Status.Status()` D-Bus reply (still
+//! dual-served during the migration — see E0.3.1.a). The healthz
+//! path remains as a back-compat fallback when the Nebula
+//! surface is unreachable. Output:
 //!   * glyph color follows active transport
 //!     (green = nebula_direct, amber = nebula_lighthouse_relay,
 //!      red = nebula_https443, grey = offline / unknown)
@@ -98,10 +103,10 @@ pub fn format_chip(report: &HealthReport) -> String {
     report.peer_count.to_string()
 }
 
-/// NF-10.1 (v2.5) — JSON shape of `mded.Nebula.Status`'s
-/// `Status()` reply. Mirrors `mackesd_core::ipc::nebula::
-/// StatusSnapshot`; defined inline so the applet doesn't
-/// take a dep on mackesd-core.
+/// NF-10.1 (v2.5) — JSON shape of the `action/nebula/status` Bus
+/// reply body (E0.3.1 — was `mded.Nebula.Status.Status()`).
+/// Mirrors `mackesd_core::ipc::nebula::StatusSnapshot`; defined
+/// inline so the applet doesn't take a dep on mackesd-core.
 #[derive(Debug, Clone, Deserialize, Default, PartialEq, Eq)]
 pub struct NebulaStatusSnapshot {
     /// True when the local peer is acting as a lighthouse.
