@@ -3219,20 +3219,37 @@ fn run_serve(
         // status surface is registered. Empty slot → silent
         // emission; SQL + bundle writes still land.
         let nebula_signal_slot = mackesd_core::ipc::nebula::new_signal_sender_slot();
-        sup.spawn(Spawn::new(
-            ClipboardWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("clipboard".into());
-        sup.spawn(Spawn::new(MdnsWorker::new(), RestartPolicy::OnFailure));
-        worker_names.lock().expect("worker_names mutex").push("mdns".into());
-        sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
-        worker_names.lock().expect("worker_names mutex").push("fs_sync".into());
-        sup.spawn(Spawn::new(
-            HeartbeatWorker::new(workgroup_root.clone(), node_id.clone()),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("heartbeat".into());
+        // E1.2 — resolve the deployment-role rank once; every worker spawn below
+        // is gated by `mackesd_core::worker_role::runs(name, role_rank)` so a
+        // Lighthouse/Server starts only its tier's workers (plan §12). Unpinned
+        // (dev / pre-`mde setup`) → Workstation rank (full set; desktop workers
+        // idle gracefully without a display); malformed role.toml → Lighthouse
+        // (fail closed). The resulting set is observable via `mackesd
+        // role-workers` and the live worker-status listing.
+        let role_rank = mackesd_core::worker_role::resolve_rank();
+        tracing::info!(
+            role_rank,
+            "E1.2: spawning the role-permitted worker subset"
+        );
+        if mackesd_core::worker_role::runs("clipboard", role_rank) {
+            sup.spawn(Spawn::new(ClipboardWorker::new(), RestartPolicy::OnFailure));
+            worker_names.lock().expect("worker_names mutex").push("clipboard".into());
+        }
+        if mackesd_core::worker_role::runs("mdns", role_rank) {
+            sup.spawn(Spawn::new(MdnsWorker::new(), RestartPolicy::OnFailure));
+            worker_names.lock().expect("worker_names mutex").push("mdns".into());
+        }
+        if mackesd_core::worker_role::runs("fs_sync", role_rank) {
+            sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
+            worker_names.lock().expect("worker_names mutex").push("fs_sync".into());
+        }
+        if mackesd_core::worker_role::runs("heartbeat", role_rank) {
+            sup.spawn(Spawn::new(
+                HeartbeatWorker::new(workgroup_root.clone(), node_id.clone()),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("heartbeat".into());
+        }
         // OV-7.a (v2.6) — health reconciler. Polls each known
         // peer's QNM-Shared heartbeat.json every 5 s, applies the
         // telemetry::health_state_from_age threshold table, writes
@@ -3242,16 +3259,18 @@ fn run_serve(
         // projects. Spawn order: after HeartbeatWorker so peers
         // have at least one observable heartbeat by the first
         // reconcile tick.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::health_reconciler::HealthReconcilerWorker::new(
-                workgroup_root.clone(),
-                db_path.clone(),
-                node_id.clone(),
-                std::sync::Arc::clone(&nebula_signal_slot),
-            ),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("health_reconciler".into());
+        if mackesd_core::worker_role::runs("health_reconciler", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::health_reconciler::HealthReconcilerWorker::new(
+                    workgroup_root.clone(),
+                    db_path.clone(),
+                    node_id.clone(),
+                    std::sync::Arc::clone(&nebula_signal_slot),
+                ),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("health_reconciler".into());
+        }
         // VV-2 (v4.1.0) — voice_config worker. Seeds the
         // /var/lib/mackesd/voice-desired.json document on first
         // tick + triggers `systemctl try-reload-or-restart` on
@@ -3260,11 +3279,13 @@ fn run_serve(
         // disabled (v4.1.0 ships them disabled per the spec
         // %post comment until VV-4 + VV-14 are green), so the
         // worker is harmless to run on a fresh peer.
-        sup.spawn(Spawn::new(
-            VoiceConfigWorker::new(node_id.clone()),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("voice_config".into());
+        if mackesd_core::worker_role::runs("voice_config", role_rank) {
+            sup.spawn(Spawn::new(
+                VoiceConfigWorker::new(node_id.clone()),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("voice_config".into());
+        }
         // NF-21.1 — sshd overlay-bind worker. Polls
         // /var/lib/mackesd/nebula/overlay-ip every 5 s; on change,
         // writes the /etc/ssh/sshd_config.d/mackes-mesh.conf drop-in
@@ -4227,11 +4248,13 @@ fn run_serve(
                 .map(|p| p.join("mde").join("connect"))
                 .unwrap_or_else(|| std::path::PathBuf::from("/var/lib/mde/connect"))
         };
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::kdc_host::KdcHostWorker::new(kdc_config_dir),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("kdc_host".into());
+        if mackesd_core::worker_role::runs("kdc_host", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::kdc_host::KdcHostWorker::new(kdc_config_dir),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("kdc_host".into());
+        }
 
         // BUS-1.1 (v6.x Mackes Bus) — supervise the `mde-bus` daemon
         // subprocess. Gracefully degrades when the binary is absent
@@ -4247,11 +4270,13 @@ fn run_serve(
         // BUS-5.1 — clipboard daemon. Spawns one `mde-clipd` process per
         // Wayland session. Idles gracefully when $WAYLAND_DISPLAY is unset
         // (e.g., early in the boot sequence or on a headless peer).
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::clipd_supervisor::ClipdSupervisor::new(),
-            RestartPolicy::Always,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("clipd_supervisor".into());
+        if mackesd_core::worker_role::runs("clipd_supervisor", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::clipd_supervisor::ClipdSupervisor::new(),
+                RestartPolicy::Always,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("clipd_supervisor".into());
+        }
 
         // Portal-41 (v6.0 R12-Q1) — auto-derived workspace names.
         // Subscribes to sway's window-event stream, debounces 200 ms,
@@ -4263,11 +4288,13 @@ fn run_serve(
         // restarted, $SWAYSOCK missing); the supervisor's
         // OnFailure policy still wraps the outer Err path for
         // completeness.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::workspace_namer::WorkspaceNamerWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("workspace_namer".into());
+        if mackesd_core::worker_role::runs("workspace_namer", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::workspace_namer::WorkspaceNamerWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("workspace_namer".into());
+        }
 
         // Portal-48 (v6.0 R12-Q8 + R12-Q10) — auto-mark daemon.
         // Subscribes to sway window::new events; classifies app_id
@@ -4276,11 +4303,13 @@ fn run_serve(
         // matched windows that don't already carry an operator
         // mark. Marks are sway-session-ephemeral; no GFS sync.
         // Drives Portal-49's running-zone mark-pill render.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::auto_mark::AutoMarkWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("auto_mark".into());
+        if mackesd_core::worker_role::runs("auto_mark", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::auto_mark::AutoMarkWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("auto_mark".into());
+        }
 
         // SWAY-4 (v6.0 Q89/Q94) — per-window mark state. Bridges the
         // sway-native mark API to the Mackes Bus: serves
@@ -4289,11 +4318,13 @@ fn run_serve(
         // ~/.local/share/mde/marks/<peer>.toml on 60 s tick + shutdown.
         // OnFailure — swayipc reconnect loop is internal; supervisor
         // only sees an Err when the reconnect itself fails repeatedly.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::marks_state::MarksStateWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("marks_state".into());
+        if mackesd_core::worker_role::runs("marks_state", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::marks_state::MarksStateWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("marks_state".into());
+        }
 
         // Portal-42 (v6.0 R12-Q2) — tag-driven workspace output
         // assignment. Subscribes to sway workspace::init events;
@@ -4302,32 +4333,38 @@ fn run_serve(
         // has a `preferred_output` set. Untagged workspaces +
         // tags without preferred_output keep sway's natural
         // placement.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::workspace_router::WorkspaceRouterWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("workspace_router".into());
+        if mackesd_core::worker_role::runs("workspace_router", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::workspace_router::WorkspaceRouterWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("workspace_router".into());
+        }
 
         // Portal-44 (v6.0 R12-Q4) — per-tag default_layout
         // enforcement. Subscribes to sway window::new events;
         // flips a single-window tag-owned workspace to the
         // owning tag's `default_layout` (splith / splitv /
         // tabbed / stacked).
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::tag_layout::TagLayoutWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("tag_layout".into());
+        if mackesd_core::worker_role::runs("tag_layout", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::tag_layout::TagLayoutWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("tag_layout".into());
+        }
 
         // Portal-54 (v6.0 R12-Q16) — per-tag autostart.
         // Subscribes to sway workspace::init events; fires
         // `exec <cmd>` for each app_id in the owning tag's
         // `autostart` list, once per workspace per mded-lifetime.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::tag_autostart::TagAutostartWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("tag_autostart".into());
+        if mackesd_core::worker_role::runs("tag_autostart", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::tag_autostart::TagAutostartWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("tag_autostart".into());
+        }
 
         // Portal-47 (v6.0 R12-Q7) — one-shot: write per-tag sway
         // mode blocks into ~/.config/sway/config.d/mde-tag-modes.conf
@@ -4335,11 +4372,13 @@ fn run_serve(
         // Returns Ok(()) after a single write+reload (no-loops),
         // RestartPolicy::OnFailure keeps it from restarting on a
         // clean exit.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::tag_mode_writer::TagModeWriterWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("tag_mode_writer".into());
+        if mackesd_core::worker_role::runs("tag_mode_writer", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::tag_mode_writer::TagModeWriterWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("tag_mode_writer".into());
+        }
 
         // Portal-56 (v6.0 R12-Q21) — per-workspace focused-border
         // tinting. Subscribes to sway workspace::focus events;
@@ -4347,22 +4386,26 @@ fn run_serve(
         // group_color (or the platform Carbon blue when no tag
         // owns the workspace). Tagless workspaces default to
         // `#2b9af3`.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::border_tinter::BorderTinterWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("border_tinter".into());
+        if mackesd_core::worker_role::runs("border_tinter", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::border_tinter::BorderTinterWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("border_tinter".into());
+        }
 
         // Portal-57.a (v6.0 R12-Q22) — channel 1 of the urgent-
         // window cascade. Subscribes to sway window::urgent events;
         // spawns `mde-bus publish bus/mbadge/pulse` with the
         // urgent payload. Gracefully degrades when the mde-bus
         // binary isn't installed (logs a single warning, continues).
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::urgency_router::UrgencyRouterWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("urgency_router".into());
+        if mackesd_core::worker_role::runs("urgency_router", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::urgency_router::UrgencyRouterWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("urgency_router".into());
+        }
 
         // TUNE-3.b (2026-05-26) — wire the v1.3.0 Fleet ansible-pull
         // worker. `crates/mackesd/src/workers/ansible_pull.rs::build`
@@ -4374,11 +4417,13 @@ fn run_serve(
         // `mackes-ansible-pull.timer`). With MDE_ANSIBLE_PULL_URL
         // unset the ansible-pull binary fails fast + the supervisor
         // logs the error — the worker stays cheap to host.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::ansible_pull::build(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("ansible-pull".into());
+        if mackesd_core::worker_role::runs("ansible-pull", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::ansible_pull::build(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("ansible-pull".into());
+        }
 
         // EPIC-SYNC-APP-CONFIG (Q26, 2026-05-28) — app-config sync is
         // now a native-Rust worker (`workers::app_sync`); it discovers
@@ -4387,20 +4432,24 @@ fn run_serve(
         // `python3 -m mackes.media_sync_daemon` subprocess (advances
         // §11 #6). `OnFailure` keeps the 60 s tick alive across a
         // transient write/probe error.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::app_sync::build(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("app-sync".into());
+        if mackesd_core::worker_role::runs("app-sync", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::app_sync::build(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("app-sync".into());
+        }
         // TUNE-3.b — remmina_sync is still a subprocess-tick worker
         // driving `python3 -m mackes.remmina_sync`; its native port is
         // tracked under EPIC-SYNC-APP-CONFIG's sibling note +
         // EPIC-RETIRE-PY-DAEMONS.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::remmina_sync::build(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("remmina-sync".into());
+        if mackesd_core::worker_role::runs("remmina-sync", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::remmina_sync::build(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("remmina-sync".into());
+        }
 
         // SWAY-8 (Q52–Q54) — sway config watcher + EDID hardware overlay.
         // Writes ~/.config/sway/config.d/00-hardware.conf at startup from
@@ -4408,11 +4457,13 @@ fn run_serve(
         // GFS-replicated mesh-storage/sway/ dir every 5 s + fires
         // `swaymsg reload` on any config change (Q54). Degrades gracefully
         // when sway is not running.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::sway_config_watcher::SwayConfigWatcherWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("sway_config_watcher".into());
+        if mackesd_core::worker_role::runs("sway_config_watcher", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::sway_config_watcher::SwayConfigWatcherWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("sway_config_watcher".into());
+        }
 
         // Portal-52.a (v6.0 R12-Q13) — sway session-restore
         // worker (workspace-structure half). 5s snapshot of
@@ -4421,11 +4472,13 @@ fn run_serve(
         // restore replays the structure via swayipc. Window-
         // placeholder swallows ship as Portal-52.b once
         // append_layout reference is locked.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::session_persist::SessionPersistWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("session_persist".into());
+        if mackesd_core::worker_role::runs("session_persist", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::session_persist::SessionPersistWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("session_persist".into());
+        }
 
         // Portal-53.a (v6.0 R12-Q14) — window-rules subsystem
         // backend. Reads `~/.config/mde/window-rules.toml` on
@@ -4434,11 +4487,13 @@ fn run_serve(
         // operator edits + re-applies on change. Hub right-click
         // modal + Control panel CRUD UIs ship as Portal-53.b
         // + Portal-53.c once Portal-17 / Portal-20 are ready.
-        sup.spawn(Spawn::new(
-            mackesd_core::workers::window_rules::WindowRulesWorker::new(),
-            RestartPolicy::OnFailure,
-        ));
-        worker_names.lock().expect("worker_names mutex").push("window_rules".into());
+        if mackesd_core::worker_role::runs("window_rules", role_rank) {
+            sup.spawn(Spawn::new(
+                mackesd_core::workers::window_rules::WindowRulesWorker::new(),
+                RestartPolicy::OnFailure,
+            ));
+            worker_names.lock().expect("worker_names mutex").push("window_rules".into());
+        }
 
         // HYP-8.5.watch (v6.5) — tag-manifest watcher. Polls
         // `~/.config/mde/tags/` every 5 s; publishes
