@@ -6,8 +6,11 @@ use std::path::PathBuf;
 
 #[test]
 fn parses_real_tokens_css_without_loss() {
+    // CARGO_MANIFEST_DIR is crates/shared/mackes-theme — the repo root
+    // (where data/css/tokens.css lives) is THREE levels up. (The E0
+    // merge moved this crate under shared/; the path was `../../`.)
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("../../data/css/tokens.css");
+    path.push("../../../data/css/tokens.css");
     let css =
         std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
     let table = mackes_theme::parse_tokens(&css);
@@ -33,10 +36,13 @@ fn parses_real_tokens_css_without_loss() {
         define_color_lines,
     );
 
-    // The "name + value" round-trip for known-good tokens.
+    // The "name + value" round-trip for a known-good token. The
+    // expected value tracks the cds_bg_default surface in
+    // data/css/tokens.css (a tokens.css update changed it from the
+    // older dark — keep this assertion in step with the file).
     assert_eq!(
         mackes_theme::token_value(&table, "cds_bg_default"),
-        Some("#151515"),
+        Some("#202124"),
         "cds_bg_default must round-trip from real file"
     );
 }
