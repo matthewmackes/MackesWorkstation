@@ -92,9 +92,7 @@ pub fn ban_list_path(workgroup_root: &Path, self_node_id: &str) -> PathBuf {
 /// [`BanListError::Json`] on malformed content.
 pub fn load_file(path: &Path) -> Result<BanList, BanListError> {
     match std::fs::read(path) {
-        Ok(bytes) => {
-            serde_json::from_slice(&bytes).map_err(|e| BanListError::Json(e.to_string()))
-        }
+        Ok(bytes) => serde_json::from_slice(&bytes).map_err(|e| BanListError::Json(e.to_string())),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(BanList::default()),
         Err(e) => Err(BanListError::Io(format!("{}: {e}", path.display()))),
     }
@@ -111,13 +109,17 @@ pub fn save_file(path: &Path, list: &BanList) -> Result<(), BanListError> {
         std::fs::create_dir_all(parent)
             .map_err(|e| BanListError::Io(format!("mkdir {}: {e}", parent.display())))?;
     }
-    let json = serde_json::to_string_pretty(list)
-        .map_err(|e| BanListError::Json(e.to_string()))?;
+    let json = serde_json::to_string_pretty(list).map_err(|e| BanListError::Json(e.to_string()))?;
     let tmp = path.with_extension("json.tmp");
     std::fs::write(&tmp, json.as_bytes())
         .map_err(|e| BanListError::Io(format!("write {}: {e}", tmp.display())))?;
-    std::fs::rename(&tmp, path)
-        .map_err(|e| BanListError::Io(format!("rename {} → {}: {e}", tmp.display(), path.display())))?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        BanListError::Io(format!(
+            "rename {} → {}: {e}",
+            tmp.display(),
+            path.display()
+        ))
+    })?;
     Ok(())
 }
 

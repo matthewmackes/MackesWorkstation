@@ -192,13 +192,16 @@ mod tests {
             PanelIcon::WorkspaceDot,
         ] {
             let bytes = icon.bytes();
-            assert!(bytes.len() > 32, "{icon:?} bytes too small: {}", bytes.len());
+            assert!(
+                bytes.len() > 32,
+                "{icon:?} bytes too small: {}",
+                bytes.len()
+            );
             // Carbon SVGs sometimes lead with a doctype or
             // `<?xml ...?>` declaration before the `<svg`. Just
             // assert the substring appears somewhere in the first
             // 256 bytes.
-            let header = std::str::from_utf8(&bytes[..bytes.len().min(256)])
-                .unwrap_or("");
+            let header = std::str::from_utf8(&bytes[..bytes.len().min(256)]).unwrap_or("");
             assert!(header.contains("<svg"), "{icon:?} missing <svg tag");
         }
     }

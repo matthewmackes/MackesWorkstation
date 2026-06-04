@@ -232,8 +232,7 @@ mod tests {
     #[test]
     fn builders_override_each_field() {
         let addr: SocketAddr = "127.0.0.1:8443".parse().unwrap();
-        let cfg = DemuxConfig::default()
-            .with_idle_timeout(Duration::from_secs(5));
+        let cfg = DemuxConfig::default().with_idle_timeout(Duration::from_secs(5));
         let w = NebulaHttpsListener::new()
             .expect("new")
             .with_bind_addr(addr)
@@ -266,7 +265,9 @@ mod tests {
         let token = ShutdownToken::from_receiver(rx);
         let result = w.run(token).await;
         assert!(result.is_err());
-        assert!(format!("{:?}", result.unwrap_err()).to_lowercase().contains("bind"));
+        assert!(format!("{:?}", result.unwrap_err())
+            .to_lowercase()
+            .contains("bind"));
     }
 
     #[tokio::test]

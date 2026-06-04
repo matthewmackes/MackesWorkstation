@@ -322,9 +322,7 @@ pub fn needs_signing(workgroup_root: &Path, peer_id: &str) -> std::io::Result<bo
 mod tests {
     use super::*;
     use crate::ca::{mint, MockBackend};
-    use crate::nebula_enroll::{
-        build_pending, parse_join_token, publish_enrollment_request,
-    };
+    use crate::nebula_enroll::{build_pending, parse_join_token, publish_enrollment_request};
     use tempfile::tempdir;
 
     fn fresh_store() -> rusqlite::Connection {

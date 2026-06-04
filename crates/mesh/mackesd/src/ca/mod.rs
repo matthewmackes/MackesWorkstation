@@ -42,8 +42,8 @@ pub mod ban_list;
 // INST-7 prerequisite — peer cert revocation CLI (`mackesd ca
 // revoke <node-id>`). Replaces the originally-planned D-Bus method;
 // consumed by `mde-install`'s wipe sequence via subprocess.
-pub mod revoke;
 pub mod bundle;
+pub mod revoke;
 // NF-2.5 (v2.5) — CA epoch rotation. Called by leader.rs
 // on promotion + by the `mackesd ca rotate` CLI (NF-2.6).
 pub mod epoch;
@@ -72,12 +72,7 @@ pub trait NebulaCertBackend: Send + Sync {
     /// Equivalent of `nebula-cert ca -name <mesh_id> -out-crt <crt_out> -out-key <key_out>`.
     /// Implementations write the CA cert + key to the given
     /// paths.
-    fn mint_ca(
-        &self,
-        mesh_id: &str,
-        crt_out: &Path,
-        key_out: &Path,
-    ) -> Result<(), CaError>;
+    fn mint_ca(&self, mesh_id: &str, crt_out: &Path, key_out: &Path) -> Result<(), CaError>;
 
     /// Equivalent of `nebula-cert sign -ca-crt <ca_crt> -ca-key <ca_key>
     /// -name <node_id> -ip <overlay_ip>/16 -groups <groups>
@@ -99,12 +94,7 @@ pub trait NebulaCertBackend: Send + Sync {
 pub struct SubprocessBackend;
 
 impl NebulaCertBackend for SubprocessBackend {
-    fn mint_ca(
-        &self,
-        mesh_id: &str,
-        crt_out: &Path,
-        key_out: &Path,
-    ) -> Result<(), CaError> {
+    fn mint_ca(&self, mesh_id: &str, crt_out: &Path, key_out: &Path) -> Result<(), CaError> {
         run_nebula_cert(&[
             "ca",
             "-name",
@@ -226,12 +216,7 @@ pub struct MockBackend;
 
 #[cfg(test)]
 impl NebulaCertBackend for MockBackend {
-    fn mint_ca(
-        &self,
-        mesh_id: &str,
-        crt_out: &Path,
-        key_out: &Path,
-    ) -> Result<(), CaError> {
+    fn mint_ca(&self, mesh_id: &str, crt_out: &Path, key_out: &Path) -> Result<(), CaError> {
         if let Some(parent) = crt_out.parent() {
             std::fs::create_dir_all(parent).map_err(|e| CaError::Io(e.to_string()))?;
         }
@@ -242,9 +227,7 @@ impl NebulaCertBackend for MockBackend {
         .map_err(|e| CaError::Io(e.to_string()))?;
         std::fs::write(
             key_out,
-            format!(
-                "-----BEGIN NEBULA CA KEY-----\nmesh={mesh_id}\n-----END NEBULA CA KEY-----\n"
-            ),
+            format!("-----BEGIN NEBULA CA KEY-----\nmesh={mesh_id}\n-----END NEBULA CA KEY-----\n"),
         )
         .map_err(|e| CaError::Io(e.to_string()))?;
         Ok(())

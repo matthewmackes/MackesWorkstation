@@ -93,19 +93,15 @@ fn update(state: &mut App, msg: Message) -> Task<Message> {
 fn view(state: &App) -> Element<'_, Message> {
     let mute_glyph = if state.state.muted { "×" } else { "♫" };
     let mute_color = if state.state.muted { FG_MUTED } else { ACCENT };
-    let mute_btn = button(
-        text(mute_glyph.to_string())
-            .size(20)
-            .color(mute_color),
-    )
-    .padding(Padding {
-        top: 6.0,
-        right: 14.0,
-        bottom: 6.0,
-        left: 14.0,
-    })
-    .style(mute_button_style)
-    .on_press(Message::ToggleMute);
+    let mute_btn = button(text(mute_glyph.to_string()).size(20).color(mute_color))
+        .padding(Padding {
+            top: 6.0,
+            right: 14.0,
+            bottom: 6.0,
+            left: 14.0,
+        })
+        .style(mute_button_style)
+        .on_press(Message::ToggleMute);
 
     let pct_label = text(format!("{:>3}%", state.state.volume_pct))
         .size(14)
@@ -124,9 +120,13 @@ fn view(state: &App) -> Element<'_, Message> {
     ]
     .align_y(iced::Alignment::Center);
 
-    let vol_slider = slider(0u32..=100u32, state.state.volume_pct, Message::VolumeChanged)
-        .step(1u32)
-        .style(volume_slider_style);
+    let vol_slider = slider(
+        0u32..=100u32,
+        state.state.volume_pct,
+        Message::VolumeChanged,
+    )
+    .step(1u32)
+    .style(volume_slider_style);
 
     let footer = text("Esc closes · ♫ toggles mute · drag to set")
         .size(10)
@@ -212,7 +212,11 @@ pub fn run() -> iced_layershell::Result {
     iced_layershell::application(
         || {
             let state = read_state();
-            tracing::info!(volume = state.volume_pct, muted = state.muted, "audio popover open");
+            tracing::info!(
+                volume = state.volume_pct,
+                muted = state.muted,
+                "audio popover open"
+            );
             App { state }
         },
         namespace,
@@ -340,10 +344,7 @@ fn volume_slider_style(_theme: &Theme, status: slider::Status) -> slider::Style 
     };
     slider::Style {
         rail: slider::Rail {
-            backgrounds: (
-                Background::Color(ACCENT),
-                Background::Color(SLIDER_TRACK),
-            ),
+            backgrounds: (Background::Color(ACCENT), Background::Color(SLIDER_TRACK)),
             width: 4.0,
             border: Border {
                 color: Color::TRANSPARENT,

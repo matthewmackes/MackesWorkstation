@@ -11,23 +11,40 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use iced::widget::{column, container, mouse_area, row, scrollable, text, text_input, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
-use mde_theme::motion::list::{STAGGER_CAP, STAGGER_REVEAL_MS, STAGGER_STEP_MS};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
 use mde_applet_notifications::{
-    group_and_sort, group_by_app, is_phone_origin, notifications_cache_path,
-    parse_notifications, visible, NotificationRow,
+    group_and_sort, group_by_app, is_phone_origin, notifications_cache_path, parse_notifications,
+    visible, NotificationRow,
 };
+use mde_theme::motion::list::{STAGGER_CAP, STAGGER_REVEAL_MS, STAGGER_STEP_MS};
 
 const WIDTH: u32 = 480;
 const HEIGHT: u32 = 600;
 
 // BUS-2.3 — priority accent colors (Carbon red/orange/blue, matching BUS-2.2).
-const BUS_URGENT_COLOR: Color = Color { r: 0.91, g: 0.30, b: 0.36, a: 1.0 };
-const BUS_HIGH_COLOR: Color   = Color { r: 0.93, g: 0.55, b: 0.21, a: 1.0 };
-const BUS_DEFAULT_COLOR: Color = Color { r: 0.20, g: 0.69, b: 1.00, a: 1.0 };
+const BUS_URGENT_COLOR: Color = Color {
+    r: 0.91,
+    g: 0.30,
+    b: 0.36,
+    a: 1.0,
+};
+const BUS_HIGH_COLOR: Color = Color {
+    r: 0.93,
+    g: 0.55,
+    b: 0.21,
+    a: 1.0,
+};
+const BUS_DEFAULT_COLOR: Color = Color {
+    r: 0.20,
+    g: 0.69,
+    b: 1.00,
+    a: 1.0,
+};
 
 const ACCENT: Color = Color {
     r: 0.169,
@@ -77,8 +94,7 @@ const MAX_ENTRANCE_MS: u64 =
 /// Per-row entrance alpha at `opened_ms` since the popover opened.
 /// Uses the same capped-8 stagger + ease-out-sqrt pattern as ANIM-4.
 fn stagger_alpha(row_index: usize, opened_ms: u64) -> f32 {
-    let delay =
-        row_index.min(STAGGER_CAP.saturating_sub(1)) as u64 * STAGGER_STEP_MS as u64;
+    let delay = row_index.min(STAGGER_CAP.saturating_sub(1)) as u64 * STAGGER_STEP_MS as u64;
     let elapsed = opened_ms.saturating_sub(delay);
     let t = (elapsed as f32 / STAGGER_REVEAL_MS as f32).clamp(0.0, 1.0);
     t.sqrt()
@@ -197,7 +213,9 @@ pub fn parse_bus_message(path: &Path, ulid: &str, topic: &str) -> Option<BusPopo
 /// ULID-named `.json` file. Topic is the relative path of the parent
 /// directory from `bus_root` with `/` separators.
 fn collect_bus_files(dir: &Path, bus_root: &Path, out: &mut Vec<(String, String, PathBuf)>) {
-    let Ok(iter) = std::fs::read_dir(dir) else { return };
+    let Ok(iter) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in iter.flatten() {
         let path = entry.path();
         let name_os = entry.file_name();
@@ -240,13 +258,25 @@ pub fn load_bus_messages(bus_root: &Path) -> Vec<BusPopoverMessage> {
 pub fn bucket_by_priority<'a>(
     messages: &'a [BusPopoverMessage],
     acked: &std::collections::HashSet<String>,
-) -> (Vec<&'a BusPopoverMessage>, Vec<&'a BusPopoverMessage>, Vec<&'a BusPopoverMessage>) {
-    let active: Vec<&BusPopoverMessage> =
-        messages.iter().filter(|m| !acked.contains(&m.ulid)).collect();
-    let mut urgent: Vec<&BusPopoverMessage> =
-        active.iter().copied().filter(|m| m.priority == "urgent").collect();
-    let mut high: Vec<&BusPopoverMessage> =
-        active.iter().copied().filter(|m| m.priority == "high").collect();
+) -> (
+    Vec<&'a BusPopoverMessage>,
+    Vec<&'a BusPopoverMessage>,
+    Vec<&'a BusPopoverMessage>,
+) {
+    let active: Vec<&BusPopoverMessage> = messages
+        .iter()
+        .filter(|m| !acked.contains(&m.ulid))
+        .collect();
+    let mut urgent: Vec<&BusPopoverMessage> = active
+        .iter()
+        .copied()
+        .filter(|m| m.priority == "urgent")
+        .collect();
+    let mut high: Vec<&BusPopoverMessage> = active
+        .iter()
+        .copied()
+        .filter(|m| m.priority == "high")
+        .collect();
     let mut default: Vec<&BusPopoverMessage> = active
         .iter()
         .copied()
@@ -457,9 +487,7 @@ fn update(state: &mut App, msg: Message) -> Task<Message> {
 fn view(state: &App) -> Element<'_, Message> {
     let header = text("Notifications").size(14).color(FG_TEXT);
     let total_rows: usize = state.groups.iter().map(|(_, r)| r.len()).sum();
-    let subhead = text(format!("{total_rows} total"))
-        .size(11)
-        .color(FG_MUTED);
+    let subhead = text(format!("{total_rows} total")).size(11).color(FG_MUTED);
 
     // ANIM-3.b.2 — shared animation state for this frame.
     let opened_ms = state.opened_at.elapsed().as_millis() as u64;
@@ -468,13 +496,12 @@ fn view(state: &App) -> Element<'_, Message> {
     let mut list = column![].spacing(10);
     if state.groups.is_empty() {
         list = list.push(
-            container(text("No notifications").size(13).color(FG_MUTED))
-                .padding(Padding {
-                    top: 28.0,
-                    right: 0.0,
-                    bottom: 0.0,
-                    left: 0.0,
-                }),
+            container(text("No notifications").size(13).color(FG_MUTED)).padding(Padding {
+                top: 28.0,
+                right: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+            }),
         );
     }
     for (group_name, rows) in &state.groups {
@@ -489,39 +516,38 @@ fn view(state: &App) -> Element<'_, Message> {
         let chevron = if is_collapsed { "▶" } else { "▼" };
         let header_label = format!("{chevron}  {label_text}  ({})", rows.len());
         let collapse_key = group_name.clone();
-        let header_btn: Element<'_, Message> = iced::widget::Button::new(
-            text(header_label).size(11).color(FG_TEXT),
-        )
-        .padding(Padding {
-            top: 2.0,
-            right: 8.0,
-            bottom: 2.0,
-            left: 8.0,
-        })
-        .style(|_t: &Theme, status: iced::widget::button::Status| {
-            let bg = match status {
-                iced::widget::button::Status::Hovered => Color {
-                    r: 0.14,
-                    g: 0.14,
-                    b: 0.16,
-                    a: 1.0,
-                },
-                _ => Color::TRANSPARENT,
-            };
-            iced::widget::button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: FG_TEXT,
-                border: Border {
-                    color: Color::TRANSPARENT,
-                    width: 0.0,
-                    radius: 3.0.into(),
-                },
-                shadow: Shadow::default(),
-                snap: false,
-            }
-        })
-        .on_press(Message::ToggleCollapse(collapse_key))
-        .into();
+        let header_btn: Element<'_, Message> =
+            iced::widget::Button::new(text(header_label).size(11).color(FG_TEXT))
+                .padding(Padding {
+                    top: 2.0,
+                    right: 8.0,
+                    bottom: 2.0,
+                    left: 8.0,
+                })
+                .style(|_t: &Theme, status: iced::widget::button::Status| {
+                    let bg = match status {
+                        iced::widget::button::Status::Hovered => Color {
+                            r: 0.14,
+                            g: 0.14,
+                            b: 0.16,
+                            a: 1.0,
+                        },
+                        _ => Color::TRANSPARENT,
+                    };
+                    iced::widget::button::Style {
+                        background: Some(Background::Color(bg)),
+                        text_color: FG_TEXT,
+                        border: Border {
+                            color: Color::TRANSPARENT,
+                            width: 0.0,
+                            radius: 3.0.into(),
+                        },
+                        shadow: Shadow::default(),
+                        snap: false,
+                    }
+                })
+                .on_press(Message::ToggleCollapse(collapse_key))
+                .into();
 
         // BUG-8.b — per-peer Mute button only makes sense in
         // peer-grouped mode; hide it in app-grouped mode
@@ -567,12 +593,8 @@ fn view(state: &App) -> Element<'_, Message> {
             Space::new().into()
         };
 
-        let group_header = row![
-            header_btn,
-            Space::new().width(Length::Fill),
-            mute_btn,
-        ]
-        .align_y(iced::Alignment::Center);
+        let group_header = row![header_btn, Space::new().width(Length::Fill), mute_btn,]
+            .align_y(iced::Alignment::Center);
 
         let mut group_column = column![group_header].spacing(4);
         if !is_collapsed {
@@ -593,7 +615,8 @@ fn view(state: &App) -> Element<'_, Message> {
             .iter()
             .filter(|m| state.bus_acked.contains(&m.ulid))
             .collect();
-        let has_bus = !urgent.is_empty() || !high.is_empty() || !default.is_empty() || !acked_msgs.is_empty();
+        let has_bus =
+            !urgent.is_empty() || !high.is_empty() || !default.is_empty() || !acked_msgs.is_empty();
         if !state.bus_messages.is_empty() || has_bus {
             // Section divider + header
             list = list.push(Space::new().height(Length::Fixed(8.0)));
@@ -601,7 +624,12 @@ fn view(state: &App) -> Element<'_, Message> {
                 container(Space::new().height(Length::Fixed(1.0)))
                     .width(Length::Fill)
                     .style(|_: &Theme| container::Style {
-                        background: Some(iced::Background::Color(Color { r: 1.0, g: 1.0, b: 1.0, a: 0.08 })),
+                        background: Some(iced::Background::Color(Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 0.08,
+                        })),
                         ..Default::default()
                     }),
             );
@@ -626,7 +654,11 @@ fn view(state: &App) -> Element<'_, Message> {
                         stagger_alpha(row_idx, opened_ms)
                     };
                     row_idx += 1;
-                    list = list.push(render_bus_row(msg, alpha, reply_draft_for(state, &msg.ulid)));
+                    list = list.push(render_bus_row(
+                        msg,
+                        alpha,
+                        reply_draft_for(state, &msg.ulid),
+                    ));
                 }
             }
             // High bucket
@@ -643,7 +675,11 @@ fn view(state: &App) -> Element<'_, Message> {
                         stagger_alpha(row_idx, opened_ms)
                     };
                     row_idx += 1;
-                    list = list.push(render_bus_row(msg, alpha, reply_draft_for(state, &msg.ulid)));
+                    list = list.push(render_bus_row(
+                        msg,
+                        alpha,
+                        reply_draft_for(state, &msg.ulid),
+                    ));
                 }
             }
             // Default bucket
@@ -660,14 +696,22 @@ fn view(state: &App) -> Element<'_, Message> {
                         stagger_alpha(row_idx, opened_ms)
                     };
                     row_idx += 1;
-                    list = list.push(render_bus_row(msg, alpha, reply_draft_for(state, &msg.ulid)));
+                    list = list.push(render_bus_row(
+                        msg,
+                        alpha,
+                        reply_draft_for(state, &msg.ulid),
+                    ));
                 }
             }
             // Empty state
             if bus_active_total == 0 && acked_msgs.is_empty() {
                 list = list.push(
-                    container(text("No bus messages").size(13).color(FG_MUTED))
-                        .padding(Padding { top: 6.0, right: 0.0, bottom: 0.0, left: 0.0 }),
+                    container(text("No bus messages").size(13).color(FG_MUTED)).padding(Padding {
+                        top: 6.0,
+                        right: 0.0,
+                        bottom: 0.0,
+                        left: 0.0,
+                    }),
                 );
             }
             // Acked-list (if any)
@@ -682,12 +726,21 @@ fn view(state: &App) -> Element<'_, Message> {
                         container(
                             text(format!(
                                 "✓  {}",
-                                if msg.title.is_empty() { &msg.topic } else { &msg.title }
+                                if msg.title.is_empty() {
+                                    &msg.topic
+                                } else {
+                                    &msg.title
+                                }
                             ))
                             .size(11)
                             .color(FG_FAINT),
                         )
-                        .padding(Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 8.0 }),
+                        .padding(Padding {
+                            top: 3.0,
+                            right: 8.0,
+                            bottom: 3.0,
+                            left: 8.0,
+                        }),
                     );
                 }
             }
@@ -893,8 +946,7 @@ fn subscription(state: &App) -> Subscription<Message> {
     if animating {
         Subscription::batch([
             keyboard,
-            iced::time::every(std::time::Duration::from_millis(16))
-                .map(|_| Message::AnimTick),
+            iced::time::every(std::time::Duration::from_millis(16)).map(|_| Message::AnimTick),
         ])
     } else {
         keyboard
@@ -963,10 +1015,20 @@ pub fn run() -> iced_layershell::Result {
 fn action_button<'a>(label: &str, url: &str) -> Element<'a, Message> {
     let url = url.to_string();
     iced::widget::Button::new(text(label.to_string()).size(10).color(FG_TEXT))
-        .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
+        .padding(Padding {
+            top: 2.0,
+            right: 8.0,
+            bottom: 2.0,
+            left: 8.0,
+        })
         .style(|_t: &Theme, status: iced::widget::button::Status| {
             let bg = match status {
-                iced::widget::button::Status::Hovered => Color { r: 0.18, g: 0.18, b: 0.20, a: 1.0 },
+                iced::widget::button::Status::Hovered => Color {
+                    r: 0.18,
+                    g: 0.18,
+                    b: 0.20,
+                    a: 1.0,
+                },
                 _ => Color::TRANSPARENT,
             };
             iced::widget::button::Style {
@@ -992,8 +1054,8 @@ fn render_bus_row<'a>(
 ) -> Element<'a, Message> {
     let priority_color = match msg.priority.as_str() {
         "urgent" => BUS_URGENT_COLOR,
-        "high"   => BUS_HIGH_COLOR,
-        _        => BUS_DEFAULT_COLOR,
+        "high" => BUS_HIGH_COLOR,
+        _ => BUS_DEFAULT_COLOR,
     };
     // BUS-6.1.a — when this message is a reply, surface the parent ULID
     // inline on the topic line so threads read as threads (mirrors `tail`'s ↳).
@@ -1004,45 +1066,70 @@ fn render_bus_row<'a>(
         }
         None => format!("[{}]", msg.topic),
     };
-    let topic_label = text(topic_text)
-        .size(10)
-        .color(Color { a: priority_color.a * alpha, ..priority_color });
-    let title_label = text(if msg.title.is_empty() { msg.topic.as_str() } else { msg.title.as_str() })
-        .size(12)
-        .color(Color { a: FG_TEXT.a * alpha, ..FG_TEXT });
+    let topic_label = text(topic_text).size(10).color(Color {
+        a: priority_color.a * alpha,
+        ..priority_color
+    });
+    let title_label = text(if msg.title.is_empty() {
+        msg.topic.as_str()
+    } else {
+        msg.title.as_str()
+    })
+    .size(12)
+    .color(Color {
+        a: FG_TEXT.a * alpha,
+        ..FG_TEXT
+    });
     let body_label = if msg.body.is_empty() {
-        text("").size(11).color(Color { a: FG_MUTED.a * alpha, ..FG_MUTED })
+        text("").size(11).color(Color {
+            a: FG_MUTED.a * alpha,
+            ..FG_MUTED
+        })
     } else {
         text(msg.body.chars().take(100).collect::<String>())
             .size(11)
-            .color(Color { a: FG_MUTED.a * alpha, ..FG_MUTED })
+            .color(Color {
+                a: FG_MUTED.a * alpha,
+                ..FG_MUTED
+            })
     };
     let ack_ulid = msg.ulid.clone();
     // Hide the Ack button while the row is fading out (alpha < full).
     let ack_btn: Element<'_, Message> = if alpha >= 0.99 {
-        iced::widget::Button::new(
-            text("Ack").size(10).color(FG_MUTED),
-        )
-        .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
-        .style(|_t: &Theme, status: iced::widget::button::Status| {
-            let bg = match status {
-                iced::widget::button::Status::Hovered => Color { r: 0.18, g: 0.18, b: 0.20, a: 1.0 },
-                _ => Color::TRANSPARENT,
-            };
-            iced::widget::button::Style {
-                background: Some(Background::Color(bg)),
-                text_color: FG_MUTED,
-                border: Border {
-                    color: Color { a: 0.12, ..Color::WHITE },
-                    width: 1.0,
-                    radius: 3.0.into(),
-                },
-                shadow: Shadow::default(),
-                snap: false,
-            }
-        })
-        .on_press(Message::AckBusMessage(ack_ulid))
-        .into()
+        iced::widget::Button::new(text("Ack").size(10).color(FG_MUTED))
+            .padding(Padding {
+                top: 2.0,
+                right: 6.0,
+                bottom: 2.0,
+                left: 6.0,
+            })
+            .style(|_t: &Theme, status: iced::widget::button::Status| {
+                let bg = match status {
+                    iced::widget::button::Status::Hovered => Color {
+                        r: 0.18,
+                        g: 0.18,
+                        b: 0.20,
+                        a: 1.0,
+                    },
+                    _ => Color::TRANSPARENT,
+                };
+                iced::widget::button::Style {
+                    background: Some(Background::Color(bg)),
+                    text_color: FG_MUTED,
+                    border: Border {
+                        color: Color {
+                            a: 0.12,
+                            ..Color::WHITE
+                        },
+                        width: 1.0,
+                        radius: 3.0.into(),
+                    },
+                    shadow: Shadow::default(),
+                    snap: false,
+                }
+            })
+            .on_press(Message::AckBusMessage(ack_ulid))
+            .into()
     } else {
         Space::new().into()
     };
@@ -1051,7 +1138,12 @@ fn render_bus_row<'a>(
     let reply_ulid = msg.ulid.clone();
     let reply_btn: Element<'_, Message> = if alpha >= 0.99 {
         iced::widget::Button::new(text("Reply").size(10).color(FG_MUTED))
-            .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
+            .padding(Padding {
+                top: 2.0,
+                right: 6.0,
+                bottom: 2.0,
+                left: 6.0,
+            })
             .style(bus_secondary_btn_style)
             .on_press(Message::ReplyOpen(reply_ulid))
             .into()
@@ -1088,15 +1180,30 @@ fn render_bus_row<'a>(
             .id("bus-reply-input")
             .on_input(Message::ReplyChanged)
             .on_submit(Message::ReplySend)
-            .padding(Padding { top: 5.0, right: 8.0, bottom: 5.0, left: 8.0 })
+            .padding(Padding {
+                top: 5.0,
+                right: 8.0,
+                bottom: 5.0,
+                left: 8.0,
+            })
             .size(11)
             .style(reply_input_style);
         let send = iced::widget::Button::new(text("Send").size(10).color(FG_TEXT))
-            .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
+            .padding(Padding {
+                top: 2.0,
+                right: 8.0,
+                bottom: 2.0,
+                left: 8.0,
+            })
             .style(bus_secondary_btn_style)
             .on_press(Message::ReplySend);
         let cancel = iced::widget::Button::new(text("Cancel").size(10).color(FG_MUTED))
-            .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
+            .padding(Padding {
+                top: 2.0,
+                right: 8.0,
+                bottom: 2.0,
+                left: 8.0,
+            })
             .style(bus_secondary_btn_style)
             .on_press(Message::ReplyCancel);
         card = card.push(
@@ -1107,7 +1214,12 @@ fn render_bus_row<'a>(
     }
 
     container(card)
-        .padding(Padding { top: 5.0, right: 8.0, bottom: 5.0, left: 8.0 })
+        .padding(Padding {
+            top: 5.0,
+            right: 8.0,
+            bottom: 5.0,
+            left: 8.0,
+        })
         .style(move |_: &Theme| container::Style {
             background: Some(Background::Color(Color {
                 r: 0.106,
@@ -1125,7 +1237,10 @@ fn render_bus_row<'a>(
                 width: 1.0,
                 radius: 6.0.into(),
             },
-            text_color: Some(Color { a: FG_TEXT.a * alpha, ..FG_TEXT }),
+            text_color: Some(Color {
+                a: FG_TEXT.a * alpha,
+                ..FG_TEXT
+            }),
             shadow: Shadow::default(),
             snap: false,
         })
@@ -1163,13 +1278,25 @@ fn bus_secondary_btn_style(
     status: iced::widget::button::Status,
 ) -> iced::widget::button::Style {
     let bg = match status {
-        iced::widget::button::Status::Hovered => Color { r: 0.18, g: 0.18, b: 0.20, a: 1.0 },
+        iced::widget::button::Status::Hovered => Color {
+            r: 0.18,
+            g: 0.18,
+            b: 0.20,
+            a: 1.0,
+        },
         _ => Color::TRANSPARENT,
     };
     iced::widget::button::Style {
         background: Some(Background::Color(bg)),
         text_color: FG_MUTED,
-        border: Border { color: Color { a: 0.12, ..Color::WHITE }, width: 1.0, radius: 3.0.into() },
+        border: Border {
+            color: Color {
+                a: 0.12,
+                ..Color::WHITE
+            },
+            width: 1.0,
+            radius: 3.0.into(),
+        },
         shadow: Shadow::default(),
         snap: false,
     }
@@ -1181,8 +1308,20 @@ fn reply_input_style(
     _s: iced::widget::text_input::Status,
 ) -> iced::widget::text_input::Style {
     iced::widget::text_input::Style {
-        background: Background::Color(Color { r: 0.106, g: 0.106, b: 0.114, a: 1.0 }),
-        border: Border { color: Color { a: 0.12, ..Color::WHITE }, width: 1.0, radius: 6.0.into() },
+        background: Background::Color(Color {
+            r: 0.106,
+            g: 0.106,
+            b: 0.114,
+            a: 1.0,
+        }),
+        border: Border {
+            color: Color {
+                a: 0.12,
+                ..Color::WHITE
+            },
+            width: 1.0,
+            radius: 6.0.into(),
+        },
         icon: FG_MUTED,
         placeholder: FG_MUTED,
         value: FG_TEXT,
@@ -1202,13 +1341,22 @@ fn render_row(row_data: &NotificationRow, alpha: f32) -> Element<'_, Message> {
     let text_base = if row_data.read { FG_MUTED } else { FG_TEXT };
     let title = text(format!("{title_prefix}{}", row_data.title))
         .size(13)
-        .color(Color { a: text_base.a * alpha, ..text_base });
+        .color(Color {
+            a: text_base.a * alpha,
+            ..text_base
+        });
     let body = if row_data.body.is_empty() {
-        text("").size(11).color(Color { a: FG_MUTED.a * alpha, ..FG_MUTED })
+        text("").size(11).color(Color {
+            a: FG_MUTED.a * alpha,
+            ..FG_MUTED
+        })
     } else {
         text(row_data.body.chars().take(120).collect::<String>())
             .size(11)
-            .color(Color { a: FG_MUTED.a * alpha, ..FG_MUTED })
+            .color(Color {
+                a: FG_MUTED.a * alpha,
+                ..FG_MUTED
+            })
     };
     container(column![title, body].spacing(2))
         .padding(Padding {
@@ -1234,7 +1382,10 @@ fn render_row(row_data: &NotificationRow, alpha: f32) -> Element<'_, Message> {
                 width: 1.0,
                 radius: 6.0.into(),
             },
-            text_color: Some(Color { a: FG_TEXT.a * alpha, ..FG_TEXT }),
+            text_color: Some(Color {
+                a: FG_TEXT.a * alpha,
+                ..FG_TEXT
+            }),
             shadow: Shadow::default(),
             snap: false,
         })
@@ -1320,9 +1471,7 @@ fn load_muted_peers() -> std::collections::HashSet<String> {
     parse_mutes(&raw)
 }
 
-fn save_muted_peers(
-    muted: &std::collections::HashSet<String>,
-) -> std::io::Result<()> {
+fn save_muted_peers(muted: &std::collections::HashSet<String>) -> std::io::Result<()> {
     let Some(path) = mutes_path() else {
         return Err(std::io::Error::other("no $HOME"));
     };
@@ -1351,7 +1500,6 @@ fn popover_surface(_theme: &Theme) -> container::Style {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1368,14 +1516,20 @@ mod tests {
     fn stagger_alpha_at_zero_ms_is_transparent() {
         // Row 0 has no delay; at t=0 the fade hasn't started yet.
         let a = stagger_alpha(0, 0);
-        assert!(a < f32::EPSILON, "row 0 at t=0 should be fully transparent, got {a}");
+        assert!(
+            a < f32::EPSILON,
+            "row 0 at t=0 should be fully transparent, got {a}"
+        );
     }
 
     #[test]
     fn stagger_alpha_after_full_reveal_is_opaque() {
         // Row 0 needs 0 ms delay + STAGGER_REVEAL_MS to become fully opaque.
         let a = stagger_alpha(0, STAGGER_REVEAL_MS as u64 + 1);
-        assert!((a - 1.0).abs() < 0.01, "row 0 fully revealed should be ~1.0, got {a}");
+        assert!(
+            (a - 1.0).abs() < 0.01,
+            "row 0 fully revealed should be ~1.0, got {a}"
+        );
     }
 
     #[test]
@@ -1384,7 +1538,10 @@ mod tests {
         let delay = STAGGER_STEP_MS as u64;
         // At exactly the delay point, elapsed = 0 → still transparent.
         let a = stagger_alpha(1, delay);
-        assert!(a < f32::EPSILON, "row 1 at its delay onset should be transparent, got {a}");
+        assert!(
+            a < f32::EPSILON,
+            "row 1 at its delay onset should be transparent, got {a}"
+        );
         // After delay + full reveal, row 1 is opaque.
         let a2 = stagger_alpha(1, delay + STAGGER_REVEAL_MS as u64 + 1);
         assert!((a2 - 1.0).abs() < 0.01, "row 1 fully revealed, got {a2}");
@@ -1406,8 +1563,7 @@ mod tests {
     #[test]
     fn max_entrance_ms_matches_token_math() {
         // Verify the constant matches the hand-computed value.
-        let expected =
-            (STAGGER_CAP as u64 - 1) * STAGGER_STEP_MS as u64 + STAGGER_REVEAL_MS as u64;
+        let expected = (STAGGER_CAP as u64 - 1) * STAGGER_STEP_MS as u64 + STAGGER_REVEAL_MS as u64;
         assert_eq!(MAX_ENTRANCE_MS, expected);
     }
 
@@ -1427,7 +1583,6 @@ mod tests {
         let a = dismiss_alpha(past);
         assert!(a < f32::EPSILON, "completed dismiss should be 0.0, got {a}");
     }
-
 
     #[test]
     fn parse_mutes_decodes_known_shape() {
@@ -1578,10 +1733,7 @@ mod tests {
 
     #[test]
     fn bucket_by_priority_excludes_acked_ulids() {
-        let msgs = vec![
-            make_msg("01ZAAA", "urgent"),
-            make_msg("01ZBBB", "high"),
-        ];
+        let msgs = vec![make_msg("01ZAAA", "urgent"), make_msg("01ZBBB", "high")];
         let mut acked = std::collections::HashSet::new();
         acked.insert("01ZAAA".to_string());
         let (urgent, high, _) = bucket_by_priority(&msgs, &acked);
@@ -1592,8 +1744,8 @@ mod tests {
     #[test]
     fn bucket_by_priority_newest_first_within_bucket() {
         let msgs = vec![
-            make_msg("01ZAAA", "high"),  // older ULID
-            make_msg("01ZZZZ", "high"),  // newer ULID
+            make_msg("01ZAAA", "high"), // older ULID
+            make_msg("01ZZZZ", "high"), // newer ULID
         ];
         let acked = std::collections::HashSet::new();
         let (_, high, _) = bucket_by_priority(&msgs, &acked);
@@ -1606,7 +1758,9 @@ mod tests {
         let topic_dir = dir.path().join("fleet").join("announce");
         std::fs::create_dir_all(&topic_dir).unwrap();
         let ulid = "01JABCDEFGHJKMNPQRST";
-        let json = format!(r#"{{"ulid":"{ulid}","topic":"fleet/announce","priority":"default","title":"Mesh event","body":"peer joined","ts_unix_ms":0,"file_path":""}}"#);
+        let json = format!(
+            r#"{{"ulid":"{ulid}","topic":"fleet/announce","priority":"default","title":"Mesh event","body":"peer joined","ts_unix_ms":0,"file_path":""}}"#
+        );
         std::fs::write(topic_dir.join(format!("{ulid}.json")), &json).unwrap();
         // audit/ files must be skipped
         let audit_dir = dir.path().join("audit");
@@ -1634,7 +1788,9 @@ mod tests {
     #[test]
     fn parse_bus_message_reads_actions() {
         // BUS-2.7.b — the MESHFS-conflict → "Resolve" use-case from 2.7.a.
-        let msg = parse_with_actions(r#""actions":[{"label":"Resolve","url":"mde://meshfs/resolve/abc"}]"#);
+        let msg = parse_with_actions(
+            r#""actions":[{"label":"Resolve","url":"mde://meshfs/resolve/abc"}]"#,
+        );
         assert_eq!(msg.actions.len(), 1);
         assert_eq!(msg.actions[0].label, "Resolve");
         assert_eq!(msg.actions[0].url, "mde://meshfs/resolve/abc");

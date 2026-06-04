@@ -19,32 +19,25 @@ use crate::keyboard::{KeyAction, Pane};
 use crate::model::{resolve_panel_label, view_from_focus_slug, Group, View};
 use crate::panels::{
     apps_install as apps_install_panel, apps_installed as apps_installed_panel,
-    apps_remove as apps_remove_panel, apps_sources as apps_sources_panel,
-    connect as connect_panel, datetime as datetime_panel,
-    default_apps as default_apps_panel, displays as displays_panel,
+    apps_remove as apps_remove_panel, apps_sources as apps_sources_panel, connect as connect_panel,
+    datetime as datetime_panel, default_apps as default_apps_panel, displays as displays_panel,
     drift as drift_panel, firewall as firewall_panel, fleet_revisions as fleet_revisions_panel,
     fleet_settings as fleet_settings_panel, fonts as fonts_panel,
-    health_check as health_check_panel,
-    help_index as help_index_panel, home as home_panel, hub as hub_panel,
-    inventory as inventory_panel, keyboard as keyboard_panel,
-    logs as logs_panel, mesh_bus as mesh_bus_panel, mesh_control as mesh_control_panel,
-    mesh_federation as mesh_federation_panel,
-    mouse as mouse_panel, music as music_panel,
-    mesh_history as mesh_history_panel, mesh_join as mesh_join_panel,
-    mesh_pending as mesh_pending_panel,
-    mesh_services as mesh_services_panel,
-    mesh_storage as mesh_storage_panel,
-    mesh_topology as mesh_topology_panel,
-    network_hosts as network_hosts_panel,
-    notifications as notifications_panel, panel_apps as panel_apps_panel,
-    playbooks as playbooks_panel, power as power_panel,
+    health_check as health_check_panel, help_index as help_index_panel, home as home_panel,
+    hub as hub_panel, inventory as inventory_panel, keyboard as keyboard_panel, logs as logs_panel,
+    mesh_bus as mesh_bus_panel, mesh_control as mesh_control_panel,
+    mesh_federation as mesh_federation_panel, mesh_history as mesh_history_panel,
+    mesh_join as mesh_join_panel, mesh_pending as mesh_pending_panel,
+    mesh_services as mesh_services_panel, mesh_storage as mesh_storage_panel,
+    mesh_topology as mesh_topology_panel, mouse as mouse_panel, music as music_panel,
+    network_hosts as network_hosts_panel, notifications as notifications_panel,
+    panel_apps as panel_apps_panel, playbooks as playbooks_panel, power as power_panel,
     printers as printers_panel, remote_desktop as remote_desktop_panel,
-    removable as removable_panel, repair as repair_panel,
-    resources as resources_panel, run_history as run_history_panel,
-    service_publishing as service_publishing_panel, session as session_panel,
-    snapshots as snapshots_panel, sound as sound_panel,
-    sync_status as sync_status_panel, system_update as system_update_panel,
-    themes as themes_panel, vpn as vpn_panel, wallpaper as wallpaper_panel, wifi as wifi_panel,
+    removable as removable_panel, repair as repair_panel, resources as resources_panel,
+    run_history as run_history_panel, service_publishing as service_publishing_panel,
+    session as session_panel, snapshots as snapshots_panel, sound as sound_panel,
+    sync_status as sync_status_panel, system_update as system_update_panel, themes as themes_panel,
+    vpn as vpn_panel, wallpaper as wallpaper_panel, wifi as wifi_panel,
     window_manager as window_manager_panel,
 };
 use crate::patternfly::{breadcrumb, page_subtitle, page_title};
@@ -72,7 +65,11 @@ pub fn mde_workbench_iced_theme() -> Theme {
         primary: p.accent.into_iced_color(),
         // iced 0.14 added `warning` to Palette. Amber (#f5a623),
         // distinct from the single accent + the danger red below.
-        warning: Color::from_rgb(0xf5 as f32 / 255.0, 0xa6 as f32 / 255.0, 0x23 as f32 / 255.0),
+        warning: Color::from_rgb(
+            0xf5 as f32 / 255.0,
+            0xa6 as f32 / 255.0,
+            0x23 as f32 / 255.0,
+        ),
         success: Color::from_rgb(
             0x3f as f32 / 255.0,
             0xb9 as f32 / 255.0,
@@ -93,7 +90,10 @@ pub enum Message {
     /// Sidebar click on a top-level group row.
     SelectGroup(Group),
     /// Sidebar click on a leaf panel row.
-    SelectPanel { group: Group, panel: &'static str },
+    SelectPanel {
+        group: Group,
+        panel: &'static str,
+    },
     /// Keyboard / chord-bar generated key. Translated by
     /// [`crate::keyboard::interpret_key`] before landing here.
     KeyPressed(KeyAction),
@@ -1257,9 +1257,8 @@ fn panel_under_construction(view: View) -> Element<'static, Message> {
     let group_label = group.label();
     let state = mde_theme::EmptyState::with_cta(heading, body, format!("Back to {group_label}"))
         .with_icon(mde_theme::Icon::Maintain);
-    let inner = crate::panel_chrome::empty_state(state, palette, move || {
-        Message::SelectGroup(group)
-    });
+    let inner =
+        crate::panel_chrome::empty_state(state, palette, move || Message::SelectGroup(group));
     iced::widget::container(inner)
         .padding(crate::panel_chrome::outer_padding(
             mde_theme::Density::Comfortable,

@@ -236,8 +236,7 @@ impl MeshRouterWorker {
             state
                 .iter()
                 .filter(|(_, path)| {
-                    path.https_state
-                        == mackes_transport::peer_path::HttpsFallbackState::Activating
+                    path.https_state == mackes_transport::peer_path::HttpsFallbackState::Activating
                 })
                 .map(|(id, _)| id.clone())
                 .collect()
@@ -276,10 +275,7 @@ impl MeshRouterWorker {
     /// kind. Cheap O(n) over the small (≤ 4) registry.
     #[must_use]
     pub fn find_transport(&self, kind: TransportKind) -> Option<Arc<dyn Transport>> {
-        self.registry
-            .iter()
-            .find(|t| t.kind() == kind)
-            .cloned()
+        self.registry.iter().find(|t| t.kind() == kind).cloned()
     }
 
     /// Pure path-switch detector. Given a peer's current
@@ -574,8 +570,9 @@ mod tests {
     /// matches the activation drive's call shape: feed the
     /// per-peer peer_id, get a result back.
     fn https443_registry() -> TransportRegistry {
-        Arc::new(vec![Arc::new(MockTransport::new(TransportKind::NebulaHttps443))
-            as Arc<dyn Transport>])
+        Arc::new(vec![
+            Arc::new(MockTransport::new(TransportKind::NebulaHttps443)) as Arc<dyn Transport>,
+        ])
     }
 
     #[tokio::test(flavor = "current_thread")]

@@ -61,7 +61,9 @@ pub struct ExposeCard {
 // ──────────────────────────────────────────────────────────────
 
 use iced::widget::{button, column, container, row, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -475,5 +477,4 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].app_id, "XTerm");
     }
-
 }

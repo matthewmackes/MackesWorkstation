@@ -75,7 +75,9 @@ impl From<mackes_transport::TransportKind> for EdgeKind {
     fn from(t: mackes_transport::TransportKind) -> Self {
         match t {
             mackes_transport::TransportKind::NebulaDirect => EdgeKind::NebulaDirect,
-            mackes_transport::TransportKind::NebulaLighthouseRelay => EdgeKind::NebulaLighthouseRelay,
+            mackes_transport::TransportKind::NebulaLighthouseRelay => {
+                EdgeKind::NebulaLighthouseRelay
+            }
             mackes_transport::TransportKind::NebulaHttps443 => EdgeKind::NebulaHttps443,
             mackes_transport::TransportKind::KdcTls => EdgeKind::KdcTls,
         }

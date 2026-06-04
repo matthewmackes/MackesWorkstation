@@ -62,7 +62,11 @@ pub fn pick_profile_from<R: BufRead, W: Write>(
     loop {
         writeln!(writer, "Select an install profile:")?;
         for (i, p) in choices.iter().enumerate() {
-            let marker = if Some(*p) == default { " (default)" } else { "" };
+            let marker = if Some(*p) == default {
+                " (default)"
+            } else {
+                ""
+            };
             writeln!(writer, "  [{}] {}{} — {}", i + 1, p, marker, p.describe())?;
         }
         match default {

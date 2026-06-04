@@ -101,7 +101,11 @@ impl MeshStoragePanel {
             format!(
                 "{} peer{} · goal {} · last refresh {}s ago",
                 self.status.peers.len(),
-                if self.status.peers.len() == 1 { "" } else { "s" },
+                if self.status.peers.len() == 1 {
+                    ""
+                } else {
+                    "s"
+                },
                 self.status.goal,
                 age_s,
             )
@@ -129,7 +133,8 @@ impl MeshStoragePanel {
                 },
                 _ => accent,
             };
-            iced::widget::button::Style { snap: false,
+            iced::widget::button::Style {
+                snap: false,
                 background: Some(Background::Color(bg)),
                 text_color: Color::WHITE,
                 border: Border {
@@ -149,7 +154,12 @@ impl MeshStoragePanel {
         let body: Element<'_, crate::Message> = if let Some(ref e) = self.error {
             text(format!("Error: {e}"))
                 .size(TypeRole::Body.size_in(sizes))
-                .color(Color { r: 1.0, g: 0.35, b: 0.35, a: 1.0 })
+                .color(Color {
+                    r: 1.0,
+                    g: 0.35,
+                    b: 0.35,
+                    a: 1.0,
+                })
                 .into()
         } else if self.status.peers.is_empty() && self.last_run_at.is_some() {
             text("Master unreachable — mesh-storage not yet active.")
@@ -165,7 +175,10 @@ impl MeshStoragePanel {
                 .collect();
 
             let quota_line = if let Some(cap) = self.status.quota_cap_bytes {
-                format!("Quota cap: {} (0.8 × limiting peer avail)", human_bytes(cap))
+                format!(
+                    "Quota cap: {} (0.8 × limiting peer avail)",
+                    human_bytes(cap)
+                )
             } else {
                 String::new()
             };
@@ -202,7 +215,8 @@ impl MeshStoragePanel {
             .padding(24)
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(move |_t: &Theme| container::Style { snap: false,
+            .style(move |_t: &Theme| container::Style {
+                snap: false,
                 background: Some(Background::Color(surface_color)),
                 ..Default::default()
             })
@@ -218,7 +232,12 @@ fn peer_row<'a>(
 ) -> Element<'a, crate::Message> {
     let is_limiting = limiting.as_deref() == Some(p.addr.as_str());
     let addr_color = if is_limiting {
-        Color { r: 1.0, g: 0.75, b: 0.3, a: 1.0 }
+        Color {
+            r: 1.0,
+            g: 0.75,
+            b: 0.3,
+            a: 1.0,
+        }
     } else {
         palette.text.into_iced_color()
     };

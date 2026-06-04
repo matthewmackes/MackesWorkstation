@@ -285,11 +285,7 @@ mod tests {
             .unwrap()
             .unwrap()
             .path();
-        let ulid = msg_file
-            .file_stem()
-            .unwrap()
-            .to_string_lossy()
-            .to_string();
+        let ulid = msg_file.file_stem().unwrap().to_string_lossy().to_string();
 
         let pin_path = pin_store_path(&data_home);
         let mut pins = PinStore::default();

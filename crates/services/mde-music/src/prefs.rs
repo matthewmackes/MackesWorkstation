@@ -121,7 +121,13 @@ mod tests {
         let p = std::env::temp_dir().join(format!("mde-music-prefs-{}.json", std::process::id()));
         let _ = std::fs::remove_file(&p);
         assert_eq!(read_from(&p), MusicPrefs::default()); // absent → default
-        write_to(&p, &MusicPrefs { sort: SortKey::NameDesc, ..Default::default() });
+        write_to(
+            &p,
+            &MusicPrefs {
+                sort: SortKey::NameDesc,
+                ..Default::default()
+            },
+        );
         assert_eq!(read_from(&p).sort, SortKey::NameDesc);
         let _ = std::fs::remove_file(&p);
     }
@@ -129,9 +135,21 @@ mod tests {
     #[test]
     fn apply_sort_orders_by_label_case_insensitive() {
         let mut items = vec![
-            LibraryItem { id: "1".into(), label: "Zoo".into(), art_id: None },
-            LibraryItem { id: "2".into(), label: "apple".into(), art_id: None },
-            LibraryItem { id: "3".into(), label: "Mango".into(), art_id: None },
+            LibraryItem {
+                id: "1".into(),
+                label: "Zoo".into(),
+                art_id: None,
+            },
+            LibraryItem {
+                id: "2".into(),
+                label: "apple".into(),
+                art_id: None,
+            },
+            LibraryItem {
+                id: "3".into(),
+                label: "Mango".into(),
+                art_id: None,
+            },
         ];
         apply_sort(&mut items, SortKey::NameAsc);
         assert_eq!(

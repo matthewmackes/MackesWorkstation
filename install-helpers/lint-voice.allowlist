@@ -30,11 +30,11 @@
 #
 crates/mesh/mackesd/src/passcode.rs:198
 crates/mesh/mackesd/src/worker.rs:740
-crates/mesh/mackesd/src/workers/sway_config_watcher.rs:445
+crates/mesh/mackesd/src/workers/sway_config_watcher.rs:464
 crates/mesh/mackesd/tests/integration_testcontainers.rs:390
 crates/mesh/mackes-mesh-types/src/peer_probe.rs:183
 crates/shared/mackes-theme/src/lib.rs:293
-crates/shared/mde-iced-components/src/lib.rs:1015
+crates/shared/mde-iced-components/src/lib.rs:1054
 crates/shell/mde/src/browser_jumplist.rs:42
 crates/shell/mde/src/browser_jumplist.rs:43
 crates/shell/mde/src/fedora.rs:49

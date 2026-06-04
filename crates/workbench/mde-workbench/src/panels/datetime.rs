@@ -175,7 +175,8 @@ impl DateTimePanel {
 
         column![
             row![text("Timezone").width(Length::Fixed(180.0)), tz_pick,].spacing(12),
-            checkbox(self.ntp_active).label("Sync time over NTP")
+            checkbox(self.ntp_active)
+                .label("Sync time over NTP")
                 .on_toggle(|v| crate::Message::DateTime(Message::NtpToggled(v))),
             text(format!(
                 "RTC mode: {}",

@@ -45,11 +45,12 @@ fn section(result: &Value, key: &str, label_key: &str) -> Vec<LibraryItem> {
             arr.iter()
                 .filter_map(|item| {
                     let id = item.get("id").and_then(Value::as_str)?;
-                    let label = item
-                        .get(label_key)
-                        .and_then(Value::as_str)
-                        .unwrap_or(id);
-                    Some(LibraryItem { id: id.to_string(), label: label.to_string(), art_id: None })
+                    let label = item.get(label_key).and_then(Value::as_str).unwrap_or(id);
+                    Some(LibraryItem {
+                        id: id.to_string(),
+                        label: label.to_string(),
+                        art_id: None,
+                    })
                 })
                 .collect()
         })
@@ -85,8 +86,7 @@ pub fn parse_search(reply_json: &str) -> SearchResults {
 /// Bus-store open / request / timeout failures (daemon not running).
 pub async fn fetch_search(query: String) -> Result<SearchResults, String> {
     tokio::task::spawn_blocking(move || -> Result<SearchResults, String> {
-        let bus_root =
-            mde_bus::default_data_dir().ok_or_else(|| "no Bus data dir".to_string())?;
+        let bus_root = mde_bus::default_data_dir().ok_or_else(|| "no Bus data dir".to_string())?;
         let persist =
             mde_bus::persist::Persist::open(bus_root).map_err(|e| format!("Bus store: {e}"))?;
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -116,8 +116,7 @@ pub async fn fetch_search(query: String) -> Result<SearchResults, String> {
 /// Bus-store open / request / timeout failures (daemon not running).
 pub async fn enqueue(song_id: String) -> Result<(), String> {
     tokio::task::spawn_blocking(move || -> Result<(), String> {
-        let bus_root =
-            mde_bus::default_data_dir().ok_or_else(|| "no Bus data dir".to_string())?;
+        let bus_root = mde_bus::default_data_dir().ok_or_else(|| "no Bus data dir".to_string())?;
         let persist =
             mde_bus::persist::Persist::open(bus_root).map_err(|e| format!("Bus store: {e}"))?;
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -151,7 +150,14 @@ mod tests {
             "songs":[{"id":"s1","title":"So What"}]
         }}"#;
         let r = parse_search(reply);
-        assert_eq!(r.artists, vec![LibraryItem { id: "ar1".into(), label: "Miles Davis".into(), art_id: None }]);
+        assert_eq!(
+            r.artists,
+            vec![LibraryItem {
+                id: "ar1".into(),
+                label: "Miles Davis".into(),
+                art_id: None
+            }]
+        );
         assert_eq!(r.albums[0].label, "Kind of Blue");
         assert_eq!(r.songs[0].label, "So What");
         assert!(!r.is_empty());

@@ -146,7 +146,8 @@ pub fn view<'a>(
             bottom: outer_padding,
             left: outer_padding,
         })
-        .style(move |_theme| container::Style { snap: false,
+        .style(move |_theme| container::Style {
+            snap: false,
             background: Some(Background::Color(palette.background.into_iced_color())),
             border: Border {
                 color: palette.border.into_iced_color(),
@@ -169,7 +170,8 @@ fn section_divider<'a>(palette: Palette) -> Element<'a, crate::Message> {
             bottom: 4.0,
             left: 0.0,
         })
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             text_color: Some(palette.border.into_iced_color()),
             ..container::Style::default()
         })
@@ -205,7 +207,8 @@ fn section_label<'a>(
             ButtonStatus::Pressed => Background::Color(palette.overlay.into_iced_color()),
             _ => Background::Color(Color::TRANSPARENT),
         };
-        button::Style { snap: false,
+        button::Style {
+            snap: false,
             background: Some(bg),
             text_color,
             border: Border::default(),
@@ -251,7 +254,8 @@ fn nav_row<'a>(
     let stripe = container(Space::new().height(Length::Fixed(NAV_ROW_HEIGHT)))
         .width(Length::Fixed(SELECTED_STRIPE_WIDTH))
         .height(Length::Fixed(NAV_ROW_HEIGHT))
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(stripe_color)),
             ..container::Style::default()
         });
@@ -297,7 +301,8 @@ fn nav_row<'a>(
         } else {
             Border::default()
         };
-        button::Style { snap: false,
+        button::Style {
+            snap: false,
             background: Some(bg),
             text_color,
             border,

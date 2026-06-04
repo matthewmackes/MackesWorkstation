@@ -187,11 +187,14 @@ impl MousePanel {
                 text(format!("{:+.1}", self.pointer_accel)).size(13),
             ]
             .spacing(12),
-            checkbox(self.natural_scroll).label("Natural (reverse) scrolling")
+            checkbox(self.natural_scroll)
+                .label("Natural (reverse) scrolling")
                 .on_toggle(|v| crate::Message::Mouse(Message::NaturalScrollChanged(v))),
-            checkbox(self.tap_to_click).label("Tap to click (touchpad)")
+            checkbox(self.tap_to_click)
+                .label("Tap to click (touchpad)")
                 .on_toggle(|v| crate::Message::Mouse(Message::TapToClickChanged(v))),
-            checkbox(self.left_handed).label("Left-handed button mapping")
+            checkbox(self.left_handed)
+                .label("Left-handed button mapping")
                 .on_toggle(|v| crate::Message::Mouse(Message::LeftHandedChanged(v))),
             row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]
@@ -294,8 +297,14 @@ mod tests {
             .set(KEY_NATURAL_SCROLL, encode_bool(true))
             .await
             .unwrap();
-        backend.set(KEY_TAP_TO_CLICK, encode_bool(false)).await.unwrap();
-        backend.set(KEY_LEFT_HANDED, encode_bool(true)).await.unwrap();
+        backend
+            .set(KEY_TAP_TO_CLICK, encode_bool(false))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_LEFT_HANDED, encode_bool(true))
+            .await
+            .unwrap();
         assert_eq!(backend.get(KEY_POINTER_ACCEL).await.unwrap(), "0.5");
         assert_eq!(backend.get(KEY_NATURAL_SCROLL).await.unwrap(), "true");
         assert_eq!(backend.get(KEY_TAP_TO_CLICK).await.unwrap(), "false");

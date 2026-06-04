@@ -153,7 +153,8 @@ impl DriftPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -205,9 +206,11 @@ fn drift_row<'a>(r: &'a DriftRow, palette: Palette) -> Element<'a, crate::Messag
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(16.0))
             .height(Length::Fixed(16.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -222,7 +225,9 @@ fn drift_row<'a>(r: &'a DriftRow, palette: Palette) -> Element<'a, crate::Messag
         text(format!("#{}", r.event_id))
             .size(10)
             .color(palette.text_muted.into_iced_color()),
-        text(r.peer.clone()).size(11).color(palette.text.into_iced_color()),
+        text(r.peer.clone())
+            .size(11)
+            .color(palette.text.into_iced_color()),
         Space::new().width(Length::Fill),
         text(fmt_epoch_ms(r.timestamp_ms))
             .size(10)
@@ -240,7 +245,8 @@ fn drift_row<'a>(r: &'a DriftRow, palette: Palette) -> Element<'a, crate::Messag
     container(column![head, body].spacing(4))
         .padding(Padding::from([10u16, 14u16]))
         .width(Length::Fill)
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             border: Border {
                 color: border,
@@ -277,9 +283,11 @@ fn empty_state_card<'a>(palette: Palette, error: Option<&'a str>) -> Element<'a,
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(32.0))
             .height(Length::Fixed(32.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -336,18 +344,12 @@ pub fn parse_events(raw: &str) -> Vec<DriftRow> {
     };
     let mut out = Vec::new();
     for entry in top {
-        let event_id = entry
-            .get("event_id")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let event_id = entry.get("event_id").and_then(|v| v.as_u64()).unwrap_or(0);
         let timestamp_ms = entry
             .get("timestamp_ms")
             .and_then(|v| v.as_i64())
             .unwrap_or(0);
-        let payload_str = entry
-            .get("payload")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let payload_str = entry.get("payload").and_then(|v| v.as_str()).unwrap_or("");
         let payload: serde_json::Value =
             serde_json::from_str(payload_str).unwrap_or(serde_json::Value::Null);
         // Heuristic filter: surface anything that looks like
@@ -356,18 +358,12 @@ pub fn parse_events(raw: &str) -> Vec<DriftRow> {
         // present alongside a `message`. Conservative; better
         // to show too much than too little until the reconciler
         // event schema settles.
-        let kind = payload
-            .get("kind")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let kind = payload.get("kind").and_then(|v| v.as_str()).unwrap_or("");
         let severity_str = payload
             .get("severity")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let peer = payload
-            .get("peer")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let peer = payload.get("peer").and_then(|v| v.as_str()).unwrap_or("");
         let message = payload
             .get("message")
             .and_then(|v| v.as_str())
@@ -433,7 +429,10 @@ mod tests {
         assert_eq!(DriftSeverity::from_str("WARNING"), DriftSeverity::Warn);
         assert_eq!(DriftSeverity::from_str("error"), DriftSeverity::Error);
         assert_eq!(DriftSeverity::from_str("info"), DriftSeverity::Info);
-        assert_eq!(DriftSeverity::from_str("anything-else"), DriftSeverity::Info);
+        assert_eq!(
+            DriftSeverity::from_str("anything-else"),
+            DriftSeverity::Info
+        );
     }
 
     #[test]

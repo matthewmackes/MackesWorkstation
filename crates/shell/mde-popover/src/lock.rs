@@ -21,8 +21,8 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use iced::widget::{column, container, mouse_area, row, text, Space};
 use iced::widget::container::Style as ContainerStyle;
+use iced::widget::{column, container, mouse_area, row, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Subscription, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
@@ -30,13 +30,43 @@ use iced_layershell::to_layer_message;
 
 // ── Design tokens (Classic ChromeOS, §3 lock) ─────────────────────────────────
 
-const CHARCOAL: Color = Color { r: 0.125, g: 0.129, b: 0.141, a: 1.0 };
+const CHARCOAL: Color = Color {
+    r: 0.125,
+    g: 0.129,
+    b: 0.141,
+    a: 1.0,
+};
 const FG: Color = Color::WHITE;
-const FG_DIM: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.55 };
-const FG_LABEL: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.35 };
-const ACCENT: Color = Color { r: 0.357, g: 0.416, b: 0.961, a: 1.0 }; // indigo
-const DOT_UP: Color = Color { r: 0.345, g: 0.871, b: 0.475, a: 1.0 }; // soft green
-const DOT_DOWN: Color = Color { r: 0.498, g: 0.498, b: 0.498, a: 1.0 };
+const FG_DIM: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.55,
+};
+const FG_LABEL: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.35,
+};
+const ACCENT: Color = Color {
+    r: 0.357,
+    g: 0.416,
+    b: 0.961,
+    a: 1.0,
+}; // indigo
+const DOT_UP: Color = Color {
+    r: 0.345,
+    g: 0.871,
+    b: 0.475,
+    a: 1.0,
+}; // soft green
+const DOT_DOWN: Color = Color {
+    r: 0.498,
+    g: 0.498,
+    b: 0.498,
+    a: 1.0,
+};
 
 // ── Crossfade (ANIM-7.d, Q48) ─────────────────────────────────────────────────
 // 200 ms grid tier (sway-native-shell.md Q3 timing grid).
@@ -52,7 +82,10 @@ enum FadePhase {
 }
 
 fn fade_color(c: Color, opacity: f32) -> Color {
-    Color { a: c.a * opacity, ..c }
+    Color {
+        a: c.a * opacity,
+        ..c
+    }
 }
 
 // ── Data collection ───────────────────────────────────────────────────────────
@@ -164,8 +197,7 @@ fn weekday_short(y: i32, m: u32, d: u32) -> &'static str {
 }
 
 const MONTH_NAMES_SHORT: &[&str] = &[
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
 fn format_hm(secs_in_day: u32) -> String {
@@ -264,22 +296,26 @@ fn view(state: &App) -> Element<'_, Message> {
     let fade = state.fade;
 
     let breadcrumb: Element<'_, Message> = row![
-        text("M")
-            .size(13)
-            .color(fade_color(ACCENT, fade)),
+        text("M").size(13).color(fade_color(ACCENT, fade)),
         Space::new().width(Length::Fixed(6.0)),
         text("›").size(13).color(fade_color(FG_LABEL, fade)),
         Space::new().width(Length::Fixed(6.0)),
-        text(state.hostname.clone()).size(13).color(fade_color(FG_DIM, fade)),
+        text(state.hostname.clone())
+            .size(13)
+            .color(fade_color(FG_DIM, fade)),
     ]
     .align_y(iced::Alignment::Center)
     .into();
 
-    let big_clock: Element<'_, Message> =
-        text(state.clock.clone()).size(96).color(fade_color(FG, fade)).into();
+    let big_clock: Element<'_, Message> = text(state.clock.clone())
+        .size(96)
+        .color(fade_color(FG, fade))
+        .into();
 
-    let date_line: Element<'_, Message> =
-        text(state.date.clone()).size(18).color(fade_color(FG_DIM, fade)).into();
+    let date_line: Element<'_, Message> = text(state.date.clone())
+        .size(18)
+        .color(fade_color(FG_DIM, fade))
+        .into();
 
     // ── Indicator row (mesh / net / battery / weather) ────────────────────
     let dot = move |label: &str, up: bool| -> Element<'static, Message> {
@@ -298,7 +334,9 @@ fn view(state: &App) -> Element<'_, Message> {
                     ..Default::default()
                 }),
             Space::new().width(Length::Fixed(6.0)),
-            text(label.to_string()).size(12).color(fade_color(FG_DIM, fade)),
+            text(label.to_string())
+                .size(12)
+                .color(fade_color(FG_DIM, fade)),
         ]
         .align_y(iced::Alignment::Center)
         .into()
@@ -308,7 +346,9 @@ fn view(state: &App) -> Element<'_, Message> {
         Some(p) => row![
             text("bat").size(10).color(fade_color(FG_LABEL, fade)),
             Space::new().width(Length::Fixed(4.0)),
-            text(format!("{p}%")).size(12).color(fade_color(FG_DIM, fade)),
+            text(format!("{p}%"))
+                .size(12)
+                .color(fade_color(FG_DIM, fade)),
         ]
         .align_y(iced::Alignment::Center)
         .into(),
@@ -324,7 +364,9 @@ fn view(state: &App) -> Element<'_, Message> {
         Space::new().width(Length::Fixed(20.0)),
         battery_chip,
         Space::new().width(Length::Fixed(20.0)),
-        text(state.weather.clone()).size(12).color(fade_color(FG_DIM, fade)),
+        text(state.weather.clone())
+            .size(12)
+            .color(fade_color(FG_DIM, fade)),
     ]
     .align_y(iced::Alignment::Center)
     .into();
@@ -341,8 +383,10 @@ fn view(state: &App) -> Element<'_, Message> {
     ]
     .align_x(iced::Alignment::Center);
 
-    let footer: Element<'_, Message> =
-        text("Press Esc or Enter to unlock").size(11).color(fade_color(FG_LABEL, fade)).into();
+    let footer: Element<'_, Message> = text("Press Esc or Enter to unlock")
+        .size(11)
+        .color(fade_color(FG_LABEL, fade))
+        .into();
 
     let centered = column![
         Space::new().height(Length::Fill),
@@ -352,7 +396,12 @@ fn view(state: &App) -> Element<'_, Message> {
         Space::new().height(Length::Fixed(40.0)),
     ]
     .align_x(iced::Alignment::Center)
-    .padding(Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 0.0 });
+    .padding(Padding {
+        top: 0.0,
+        right: 0.0,
+        bottom: 0.0,
+        left: 0.0,
+    });
 
     // mouse_area on the whole surface so an Enter-equivalent
     // click (rare but possible on touch devices) dismisses.
@@ -389,13 +438,12 @@ fn subscription(state: &App) -> Subscription<Message> {
     });
 
     // Tick every 10 s so the clock + battery + mesh dot stay fresh.
-    let tick = iced::time::every(std::time::Duration::from_secs(10))
-        .map(|_| Message::Tick);
+    let tick = iced::time::every(std::time::Duration::from_secs(10)).map(|_| Message::Tick);
 
     // 16 ms fade ticker — active only during In/Out phases (Q48 crossfade).
     if state.phase != FadePhase::Steady {
-        let fade_tick = iced::time::every(std::time::Duration::from_millis(16))
-            .map(|_| Message::FadeStep);
+        let fade_tick =
+            iced::time::every(std::time::Duration::from_millis(16)).map(|_| Message::FadeStep);
         Subscription::batch([keys, tick, fade_tick])
     } else {
         Subscription::batch([keys, tick])
@@ -552,7 +600,9 @@ mod tests {
         match FadePhase::In {
             FadePhase::In => {
                 app.fade = (app.fade + FADE_STEP).min(1.0);
-                if app.fade >= 1.0 { app.phase = FadePhase::Steady; }
+                if app.fade >= 1.0 {
+                    app.phase = FadePhase::Steady;
+                }
             }
             _ => {}
         }
@@ -566,7 +616,9 @@ mod tests {
         app.fade = 1.0 - FADE_STEP * 0.5; // just below 1.0
         app.phase = FadePhase::In;
         app.fade = (app.fade + FADE_STEP).min(1.0);
-        if app.fade >= 1.0 { app.phase = FadePhase::Steady; }
+        if app.fade >= 1.0 {
+            app.phase = FadePhase::Steady;
+        }
         assert_eq!(app.fade, 1.0);
         assert_eq!(app.phase, FadePhase::Steady);
     }

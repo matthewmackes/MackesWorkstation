@@ -136,8 +136,13 @@ pub fn recent_transfers() -> Vec<Transfer> {
 #[must_use]
 pub fn inbox() -> Vec<FileRow> {
     vec![
-        FileRow::local("map2-release-v0.4.2.tar.zst", Mime::Archive, "14.2 MB", "12 s")
-            .with_from("cedar.mesh"),
+        FileRow::local(
+            "map2-release-v0.4.2.tar.zst",
+            Mime::Archive,
+            "14.2 MB",
+            "12 s",
+        )
+        .with_from("cedar.mesh"),
         FileRow::local("meeting-notes-2026-05-18.md", Mime::Doc, "4 KB", "6 min")
             .with_from("pine.mesh"),
         FileRow::local("kitchen-IMG_5611.jpg", Mime::Image, "3.8 MB", "14 min")
@@ -159,12 +164,22 @@ pub fn downloads() -> Vec<FileRow> {
             "38.4 MB",
             "5 min",
         ),
-        FileRow::local("map2-release-v0.4.2.tar.zst", Mime::Archive, "14.2 MB", "12 s")
-            .with_mesh("cedar.mesh"),
+        FileRow::local(
+            "map2-release-v0.4.2.tar.zst",
+            Mime::Archive,
+            "14.2 MB",
+            "12 s",
+        )
+        .with_mesh("cedar.mesh"),
         FileRow::local("fedora-coreos-aarch64.qcow2", Mime::Disk, "684 MB", "2 h"),
         FileRow::local("meeting-notes-2026-05-18.md", Mime::Doc, "4 KB", "6 min")
             .with_mesh("pine.mesh"),
-        FileRow::local("screenshot-2026-05-19-08-52-56.png", Mime::Image, "218 KB", "3 min"),
+        FileRow::local(
+            "screenshot-2026-05-19-08-52-56.png",
+            Mime::Image,
+            "218 KB",
+            "3 min",
+        ),
         FileRow::local("kitchen-IMG_5611.jpg", Mime::Image, "3.8 MB", "14 min")
             .with_mesh("oak.mesh"),
         FileRow::local("projector-warranty.pdf", Mime::Pdf, "210 KB", "1 h")
@@ -211,14 +226,54 @@ pub fn oak_files() -> Vec<FileRow> {
 #[must_use]
 pub fn local_pins() -> Vec<LocalPin> {
     vec![
-        LocalPin { id: "home".into(),   name: "Home".into(),       path: "~/".into(),          icon: PinIcon::Home },
-        LocalPin { id: "docs".into(),   name: "Documents".into(),  path: "~/Documents".into(), icon: PinIcon::Doc2 },
-        LocalPin { id: "pics".into(),   name: "Pictures".into(),   path: "~/Pictures".into(),  icon: PinIcon::Image },
-        LocalPin { id: "music".into(),  name: "Music".into(),      path: "~/Music".into(),     icon: PinIcon::Doc },
-        LocalPin { id: "videos".into(), name: "Videos".into(),     path: "~/Videos".into(),    icon: PinIcon::Player },
-        LocalPin { id: "code".into(),   name: "Code".into(),       path: "~/code".into(),      icon: PinIcon::Rust },
-        LocalPin { id: "root".into(),   name: "Filesystem".into(), path: "/".into(),           icon: PinIcon::Hdd },
-        LocalPin { id: "trash".into(),  name: "Trash".into(),      path: "empty".into(),       icon: PinIcon::Trash },
+        LocalPin {
+            id: "home".into(),
+            name: "Home".into(),
+            path: "~/".into(),
+            icon: PinIcon::Home,
+        },
+        LocalPin {
+            id: "docs".into(),
+            name: "Documents".into(),
+            path: "~/Documents".into(),
+            icon: PinIcon::Doc2,
+        },
+        LocalPin {
+            id: "pics".into(),
+            name: "Pictures".into(),
+            path: "~/Pictures".into(),
+            icon: PinIcon::Image,
+        },
+        LocalPin {
+            id: "music".into(),
+            name: "Music".into(),
+            path: "~/Music".into(),
+            icon: PinIcon::Doc,
+        },
+        LocalPin {
+            id: "videos".into(),
+            name: "Videos".into(),
+            path: "~/Videos".into(),
+            icon: PinIcon::Player,
+        },
+        LocalPin {
+            id: "code".into(),
+            name: "Code".into(),
+            path: "~/code".into(),
+            icon: PinIcon::Rust,
+        },
+        LocalPin {
+            id: "root".into(),
+            name: "Filesystem".into(),
+            path: "/".into(),
+            icon: PinIcon::Hdd,
+        },
+        LocalPin {
+            id: "trash".into(),
+            name: "Trash".into(),
+            path: "empty".into(),
+            icon: PinIcon::Trash,
+        },
     ]
 }
 

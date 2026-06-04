@@ -48,7 +48,9 @@ pub struct SwayConfigWatcherWorker {
 impl SwayConfigWatcherWorker {
     #[must_use]
     pub fn new() -> Self {
-        Self { last_mtimes: HashMap::new() }
+        Self {
+            last_mtimes: HashMap::new(),
+        }
     }
 }
 
@@ -207,15 +209,30 @@ pub fn generate_hardware_overlay(outputs_json: &str) -> String {
     };
 
     for output in arr {
-        let Some(name) = output.get("name").and_then(|v| v.as_str()).filter(|s| !s.is_empty())
+        let Some(name) = output
+            .get("name")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
         else {
             continue;
         };
 
         // Build EDID-based identifier when all three fields are present.
-        let make = output.get("make").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let model = output.get("model").and_then(|v| v.as_str()).unwrap_or("").trim();
-        let serial = output.get("serial").and_then(|v| v.as_str()).unwrap_or("").trim();
+        let make = output
+            .get("make")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let model = output
+            .get("model")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
+        let serial = output
+            .get("serial")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
 
         let identifier = if !make.is_empty() && !model.is_empty() && !serial.is_empty() {
             format!("\"{make} {model} {serial}\"")
@@ -223,10 +240,7 @@ pub fn generate_hardware_overlay(outputs_json: &str) -> String {
             name.to_owned()
         };
 
-        let scale = output
-            .get("scale")
-            .and_then(|v| v.as_f64())
-            .unwrap_or(1.0);
+        let scale = output.get("scale").and_then(|v| v.as_f64()).unwrap_or(1.0);
 
         // Round scale to 2 decimal places so tiny floats (1.000001)
         // don't produce spurious reloads on the next poll.
@@ -250,7 +264,12 @@ pub fn generate_hardware_overlay(outputs_json: &str) -> String {
 /// Path for the hardware overlay config fragment.
 #[must_use]
 pub fn hardware_overlay_path() -> Option<PathBuf> {
-    Some(dirs::config_dir()?.join("sway").join("config.d").join(HARDWARE_CONF_NAME))
+    Some(
+        dirs::config_dir()?
+            .join("sway")
+            .join("config.d")
+            .join(HARDWARE_CONF_NAME),
+    )
 }
 
 /// Call `swaymsg -t get_outputs`, parse, generate, and atomically write
@@ -482,7 +501,11 @@ mod tests {
     #[test]
     fn write_conf_atomic_creates_parent_dirs() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("sway").join("config.d").join("00-hardware.conf");
+        let path = dir
+            .path()
+            .join("sway")
+            .join("config.d")
+            .join("00-hardware.conf");
         write_conf_atomic(&path, "# test\n").unwrap();
         assert!(path.exists());
     }
@@ -534,7 +557,10 @@ mod tests {
         let mut worker = SwayConfigWatcherWorker::new();
         // Prime the worker with the current state.
         let changed_first = worker.scan_for_changes_in(dir.path());
-        assert!(changed_first, "first scan with no prior state looks like new file");
+        assert!(
+            changed_first,
+            "first scan with no prior state looks like new file"
+        );
 
         // Second scan with same file — no change.
         let changed_second = worker.scan_for_changes_in(dir.path());

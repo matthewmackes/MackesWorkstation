@@ -17,7 +17,9 @@
 use std::process::Command;
 
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -72,7 +74,11 @@ pub enum Message {
     /// or surfaces the stderr on failure.
     ConnectToAp(String),
     /// AF-NET-1.a — result of a ConnectToAp shellout.
-    ConnectResult { ssid: String, ok: bool, stderr: String },
+    ConnectResult {
+        ssid: String,
+        ok: bool,
+        stderr: String,
+    },
     /// AF-NET-1.b — password text changed while the inline
     /// prompt row is open.
     PasswordInputChanged(String),
@@ -263,9 +269,7 @@ fn update(state: &mut App, message: Message) -> Task<Message> {
 }
 
 fn view(state: &App) -> Element<'_, Message> {
-    let title = text("Network")
-        .size(15)
-        .color(FG_TEXT);
+    let title = text("Network").size(15).color(FG_TEXT);
     let subtitle_text = if state.status_msg.is_empty() {
         format!(
             "{} active · {} device{}",
@@ -290,12 +294,7 @@ fn view(state: &App) -> Element<'_, Message> {
     ]
     .align_y(iced::alignment::Vertical::Center);
 
-    let mut active_col = column![
-        text("Active connections")
-            .size(11)
-            .color(FG_MUTED),
-    ]
-    .spacing(6);
+    let mut active_col = column![text("Active connections").size(11).color(FG_MUTED),].spacing(6);
     if state.active.is_empty() {
         active_col = active_col.push(empty_card("Not connected."));
     } else {
@@ -304,12 +303,7 @@ fn view(state: &App) -> Element<'_, Message> {
         }
     }
 
-    let mut device_col = column![
-        text("Devices")
-            .size(11)
-            .color(FG_MUTED),
-    ]
-    .spacing(6);
+    let mut device_col = column![text("Devices").size(11).color(FG_MUTED),].spacing(6);
     if state.devices.is_empty() {
         device_col = device_col.push(empty_card("No interfaces."));
     } else {
@@ -324,11 +318,9 @@ fn view(state: &App) -> Element<'_, Message> {
     let wifi_col: Option<Element<'_, Message>> = if state.aps.is_empty() {
         None
     } else {
-        let mut col = column![
-            text(format!("Wi-Fi networks ({})", state.aps.len()))
-                .size(11)
-                .color(FG_MUTED),
-        ]
+        let mut col = column![text(format!("Wi-Fi networks ({})", state.aps.len()))
+            .size(11)
+            .color(FG_MUTED),]
         .spacing(4);
         // AF-NET-1.b — when a password is pending for an
         // SSID, render the inline prompt row at the top of
@@ -463,8 +455,7 @@ fn view(state: &App) -> Element<'_, Message> {
 /// via `Subscription::batch`.
 fn subscription(_state: &App) -> Subscription<Message> {
     use iced::event;
-    let tick = iced::time::every(std::time::Duration::from_secs(4))
-        .map(|_| Message::Refresh);
+    let tick = iced::time::every(std::time::Duration::from_secs(4)).map(|_| Message::Refresh);
     let esc = event::listen_with(|event, status, _window| {
         use iced::keyboard;
         match event {
@@ -485,9 +476,7 @@ fn subscription(_state: &App) -> Subscription<Message> {
 }
 
 fn active_card<'a>(c: &'a ActiveConnection) -> Element<'a, Message> {
-    let title = text(c.name.clone())
-        .size(13)
-        .color(FG_TEXT);
+    let title = text(c.name.clone()).size(13).color(FG_TEXT);
     let detail = text(format!("{} · {} · {}", c.interface, c.conn_type, c.state))
         .size(11)
         .color(FG_MUTED);
@@ -549,14 +538,9 @@ fn device_card<'a>(d: &'a DeviceRow) -> Element<'a, Message> {
 /// AF-NET-1.b — render the inline password-prompt row for a
 /// secured SSID. Press Enter or click Connect to submit;
 /// click Cancel to dismiss.
-fn password_prompt_row<'a>(
-    ssid: &'a str,
-    current: &'a str,
-) -> Element<'a, Message> {
+fn password_prompt_row<'a>(ssid: &'a str, current: &'a str) -> Element<'a, Message> {
     let title = text(ssid.to_string()).size(12).color(FG_TEXT);
-    let hint = text("Password:")
-        .size(11)
-        .color(FG_MUTED);
+    let hint = text("Password:").size(11).color(FG_MUTED);
     let input = iced::widget::text_input("password", current)
         .secure(true)
         .padding(Padding::from([4u16, 8u16]))
@@ -649,11 +633,9 @@ fn ap_card<'a>(ap: &'a AccessPoint) -> Element<'a, Message> {
     .size(10)
     .color(FG_MUTED);
     let bars = signal_bars(ap.signal);
-    let bars_text = text(bars).size(10).color(if ap.in_use {
-        ACCENT
-    } else {
-        FG_MUTED
-    });
+    let bars_text = text(bars)
+        .size(10)
+        .color(if ap.in_use { ACCENT } else { FG_MUTED });
     let signal_label = text(format!("{}%", ap.signal)).size(10).color(FG_FAINT);
 
     // AF-NET-1.a — per-AP Connect button. Hidden for the
@@ -873,18 +855,33 @@ fn nmcli_split(line: &str) -> Vec<String> {
 
 fn scan_active_connections() -> Vec<ActiveConnection> {
     let out = Command::new("nmcli")
-        .args(["-t", "-f", "NAME,DEVICE,TYPE,STATE", "connection", "show", "--active"])
+        .args([
+            "-t",
+            "-f",
+            "NAME,DEVICE,TYPE,STATE",
+            "connection",
+            "show",
+            "--active",
+        ])
         .output()
         .ok();
     match out {
-        Some(o) if o.status.success() => parse_active_connections(&String::from_utf8_lossy(&o.stdout)),
+        Some(o) if o.status.success() => {
+            parse_active_connections(&String::from_utf8_lossy(&o.stdout))
+        }
         _ => Vec::new(),
     }
 }
 
 fn scan_devices() -> Vec<DeviceRow> {
     let out = Command::new("nmcli")
-        .args(["-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"])
+        .args([
+            "-t",
+            "-f",
+            "DEVICE,TYPE,STATE,CONNECTION",
+            "device",
+            "status",
+        ])
         .output()
         .ok();
     match out {
@@ -967,17 +964,19 @@ pub fn run() -> iced_layershell::Result {
         update,
         view,
     )
-    .theme(|_: &App| iced::Theme::custom(
-        "mde-popover-network",
-        iced::theme::Palette {
-            background: SURFACE_BG,
-            text: FG_TEXT,
-            primary: ACCENT,
-            warning: Color::from_rgb(0.96, 0.65, 0.14),
-            success: Color::from_rgb(0.20, 0.80, 0.40),
-            danger: Color::from_rgb(0.92, 0.32, 0.30),
-        },
-    ))
+    .theme(|_: &App| {
+        iced::Theme::custom(
+            "mde-popover-network",
+            iced::theme::Palette {
+                background: SURFACE_BG,
+                text: FG_TEXT,
+                primary: ACCENT,
+                warning: Color::from_rgb(0.96, 0.65, 0.14),
+                success: Color::from_rgb(0.20, 0.80, 0.40),
+                danger: Color::from_rgb(0.92, 0.32, 0.30),
+            },
+        )
+    })
     .subscription(subscription)
     .settings(Settings {
         id: Some("mde-popover-network".to_string()),
@@ -1111,9 +1110,7 @@ mod tests {
         assert!(stderr_indicates_missing_secret(
             "Error: 802-11-wireless-security.psk: secret is required for connecting"
         ));
-        assert!(stderr_indicates_missing_secret(
-            "no secrets were provided"
-        ));
+        assert!(stderr_indicates_missing_secret("no secrets were provided"));
         assert!(stderr_indicates_missing_secret(
             "Error: password is required"
         ));

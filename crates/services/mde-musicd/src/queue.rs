@@ -52,7 +52,8 @@ impl Queue {
     /// The current song-id, if any (clamps a stale cursor).
     #[must_use]
     pub fn current(&self) -> Option<&str> {
-        self.songs.get(self.current.min(self.songs.len().saturating_sub(1)))
+        self.songs
+            .get(self.current.min(self.songs.len().saturating_sub(1)))
             .map(String::as_str)
             .filter(|_| !self.songs.is_empty())
     }
@@ -181,7 +182,10 @@ mod tests {
 
     #[test]
     fn current_clamps_stale_cursor() {
-        let q = Queue { songs: vec!["a".into()], current: 9 };
+        let q = Queue {
+            songs: vec!["a".into()],
+            current: 9,
+        };
         assert_eq!(q.current(), Some("a"));
     }
 

@@ -147,8 +147,7 @@ pub fn publish_clipboard(
         }
     } else {
         let blobs = blob_dir(data_home);
-        std::fs::create_dir_all(&blobs)
-            .with_context(|| format!("mkdir {}", blobs.display()))?;
+        std::fs::create_dir_all(&blobs).with_context(|| format!("mkdir {}", blobs.display()))?;
         let ext = ext_for_mime(selected_mime);
         let blob_ulid = ulid::Ulid::new().to_string();
         let blob_path = blobs.join(format!("{blob_ulid}.{ext}"));
@@ -379,8 +378,24 @@ mod tests {
         let bus_root = tmp.path().join("bus");
         let data_home = tmp.path().to_path_buf();
 
-        publish_clipboard(&bus_root, &data_home, "p", &["text/plain".to_string()], "text/plain", b"a").unwrap();
-        publish_clipboard(&bus_root, &data_home, "p", &["text/plain".to_string()], "text/plain", b"b").unwrap();
+        publish_clipboard(
+            &bus_root,
+            &data_home,
+            "p",
+            &["text/plain".to_string()],
+            "text/plain",
+            b"a",
+        )
+        .unwrap();
+        publish_clipboard(
+            &bus_root,
+            &data_home,
+            "p",
+            &["text/plain".to_string()],
+            "text/plain",
+            b"b",
+        )
+        .unwrap();
 
         let topic_dir = bus_root.join("clipboard/sync");
         let entries: Vec<_> = std::fs::read_dir(&topic_dir).unwrap().collect();

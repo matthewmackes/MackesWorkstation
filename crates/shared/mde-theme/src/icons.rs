@@ -516,7 +516,8 @@ impl ResolvedIcon {
     /// the filled SVG otherwise.
     #[must_use]
     pub fn svg_bytes_for_state(&self, state: IconState) -> &'static [u8] {
-        self.icon.svg_bytes(self.size, state_to_filled(state, self.fill_mode))
+        self.icon
+            .svg_bytes(self.size, state_to_filled(state, self.fill_mode))
     }
 }
 
@@ -560,128 +561,278 @@ fn material_svg_bytes(icon: Icon, svg_size: u32, filled: bool) -> &'static [u8] 
     match icon {
         // ── Navigation surfaces (OnActive — fill variants exist) ──
         Icon::Dashboard => match (svg_size, filled) {
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/dashboard_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/dashboard_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/dashboard_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/dashboard_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/dashboard_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/dashboard_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/dashboard_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/dashboard_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/dashboard_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/dashboard_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/dashboard_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/dashboard_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/dashboard_24px.svg"),
         },
         Icon::Apps => match (svg_size, filled) {
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/apps_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/apps_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/apps_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/apps_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/apps_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/apps_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/apps_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/apps_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/apps_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/apps_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/apps_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/apps_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/apps_24px.svg"),
         },
         Icon::Network => match (svg_size, filled) {
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/network_check_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/network_check_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/network_check_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/network_check_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/network_check_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/network_check_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/network_check_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/network_check_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/network_check_40px.svg")
+            }
+            (20, true) => include_bytes!(
+                "../../../../assets/icons/material-symbols/network_check_fill1_20px.svg"
+            ),
+            (24, true) => include_bytes!(
+                "../../../../assets/icons/material-symbols/network_check_fill1_24px.svg"
+            ),
+            (40, true) => include_bytes!(
+                "../../../../assets/icons/material-symbols/network_check_fill1_40px.svg"
+            ),
             _ => include_bytes!("../../../../assets/icons/material-symbols/network_check_24px.svg"),
         },
         Icon::Devices => match (svg_size, filled) {
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/devices_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/devices_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/devices_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/devices_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/devices_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/devices_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/devices_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/devices_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/devices_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/devices_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/devices_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/devices_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/devices_24px.svg"),
         },
         Icon::LookAndFeel | Icon::Themes => match (svg_size, filled) {
             // Both LookAndFeel + Themes map to `palette`; only
             // LookAndFeel is OnActive so the filled arms are only
             // reached through that variant.
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/palette_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/palette_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/palette_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/palette_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/palette_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/palette_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/palette_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/palette_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/palette_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/palette_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/palette_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/palette_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/palette_24px.svg"),
         },
         Icon::System | Icon::Settings => match (svg_size, filled) {
             // Both System + Settings map to `settings`; only System
             // is OnActive.
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/settings_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/settings_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/settings_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/settings_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/settings_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/settings_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/settings_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/settings_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/settings_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/settings_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/settings_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/settings_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/settings_24px.svg"),
         },
         Icon::Maintain | Icon::Repair => match (svg_size, filled) {
             // Both Maintain + Repair map to `build`; only Maintain
             // is OnActive.
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/build_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/build_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/build_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/build_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/build_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/build_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/build_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/build_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/build_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/build_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/build_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/build_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/build_24px.svg"),
         },
         Icon::Fleet => match (svg_size, filled) {
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/public_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/public_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/public_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/public_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/public_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/public_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/public_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/public_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/public_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/public_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/public_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/public_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/public_24px.svg"),
         },
         Icon::Help | Icon::StatusUnknown => match (svg_size, filled) {
             // Both Help (OnActive) + StatusUnknown (AlwaysFill)
             // map to `help`.
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/help_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/help_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/help_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/help_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/help_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/help_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/help_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/help_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/help_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/help_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/help_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/help_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/help_24px.svg"),
         },
         Icon::Files => match (svg_size, filled) {
-            (20, false) => include_bytes!("../../../../assets/icons/material-symbols/folder_20px.svg"),
-            (24, false) => include_bytes!("../../../../assets/icons/material-symbols/folder_24px.svg"),
-            (40, false) => include_bytes!("../../../../assets/icons/material-symbols/folder_40px.svg"),
-            (20, true) => include_bytes!("../../../../assets/icons/material-symbols/folder_fill1_20px.svg"),
-            (24, true) => include_bytes!("../../../../assets/icons/material-symbols/folder_fill1_24px.svg"),
-            (40, true) => include_bytes!("../../../../assets/icons/material-symbols/folder_fill1_40px.svg"),
+            (20, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/folder_20px.svg")
+            }
+            (24, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/folder_24px.svg")
+            }
+            (40, false) => {
+                include_bytes!("../../../../assets/icons/material-symbols/folder_40px.svg")
+            }
+            (20, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/folder_fill1_20px.svg")
+            }
+            (24, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/folder_fill1_24px.svg")
+            }
+            (40, true) => {
+                include_bytes!("../../../../assets/icons/material-symbols/folder_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/folder_24px.svg"),
         },
 
         // ── Always-filled icons (status + bell + playbook) ──
         Icon::Notification => match svg_size {
-            20 => include_bytes!("../../../../assets/icons/material-symbols/notifications_fill1_20px.svg"),
-            24 => include_bytes!("../../../../assets/icons/material-symbols/notifications_fill1_24px.svg"),
-            40 => include_bytes!("../../../../assets/icons/material-symbols/notifications_fill1_40px.svg"),
-            _ => include_bytes!("../../../../assets/icons/material-symbols/notifications_fill1_24px.svg"),
+            20 => include_bytes!(
+                "../../../../assets/icons/material-symbols/notifications_fill1_20px.svg"
+            ),
+            24 => include_bytes!(
+                "../../../../assets/icons/material-symbols/notifications_fill1_24px.svg"
+            ),
+            40 => include_bytes!(
+                "../../../../assets/icons/material-symbols/notifications_fill1_40px.svg"
+            ),
+            _ => include_bytes!(
+                "../../../../assets/icons/material-symbols/notifications_fill1_24px.svg"
+            ),
         },
         Icon::Playbook => match svg_size {
-            20 => include_bytes!("../../../../assets/icons/material-symbols/play_arrow_fill1_20px.svg"),
-            24 => include_bytes!("../../../../assets/icons/material-symbols/play_arrow_fill1_24px.svg"),
-            40 => include_bytes!("../../../../assets/icons/material-symbols/play_arrow_fill1_40px.svg"),
-            _ => include_bytes!("../../../../assets/icons/material-symbols/play_arrow_fill1_24px.svg"),
+            20 => include_bytes!(
+                "../../../../assets/icons/material-symbols/play_arrow_fill1_20px.svg"
+            ),
+            24 => include_bytes!(
+                "../../../../assets/icons/material-symbols/play_arrow_fill1_24px.svg"
+            ),
+            40 => include_bytes!(
+                "../../../../assets/icons/material-symbols/play_arrow_fill1_40px.svg"
+            ),
+            _ => include_bytes!(
+                "../../../../assets/icons/material-symbols/play_arrow_fill1_24px.svg"
+            ),
         },
         Icon::StatusOk => match svg_size {
-            20 => include_bytes!("../../../../assets/icons/material-symbols/check_circle_fill1_20px.svg"),
-            24 => include_bytes!("../../../../assets/icons/material-symbols/check_circle_fill1_24px.svg"),
-            40 => include_bytes!("../../../../assets/icons/material-symbols/check_circle_fill1_40px.svg"),
-            _ => include_bytes!("../../../../assets/icons/material-symbols/check_circle_fill1_24px.svg"),
+            20 => include_bytes!(
+                "../../../../assets/icons/material-symbols/check_circle_fill1_20px.svg"
+            ),
+            24 => include_bytes!(
+                "../../../../assets/icons/material-symbols/check_circle_fill1_24px.svg"
+            ),
+            40 => include_bytes!(
+                "../../../../assets/icons/material-symbols/check_circle_fill1_40px.svg"
+            ),
+            _ => include_bytes!(
+                "../../../../assets/icons/material-symbols/check_circle_fill1_24px.svg"
+            ),
         },
         Icon::StatusWarning => match svg_size {
-            20 => include_bytes!("../../../../assets/icons/material-symbols/warning_fill1_20px.svg"),
-            24 => include_bytes!("../../../../assets/icons/material-symbols/warning_fill1_24px.svg"),
-            40 => include_bytes!("../../../../assets/icons/material-symbols/warning_fill1_40px.svg"),
+            20 => {
+                include_bytes!("../../../../assets/icons/material-symbols/warning_fill1_20px.svg")
+            }
+            24 => {
+                include_bytes!("../../../../assets/icons/material-symbols/warning_fill1_24px.svg")
+            }
+            40 => {
+                include_bytes!("../../../../assets/icons/material-symbols/warning_fill1_40px.svg")
+            }
             _ => include_bytes!("../../../../assets/icons/material-symbols/warning_fill1_24px.svg"),
         },
         Icon::StatusError => match svg_size {
@@ -692,166 +843,253 @@ fn material_svg_bytes(icon: Icon, svg_size: u32, filled: bool) -> &'static [u8] 
         },
 
         // ── Never-filled icons (outlined-only) ──
-        Icon::Snapshot => pick_3(svg_size,
+        Icon::Snapshot => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/save_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/save_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/save_40px.svg")),
-        Icon::Peer => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/save_40px.svg"),
+        ),
+        Icon::Peer => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/memory_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/memory_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/memory_40px.svg")),
-        Icon::Logs | Icon::Session => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/memory_40px.svg"),
+        ),
+        Icon::Logs | Icon::Session => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/list_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/list_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/list_40px.svg")),
-        Icon::Update => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/list_40px.svg"),
+        ),
+        Icon::Update => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/rocket_launch_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/rocket_launch_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/rocket_launch_40px.svg")),
-        Icon::Sound => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/rocket_launch_40px.svg"),
+        ),
+        Icon::Sound => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/volume_up_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/volume_up_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/volume_up_40px.svg")),
-        Icon::Display => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/volume_up_40px.svg"),
+        ),
+        Icon::Display => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/desktop_windows_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/desktop_windows_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/desktop_windows_40px.svg")),
-        Icon::Printer => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/desktop_windows_40px.svg"),
+        ),
+        Icon::Printer => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/print_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/print_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/print_40px.svg")),
-        Icon::Power => pick_3(svg_size,
-            include_bytes!("../../../../assets/icons/material-symbols/battery_charging_full_20px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/battery_charging_full_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/battery_charging_full_40px.svg")),
-        Icon::Removable => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/print_40px.svg"),
+        ),
+        Icon::Power => pick_3(
+            svg_size,
+            include_bytes!(
+                "../../../../assets/icons/material-symbols/battery_charging_full_20px.svg"
+            ),
+            include_bytes!(
+                "../../../../assets/icons/material-symbols/battery_charging_full_24px.svg"
+            ),
+            include_bytes!(
+                "../../../../assets/icons/material-symbols/battery_charging_full_40px.svg"
+            ),
+        ),
+        Icon::Removable => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/usb_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/usb_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/usb_40px.svg")),
-        Icon::Clock => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/usb_40px.svg"),
+        ),
+        Icon::Clock => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/schedule_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/schedule_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/schedule_40px.svg")),
-        Icon::Wallpaper => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/schedule_40px.svg"),
+        ),
+        Icon::Wallpaper => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/image_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/image_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/image_40px.svg")),
-        Icon::Fonts => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/image_40px.svg"),
+        ),
+        Icon::Fonts => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/text_fields_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/text_fields_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/text_fields_40px.svg")),
-        Icon::Wifi => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/text_fields_40px.svg"),
+        ),
+        Icon::Wifi => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/wifi_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/wifi_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/wifi_40px.svg")),
-        Icon::Vpn => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/wifi_40px.svg"),
+        ),
+        Icon::Vpn => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/vpn_lock_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/vpn_lock_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/vpn_lock_40px.svg")),
-        Icon::Firewall => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/vpn_lock_40px.svg"),
+        ),
+        Icon::Firewall => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/security_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/security_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/security_40px.svg")),
-        Icon::History => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/security_40px.svg"),
+        ),
+        Icon::History => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/history_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/history_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/history_40px.svg")),
-        Icon::Inventory => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/history_40px.svg"),
+        ),
+        Icon::Inventory => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/checklist_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/checklist_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/checklist_40px.svg")),
-        Icon::Workbench => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/checklist_40px.svg"),
+        ),
+        Icon::Workbench => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/handyman_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/handyman_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/handyman_40px.svg")),
-        Icon::WindowMinimize => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/handyman_40px.svg"),
+        ),
+        Icon::WindowMinimize => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/remove_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/remove_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/remove_40px.svg")),
-        Icon::WindowMaximize => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/remove_40px.svg"),
+        ),
+        Icon::WindowMaximize => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/fullscreen_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/fullscreen_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/fullscreen_40px.svg")),
-        Icon::WindowClose | Icon::Cancel => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/fullscreen_40px.svg"),
+        ),
+        Icon::WindowClose | Icon::Cancel => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/close_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/close_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/close_40px.svg")),
-        Icon::Refresh => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/close_40px.svg"),
+        ),
+        Icon::Refresh => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/refresh_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/refresh_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/refresh_40px.svg")),
-        Icon::Add => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/refresh_40px.svg"),
+        ),
+        Icon::Add => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/add_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/add_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/add_40px.svg")),
-        Icon::Delete => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/add_40px.svg"),
+        ),
+        Icon::Delete => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/delete_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/delete_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/delete_40px.svg")),
-        Icon::Edit => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/delete_40px.svg"),
+        ),
+        Icon::Edit => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/edit_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/edit_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/edit_40px.svg")),
-        Icon::Confirm => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/edit_40px.svg"),
+        ),
+        Icon::Confirm => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/check_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/check_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/check_40px.svg")),
-        Icon::Search => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/check_40px.svg"),
+        ),
+        Icon::Search => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/search_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/search_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/search_40px.svg")),
-        Icon::ChevronRight => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/search_40px.svg"),
+        ),
+        Icon::ChevronRight => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/chevron_right_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/chevron_right_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/chevron_right_40px.svg")),
-        Icon::ChevronDown => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/chevron_right_40px.svg"),
+        ),
+        Icon::ChevronDown => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/expand_more_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/expand_more_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/expand_more_40px.svg")),
+            include_bytes!("../../../../assets/icons/material-symbols/expand_more_40px.svg"),
+        ),
 
         // ── File-type icons (CR-3.c, never-filled) ──
-        Icon::Document => pick_3(svg_size,
+        Icon::Document => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/description_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/description_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/description_40px.svg")),
-        Icon::DocumentBlank => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/description_40px.svg"),
+        ),
+        Icon::DocumentBlank => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/draft_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/draft_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/draft_40px.svg")),
+            include_bytes!("../../../../assets/icons/material-symbols/draft_40px.svg"),
+        ),
         // Icon::Image shares the `image` SVG with Icon::Wallpaper.
-        Icon::Image => pick_3(svg_size,
+        Icon::Image => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/image_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/image_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/image_40px.svg")),
-        Icon::Pdf => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/image_40px.svg"),
+        ),
+        Icon::Pdf => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/picture_as_pdf_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/picture_as_pdf_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/picture_as_pdf_40px.svg")),
-        Icon::Code => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/picture_as_pdf_40px.svg"),
+        ),
+        Icon::Code => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/code_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/code_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/code_40px.svg")),
-        Icon::Audio => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/code_40px.svg"),
+        ),
+        Icon::Audio => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/audio_file_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/audio_file_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/audio_file_40px.svg")),
-        Icon::Video => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/audio_file_40px.svg"),
+        ),
+        Icon::Video => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/video_file_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/video_file_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/video_file_40px.svg")),
-        Icon::Archive => pick_3(svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/video_file_40px.svg"),
+        ),
+        Icon::Archive => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/folder_zip_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/folder_zip_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/folder_zip_40px.svg")),
+            include_bytes!("../../../../assets/icons/material-symbols/folder_zip_40px.svg"),
+        ),
         // Icon::Folder shares the `folder` SVG with Icon::Files.
-        Icon::Folder => pick_3(svg_size,
+        Icon::Folder => pick_3(
+            svg_size,
             include_bytes!("../../../../assets/icons/material-symbols/folder_20px.svg"),
             include_bytes!("../../../../assets/icons/material-symbols/folder_24px.svg"),
-            include_bytes!("../../../../assets/icons/material-symbols/folder_40px.svg")),
+            include_bytes!("../../../../assets/icons/material-symbols/folder_40px.svg"),
+        ),
     }
 }
 
-const fn pick_3(svg_size: u32, b20: &'static [u8], b24: &'static [u8], b40: &'static [u8]) -> &'static [u8] {
+const fn pick_3(
+    svg_size: u32,
+    b20: &'static [u8],
+    b24: &'static [u8],
+    b40: &'static [u8],
+) -> &'static [u8] {
     match svg_size {
         20 => b20,
         24 => b24,
@@ -935,11 +1173,7 @@ pub fn icon_for_mime(mime: &str) -> Icon {
         | "application/javascript"
         | "application/typescript" => Icon::Code,
         // Common code MIME types carried under text/* (RFC 2046).
-        "text/html"
-        | "text/css"
-        | "text/javascript"
-        | "text/typescript"
-        | "text/xml" => Icon::Code,
+        "text/html" | "text/css" | "text/javascript" | "text/typescript" | "text/xml" => Icon::Code,
         // text/x-* is the convention for non-standard source files.
         m if m.starts_with("text/x-") => Icon::Code,
         // Remaining text/* (plain text, CSV, Markdown, …) → Document.

@@ -38,9 +38,7 @@ impl Profile {
             Self::Lighthouse => {
                 "routing-only mesh node (nebula + mackesd + read-only mesh-home); no desktop"
             }
-            Self::Headless => {
-                "headless peer (mesh-home brick + fleet + monitoring); no desktop"
-            }
+            Self::Headless => "headless peer (mesh-home brick + fleet + monitoring); no desktop",
             Self::Full => "full workstation (everything above + the sway desktop)",
         }
     }

@@ -12,7 +12,9 @@ use std::path::PathBuf;
 use iced::widget::button::Status as ButtonStatus;
 use iced::widget::{button, column, row, text, text_editor, text_input, Space};
 use iced::{alignment, Background, Border, Color, Element, Length, Task};
-use mde_theme::{CardState, Density, EmptyState, FontSize, Icon, ObjectCard, Palette, Radii, TypeRole};
+use mde_theme::{
+    CardState, Density, EmptyState, FontSize, Icon, ObjectCard, Palette, Radii, TypeRole,
+};
 
 use crate::panel_chrome::{empty_state, object_card, panel_container};
 
@@ -299,10 +301,7 @@ pub enum Message {
 fn bus_root() -> Option<PathBuf> {
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(|h| PathBuf::from(h).join(".local").join("share"))
-        })
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")))
         .map(|d| d.join("mde").join("bus"))
 }
 
@@ -414,9 +413,9 @@ async fn stat_topic_dir(name: String, dir: &PathBuf) -> TopicInfo {
 /// Load the 5 most-recent messages from a topic directory.
 async fn load_topic_messages(topic: String) -> Result<Vec<TopicMessage>, String> {
     let root = bus_root().ok_or_else(|| "no data dir".to_string())?;
-    let topic_dir = root.join("topics").join(
-        std::path::Path::new(&topic.replace('/', &std::path::MAIN_SEPARATOR.to_string())),
-    );
+    let topic_dir = root.join("topics").join(std::path::Path::new(
+        &topic.replace('/', &std::path::MAIN_SEPARATOR.to_string()),
+    ));
 
     let mut files: Vec<(i64, PathBuf)> = Vec::new();
     if let Ok(mut rd) = tokio::fs::read_dir(&topic_dir).await {
@@ -487,9 +486,7 @@ fn format_relative_time(ms: i64) -> String {
 async fn load_subs() -> Result<(Vec<String>, Vec<String>), String> {
     let root = bus_root().ok_or_else(|| "no data dir".to_string())?;
     let path = root.join("subs.yaml");
-    let txt = tokio::fs::read_to_string(&path)
-        .await
-        .unwrap_or_default();
+    let txt = tokio::fs::read_to_string(&path).await.unwrap_or_default();
     let manifest: SubsYaml = serde_yaml::from_str(&txt).unwrap_or_default();
     Ok((manifest.topics, manifest.mute))
 }
@@ -523,24 +520,19 @@ async fn sub_remove(topic: String) -> Result<(), String> {
 fn hooks_config_path() -> Option<PathBuf> {
     std::env::var_os("XDG_CONFIG_HOME")
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(|h| PathBuf::from(h).join(".config"))
-        })
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
         .map(|d| d.join("mde").join("bus-hooks.yaml"))
 }
 
 async fn load_hooks() -> Result<String, String> {
-    let path =
-        hooks_config_path().ok_or_else(|| "no config dir".to_string())?;
+    let path = hooks_config_path().ok_or_else(|| "no config dir".to_string())?;
     tokio::fs::read_to_string(&path)
         .await
         .or_else(|_| Ok(String::new()))
 }
 
 async fn save_hooks(text: String) -> Result<(), String> {
-    let path =
-        hooks_config_path().ok_or_else(|| "no config dir".to_string())?;
+    let path = hooks_config_path().ok_or_else(|| "no config dir".to_string())?;
     if let Some(parent) = path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
@@ -570,8 +562,7 @@ async fn match_peer_subs(peer: String) -> Result<Vec<String>, String> {
     let txt = tokio::fs::read_to_string(&peer_subs)
         .await
         .map_err(|e| format!("peer @{peer} not reachable via mesh storage: {e}"))?;
-    let manifest: SubsYaml = serde_yaml::from_str(&txt)
-        .map_err(|e| e.to_string())?;
+    let manifest: SubsYaml = serde_yaml::from_str(&txt).map_err(|e| e.to_string())?;
     // Merge into local subs.yaml — add any topic not yet subscribed.
     let root = bus_root().ok_or_else(|| "no data dir".to_string())?;
     let local_path = root.join("subs.yaml");
@@ -614,8 +605,7 @@ async fn load_dnd() -> Result<(DndStatusJson, String, String), String> {
         let path = root.join("subs.yaml");
         match tokio::fs::read_to_string(&path).await {
             Ok(txt) => {
-                let manifest: SubsYaml =
-                    serde_yaml::from_str(&txt).unwrap_or_default();
+                let manifest: SubsYaml = serde_yaml::from_str(&txt).unwrap_or_default();
                 if let Some(qh) = manifest.quiet_hours {
                     (qh.start, qh.end)
                 } else {
@@ -678,19 +668,13 @@ impl MeshBusPanel {
         match msg {
             Message::SelectTab(tab) => {
                 self.active_tab = tab;
-                if tab == Tab::Topics
-                    && !self.topics.loaded
-                    && !self.topics.loading
-                {
+                if tab == Tab::Topics && !self.topics.loaded && !self.topics.loading {
                     self.topics.loading = true;
                     return Task::perform(load_topics(), |r| {
                         crate::Message::MeshBus(Message::TopicsLoaded(r))
                     });
                 }
-                if tab == Tab::Subscriptions
-                    && !self.subs.loaded
-                    && !self.subs.loading
-                {
+                if tab == Tab::Subscriptions && !self.subs.loaded && !self.subs.loading {
                     self.subs.loading = true;
                     return Task::perform(load_subs(), |r| {
                         crate::Message::MeshBus(Message::SubsLoaded(r))
@@ -806,8 +790,7 @@ impl MeshBusPanel {
 
             Message::HooksSampleInserted(idx) => {
                 if let Some(sample) = HOOK_SAMPLES.get(idx) {
-                    self.hooks.content =
-                        text_editor::Content::with_text(sample.yaml);
+                    self.hooks.content = text_editor::Content::with_text(sample.yaml);
                     self.hooks.validate();
                 }
                 Task::none()
@@ -843,27 +826,23 @@ impl MeshBusPanel {
                 })
             }
 
-            Message::SubsAddDone(result) => {
-                match result {
-                    Ok(()) => {
-                        self.subs.loaded = false;
-                        self.subs.loading = true;
-                        Task::perform(load_subs(), |r| {
-                            crate::Message::MeshBus(Message::SubsLoaded(r))
-                        })
-                    }
-                    Err(e) => {
-                        self.subs.error = Some(e);
-                        Task::none()
-                    }
+            Message::SubsAddDone(result) => match result {
+                Ok(()) => {
+                    self.subs.loaded = false;
+                    self.subs.loading = true;
+                    Task::perform(load_subs(), |r| {
+                        crate::Message::MeshBus(Message::SubsLoaded(r))
+                    })
                 }
-            }
+                Err(e) => {
+                    self.subs.error = Some(e);
+                    Task::none()
+                }
+            },
 
-            Message::SubsRemoveClicked(topic) => {
-                Task::perform(sub_remove(topic), |r| {
-                    crate::Message::MeshBus(Message::SubsRemoveDone(r))
-                })
-            }
+            Message::SubsRemoveClicked(topic) => Task::perform(sub_remove(topic), |r| {
+                crate::Message::MeshBus(Message::SubsRemoveDone(r))
+            }),
 
             Message::SubsRemoveDone(result) => match result {
                 Ok(()) => {
@@ -1046,7 +1025,8 @@ impl MeshBusPanel {
                             },
                             _ => bg,
                         };
-                        button::Style { snap: false,
+                        button::Style {
+                            snap: false,
                             background: Some(Background::Color(fill)),
                             text_color: fg,
                             border: Border {
@@ -1068,7 +1048,8 @@ impl MeshBusPanel {
         let tab_separator = {
             use iced::widget::container;
             container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
-                .style(move |_t: &iced::Theme| iced::widget::container::Style { snap: false,
+                .style(move |_t: &iced::Theme| iced::widget::container::Style {
+                    snap: false,
                     background: Some(Background::Color(raised)),
                     ..Default::default()
                 })
@@ -1108,11 +1089,7 @@ impl MeshBusPanel {
         panel_container(content.into(), density)
     }
 
-    fn view_topics_tab(
-        &self,
-        palette: Palette,
-        sizes: FontSize,
-    ) -> Element<'_, crate::Message> {
+    fn view_topics_tab(&self, palette: Palette, sizes: FontSize) -> Element<'_, crate::Message> {
         if self.topics.loading {
             return text("Loading…")
                 .size(TypeRole::Body.size_in(sizes))
@@ -1175,7 +1152,8 @@ impl MeshBusPanel {
 
             let card_btn: Element<'_, crate::Message> = button(object_card(card, palette))
                 .padding(0)
-                .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+                .style(move |_t, _s: ButtonStatus| button::Style {
+                    snap: false,
                     background: None,
                     text_color: Color::TRANSPARENT,
                     border: Border {
@@ -1234,8 +1212,14 @@ impl MeshBusPanel {
                     let msg_list = column(msg_rows).spacing(10);
                     items.push(
                         container(msg_list)
-                            .padding(iced::Padding { top: 8.0, right: 16.0, bottom: 8.0, left: 16.0 })
-                            .style(move |_t: &iced::Theme| iced::widget::container::Style { snap: false,
+                            .padding(iced::Padding {
+                                top: 8.0,
+                                right: 16.0,
+                                bottom: 8.0,
+                                left: 16.0,
+                            })
+                            .style(move |_t: &iced::Theme| iced::widget::container::Style {
+                                snap: false,
                                 background: Some(Background::Color(raised)),
                                 border: Border {
                                     color: Color::TRANSPARENT,
@@ -1256,7 +1240,12 @@ impl MeshBusPanel {
             items.push(
                 text(format!("Error: {e}"))
                     .size(TypeRole::Caption.size_in(sizes))
-                    .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 })
+                    .color(Color {
+                        r: 0.9,
+                        g: 0.2,
+                        b: 0.2,
+                        a: 1.0,
+                    })
                     .into(),
             );
         }
@@ -1331,14 +1320,20 @@ impl MeshBusPanel {
                             .color(label_color),
                     )
                     .padding([2u16, 8u16])
-                    .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+                    .style(move |_t, _s: ButtonStatus| button::Style {
+                        snap: false,
                         background: Some(Background::Color(Color {
                             r: 0.8,
                             g: 0.1,
                             b: 0.1,
                             a: 0.12,
                         })),
-                        text_color: Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 },
+                        text_color: Color {
+                            r: 0.9,
+                            g: 0.2,
+                            b: 0.2,
+                            a: 1.0,
+                        },
                         border: Border {
                             color: Color::TRANSPARENT,
                             width: 0.0,
@@ -1351,12 +1346,10 @@ impl MeshBusPanel {
                     )))
                     .into();
 
-                    let mut row_items: Vec<Element<'_, crate::Message>> = vec![
-                        text(t.as_str())
-                            .size(TypeRole::Body.size_in(sizes))
-                            .color(label_color)
-                            .into(),
-                    ];
+                    let mut row_items: Vec<Element<'_, crate::Message>> = vec![text(t.as_str())
+                        .size(TypeRole::Body.size_in(sizes))
+                        .color(label_color)
+                        .into()];
                     if let Some(mn) = mute_note {
                         row_items.push(Space::new().width(8).into());
                         row_items.push(mn);
@@ -1364,9 +1357,7 @@ impl MeshBusPanel {
                     row_items.push(Space::new().width(Length::Fill).into());
                     row_items.push(remove_btn);
 
-                    row(row_items)
-                        .align_y(iced::Alignment::Center)
-                        .into()
+                    row(row_items).align_y(iced::Alignment::Center).into()
                 })
                 .collect()
         };
@@ -1387,7 +1378,8 @@ impl MeshBusPanel {
                 .color(Color::WHITE),
         )
         .padding([6u16, 14u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(accent)),
             text_color: Color::WHITE,
             border: Border {
@@ -1400,31 +1392,25 @@ impl MeshBusPanel {
         .on_press(crate::Message::MeshBus(Message::SubsAddClicked))
         .into();
 
-        let add_row: Element<'_, crate::Message> = row![
-            add_input,
-            Space::new().width(8),
-            add_btn,
-        ]
-        .align_y(iced::Alignment::Center)
-        .into();
+        let add_row: Element<'_, crate::Message> = row![add_input, Space::new().width(8), add_btn,]
+            .align_y(iced::Alignment::Center)
+            .into();
 
         // — Match @peer section —
         let peer_label = text("Copy from peer")
             .size(TypeRole::Subheading.size_in(sizes))
             .color(palette.text.into_iced_color());
 
-        let peer_hint = text(
-            "Copies all subscriptions from another peer's subs.yaml via mesh storage.",
-        )
-        .size(TypeRole::Caption.size_in(sizes))
-        .color(palette.text_muted.into_iced_color());
+        let peer_hint =
+            text("Copies all subscriptions from another peer's subs.yaml via mesh storage.")
+                .size(TypeRole::Caption.size_in(sizes))
+                .color(palette.text_muted.into_iced_color());
 
-        let peer_input: Element<'_, crate::Message> =
-            text_input("hostname", &self.subs.peer_input)
-                .on_input(|s| crate::Message::MeshBus(Message::SubsPeerInputChanged(s)))
-                .on_submit(crate::Message::MeshBus(Message::SubsMatchPeerClicked))
-                .width(Length::Fixed(160.0))
-                .into();
+        let peer_input: Element<'_, crate::Message> = text_input("hostname", &self.subs.peer_input)
+            .on_input(|s| crate::Message::MeshBus(Message::SubsPeerInputChanged(s)))
+            .on_submit(crate::Message::MeshBus(Message::SubsMatchPeerClicked))
+            .width(Length::Fixed(160.0))
+            .into();
 
         let match_btn: Element<'_, crate::Message> = button(
             text("Match @peer")
@@ -1432,7 +1418,8 @@ impl MeshBusPanel {
                 .color(palette.text.into_iced_color()),
         )
         .padding([6u16, 14u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(palette.raised.into_iced_color())),
             text_color: palette.text.into_iced_color(),
             border: Border {
@@ -1445,22 +1432,23 @@ impl MeshBusPanel {
         .on_press(crate::Message::MeshBus(Message::SubsMatchPeerClicked))
         .into();
 
-        let peer_row: Element<'_, crate::Message> = row![
-            peer_input,
-            Space::new().width(8),
-            match_btn,
-        ]
-        .align_y(iced::Alignment::Center)
-        .into();
+        let peer_row: Element<'_, crate::Message> =
+            row![peer_input, Space::new().width(8), match_btn,]
+                .align_y(iced::Alignment::Center)
+                .into();
 
         // — Error display —
-        let error_row: Option<Element<'_, crate::Message>> =
-            self.subs.error.as_deref().map(|e| {
-                text(format!("Error: {e}"))
-                    .size(TypeRole::Caption.size_in(sizes))
-                    .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 })
-                    .into()
-            });
+        let error_row: Option<Element<'_, crate::Message>> = self.subs.error.as_deref().map(|e| {
+            text(format!("Error: {e}"))
+                .size(TypeRole::Caption.size_in(sizes))
+                .color(Color {
+                    r: 0.9,
+                    g: 0.2,
+                    b: 0.2,
+                    a: 1.0,
+                })
+                .into()
+        });
 
         let mut col = column![
             list_label,
@@ -1484,11 +1472,7 @@ impl MeshBusPanel {
         col.into()
     }
 
-    fn view_dnd_tab(
-        &self,
-        palette: Palette,
-        sizes: FontSize,
-    ) -> Element<'_, crate::Message> {
+    fn view_dnd_tab(&self, palette: Palette, sizes: FontSize) -> Element<'_, crate::Message> {
         if self.dnd.loading {
             return text("Loading…")
                 .size(TypeRole::Body.size_in(sizes))
@@ -1519,8 +1503,16 @@ impl MeshBusPanel {
         };
 
         let toggle_label = if active { "DND On" } else { "DND Off" };
-        let toggle_bg = if active { accent } else { palette.raised.into_iced_color() };
-        let toggle_fg = if active { Color::WHITE } else { palette.text.into_iced_color() };
+        let toggle_bg = if active {
+            accent
+        } else {
+            palette.raised.into_iced_color()
+        };
+        let toggle_fg = if active {
+            Color::WHITE
+        } else {
+            palette.text.into_iced_color()
+        };
 
         let toggle_btn: Element<'_, crate::Message> = button(
             text(toggle_label)
@@ -1528,7 +1520,8 @@ impl MeshBusPanel {
                 .color(toggle_fg),
         )
         .padding([8u16, 20u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(toggle_bg)),
             text_color: toggle_fg,
             border: Border {
@@ -1566,9 +1559,11 @@ impl MeshBusPanel {
             .size(TypeRole::Subheading.size_in(sizes))
             .color(palette.text.into_iced_color());
 
-        let quiet_hint = text("Messages delivered outside this window only. Leave blank to deliver around the clock.")
-            .size(TypeRole::Caption.size_in(sizes))
-            .color(palette.text_muted.into_iced_color());
+        let quiet_hint = text(
+            "Messages delivered outside this window only. Leave blank to deliver around the clock.",
+        )
+        .size(TypeRole::Caption.size_in(sizes))
+        .color(palette.text_muted.into_iced_color());
 
         let start_input: Element<'_, crate::Message> = text_input("22:00", &self.dnd.quiet_start)
             .on_input(|s| crate::Message::MeshBus(Message::DndQuietStartChanged(s)))
@@ -1583,12 +1578,17 @@ impl MeshBusPanel {
         let save_bg = accent;
         let save_fg = Color::WHITE;
         let save_btn: Element<'_, crate::Message> = button(
-            text(if self.dnd.saving { "Applying…" } else { "Apply" })
-                .size(TypeRole::Body.size_in(sizes))
-                .color(save_fg),
+            text(if self.dnd.saving {
+                "Applying…"
+            } else {
+                "Apply"
+            })
+            .size(TypeRole::Body.size_in(sizes))
+            .color(save_fg),
         )
         .padding([6u16, 16u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(save_bg)),
             text_color: save_fg,
             border: Border {
@@ -1656,13 +1656,17 @@ impl MeshBusPanel {
         };
 
         // — Error display —
-        let error_row: Option<Element<'_, crate::Message>> =
-            self.dnd.error.as_deref().map(|e| {
-                text(format!("Error: {e}"))
-                    .size(TypeRole::Caption.size_in(sizes))
-                    .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 })
-                    .into()
-            });
+        let error_row: Option<Element<'_, crate::Message>> = self.dnd.error.as_deref().map(|e| {
+            text(format!("Error: {e}"))
+                .size(TypeRole::Caption.size_in(sizes))
+                .color(Color {
+                    r: 0.9,
+                    g: 0.2,
+                    b: 0.2,
+                    a: 1.0,
+                })
+                .into()
+        });
 
         let mut col = column![
             toggle_row,
@@ -1686,11 +1690,7 @@ impl MeshBusPanel {
         col.into()
     }
 
-    fn view_hooks_tab(
-        &self,
-        palette: Palette,
-        sizes: FontSize,
-    ) -> Element<'_, crate::Message> {
+    fn view_hooks_tab(&self, palette: Palette, sizes: FontSize) -> Element<'_, crate::Message> {
         if self.hooks.loading {
             return text("Loading…")
                 .size(TypeRole::Body.size_in(sizes))
@@ -1724,7 +1724,8 @@ impl MeshBusPanel {
                         .color(palette.text.into_iced_color()),
                 )
                 .padding([4u16, 10u16])
-                .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+                .style(move |_t, _s: ButtonStatus| button::Style {
+                    snap: false,
                     background: Some(Background::Color(palette.raised.into_iced_color())),
                     text_color: palette.text.into_iced_color(),
                     border: Border {
@@ -1738,14 +1739,28 @@ impl MeshBusPanel {
                 .into(),
             );
         }
-        let sample_row: Element<'_, crate::Message> =
-            row(sample_row_items).spacing(6).align_y(iced::Alignment::Center).into();
+        let sample_row: Element<'_, crate::Message> = row(sample_row_items)
+            .spacing(6)
+            .align_y(iced::Alignment::Center)
+            .into();
 
         // — Apply button —
         let has_error = self.hooks.validation_error.is_some();
-        let apply_bg = if has_error { palette.raised.into_iced_color() } else { accent };
-        let apply_fg = if has_error { palette.text_muted.into_iced_color() } else { Color::WHITE };
-        let apply_label = if self.hooks.saving { "Applying…" } else { "Apply" };
+        let apply_bg = if has_error {
+            palette.raised.into_iced_color()
+        } else {
+            accent
+        };
+        let apply_fg = if has_error {
+            palette.text_muted.into_iced_color()
+        } else {
+            Color::WHITE
+        };
+        let apply_label = if self.hooks.saving {
+            "Applying…"
+        } else {
+            "Apply"
+        };
 
         let apply_btn: Element<'_, crate::Message> = if has_error || self.hooks.saving {
             button(
@@ -1754,7 +1769,8 @@ impl MeshBusPanel {
                     .color(apply_fg),
             )
             .padding([6u16, 16u16])
-            .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+            .style(move |_t, _s: ButtonStatus| button::Style {
+                snap: false,
                 background: Some(Background::Color(apply_bg)),
                 text_color: apply_fg,
                 border: Border {
@@ -1772,7 +1788,8 @@ impl MeshBusPanel {
                     .color(apply_fg),
             )
             .padding([6u16, 16u16])
-            .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+            .style(move |_t, _s: ButtonStatus| button::Style {
+                snap: false,
                 background: Some(Background::Color(apply_bg)),
                 text_color: apply_fg,
                 border: Border {
@@ -1793,7 +1810,12 @@ impl MeshBusPanel {
             items.push(
                 text(format!("⚠ {e}"))
                     .size(TypeRole::Caption.size_in(sizes))
-                    .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 })
+                    .color(Color {
+                        r: 0.9,
+                        g: 0.2,
+                        b: 0.2,
+                        a: 1.0,
+                    })
                     .into(),
             );
         }
@@ -1891,8 +1913,7 @@ mod tests {
     #[test]
     fn dnd_loaded_err_sets_error() {
         let mut panel = MeshBusPanel::new();
-        let _ =
-            panel.update(Message::DndLoaded(Err("mde-bus not found".to_string())));
+        let _ = panel.update(Message::DndLoaded(Err("mde-bus not found".to_string())));
         assert!(panel.dnd.error.is_some());
         assert!(panel.dnd.status.is_none());
         assert!(panel.dnd.loaded);
@@ -2022,14 +2043,12 @@ mod tests {
     #[test]
     fn topics_loaded_ok_populates_list() {
         let mut panel = MeshBusPanel::new();
-        let list = vec![
-            TopicInfo {
-                name: "fleet/announce".to_string(),
-                message_count: 3,
-                last_activity_ms: 1_700_000_000_000,
-                priority: "default".to_string(),
-            },
-        ];
+        let list = vec![TopicInfo {
+            name: "fleet/announce".to_string(),
+            message_count: 3,
+            last_activity_ms: 1_700_000_000_000,
+            priority: "default".to_string(),
+        }];
         let _ = panel.update(Message::TopicsLoaded(Ok(list.clone())));
         assert!(panel.topics.loaded);
         assert!(!panel.topics.loading);
@@ -2202,7 +2221,7 @@ mod tests {
         panel.hooks.loaded = true;
         panel.hooks.content = text_editor::Content::with_text("adapters:\n  x:\n    rules: []\n");
         let _ = panel.update(Message::HooksLoaded(Ok(
-            "adapters:\n  x:\n    rules: []\n".to_string(),
+            "adapters:\n  x:\n    rules: []\n".to_string()
         )));
         let _ = panel.update(Message::HooksSaveClicked);
         assert!(panel.hooks.saving);

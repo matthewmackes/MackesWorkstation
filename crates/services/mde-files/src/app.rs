@@ -376,16 +376,13 @@ impl MdeFiles {
                 }
             }
             Message::MeshFolderUp => {
-                if matches!(self.view, View::MeshHomeChild(_))
-                    && !self.mesh_home_path.is_empty()
-                {
+                if matches!(self.view, View::MeshHomeChild(_)) && !self.mesh_home_path.is_empty() {
                     self.mesh_home_path.pop();
                     self.selection.clear();
                 }
             }
             Message::MeshFolderPop(depth) => {
-                if matches!(self.view, View::MeshHomeChild(_))
-                    && depth < self.mesh_home_path.len()
+                if matches!(self.view, View::MeshHomeChild(_)) && depth < self.mesh_home_path.len()
                 {
                     self.mesh_home_path.truncate(depth);
                     self.selection.clear();
@@ -547,12 +544,10 @@ impl MdeFiles {
                 self.resolve_dialog = None;
                 pending_task = Some(archive_conflict_file(path));
             }
-            Message::ConflictArchived(result) => {
-                match result {
-                    Ok(()) => self.conflict_error = None,
-                    Err(e) => self.conflict_error = Some(e),
-                }
-            }
+            Message::ConflictArchived(result) => match result {
+                Ok(()) => self.conflict_error = None,
+                Err(e) => self.conflict_error = Some(e),
+            },
         }
         self.refresh_snapshot();
         pending_task.unwrap_or_else(Task::none)
@@ -629,7 +624,8 @@ impl MdeFiles {
         })))
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(|_| container::Style { snap: false,
+        .style(|_| container::Style {
+            snap: false,
             background: Some(Background::Color(t::PF_BG_300)),
             border: Border {
                 color: Color::TRANSPARENT,
@@ -658,28 +654,24 @@ impl MdeFiles {
             .count();
         let total = snap.peers.len();
 
-        let root: Element<'_, Message> = container(
-            column![
-                views::titlebar_with_status(online, total),
-                body
-            ]
-            .spacing(0),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| container::Style { snap: false,
-            background: Some(Background::Color(t::WINDOW)),
-            border: Border {
-                color: Color {
-                    a: 0.08,
-                    ..Color::WHITE
-                },
-                width: 1.0,
-                radius: 0.0.into(),
-            },
-            ..container::Style::default()
-        })
-        .into();
+        let root: Element<'_, Message> =
+            container(column![views::titlebar_with_status(online, total), body].spacing(0))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    snap: false,
+                    background: Some(Background::Color(t::WINDOW)),
+                    border: Border {
+                        color: Color {
+                            a: 0.08,
+                            ..Color::WHITE
+                        },
+                        width: 1.0,
+                        radius: 0.0.into(),
+                    },
+                    ..container::Style::default()
+                })
+                .into();
 
         // MESHFS-11.1 — overlay the resolve dialog when active.
         if let Some((orig, sib)) = &self.resolve_dialog {
@@ -884,7 +876,11 @@ fn restore_trash_item(path: String) -> Task<Message> {
                 .status()
                 .map(|s| s.success())
                 .unwrap_or(false);
-            if ok { Ok(()) } else { Err("TRASH-RECOVER failed".to_string()) }
+            if ok {
+                Ok(())
+            } else {
+                Err("TRASH-RECOVER failed".to_string())
+            }
         },
         move |result| Message::TrashRestored(path_msg.clone(), result),
     )
@@ -1006,7 +1002,8 @@ fn empty_state(label: &str) -> Element<'static, Message> {
     )
     .padding(Padding::new(56.0))
     .width(Length::Fill)
-    .style(|_| container::Style { snap: false,
+    .style(|_| container::Style {
+        snap: false,
         background: Some(Background::Color(Color::TRANSPARENT)),
         border: Border {
             color: Color {
@@ -1486,12 +1483,15 @@ mod tests {
         use crate::model::{FileRow, Mime};
 
         let rows = vec![
-            FileRow::local("report.pdf", Mime::Pdf, "100 KB", "now")
-                .with_mesh("oak"),
-            FileRow::local("report.pdf.conflict-20260529-oak", Mime::Pdf, "98 KB", "now")
-                .with_mesh("oak"),
-            FileRow::local("notes.txt", Mime::Doc, "2 KB", "1 h ago")
-                .with_mesh("pine"),
+            FileRow::local("report.pdf", Mime::Pdf, "100 KB", "now").with_mesh("oak"),
+            FileRow::local(
+                "report.pdf.conflict-20260529-oak",
+                Mime::Pdf,
+                "98 KB",
+                "now",
+            )
+            .with_mesh("oak"),
+            FileRow::local("notes.txt", Mime::Doc, "2 KB", "1 h ago").with_mesh("pine"),
         ];
 
         let annotated = annotate_conflict_and_sync(rows, false);
@@ -1517,7 +1517,10 @@ mod tests {
         ];
         let annotated = annotate_conflict_and_sync(rows, true);
         let mesh_row = annotated.iter().find(|r| r.name == "file.txt").unwrap();
-        assert!(mesh_row.syncing, "mesh-homed row must be syncing when healing");
+        assert!(
+            mesh_row.syncing,
+            "mesh-homed row must be syncing when healing"
+        );
         let local_row = annotated.iter().find(|r| r.name == "local.txt").unwrap();
         assert!(!local_row.syncing, "local row must not be syncing");
     }
@@ -1569,7 +1572,10 @@ mod tests {
     #[test]
     fn dismiss_conflict_dialog_closes_dialog() {
         let mut s = MdeFiles::default();
-        let _ = s.update(Message::ConflictResolve("a.txt".into(), "a.txt.conflict-x".into()));
+        let _ = s.update(Message::ConflictResolve(
+            "a.txt".into(),
+            "a.txt.conflict-x".into(),
+        ));
         assert!(s.resolve_dialog.is_some());
         let _ = s.update(Message::DismissConflictDialog);
         assert!(s.resolve_dialog.is_none());
@@ -1580,7 +1586,10 @@ mod tests {
         let mut s = MdeFiles::default();
         s.resolve_dialog = Some(("a.txt".into(), "a.txt.conflict-x".into()));
         let _ = s.update(Message::ArchiveConflictFile("a.txt.conflict-x".into()));
-        assert!(s.resolve_dialog.is_none(), "dialog must close on archive action");
+        assert!(
+            s.resolve_dialog.is_none(),
+            "dialog must close on archive action"
+        );
     }
 
     #[test]

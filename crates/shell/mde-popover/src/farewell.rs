@@ -19,15 +19,20 @@
 use std::str::FromStr;
 
 use clap::Parser;
-use iced::widget::{container, mouse_area, Space};
 use iced::widget::container::Style as ContainerStyle;
+use iced::widget::{container, mouse_area, Space};
 use iced::{Background, Color, Element, Length, Subscription, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
 
 // ── Design token (lock palette §3) ───────────────────────────────────────────
-const CHARCOAL: Color = Color { r: 0.125, g: 0.129, b: 0.141, a: 1.0 };
+const CHARCOAL: Color = Color {
+    r: 0.125,
+    g: 0.129,
+    b: 0.141,
+    a: 1.0,
+};
 
 // ── Timing (sway-native-shell.md Q3 — 200 ms grid tier) ──────────────────────
 const FADE_STEP: f32 = 0.08; // 13 ticks × 16 ms ≈ 208 ms
@@ -60,7 +65,9 @@ impl FromStr for Action {
             "logout" => Ok(Action::Logout),
             "restart" => Ok(Action::Restart),
             "shutdown" => Ok(Action::Shutdown),
-            _ => Err(format!("unknown action {s:?} (expected logout|restart|shutdown)")),
+            _ => Err(format!(
+                "unknown action {s:?} (expected logout|restart|shutdown)"
+            )),
         }
     }
 }
@@ -115,7 +122,10 @@ fn update(state: &mut App, msg: Message) -> Task<Message> {
 
 fn view(state: &App) -> Element<'_, Message> {
     let fade = state.fade;
-    let bg = Color { a: CHARCOAL.a * fade, ..CHARCOAL };
+    let bg = Color {
+        a: CHARCOAL.a * fade,
+        ..CHARCOAL
+    };
 
     mouse_area(
         container(Space::new())
@@ -131,8 +141,7 @@ fn view(state: &App) -> Element<'_, Message> {
 }
 
 fn subscription(_state: &App) -> Subscription<Message> {
-    iced::time::every(std::time::Duration::from_millis(16))
-        .map(|_| Message::FadeStep)
+    iced::time::every(std::time::Duration::from_millis(16)).map(|_| Message::FadeStep)
 }
 
 pub fn run() -> iced_layershell::Result {
@@ -143,29 +152,24 @@ pub fn run() -> iced_layershell::Result {
     });
     tracing::info!(?action, "farewell overlay spawned");
 
-    iced_layershell::application(
-        move || App { action, fade: 0.0 },
-        namespace,
-        update,
-        view,
-    )
-    .theme(|_: &App| iced::Theme::Dark)
-    .subscription(subscription)
-    .settings(Settings {
-        id: Some("mde-popover-farewell".to_string()),
-        fonts: crate::fonts::load_fallback_fonts(),
-        layer_settings: LayerShellSettings {
-            size: None,
-            exclusive_zone: -1,
-            anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
-            margin: (0, 0, 0, 0),
-            layer: Layer::Overlay,
-            keyboard_interactivity: KeyboardInteractivity::Exclusive,
+    iced_layershell::application(move || App { action, fade: 0.0 }, namespace, update, view)
+        .theme(|_: &App| iced::Theme::Dark)
+        .subscription(subscription)
+        .settings(Settings {
+            id: Some("mde-popover-farewell".to_string()),
+            fonts: crate::fonts::load_fallback_fonts(),
+            layer_settings: LayerShellSettings {
+                size: None,
+                exclusive_zone: -1,
+                anchor: Anchor::Top | Anchor::Bottom | Anchor::Left | Anchor::Right,
+                margin: (0, 0, 0, 0),
+                layer: Layer::Overlay,
+                keyboard_interactivity: KeyboardInteractivity::Exclusive,
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    })
-    .run()
+        })
+        .run()
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -229,13 +233,19 @@ mod tests {
 
     #[test]
     fn charcoal_alpha_at_zero_opacity() {
-        let bg = Color { a: CHARCOAL.a * 0.0, ..CHARCOAL };
+        let bg = Color {
+            a: CHARCOAL.a * 0.0,
+            ..CHARCOAL
+        };
         assert_eq!(bg.a, 0.0);
     }
 
     #[test]
     fn charcoal_alpha_at_full_opacity() {
-        let bg = Color { a: CHARCOAL.a * 1.0, ..CHARCOAL };
+        let bg = Color {
+            a: CHARCOAL.a * 1.0,
+            ..CHARCOAL
+        };
         assert!((bg.a - CHARCOAL.a).abs() < f32::EPSILON);
     }
 

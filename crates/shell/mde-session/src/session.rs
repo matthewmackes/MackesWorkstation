@@ -135,7 +135,10 @@ async fn run(bin: &str, args: &[&str]) -> Result<(), String> {
 /// so this runs off the main async executor — see `mde-session` main).
 /// Loops until `should_stop()` returns true.
 pub fn serve_bus<F: Fn() -> bool>(persist: &Persist, state: &SessionState, should_stop: F) {
-    let rt = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+    let rt = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
         Ok(rt) => rt,
         Err(e) => {
             tracing::error!("session responder: runtime build failed: {e}");
@@ -173,7 +176,12 @@ pub fn poll_once(
                 },
                 None => json!({ "ok": false, "error": "unknown verb" }).to_string(),
             };
-            let _ = persist.write(&reply_topic(&msg.ulid), Priority::Default, None, Some(&reply));
+            let _ = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&reply),
+            );
         }
     }
 }
@@ -219,7 +227,10 @@ mod tests {
         assert_eq!(action_for_verb("restart"), Some(SessionAction::Restart));
         assert_eq!(action_for_verb("shutdown"), Some(SessionAction::Shutdown));
         assert_eq!(action_for_verb("lock"), Some(SessionAction::Lock));
-        assert_eq!(action_for_verb("save-layout"), Some(SessionAction::SaveLayout));
+        assert_eq!(
+            action_for_verb("save-layout"),
+            Some(SessionAction::SaveLayout)
+        );
         assert_eq!(action_for_verb("frobnicate"), None);
     }
 

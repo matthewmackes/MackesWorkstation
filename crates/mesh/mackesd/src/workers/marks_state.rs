@@ -362,7 +362,12 @@ pub fn auto_marks_for_class(
     }
     if let Some(ms) = manifests {
         for m in ms.iter().filter(|m| m.apps.iter().any(|a| a == class)) {
-            for mark in m.marks_default.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            for mark in m
+                .marks_default
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+            {
                 if !out.iter().any(|o| o == mark) {
                     out.push(mark.to_string());
                 }
@@ -440,10 +445,7 @@ impl Worker for MarksStateWorker {
                 }
             };
 
-            let mut events = match event_conn
-                .subscribe([EventType::Window])
-                .await
-            {
+            let mut events = match event_conn.subscribe([EventType::Window]).await {
                 Ok(s) => s,
                 Err(e) => {
                     tracing::debug!(error = %e, "marks_state: subscribe failed; backing off");
@@ -525,11 +527,7 @@ fn handle_window_event_sync(
                 .and_then(|p| p.class.as_deref())
         })
         .unwrap_or("");
-    let title = ev
-        .container
-        .name
-        .as_deref()
-        .unwrap_or("");
+    let title = ev.container.name.as_deref().unwrap_or("");
 
     match ev.change {
         WindowChange::New => {
@@ -590,8 +588,15 @@ fn poll_actions(persist: &Persist, store: &mut MarksStore, cursors: &mut HashMap
 }
 
 fn publish_delta(persist: &Persist, con_id: &str, op: &str, mark: &str, marks: Vec<String>) {
-    let delta = MarkDelta { con_id, op, mark, marks };
-    let Ok(body) = serde_json::to_string(&delta) else { return };
+    let delta = MarkDelta {
+        con_id,
+        op,
+        mark,
+        marks,
+    };
+    let Ok(body) = serde_json::to_string(&delta) else {
+        return;
+    };
     let topic = format!("event/marks/{con_id}");
     if let Err(e) = persist.write(&topic, Priority::Default, None, Some(&body)) {
         tracing::debug!(%topic, error = %e, "marks_state: delta publish failed");
@@ -606,7 +611,9 @@ fn load_snapshot() -> Option<MarksStore> {
 }
 
 fn save_snapshot(store: &MarksStore) -> std::io::Result<()> {
-    let Some(path) = default_snapshot_path() else { return Ok(()) };
+    let Some(path) = default_snapshot_path() else {
+        return Ok(());
+    };
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

@@ -23,12 +23,11 @@ use iced::{alignment, Background, Border, Color, Element, Length, Padding, Shado
 use mde_theme::{
     mde_icon, CardSize, CardState, Elevation, FillMode, Icon, IconPlacement, IconSize, IconState,
     ObjectCard, Palette, CARD_CORNER_RADIUS, CARD_DISABLED_OPACITY, CARD_FOCUS_OUTLINE_OFFSET,
-    CARD_FOCUS_OUTLINE_WIDTH, CARD_HOVER_OVERLAY_ALPHA, CARD_PADDING,
-    CARD_SELECTED_BORDER_WIDTH, CARD_SELECTED_OVERLAY_ALPHA, CARD_SHADOW_DEFAULT_ALPHA,
-    CARD_SHADOW_DEFAULT_BLUR, CARD_SHADOW_DEFAULT_OFFSET_Y, CARD_SHADOW_HOVER_ALPHA,
-    CARD_SHADOW_HOVER_BLUR, CARD_SHADOW_HOVER_OFFSET_Y, CARD_SHADOW_PRESSED_ALPHA,
-    CARD_SHADOW_PRESSED_BLUR, CARD_SHADOW_PRESSED_OFFSET_Y, CARD_SUBTITLE_SIZE,
-    CARD_TITLE_SIZE,
+    CARD_FOCUS_OUTLINE_WIDTH, CARD_HOVER_OVERLAY_ALPHA, CARD_PADDING, CARD_SELECTED_BORDER_WIDTH,
+    CARD_SELECTED_OVERLAY_ALPHA, CARD_SHADOW_DEFAULT_ALPHA, CARD_SHADOW_DEFAULT_BLUR,
+    CARD_SHADOW_DEFAULT_OFFSET_Y, CARD_SHADOW_HOVER_ALPHA, CARD_SHADOW_HOVER_BLUR,
+    CARD_SHADOW_HOVER_OFFSET_Y, CARD_SHADOW_PRESSED_ALPHA, CARD_SHADOW_PRESSED_BLUR,
+    CARD_SHADOW_PRESSED_OFFSET_Y, CARD_SUBTITLE_SIZE, CARD_TITLE_SIZE,
 };
 
 /// CR-3 — Material Design Elevated Object Card renderer.
@@ -50,10 +49,7 @@ use mde_theme::{
 ///   * `Selected` — 2 px indigo border + 15 % indigo overlay.
 ///   * `Focused`  — 2 px indigo outline at 1 px offset.
 ///   * `Disabled` — 40 % opacity, no hover affordance.
-pub fn object_card<'a, Message: 'a>(
-    card: ObjectCard,
-    palette: Palette,
-) -> Element<'a, Message> {
+pub fn object_card<'a, Message: 'a>(card: ObjectCard, palette: Palette) -> Element<'a, Message> {
     let title_color = card
         .title_color_override
         .unwrap_or(palette.text)
@@ -91,9 +87,11 @@ pub fn object_card<'a, Message: 'a>(
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(icon_px))
             .height(Length::Fixed(icon_px))
-            .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(muted),
-            })
+            .style(
+                move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(muted),
+                },
+            )
             .into()
     } else {
         Space::new()
@@ -103,14 +101,14 @@ pub fn object_card<'a, Message: 'a>(
     };
 
     // ---- title + subtitle column -------------------------------
-    let title_widget = text(card.title)
-        .size(CARD_TITLE_SIZE)
-        .color(title_color);
+    let title_widget = text(card.title).size(CARD_TITLE_SIZE).color(title_color);
 
     let text_col: Column<'a, Message> = if let Some(subtitle) = card.subtitle {
         column![
             title_widget,
-            text(subtitle).size(CARD_SUBTITLE_SIZE).color(subtitle_color),
+            text(subtitle)
+                .size(CARD_SUBTITLE_SIZE)
+                .color(subtitle_color),
         ]
         .spacing(2)
     } else {
@@ -290,7 +288,11 @@ pub mod motion {
         if reduce {
             return 0.0;
         }
-        lerp_f32(1.0, 0.0, ease(progress(elapsed_ms, duration_ms), Easing::EaseIn))
+        lerp_f32(
+            1.0,
+            0.0,
+            ease(progress(elapsed_ms, duration_ms), Easing::EaseIn),
+        )
     }
 
     /// Pixel offset for a surface sliding in from `distance_px` to its
@@ -298,11 +300,20 @@ pub mod motion {
     /// `duration_ms`, shaped by ease-out. Honors reduced motion
     /// (returns `0.0`).
     #[must_use]
-    pub fn slide_in_offset(elapsed_ms: u64, duration_ms: u32, distance_px: f32, reduce: bool) -> f32 {
+    pub fn slide_in_offset(
+        elapsed_ms: u64,
+        duration_ms: u32,
+        distance_px: f32,
+        reduce: bool,
+    ) -> f32 {
         if reduce {
             return 0.0;
         }
-        lerp_f32(distance_px, 0.0, ease(progress(elapsed_ms, duration_ms), Easing::EaseOut))
+        lerp_f32(
+            distance_px,
+            0.0,
+            ease(progress(elapsed_ms, duration_ms), Easing::EaseOut),
+        )
     }
 
     /// Eased crossfade between two colors for theme / preset
@@ -391,7 +402,11 @@ pub mod motion {
         /// Create a slider resting at `y` with no animation in flight.
         #[must_use]
         pub fn at(y: f32) -> Self {
-            Self { from_y: y, to_y: y, tween: None }
+            Self {
+                from_y: y,
+                to_y: y,
+                tween: None,
+            }
         }
 
         /// Animate to `new_y` starting from the current position at `now`.
@@ -401,16 +416,16 @@ pub mod motion {
             self.to_y = new_y;
             self.tween = Some(Tween::starting_at(
                 now,
-                Duration::from_millis(u64::from(
-                    mde_theme::motion::list::SELECTION_SLIDE_MS,
-                )),
+                Duration::from_millis(u64::from(mde_theme::motion::list::SELECTION_SLIDE_MS)),
             ));
         }
 
         /// Interpolated Y position at `now`. Returns `to_y` once settled.
         #[must_use]
         pub fn current_y(&self, now: Instant) -> f32 {
-            let Some(t) = self.tween else { return self.to_y };
+            let Some(t) = self.tween else {
+                return self.to_y;
+            };
             let p = ease(t.progress(now), Easing::EaseOut);
             lerp_f32(self.from_y, self.to_y, p)
         }
@@ -578,7 +593,11 @@ fn context_menu_item_row<'a, Message: 'a>(
     let item_delay = motion::stagger_delay_ms(index);
     let item_elapsed = elapsed_ms.saturating_sub(item_delay);
     let stagger_alpha = motion::fade_in_alpha(item_elapsed, cm::ITEM_REVEAL_MS, reduce_motion);
-    let opacity = if item.disabled { 0.4_f32 * stagger_alpha } else { stagger_alpha };
+    let opacity = if item.disabled {
+        0.4_f32 * stagger_alpha
+    } else {
+        stagger_alpha
+    };
     let label_color = Color {
         a: palette.text.into_iced_color().a * opacity,
         ..palette.text.into_iced_color()
@@ -591,12 +610,10 @@ fn context_menu_item_row<'a, Message: 'a>(
         .size(cm::LABEL_SIZE)
         .color(label_color)
         .into();
-    let shortcut_el: Option<Element<'a, Message>> = item.shortcut.as_ref().map(|s| {
-        text(s.clone())
-            .size(cm::KBD_SIZE)
-            .color(muted_color)
-            .into()
-    });
+    let shortcut_el: Option<Element<'a, Message>> = item
+        .shortcut
+        .as_ref()
+        .map(|s| text(s.clone()).size(cm::KBD_SIZE).color(muted_color).into());
     let inner: Element<'a, Message> = match shortcut_el {
         None => row![
             Space::new().width(Length::Fixed(cm::ICON_L_PAD + cm::LABEL_L_PAD)),
@@ -651,8 +668,14 @@ pub fn context_menu_surface<'a, Message: 'a>(
     let menu_alpha = motion::fade_in_alpha(elapsed_ms, cm::OPEN_FADE_MS, reduce_motion);
     let base_bg = palette.raised.into_iced_color();
     let base_border = palette.border.into_iced_color();
-    let bg = Color { a: base_bg.a * menu_alpha, ..base_bg };
-    let border_color = Color { a: base_border.a * menu_alpha, ..base_border };
+    let bg = Color {
+        a: base_bg.a * menu_alpha,
+        ..base_bg
+    };
+    let border_color = Color {
+        a: base_border.a * menu_alpha,
+        ..base_border
+    };
     // Iced 0.13 has no min_width; enforce via fixed base width.
     // Rows will expand if content is wider via Length::Fill.
     container(column(rows))
@@ -737,8 +760,14 @@ pub fn toast_chip<'a, Message: 'a + Clone>(
     // Q97 action buttons — inline-expand on hover via background brightening.
     if !actions.is_empty() {
         let text_color = palette.text.into_iced_color();
-        let resting_color = Color { a: text_color.a * tk::ACTION_RESTING_ALPHA, ..text_color };
-        let hover_bg = Color { a: tk::ACTION_HOVER_BG_ALPHA, ..accent };
+        let resting_color = Color {
+            a: text_color.a * tk::ACTION_RESTING_ALPHA,
+            ..text_color
+        };
+        let hover_bg = Color {
+            a: tk::ACTION_HOVER_BG_ALPHA,
+            ..accent
+        };
         let action_btns: Vec<Element<'a, Message>> = actions
             .iter()
             .map(|(label, msg)| {
@@ -750,13 +779,19 @@ pub fn toast_chip<'a, Message: 'a + Clone>(
                         button::Status::Hovered | button::Status::Pressed => button::Style {
                             background: Some(Background::Color(hover_bg)),
                             text_color,
-                            border: Border { radius: 4.0_f32.into(), ..Border::default() },
+                            border: Border {
+                                radius: 4.0_f32.into(),
+                                ..Border::default()
+                            },
                             ..Default::default()
                         },
                         _ => button::Style {
                             background: None,
                             text_color: resting_color,
-                            border: Border { radius: 4.0_f32.into(), ..Border::default() },
+                            border: Border {
+                                radius: 4.0_f32.into(),
+                                ..Border::default()
+                            },
                             ..Default::default()
                         },
                     })
@@ -769,17 +804,15 @@ pub fn toast_chip<'a, Message: 'a + Clone>(
                     .into()
             })
             .collect();
-        let action_row: Element<'a, Message> = container(
-            row(action_btns).spacing(4.0),
-        )
-        .padding(Padding {
-            top: 0.0,
-            bottom: 4.0,
-            left: 8.0,
-            right: 8.0,
-        })
-        .width(Length::Fill)
-        .into();
+        let action_row: Element<'a, Message> = container(row(action_btns).spacing(4.0))
+            .padding(Padding {
+                top: 0.0,
+                bottom: 4.0,
+                left: 8.0,
+                right: 8.0,
+            })
+            .width(Length::Fill)
+            .into();
         rows.push(action_row);
     }
 
@@ -835,9 +868,11 @@ pub fn icon_fill_morph<'a, Message: 'a>(
             return widget_svg(widget_svg::Handle::from_memory(bytes))
                 .width(Length::Fixed(px))
                 .height(Length::Fixed(px))
-                .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                    color: Some(fg_color),
-                })
+                .style(
+                    move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                        color: Some(fg_color),
+                    },
+                )
                 .into();
         }
         FillMode::AlwaysFill => {
@@ -845,9 +880,11 @@ pub fn icon_fill_morph<'a, Message: 'a>(
             return widget_svg(widget_svg::Handle::from_memory(bytes))
                 .width(Length::Fixed(px))
                 .height(Length::Fixed(px))
-                .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                    color: Some(fg_color),
-                })
+                .style(
+                    move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                        color: Some(fg_color),
+                    },
+                )
                 .into();
         }
         FillMode::OnActive => {}
@@ -857,22 +894,32 @@ pub fn icon_fill_morph<'a, Message: 'a>(
     let t = fill_t.clamp(0.0, 1.0);
     let outline_bytes = resolved.svg_bytes_for_state(IconState::Idle);
     let filled_bytes = resolved.svg_bytes_for_state(IconState::Active);
-    let outline_color = Color { a: fg_color.a * (1.0 - t), ..fg_color };
-    let filled_color = Color { a: fg_color.a * t, ..fg_color };
+    let outline_color = Color {
+        a: fg_color.a * (1.0 - t),
+        ..fg_color
+    };
+    let filled_color = Color {
+        a: fg_color.a * t,
+        ..fg_color
+    };
 
     stack![
         widget_svg(widget_svg::Handle::from_memory(outline_bytes))
             .width(Length::Fixed(px))
             .height(Length::Fixed(px))
-            .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(outline_color),
-            }),
+            .style(
+                move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(outline_color),
+                }
+            ),
         widget_svg(widget_svg::Handle::from_memory(filled_bytes))
             .width(Length::Fixed(px))
             .height(Length::Fixed(px))
-            .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(filled_color),
-            }),
+            .style(
+                move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(filled_color),
+                }
+            ),
     ]
     .into()
 }
@@ -919,22 +966,14 @@ mod tests {
     #[test]
     fn object_card_medium_constructs_with_subtitle() {
         let palette = Palette::dark();
-        let card = ObjectCard::medium(
-            mde_theme::Icon::Fleet,
-            "doc.pdf",
-            "Modified yesterday",
-        );
+        let card = ObjectCard::medium(mde_theme::Icon::Fleet, "doc.pdf", "Modified yesterday");
         let _: Element<'_, ()> = object_card(card, palette);
     }
 
     #[test]
     fn object_card_large_constructs_with_subtitle() {
         let palette = Palette::dark();
-        let card = ObjectCard::large(
-            mde_theme::Icon::Fleet,
-            "Workbench",
-            "System utility",
-        );
+        let card = ObjectCard::large(mde_theme::Icon::Fleet, "Workbench", "System utility");
         let _: Element<'_, ()> = object_card(card, palette);
     }
 
@@ -1025,10 +1064,7 @@ mod tests {
         // color directly, but verifying the call doesn't panic + knowing the
         // alpha math (tested in motion.rs) is sufficient for the component test.
         let palette = Palette::dark();
-        let items = vec![
-            ContextMenuItem::item("Cut"),
-            ContextMenuItem::item("Copy"),
-        ];
+        let items = vec![ContextMenuItem::item("Cut"), ContextMenuItem::item("Copy")];
         let _: Element<'_, ()> = context_menu_surface(&items, 0, false, palette);
     }
 
@@ -1044,17 +1080,23 @@ mod tests {
     fn context_menu_stagger_beyond_cap_constructs() {
         // 10 items — items 8 and 9 share item 7's cap delay.
         let palette = Palette::dark();
-        let items: Vec<_> = (0..10).map(|i| ContextMenuItem::item(format!("Item {i}"))).collect();
+        let items: Vec<_> = (0..10)
+            .map(|i| ContextMenuItem::item(format!("Item {i}")))
+            .collect();
         let _: Element<'_, ()> = context_menu_surface(&items, 200, false, palette);
     }
 
     #[test]
     fn toast_chip_constructs_full_and_empty_bar() {
         let palette = Palette::dark();
-        let _: Element<'_, ()> =
-            toast_chip("Download complete", Some("file.tar.gz saved".to_string()), 1.0, &[], palette);
-        let _: Element<'_, ()> =
-            toast_chip("Update ready", None, 0.0, &[], palette);
+        let _: Element<'_, ()> = toast_chip(
+            "Download complete",
+            Some("file.tar.gz saved".to_string()),
+            1.0,
+            &[],
+            palette,
+        );
+        let _: Element<'_, ()> = toast_chip("Update ready", None, 0.0, &[], palette);
     }
 
     #[test]
@@ -1069,8 +1111,13 @@ mod tests {
     fn toast_chip_with_actions_constructs() {
         // Q97: action buttons render without panic.
         let palette = Palette::dark();
-        let _: Element<'_, &str> =
-            toast_chip("Sync complete", None, 0.8, &[("Dismiss", "dismiss"), ("View", "view")], palette);
+        let _: Element<'_, &str> = toast_chip(
+            "Sync complete",
+            None,
+            0.8,
+            &[("Dismiss", "dismiss"), ("View", "view")],
+            palette,
+        );
     }
 
     #[test]
@@ -1098,7 +1145,10 @@ mod tests {
         // Q19: shimmer oscillates in [0.15, 0.50].
         for ms in [0_u64, 300, 600, 900, 1200, 1500] {
             let a = motion::shimmer_alpha(ms, false);
-            assert!(a >= 0.14 && a <= 0.51, "shimmer_alpha({ms}) = {a} out of range");
+            assert!(
+                a >= 0.14 && a <= 0.51,
+                "shimmer_alpha({ms}) = {a} out of range"
+            );
         }
         // Reduced motion returns flat value in range.
         assert!((motion::shimmer_alpha(0, true) - 0.15).abs() < 1e-6);
@@ -1116,7 +1166,10 @@ mod tests {
         // Well after the slide duration: settled at target.
         let later = now + Duration::from_millis(300);
         let y_end = slider.current_y(later);
-        assert!((y_end - 28.0).abs() < 0.5, "expected ~28 at end, got {y_end}");
+        assert!(
+            (y_end - 28.0).abs() < 0.5,
+            "expected ~28 at end, got {y_end}"
+        );
         assert!(slider.is_complete(later));
     }
 
@@ -1131,7 +1184,10 @@ mod tests {
         slider.set_target(50.0, mid);
         // `from_y` should be mid-flight position (not 0 or 100).
         let y = slider.current_y(mid);
-        assert!(y > 0.0 && y < 100.0, "retarget from_y should be intermediate, got {y}");
+        assert!(
+            y > 0.0 && y < 100.0,
+            "retarget from_y should be intermediate, got {y}"
+        );
     }
 
     // ANIM-8.c.2 acceptance tests.

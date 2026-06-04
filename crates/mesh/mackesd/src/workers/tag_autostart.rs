@@ -170,7 +170,9 @@ impl TagAutostartWorker {
             let cmd = exec_command(app_id);
             match conn.run_command(&cmd).await {
                 Ok(_) => tracing::debug!(workspace = num, %app_id, "tag_autostart fired"),
-                Err(e) => tracing::warn!(workspace = num, %app_id, error = %e, "tag_autostart exec failed"),
+                Err(e) => {
+                    tracing::warn!(workspace = num, %app_id, error = %e, "tag_autostart exec failed")
+                }
             }
         }
     }
@@ -299,7 +301,10 @@ mod tests {
         let m = dev_manifest(false, &["foot", "code"]);
         let tagstore = vec!["legacy".to_string()];
         let r = effective_autostart_list(Some(&m), &tagstore);
-        assert!(r.is_empty(), "false opt-out shouldn't fall through to TagStore");
+        assert!(
+            r.is_empty(),
+            "false opt-out shouldn't fall through to TagStore"
+        );
     }
 
     /// Manifest present + autostart=true + empty apps → empty.

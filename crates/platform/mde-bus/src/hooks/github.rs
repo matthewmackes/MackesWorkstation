@@ -52,21 +52,16 @@ impl Adapter for GitHubAdapter {
         match event.as_str() {
             "push" => {
                 if let Some(refs) = body.pointer("/ref").and_then(Value::as_str) {
-                    let branch =
-                        refs.strip_prefix("refs/heads/").unwrap_or(refs).to_string();
+                    let branch = refs.strip_prefix("refs/heads/").unwrap_or(refs).to_string();
                     fields.insert("branch".to_string(), branch);
                 }
-                if let Some(pusher) = body
-                    .pointer("/pusher/name")
-                    .and_then(Value::as_str)
-                {
+                if let Some(pusher) = body.pointer("/pusher/name").and_then(Value::as_str) {
                     fields.insert("pusher".to_string(), pusher.to_string());
                 }
                 if let Some(commits) = body.pointer("/commits").and_then(Value::as_array) {
                     fields.insert("commit_count".to_string(), commits.len().to_string());
                 }
-                if let Some(head) = body.pointer("/head_commit/message").and_then(Value::as_str)
-                {
+                if let Some(head) = body.pointer("/head_commit/message").and_then(Value::as_str) {
                     // Trim to the first line — GitHub commit
                     // messages can be multi-paragraph.
                     let first = head.lines().next().unwrap_or("").to_string();
@@ -77,16 +72,10 @@ impl Adapter for GitHubAdapter {
                 if let Some(action) = body.pointer("/action").and_then(Value::as_str) {
                     fields.insert("action".to_string(), action.to_string());
                 }
-                if let Some(num) = body
-                    .pointer("/pull_request/number")
-                    .and_then(Value::as_u64)
-                {
+                if let Some(num) = body.pointer("/pull_request/number").and_then(Value::as_u64) {
                     fields.insert("pr_number".to_string(), num.to_string());
                 }
-                if let Some(title) = body
-                    .pointer("/pull_request/title")
-                    .and_then(Value::as_str)
-                {
+                if let Some(title) = body.pointer("/pull_request/title").and_then(Value::as_str) {
                     fields.insert("pr_title".to_string(), title.to_string());
                 }
                 if let Some(user) = body
@@ -112,16 +101,10 @@ impl Adapter for GitHubAdapter {
                 if let Some(title) = body.pointer("/issue/title").and_then(Value::as_str) {
                     fields.insert("issue_title".to_string(), title.to_string());
                 }
-                if let Some(user) = body
-                    .pointer("/issue/user/login")
-                    .and_then(Value::as_str)
-                {
+                if let Some(user) = body.pointer("/issue/user/login").and_then(Value::as_str) {
                     fields.insert("issue_user".to_string(), user.to_string());
                 }
-                if let Some(url) = body
-                    .pointer("/issue/html_url")
-                    .and_then(Value::as_str)
-                {
+                if let Some(url) = body.pointer("/issue/html_url").and_then(Value::as_str) {
                     fields.insert("issue_url".to_string(), url.to_string());
                 }
             }
@@ -129,26 +112,18 @@ impl Adapter for GitHubAdapter {
                 if let Some(action) = body.pointer("/action").and_then(Value::as_str) {
                     fields.insert("action".to_string(), action.to_string());
                 }
-                if let Some(tag) = body
-                    .pointer("/release/tag_name")
-                    .and_then(Value::as_str)
-                {
+                if let Some(tag) = body.pointer("/release/tag_name").and_then(Value::as_str) {
                     fields.insert("tag".to_string(), tag.to_string());
                 }
                 if let Some(name) = body.pointer("/release/name").and_then(Value::as_str) {
                     // Tags often have no human-readable name; fall
                     // back to the tag itself.
                     fields.insert("release_name".to_string(), name.to_string());
-                } else if let Some(tag) = body
-                    .pointer("/release/tag_name")
-                    .and_then(Value::as_str)
+                } else if let Some(tag) = body.pointer("/release/tag_name").and_then(Value::as_str)
                 {
                     fields.insert("release_name".to_string(), tag.to_string());
                 }
-                if let Some(url) = body
-                    .pointer("/release/html_url")
-                    .and_then(Value::as_str)
-                {
+                if let Some(url) = body.pointer("/release/html_url").and_then(Value::as_str) {
                     fields.insert("release_url".to_string(), url.to_string());
                 }
             }
@@ -194,11 +169,17 @@ mod tests {
         });
         let (event, fields) = GitHubAdapter.extract(&headers("push"), &body).unwrap();
         assert_eq!(event, "push");
-        assert_eq!(fields.get("repo").map(String::as_str), Some("matthewmackes/MDE-X"));
+        assert_eq!(
+            fields.get("repo").map(String::as_str),
+            Some("matthewmackes/MDE-X")
+        );
         assert_eq!(fields.get("branch").map(String::as_str), Some("main"));
         assert_eq!(fields.get("pusher").map(String::as_str), Some("matt"));
         assert_eq!(fields.get("commit_count").map(String::as_str), Some("2"));
-        assert_eq!(fields.get("head_message").map(String::as_str), Some("second"));
+        assert_eq!(
+            fields.get("head_message").map(String::as_str),
+            Some("second")
+        );
     }
 
     #[test]
@@ -211,7 +192,10 @@ mod tests {
             "commits": [],
         });
         let (_, fields) = GitHubAdapter.extract(&headers("push"), &body).unwrap();
-        assert_eq!(fields.get("branch").map(String::as_str), Some("feature/foo"));
+        assert_eq!(
+            fields.get("branch").map(String::as_str),
+            Some("feature/foo")
+        );
 
         // Tag ref — keep as-is so templates can still reference it.
         let body = json!({
@@ -221,7 +205,10 @@ mod tests {
             "commits": [],
         });
         let (_, fields) = GitHubAdapter.extract(&headers("push"), &body).unwrap();
-        assert_eq!(fields.get("branch").map(String::as_str), Some("refs/tags/v1.0"));
+        assert_eq!(
+            fields.get("branch").map(String::as_str),
+            Some("refs/tags/v1.0")
+        );
     }
 
     #[test]
@@ -243,7 +230,10 @@ mod tests {
         assert_eq!(fields.get("repo").map(String::as_str), Some("x/y"));
         assert_eq!(fields.get("action").map(String::as_str), Some("opened"));
         assert_eq!(fields.get("pr_number").map(String::as_str), Some("42"));
-        assert_eq!(fields.get("pr_title").map(String::as_str), Some("Add webhooks"));
+        assert_eq!(
+            fields.get("pr_title").map(String::as_str),
+            Some("Add webhooks")
+        );
         assert_eq!(fields.get("pr_user").map(String::as_str), Some("octocat"));
         assert_eq!(
             fields.get("pr_url").map(String::as_str),
@@ -267,7 +257,10 @@ mod tests {
         assert_eq!(event, "issues");
         assert_eq!(fields.get("action").map(String::as_str), Some("closed"));
         assert_eq!(fields.get("issue_number").map(String::as_str), Some("7"));
-        assert_eq!(fields.get("issue_title").map(String::as_str), Some("Crash on launch"));
+        assert_eq!(
+            fields.get("issue_title").map(String::as_str),
+            Some("Crash on launch")
+        );
         assert_eq!(fields.get("issue_user").map(String::as_str), Some("alice"));
     }
 
@@ -285,7 +278,10 @@ mod tests {
         let (event, fields) = GitHubAdapter.extract(&headers("release"), &body).unwrap();
         assert_eq!(event, "release");
         assert_eq!(fields.get("tag").map(String::as_str), Some("v2.0.0"));
-        assert_eq!(fields.get("release_name").map(String::as_str), Some("Mackes 2.0"));
+        assert_eq!(
+            fields.get("release_name").map(String::as_str),
+            Some("Mackes 2.0")
+        );
     }
 
     #[test]
@@ -296,7 +292,10 @@ mod tests {
             "repository": {"full_name": "x/y"},
         });
         let (_, fields) = GitHubAdapter.extract(&headers("release"), &body).unwrap();
-        assert_eq!(fields.get("release_name").map(String::as_str), Some("v2.0.0"));
+        assert_eq!(
+            fields.get("release_name").map(String::as_str),
+            Some("v2.0.0")
+        );
     }
 
     #[test]

@@ -275,10 +275,7 @@ fn event_from_window_event(json: &serde_json::Value) -> Option<ToplevelEvent> {
 /// Push an event into the subscription. Returns `Err(())` if the
 /// receiver was dropped (panel shutting down); caller should
 /// gracefully exit.
-fn try_send_event(
-    sender: &mpsc::Sender<ToplevelEvent>,
-    ev: ToplevelEvent,
-) -> Result<(), ()> {
+fn try_send_event(sender: &mpsc::Sender<ToplevelEvent>, ev: ToplevelEvent) -> Result<(), ()> {
     let mut s = sender.clone();
     match s.try_send(ev) {
         Ok(()) => Ok(()),

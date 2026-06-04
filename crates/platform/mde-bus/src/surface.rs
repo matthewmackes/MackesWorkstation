@@ -216,7 +216,11 @@ impl Surfaces for RecordingSurfaces {
         self.inner.lock().unwrap().log_silent.push(msg.ulid.clone());
     }
     fn tray_and_badge(&self, msg: &StoredMessage) {
-        self.inner.lock().unwrap().tray_and_badge.push(msg.ulid.clone());
+        self.inner
+            .lock()
+            .unwrap()
+            .tray_and_badge
+            .push(msg.ulid.clone());
     }
     fn status_strip_and_sound(&self, msg: &StoredMessage) {
         self.inner
@@ -301,10 +305,7 @@ mod tests {
         assert!(s.log_silent_ulids().is_empty());
         assert!(s.tray_and_badge_ulids().is_empty());
         assert!(s.status_strip_and_sound_ulids().is_empty());
-        assert_eq!(
-            s.theater_wallpaper_phone_ulids(),
-            vec!["u4".to_string()]
-        );
+        assert_eq!(s.theater_wallpaper_phone_ulids(), vec!["u4".to_string()]);
     }
 
     #[test]
@@ -424,10 +425,7 @@ mod tests {
             0,
             &s,
         );
-        assert_eq!(
-            s.theater_wallpaper_phone_ulids(),
-            vec!["u4".to_string()]
-        );
+        assert_eq!(s.theater_wallpaper_phone_ulids(), vec!["u4".to_string()]);
         assert!(s.log_silent_ulids().is_empty());
     }
 }

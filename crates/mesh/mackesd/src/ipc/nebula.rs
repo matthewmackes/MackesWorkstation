@@ -619,9 +619,12 @@ pub fn poll_once(
         for msg in msgs {
             cursors.insert(topic.clone(), msg.ulid.clone());
             let reply = rt.block_on(build_reply(svc, verb));
-            if let Err(e) =
-                persist.write(&reply_topic(&msg.ulid), Priority::Default, None, Some(&reply))
-            {
+            if let Err(e) = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&reply),
+            ) {
                 tracing::warn!(ulid = %msg.ulid, error = %e, "nebula responder: reply write failed");
             }
         }
@@ -638,16 +641,12 @@ fn current_ca_row(conn: &rusqlite::Connection) -> Option<(i64, String)> {
              ORDER BY epoch DESC LIMIT 1",
         )
         .ok()?;
-    stmt.query_row([], |r| {
-        Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
-    })
-    .ok()
+    stmt.query_row([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))
+        .ok()
 }
 
 fn count_peers_excluding(conn: &rusqlite::Connection, local: &str) -> usize {
-    let mut stmt = match conn
-        .prepare("SELECT COUNT(*) FROM nodes WHERE node_id != ?1")
-    {
+    let mut stmt = match conn.prepare("SELECT COUNT(*) FROM nodes WHERE node_id != ?1") {
         Ok(s) => s,
         Err(_) => return 0,
     };
@@ -656,10 +655,7 @@ fn count_peers_excluding(conn: &rusqlite::Connection, local: &str) -> usize {
         .unwrap_or(0)
 }
 
-fn peer_cert_for(
-    conn: &rusqlite::Connection,
-    node_id: &str,
-) -> Option<(String, String, i64, i64)> {
+fn peer_cert_for(conn: &rusqlite::Connection, node_id: &str) -> Option<(String, String, i64, i64)> {
     let mut stmt = conn
         .prepare(
             "SELECT overlay_ip, cert_pem, epoch, expires_at \
@@ -769,8 +765,8 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let marker = tmp.path().join("role.host");
         std::fs::write(&marker, "role:host\n").expect("write");
-        let svc = NebulaStatusService::new(fresh_store(), "peer:local", "host")
-            .with_role_marker(marker);
+        let svc =
+            NebulaStatusService::new(fresh_store(), "peer:local", "host").with_role_marker(marker);
         let s = svc.build_status_snapshot().await.expect("status");
         assert!(s.is_lighthouse);
     }
@@ -833,12 +829,8 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let marker = tmp.path().join("role.host");
         let store = fresh_store();
-        let svc = NebulaStatusService::new(
-            Arc::clone(&store),
-            "peer:local",
-            "host",
-        )
-        .with_role_marker(marker.clone());
+        let svc = NebulaStatusService::new(Arc::clone(&store), "peer:local", "host")
+            .with_role_marker(marker.clone());
         let s = svc.build_self_node().await.expect("self");
         assert_eq!(s.role, "peer");
         std::fs::write(&marker, "role:host\n").expect("write");
@@ -859,8 +851,7 @@ mod tests {
         // /var/lib/mackesd) or surfaced the install hint.
         // Both are valid outcomes.
         assert!(
-            msg.contains("nebula-cert not on PATH")
-                || msg.contains("CA rotated to epoch"),
+            msg.contains("nebula-cert not on PATH") || msg.contains("CA rotated to epoch"),
             "unexpected regen-certs reply: {msg}",
         );
     }
@@ -901,15 +892,13 @@ mod tests {
         // wrapper is thin.
         use crate::enrollment::build_identity;
         use crate::nebula_enroll::{
-            build_pending, parse_join_token, pending_enroll_path,
-            publish_enrollment_request,
+            build_pending, parse_join_token, pending_enroll_path, publish_enrollment_request,
         };
         let tmp = tempfile::tempdir().expect("tempdir");
         let identity = build_identity();
         let token = parse_join_token("mesh:test@10.0.0.5:4242#bearer").unwrap();
         let pending = build_pending(&identity, "peer:local", "anvil", token);
-        let p = publish_enrollment_request(tmp.path(), "peer:local", &pending)
-            .expect("publish");
+        let p = publish_enrollment_request(tmp.path(), "peer:local", &pending).expect("publish");
         assert_eq!(p, pending_enroll_path(tmp.path(), "peer:local"));
         assert!(p.exists());
     }
@@ -932,9 +921,16 @@ mod tests {
         // off the convention the consumers publish to.
         for verb in ACTION_VERBS {
             let topic = action_topic(verb);
-            assert!(topic.starts_with("action/"), "topic {topic:?} must be in action/ namespace");
+            assert!(
+                topic.starts_with("action/"),
+                "topic {topic:?} must be in action/ namespace"
+            );
             let parts: Vec<&str> = topic.split('/').collect();
-            assert_eq!(parts.len(), 3, "topic {topic:?} must be action/<domain>/<verb>");
+            assert_eq!(
+                parts.len(),
+                3,
+                "topic {topic:?} must be action/<domain>/<verb>"
+            );
             assert_eq!(parts[0], "action");
             assert_eq!(parts[1], "nebula");
             assert_eq!(parts[2], verb);

@@ -94,8 +94,7 @@ fn resolve_bus_root(arg: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(p) = arg {
         return Ok(p);
     }
-    crate::default_data_dir()
-        .ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
+    crate::default_data_dir().ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
 }
 
 /// Pure-fn — apply the five CLI filters (publisher / topic /
@@ -214,7 +213,13 @@ mod tests {
         entry_at("2026-05-27T12:00:00Z", publisher, topic, priority, ulid)
     }
 
-    fn entry_at(ts_iso: &str, publisher: &str, topic: &str, priority: &str, ulid: &str) -> audit::AuditEntry {
+    fn entry_at(
+        ts_iso: &str,
+        publisher: &str,
+        topic: &str,
+        priority: &str,
+        ulid: &str,
+    ) -> audit::AuditEntry {
         audit::AuditEntry {
             publisher: publisher.to_string(),
             ts_iso: ts_iso.to_string(),
@@ -226,7 +231,8 @@ mod tests {
 
     #[test]
     fn list_with_missing_dir_returns_ok_empty() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-audit-cli-empty-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-audit-cli-empty-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let r = run(AuditOp::List {
             bus_root: Some(tmp.clone()),
@@ -289,7 +295,14 @@ mod tests {
             entry("github", "fleet/announce", "high", "u4"),
         ];
         // Want github + mon/* + high → u2 only.
-        let kept = apply_filters(&entries, Some("github"), Some("mon/#"), Some("high"), None, None);
+        let kept = apply_filters(
+            &entries,
+            Some("github"),
+            Some("mon/#"),
+            Some("high"),
+            None,
+            None,
+        );
         assert_eq!(kept.len(), 1);
         assert_eq!(kept[0].ulid, "u2");
     }
@@ -354,7 +367,8 @@ mod tests {
 
     #[test]
     fn count_verb_runs_on_empty_dir() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-audit-cli-count-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-audit-cli-count-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         // Default (no filters, plain output) — should just print 0.
         let r = run(AuditOp::Count {

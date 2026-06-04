@@ -155,7 +155,11 @@ impl SubsManifest {
         let Some(qh) = &self.quiet_hours else {
             return false;
         };
-        match (parse_hhmm(now_hhmm), parse_hhmm(&qh.start), parse_hhmm(&qh.end)) {
+        match (
+            parse_hhmm(now_hhmm),
+            parse_hhmm(&qh.start),
+            parse_hhmm(&qh.end),
+        ) {
             (Some(now), Some(start), Some(end)) => {
                 if start <= end {
                     // Non-wrapping window: 09:00..17:00
@@ -199,10 +203,7 @@ pub enum SubsSkipReason {
 impl std::fmt::Display for SubsSkipReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NoDataDir => write!(
-                f,
-                "no XDG data home — subs manifest path can't be resolved"
-            ),
+            Self::NoDataDir => write!(f, "no XDG data home — subs manifest path can't be resolved"),
             Self::NoTemplate => {
                 write!(f, "subs.yaml.tmpl missing — using in-memory defaults")
             }
@@ -224,10 +225,7 @@ pub fn default_per_peer_path() -> Option<PathBuf> {
 /// # Errors
 /// Returns `std::io::Error` on mkdir / read / write / rename
 /// failure.
-pub fn load_or_seed(
-    per_peer_path: &Path,
-    template_path: &Path,
-) -> Result<String, SubsLoadError> {
+pub fn load_or_seed(per_peer_path: &Path, template_path: &Path) -> Result<String, SubsLoadError> {
     if per_peer_path.exists() {
         return std::fs::read_to_string(per_peer_path).map_err(SubsLoadError::ReadPerPeer);
     }
@@ -339,9 +337,7 @@ impl SubsWatcher {
         if !self.per_peer_path.exists() {
             return TickOutcome::FileMissing;
         }
-        let now = match std::fs::metadata(&self.per_peer_path)
-            .and_then(|m| m.modified())
-        {
+        let now = match std::fs::metadata(&self.per_peer_path).and_then(|m| m.modified()) {
             Ok(t) => t,
             Err(_) => return TickOutcome::Idle,
         };
@@ -392,10 +388,7 @@ impl SubsWatcher {
 
     /// Long-running async loop. Calls [`Self::tick_once`] every
     /// `tick_interval` until `shutdown.changed()` resolves.
-    pub async fn run(
-        &mut self,
-        mut shutdown: tokio::sync::watch::Receiver<bool>,
-    ) {
+    pub async fn run(&mut self, mut shutdown: tokio::sync::watch::Receiver<bool>) {
         loop {
             let _ = self.tick_once();
             tokio::select! {
@@ -443,8 +436,7 @@ mod tests {
 
     #[test]
     fn template_round_trips_through_yaml() {
-        let parsed = SubsManifest::parse_yaml(template_body())
-            .expect("template parses");
+        let parsed = SubsManifest::parse_yaml(template_body()).expect("template parses");
         assert_eq!(parsed.topics, vec!["#".to_string()]);
         assert!(parsed.mute.is_empty());
         assert!(parsed.quiet_hours.is_none());
@@ -589,8 +581,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let per_peer = tmp.path().join("subs.yaml");
         std::fs::write(&per_peer, "topics: [\"a\"]\n").expect("seed");
-        let mut w =
-            SubsWatcher::new(per_peer.clone(), "topics: [\"a\"]\n");
+        let mut w = SubsWatcher::new(per_peer.clone(), "topics: [\"a\"]\n");
         // First tick records mtime; same body — no reload.
         assert_eq!(w.tick_once(), TickOutcome::Idle);
         // Wait > mtime resolution then rewrite with new content.

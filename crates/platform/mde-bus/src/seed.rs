@@ -215,7 +215,9 @@ mod tests {
         // Breadcrumb segments, never as audible high/urgent banners.
         // Encoded by seeding the topic with Min priority so any
         // unspecified publish stays silent.
-        let t = r.get("clipboard/sync").expect("clipboard/sync must be seeded");
+        let t = r
+            .get("clipboard/sync")
+            .expect("clipboard/sync must be seeded");
         assert_eq!(t.priority_default, Priority::Min);
     }
 }

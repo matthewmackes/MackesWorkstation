@@ -113,7 +113,7 @@ impl TagManifestWatcherWorker {
                     changes.push(Change {
                         name: name.clone(),
                         kind: ChangeKind::Loaded, // Reloaded counts as
-                                                   // a fresh load event.
+                                                  // a fresh load event.
                     });
                 }
                 _ => {} // Unchanged.
@@ -132,10 +132,7 @@ impl TagManifestWatcherWorker {
 
         // Snapshot the new state for the next tick.
         self.last_mtimes = current_mtimes.clone();
-        self.known_names = current_mtimes
-            .keys()
-            .map(|k| (k.clone(), ()))
-            .collect();
+        self.known_names = current_mtimes.keys().map(|k| (k.clone(), ())).collect();
 
         changes
     }

@@ -52,8 +52,7 @@ fn resolve_bus_root(arg: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(p) = arg {
         return Ok(p);
     }
-    crate::default_data_dir()
-        .ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
+    crate::default_data_dir().ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
 }
 
 /// Execute the `persist` verb. Read-only.
@@ -185,7 +184,8 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let p = Persist::open(tmp.path().to_path_buf()).unwrap();
         for i in 0..3 {
-            p.write("t/x", Priority::Default, None, Some(&i.to_string())).unwrap();
+            p.write("t/x", Priority::Default, None, Some(&i.to_string()))
+                .unwrap();
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         // 6 = 3 t/x messages + 3 audit/<peer> records (one auto-emitted

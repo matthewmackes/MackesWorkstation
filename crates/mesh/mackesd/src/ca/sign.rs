@@ -167,10 +167,7 @@ pub fn active_epoch(conn: &Connection, mesh_id: &str) -> Result<Option<i64>, CaE
 /// already allocated in `nebula_peer_certs` for the given
 /// epoch. Skips `.0` (network address) + `.255` (broadcast)
 /// on each /24 — keeps the allocation human-readable.
-pub fn allocate_overlay_ip(
-    conn: &Connection,
-    epoch: i64,
-) -> Result<String, CaError> {
+pub fn allocate_overlay_ip(conn: &Connection, epoch: i64) -> Result<String, CaError> {
     let taken = load_taken_ips(conn, epoch)?;
     for octet_b in 0u8..=255 {
         for octet_c in 1u8..=254 {
@@ -192,10 +189,7 @@ pub fn allocate_overlay_ip(
 ///
 /// # Errors
 /// [`CaError::Sql`] on database failure.
-pub fn count_active_peers(
-    conn: &Connection,
-    mesh_id: &str,
-) -> Result<u32, CaError> {
+pub fn count_active_peers(conn: &Connection, mesh_id: &str) -> Result<u32, CaError> {
     let epoch = match active_epoch(conn, mesh_id)? {
         Some(e) => e,
         None => return Ok(0),

@@ -99,7 +99,11 @@ impl RemoteDesktopPanel {
                 self.status = if self.hosts.is_empty() {
                     "no cached hosts (run mackes mesh-wol cache or enter manually below)".into()
                 } else {
-                    format!("{} known host{}", self.hosts.len(), if self.hosts.len() == 1 { "" } else { "s" })
+                    format!(
+                        "{} known host{}",
+                        self.hosts.len(),
+                        if self.hosts.len() == 1 { "" } else { "s" }
+                    )
                 };
                 Task::none()
             }
@@ -186,12 +190,12 @@ impl RemoteDesktopPanel {
             text_input("hostname or IP (e.g. 172.20.146.245)", &self.manual_input)
                 .on_input(|s| crate::Message::RemoteDesktop(Message::ManualInputChanged(s)))
                 .padding(Padding::from([6u16, 10u16])),
-            connect_btn("Connect RDP", palette, false).on_press(
-                crate::Message::RemoteDesktop(Message::ConnectManualClicked(Protocol::Rdp)),
-            ),
-            connect_btn("Connect VNC", palette, true).on_press(
-                crate::Message::RemoteDesktop(Message::ConnectManualClicked(Protocol::Vnc)),
-            ),
+            connect_btn("Connect RDP", palette, false).on_press(crate::Message::RemoteDesktop(
+                Message::ConnectManualClicked(Protocol::Rdp)
+            ),),
+            connect_btn("Connect VNC", palette, true).on_press(crate::Message::RemoteDesktop(
+                Message::ConnectManualClicked(Protocol::Vnc)
+            ),),
         ]
         .spacing(6)
         .align_y(iced::alignment::Vertical::Center);
@@ -210,7 +214,8 @@ impl RemoteDesktopPanel {
         .style({
             let bg = palette.raised.into_iced_color();
             let border = palette.border.into_iced_color();
-            move |_| container::Style { snap: false,
+            move |_| container::Style {
+                snap: false,
                 background: Some(Background::Color(bg)),
                 border: Border {
                     color: border,
@@ -235,7 +240,8 @@ impl RemoteDesktopPanel {
                         },
                         _ => accent,
                     };
-                    iced::widget::button::Style { snap: false,
+                    iced::widget::button::Style {
+                        snap: false,
                         background: Some(Background::Color(bg)),
                         text_color: Color::WHITE,
                         border: Border {
@@ -302,12 +308,17 @@ fn host_row<'a>(h: &'a KnownHost, palette: Palette) -> Element<'a, crate::Messag
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(16.0))
             .height(Length::Fixed(16.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
-        text(resolved.fallback_glyph).size(16.0).color(icon_color).into()
+        text(resolved.fallback_glyph)
+            .size(16.0)
+            .color(icon_color)
+            .into()
     };
     let ip_text = text(h.ip.clone())
         .size(13)
@@ -345,7 +356,8 @@ fn host_row<'a>(h: &'a KnownHost, palette: Palette) -> Element<'a, crate::Messag
     container(body)
         .padding(Padding::from([10u16, 14u16]))
         .width(Length::Fill)
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             border: Border {
                 color: border,
@@ -365,43 +377,48 @@ fn connect_btn<'a>(
     let accent = palette.accent.into_iced_color();
     let border = palette.border.into_iced_color();
     let text_main = palette.text.into_iced_color();
-    button(text(label).size(11).color(if ghost { text_main } else { Color::WHITE }))
-        .padding(Padding::from([4u16, 12u16]))
-        .style(move |_t: &Theme, status: iced::widget::button::Status| {
-            let (bg, fg) = if ghost {
-                let hover_bg = Color {
-                    r: 0.20,
-                    g: 0.20,
-                    b: 0.22,
-                    a: 1.0,
-                };
-                match status {
-                    iced::widget::button::Status::Hovered => (hover_bg, text_main),
-                    _ => (Color::TRANSPARENT, text_main),
-                }
-            } else {
-                let bg = match status {
-                    iced::widget::button::Status::Hovered => Color {
-                        r: accent.r * 1.10,
-                        g: accent.g * 1.10,
-                        b: accent.b * 1.10,
-                        a: accent.a,
-                    },
-                    _ => accent,
-                };
-                (bg, Color::WHITE)
+    button(
+        text(label)
+            .size(11)
+            .color(if ghost { text_main } else { Color::WHITE }),
+    )
+    .padding(Padding::from([4u16, 12u16]))
+    .style(move |_t: &Theme, status: iced::widget::button::Status| {
+        let (bg, fg) = if ghost {
+            let hover_bg = Color {
+                r: 0.20,
+                g: 0.20,
+                b: 0.22,
+                a: 1.0,
             };
-            iced::widget::button::Style { snap: false,
-                background: Some(Background::Color(bg)),
-                text_color: fg,
-                border: Border {
-                    color: if ghost { border } else { Color::TRANSPARENT },
-                    width: if ghost { 1.0 } else { 0.0 },
-                    radius: 4.0.into(),
-                },
-                shadow: iced::Shadow::default(),
+            match status {
+                iced::widget::button::Status::Hovered => (hover_bg, text_main),
+                _ => (Color::TRANSPARENT, text_main),
             }
-        })
+        } else {
+            let bg = match status {
+                iced::widget::button::Status::Hovered => Color {
+                    r: accent.r * 1.10,
+                    g: accent.g * 1.10,
+                    b: accent.b * 1.10,
+                    a: accent.a,
+                },
+                _ => accent,
+            };
+            (bg, Color::WHITE)
+        };
+        iced::widget::button::Style {
+            snap: false,
+            background: Some(Background::Color(bg)),
+            text_color: fg,
+            border: Border {
+                color: if ghost { border } else { Color::TRANSPARENT },
+                width: if ghost { 1.0 } else { 0.0 },
+                radius: 4.0.into(),
+            },
+            shadow: iced::Shadow::default(),
+        }
+    })
 }
 
 // ---- I/O ------------------------------------------------------
@@ -450,7 +467,12 @@ pub fn parse_peer_macs(raw: &str) -> Option<Vec<KnownHost>> {
 /// "did the binary launch."
 pub async fn launch_remmina(host: &str, protocol: Protocol) -> bool {
     use tokio::process::Command;
-    let url = format!("{}://{}:{}", protocol.scheme(), host, protocol.default_port());
+    let url = format!(
+        "{}://{}:{}",
+        protocol.scheme(),
+        host,
+        protocol.default_port()
+    );
     let status = Command::new("remmina").args(["-c", &url]).spawn();
     match status {
         Ok(mut child) => {

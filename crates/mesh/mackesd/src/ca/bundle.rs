@@ -97,8 +97,13 @@ pub fn write_bundle(path: &Path, bundle: &NebulaBundle) -> Result<(), CaError> {
     let tmp = path.with_extension("json.tmp");
     std::fs::write(&tmp, &body)
         .map_err(|e| CaError::Io(format!("write tmp {}: {e}", tmp.display())))?;
-    std::fs::rename(&tmp, path)
-        .map_err(|e| CaError::Io(format!("rename {} → {}: {e}", tmp.display(), path.display())))
+    std::fs::rename(&tmp, path).map_err(|e| {
+        CaError::Io(format!(
+            "rename {} → {}: {e}",
+            tmp.display(),
+            path.display()
+        ))
+    })
 }
 
 /// Read the bundle back. Used by the wizard's import path
@@ -190,6 +195,9 @@ mod tests {
         let path = tmp.path().join("b.json");
         write_bundle(&path, &sample_bundle()).expect("write");
         let tmp_path = path.with_extension("json.tmp");
-        assert!(!tmp_path.exists(), "tempfile must be renamed away on success");
+        assert!(
+            !tmp_path.exists(),
+            "tempfile must be renamed away on success"
+        );
     }
 }

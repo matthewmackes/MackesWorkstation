@@ -41,7 +41,11 @@ fn default_health() -> String {
 impl PeerRecord {
     /// Build a record stamped with the current time.
     #[must_use]
-    pub fn now(hostname: impl Into<String>, mde_version: Option<String>, health: impl Into<String>) -> Self {
+    pub fn now(
+        hostname: impl Into<String>,
+        mde_version: Option<String>,
+        health: impl Into<String>,
+    ) -> Self {
         Self {
             hostname: hostname.into(),
             mde_version,
@@ -156,8 +160,16 @@ mod tests {
     #[test]
     fn read_unions_multiple_files_sorted() {
         let dir = tempdir().unwrap();
-        write_peer_record(dir.path(), &PeerRecord::now("forge", Some("5.0.0".into()), "healthy")).unwrap();
-        write_peer_record(dir.path(), &PeerRecord::now("anvil", Some("5.0.0".into()), "healthy")).unwrap();
+        write_peer_record(
+            dir.path(),
+            &PeerRecord::now("forge", Some("5.0.0".into()), "healthy"),
+        )
+        .unwrap();
+        write_peer_record(
+            dir.path(),
+            &PeerRecord::now("anvil", Some("5.0.0".into()), "healthy"),
+        )
+        .unwrap();
         let peers = read_peers(dir.path());
         assert_eq!(peers.len(), 2);
         assert_eq!(peers[0].hostname, "anvil");

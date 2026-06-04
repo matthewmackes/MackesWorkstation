@@ -47,8 +47,7 @@ pub struct HistoryArgs {
 }
 
 fn default_bus_root() -> Result<PathBuf> {
-    crate::default_data_dir()
-        .ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
+    crate::default_data_dir().ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
 }
 
 /// Execute the `history` verb.
@@ -83,8 +82,8 @@ pub async fn run(args: HistoryArgs) -> Result<()> {
             // StoredMessage derives Serialize so we can emit it
             // directly. JSONL convention — one object per line,
             // no pretty-print.
-            let s = serde_json::to_string(m)
-                .map_err(|e| anyhow!("serialize stored message: {e}"))?;
+            let s =
+                serde_json::to_string(m).map_err(|e| anyhow!("serialize stored message: {e}"))?;
             println!("{s}");
         } else {
             let line = crate::cli::tail::format_line(m);
@@ -153,7 +152,9 @@ mod tests {
         let p = Persist::open(tmp.path().to_path_buf()).unwrap();
         let mut ulids: Vec<String> = Vec::new();
         for i in 0..5 {
-            let stored = p.write("t/x", Priority::Default, None, Some(&i.to_string())).unwrap();
+            let stored = p
+                .write("t/x", Priority::Default, None, Some(&i.to_string()))
+                .unwrap();
             ulids.push(stored.ulid);
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
@@ -161,12 +162,15 @@ mod tests {
         // predicate is strict `< cursor`, so rows[3] + rows[4] are
         // excluded; rows[0..3] are kept.
         let cursor = ulids[3].clone();
-        let mut filtered: Vec<crate::persist::StoredMessage> =
-            p.list_since("t/x", None).unwrap();
+        let mut filtered: Vec<crate::persist::StoredMessage> = p.list_since("t/x", None).unwrap();
         filtered.retain(|m| m.ulid.as_str() < cursor.as_str());
         assert_eq!(filtered.len(), 3);
         for m in &filtered {
-            assert!(m.ulid < cursor, "ulid {} should be strictly < cursor", m.ulid);
+            assert!(
+                m.ulid < cursor,
+                "ulid {} should be strictly < cursor",
+                m.ulid
+            );
         }
         // Run the verb to confirm it doesn't panic with --before.
         let args = HistoryArgs {
@@ -186,7 +190,8 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let p = Persist::open(tmp.path().to_path_buf()).unwrap();
         for i in 0..3 {
-            p.write("t/x", Priority::Default, None, Some(&i.to_string())).unwrap();
+            p.write("t/x", Priority::Default, None, Some(&i.to_string()))
+                .unwrap();
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
         // Confirm the underlying ordering invariant the `--reverse`

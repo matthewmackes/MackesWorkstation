@@ -151,9 +151,7 @@ fn update(_state: &mut App, msg: Message) -> Task<Message> {
 }
 
 fn view(_state: &App) -> Element<'_, Message> {
-    let header = text("Snap Assist")
-        .size(14)
-        .color(FG_TEXT);
+    let header = text("Snap Assist").size(14).color(FG_TEXT);
     let subhead = text("Click a zone to snap the focused window · Esc cancels")
         .size(11)
         .color(FG_MUTED);

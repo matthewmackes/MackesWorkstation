@@ -51,10 +51,10 @@ use crate::stun::gather_endpoint;
 /// configuration. Operators can override via the future
 /// `/etc/mde/connect/stun.toml`; for now this is the lock.
 pub const DEFAULT_SERVERS: &[&str] = &[
-    "74.125.250.129:19302",  // stun.l.google.com (IP-pinned so the
-    "142.250.27.127:19302",  // worker doesn't hit DNS on the hot
-    "142.251.32.127:19302",  // path; DNS-aware override lands with
-                             // the operator config file).
+    "74.125.250.129:19302", // stun.l.google.com (IP-pinned so the
+    "142.250.27.127:19302", // worker doesn't hit DNS on the hot
+    "142.251.32.127:19302", // path; DNS-aware override lands with
+                            // the operator config file).
 ];
 
 /// Per-server probe budget. The whole gather must finish under
@@ -143,10 +143,7 @@ impl StunGatherWorker {
         // equivalent via a Vec drain. Tokio's `JoinSet` would be
         // more elegant but pulls a dependency feature we'd have
         // to enable workspace-wide.
-        let mut handles: Vec<_> = futs
-            .into_iter()
-            .map(tokio::spawn)
-            .collect();
+        let mut handles: Vec<_> = futs.into_iter().map(tokio::spawn).collect();
         let mut out = Vec::new();
         for h in handles.drain(..) {
             if let Ok((server, Ok(candidate))) = h.await {
@@ -199,9 +196,7 @@ impl Worker for StunGatherWorker {
             "stun_gather: started",
         );
         if self.servers.is_empty() {
-            warn!(
-                "stun_gather: no STUN servers configured; worker idle until config arrives",
-            );
+            warn!("stun_gather: no STUN servers configured; worker idle until config arrives",);
         }
         let mut interval = tokio::time::interval(self.tick);
         loop {
@@ -275,7 +270,10 @@ mod tests {
         // candidates were cleared.
         let g = state.read().await;
         let path = g.get("alice").unwrap();
-        assert!(path.candidates.is_empty(), "stale candidates must be cleared");
+        assert!(
+            path.candidates.is_empty(),
+            "stale candidates must be cleared"
+        );
     }
 
     #[test]
@@ -311,9 +309,7 @@ mod tests {
                 // address; in real STUN this would be `src`).
                 if n >= 20 {
                     let txid: [u8; 12] = buf[8..20].try_into().unwrap();
-                    let resp = crate::stun::encode_binding_success_with_xor_mapped(
-                        txid, src,
-                    );
+                    let resp = crate::stun::encode_binding_success_with_xor_mapped(txid, src);
                     let _ = socket.send_to(&resp, src).await;
                 }
             }

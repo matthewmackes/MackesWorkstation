@@ -141,7 +141,8 @@ mod tests {
 
     #[tokio::test]
     async fn non_2xx_status_propagates() {
-        let response = b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 12\r\n\r\nbroker down!".to_vec();
+        let response =
+            b"HTTP/1.1 503 Service Unavailable\r\nContent-Length: 12\r\n\r\nbroker down!".to_vec();
         let (_handle, addr, _captured) = stub_server(response).await;
         let client = reqwest::Client::new();
         let base = format!("http://{addr}");

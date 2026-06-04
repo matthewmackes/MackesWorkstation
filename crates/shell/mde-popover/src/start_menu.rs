@@ -17,21 +17,20 @@ use mde_theme::motion::list::{STAGGER_CAP, STAGGER_REVEAL_MS, STAGGER_STEP_MS};
 use iced::widget::{
     button, column, container, mouse_area, row, scrollable, svg, text, text_input, Space,
 };
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
-
-use crate::watermark::{
-    current_pending_count, spawn_pkexec_dnf_upgrade, WatermarkState,
+use iced::{
+    Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task,
+    Theme,
 };
+
+use crate::watermark::{current_pending_count, spawn_pkexec_dnf_upgrade, WatermarkState};
 
 /// v4.0.1 BUG-13 — pinned-tile glyph bytes (still served from the
 /// `assets/icons/carbon/` directory until the Material Symbols
 /// asset rename ships in EPIC-UI-MATERIAL.svg-swap). Baked here
 /// rather than depending on `mde-panel`'s `panel_icons` module so
 /// the popover crate stays free of upstream-binary deps.
-const FILES_SVG: &[u8] =
-    include_bytes!("../../../../assets/icons/carbon/files.svg");
-const WORKBENCH_SVG: &[u8] =
-    include_bytes!("../../../../assets/icons/carbon/workbench.svg");
+const FILES_SVG: &[u8] = include_bytes!("../../../../assets/icons/carbon/files.svg");
+const WORKBENCH_SVG: &[u8] = include_bytes!("../../../../assets/icons/carbon/workbench.svg");
 
 /// v4.0.1 — accent for the "N updates pending" chip in the footer
 /// system-identity strip. Matches the operator-locked indigo (Q2).
@@ -63,8 +62,7 @@ const MAX_ENTRANCE_MS: u64 =
 /// (Q15 long-list policy). Uses sqrt easing (ease-out) so the reveal feels
 /// snappy at the start and settles naturally.
 fn stagger_alpha(row_index: usize, opened_ms: u64) -> f32 {
-    let delay =
-        row_index.min(STAGGER_CAP.saturating_sub(1)) as u64 * STAGGER_STEP_MS as u64;
+    let delay = row_index.min(STAGGER_CAP.saturating_sub(1)) as u64 * STAGGER_STEP_MS as u64;
     let elapsed = opened_ms.saturating_sub(delay);
     let t = (elapsed as f32 / STAGGER_REVEAL_MS as f32).clamp(0.0, 1.0);
     t.sqrt()
@@ -181,7 +179,8 @@ fn view(state: &App) -> Element<'_, Message> {
     // (BUG-2 defensive perf fix), so view() is O(N) filter only.
     let q = state.query.trim();
     let entries: Vec<&AppEntry> = if q.is_empty() {
-        state.all
+        state
+            .all
             .iter()
             .filter(|e| !e.hidden && !e.name.is_empty() && !e.exec.is_empty())
             .collect()
@@ -199,16 +198,20 @@ fn view(state: &App) -> Element<'_, Message> {
         let alpha = stagger_alpha(row_idx, opened_ms);
         row_idx += 1;
         let label = column![
-            text(entry.name.clone())
-                .size(14)
-                .color(Color { a: FG_TEXT.a * alpha, ..FG_TEXT }),
+            text(entry.name.clone()).size(14).color(Color {
+                a: FG_TEXT.a * alpha,
+                ..FG_TEXT
+            }),
             text(if entry.comment.is_empty() {
                 String::new()
             } else {
                 entry.comment.clone()
             })
             .size(11)
-            .color(Color { a: FG_MUTED.a * alpha, ..FG_MUTED }),
+            .color(Color {
+                a: FG_MUTED.a * alpha,
+                ..FG_MUTED
+            }),
         ]
         .spacing(2);
         let exec = entry.exec.clone();
@@ -238,7 +241,10 @@ fn view(state: &App) -> Element<'_, Message> {
                 };
                 button::Style {
                     background: bg,
-                    text_color: Color { a: FG_TEXT.a * alpha, ..FG_TEXT },
+                    text_color: Color {
+                        a: FG_TEXT.a * alpha,
+                        ..FG_TEXT
+                    },
                     border: Border {
                         color: Color::TRANSPARENT,
                         width: 0.0,
@@ -270,12 +276,9 @@ fn view(state: &App) -> Element<'_, Message> {
                 color: Some(FG_TEXT),
             });
         button(
-            column![
-                glyph,
-                text(label).size(13).color(FG_TEXT),
-            ]
-            .align_x(Alignment::Center)
-            .spacing(4),
+            column![glyph, text(label).size(13).color(FG_TEXT),]
+                .align_x(Alignment::Center)
+                .spacing(4),
         )
         .padding(Padding {
             top: 12.0,
@@ -366,7 +369,9 @@ fn view(state: &App) -> Element<'_, Message> {
     });
 
     let footer = container(
-        text("Esc closes · click outside the M to re-toggle").size(10).color(FG_MUTED),
+        text("Esc closes · click outside the M to re-toggle")
+            .size(10)
+            .color(FG_MUTED),
     )
     .padding(Padding {
         top: 4.0,
@@ -461,8 +466,7 @@ fn subscription(state: &App) -> Subscription<Message> {
     if opened_ms <= MAX_ENTRANCE_MS {
         Subscription::batch([
             keyboard,
-            iced::time::every(std::time::Duration::from_millis(16))
-                .map(|_| Message::AnimTick),
+            iced::time::every(std::time::Duration::from_millis(16)).map(|_| Message::AnimTick),
         ])
     } else {
         keyboard
@@ -565,8 +569,8 @@ fn application_dirs() -> Vec<PathBuf> {
     if let Ok(home) = std::env::var("HOME") {
         out.push(Path::new(&home).join(".local/share/applications"));
     }
-    let xdg = std::env::var("XDG_DATA_DIRS")
-        .unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
+    let xdg =
+        std::env::var("XDG_DATA_DIRS").unwrap_or_else(|_| "/usr/local/share:/usr/share".into());
     for component in xdg.split(':') {
         if component.is_empty() {
             continue;
@@ -767,8 +771,7 @@ mod tests {
 
     #[test]
     fn max_entrance_ms_matches_token_arithmetic() {
-        let expected =
-            (STAGGER_CAP as u64 - 1) * STAGGER_STEP_MS as u64 + STAGGER_REVEAL_MS as u64;
+        let expected = (STAGGER_CAP as u64 - 1) * STAGGER_STEP_MS as u64 + STAGGER_REVEAL_MS as u64;
         assert_eq!(MAX_ENTRANCE_MS, expected);
     }
 

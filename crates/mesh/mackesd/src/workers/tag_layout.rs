@@ -27,8 +27,8 @@ use futures_util::StreamExt as _;
 use mackes_mesh_types::{TagStore, WorkspaceOverridesFile};
 use swayipc_async::{Connection, EventType};
 
-use super::{ShutdownToken, Worker};
 use super::workspace_router::find_owning_tag;
+use super::{ShutdownToken, Worker};
 
 const RECONNECT_BACKOFF: Duration = Duration::from_secs(3);
 
@@ -210,7 +210,9 @@ async fn handle_new_window(conn: &mut Connection, container: &swayipc_async::Nod
     };
     match conn.run_command(&cmd).await {
         Ok(_) => tracing::debug!(workspace = ws_num, %desired, source, "tag_layout applied"),
-        Err(e) => tracing::warn!(workspace = ws_num, %desired, source, error = %e, "tag_layout command failed"),
+        Err(e) => {
+            tracing::warn!(workspace = ws_num, %desired, source, error = %e, "tag_layout command failed")
+        }
     }
 }
 
@@ -298,7 +300,10 @@ fn walk_finds_con_id(node: &swayipc_async::Node, target: i64) -> bool {
         return true;
     }
     node.nodes.iter().any(|n| walk_finds_con_id(n, target))
-    || node.floating_nodes.iter().any(|n| walk_finds_con_id(n, target))
+        || node
+            .floating_nodes
+            .iter()
+            .any(|n| walk_finds_con_id(n, target))
 }
 
 /// Count leaf `Con` windows on workspace `ws_num`. Returns `None`
@@ -380,10 +385,7 @@ mod tests {
     /// Tag default wins when no override is set.
     #[test]
     fn resolve_desired_layout_falls_back_to_tag_default() {
-        assert_eq!(
-            resolve_desired_layout(None, Some("splith")),
-            Some("splith")
-        );
+        assert_eq!(resolve_desired_layout(None, Some("splith")), Some("splith"));
     }
 
     /// No opinion when both sources are unset.
@@ -407,44 +409,30 @@ mod tests {
     /// Override beats everything, including manifest layout.
     #[test]
     fn resolve_with_manifest_override_wins_over_manifest() {
-        let r = resolve_desired_layout_with_manifest(
-            Some("tabbed"),
-            Some("splith"),
-            Some("splitv"),
-        );
+        let r =
+            resolve_desired_layout_with_manifest(Some("tabbed"), Some("splith"), Some("splitv"));
         assert_eq!(r, Some("tabbed"));
     }
 
     /// Manifest with a recognised layout beats tagstore default.
     #[test]
     fn resolve_with_manifest_recognised_beats_tagstore() {
-        let r = resolve_desired_layout_with_manifest(
-            None,
-            Some("splith"),
-            Some("splitv"),
-        );
+        let r = resolve_desired_layout_with_manifest(None, Some("splith"), Some("splitv"));
         assert_eq!(r, Some("splith"));
     }
 
     /// Manifest "mde" sentinel falls through to tagstore.
     #[test]
     fn resolve_with_manifest_mde_falls_through_to_tagstore() {
-        let r = resolve_desired_layout_with_manifest(
-            None,
-            Some("mde"),
-            Some("tabbed"),
-        );
+        let r = resolve_desired_layout_with_manifest(None, Some("mde"), Some("tabbed"));
         assert_eq!(r, Some("tabbed"));
     }
 
     /// Manifest unrecognised value falls through to tagstore.
     #[test]
     fn resolve_with_manifest_unrecognised_falls_through() {
-        let r = resolve_desired_layout_with_manifest(
-            None,
-            Some("not-a-real-layout"),
-            Some("splitv"),
-        );
+        let r =
+            resolve_desired_layout_with_manifest(None, Some("not-a-real-layout"), Some("splitv"));
         assert_eq!(r, Some("splitv"));
     }
 

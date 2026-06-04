@@ -44,7 +44,7 @@ impl HelpIndexPanel {
                 "No help topics shipped with this install. The mde RPM \
                  normally installs Markdown topics under \
                  /usr/share/mde/help/. Open `docs/help/` in the source \
-                 tree for the upstream copies."
+                 tree for the upstream copies.",
             )
             .size(TypeRole::Body.size_in(sizes))
             .color(palette.text_muted.into_iced_color())
@@ -77,9 +77,9 @@ fn topic_row<'a>(topic: &'a HelpTopic, palette: Palette) -> Element<'a, crate::M
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(resolved.size_px()))
             .height(Length::Fixed(resolved.size_px()))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(muted),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style { color: Some(muted) },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -87,7 +87,9 @@ fn topic_row<'a>(topic: &'a HelpTopic, palette: Palette) -> Element<'a, crate::M
             .color(palette.text_muted.into_iced_color())
             .into()
     };
-    let title_text = text(topic.title.clone()).size(14).color(palette.text.into_iced_color());
+    let title_text = text(topic.title.clone())
+        .size(14)
+        .color(palette.text.into_iced_color());
     let path_text = text(topic.path.display().to_string())
         .size(10)
         .color(palette.text_muted.into_iced_color());
@@ -111,7 +113,8 @@ fn topic_row<'a>(topic: &'a HelpTopic, palette: Palette) -> Element<'a, crate::M
                 b: bg.b * 1.08,
                 a: bg.a,
             };
-            iced::widget::button::Style { snap: false,
+            iced::widget::button::Style {
+                snap: false,
                 background: Some(Background::Color(match status {
                     iced::widget::button::Status::Hovered => hover_bg,
                     _ => bg,

@@ -158,10 +158,7 @@ pub fn parse_nmap_xml(xml: &str, source: HostSource, now_ts: u64) -> Vec<Card> {
             if !open {
                 continue;
             }
-            let Some(portid) = port
-                .attribute("portid")
-                .and_then(|p| p.parse::<u16>().ok())
-            else {
+            let Some(portid) = port.attribute("portid").and_then(|p| p.parse::<u16>().ok()) else {
                 continue;
             };
             let svc = port.children().find(|n| n.has_tag_name("service"));
@@ -437,8 +434,9 @@ pub fn inventory_fingerprint(workgroup_root: &Path) -> u64 {
 /// Interface name-prefixes excluded from LAN detection: loopback, the
 /// Nebula overlay (mesh peers are already covered by `mesh_targets`),
 /// and the usual virtual bridges (container / VM / legacy-mesh nets).
-pub const DEFAULT_EXCLUDE_IFACE_PREFIXES: &[&str] =
-    &["lo", "nebula", "docker", "podman", "virbr", "cni", "veth", "br-"];
+pub const DEFAULT_EXCLUDE_IFACE_PREFIXES: &[&str] = &[
+    "lo", "nebula", "docker", "podman", "virbr", "cni", "veth", "br-",
+];
 
 /// Config file (under `~/.config/mde/`) of operator-arbitrary scan
 /// targets — TOML `targets = ["host", "cidr", ...]`.
@@ -468,7 +466,11 @@ pub fn ipv4_network_cidr(local: &str, prefixlen: u8) -> Option<String> {
         return None;
     }
     let ip = u32::from_be_bytes([octets[0], octets[1], octets[2], octets[3]]);
-    let mask = if prefixlen == 0 { 0 } else { u32::MAX << (32 - prefixlen) };
+    let mask = if prefixlen == 0 {
+        0
+    } else {
+        u32::MAX << (32 - prefixlen)
+    };
     let b = (ip & mask).to_be_bytes();
     Some(format!("{}.{}.{}.{}/{prefixlen}", b[0], b[1], b[2], b[3]))
 }
@@ -496,10 +498,7 @@ pub fn lan_cidrs_from_ip_json(json: &str, exclude_prefixes: &[&str]) -> Vec<Stri
     };
     let mut out: Vec<String> = Vec::new();
     for iface in ifaces {
-        if exclude_prefixes
-            .iter()
-            .any(|p| iface.ifname.starts_with(p))
-        {
+        if exclude_prefixes.iter().any(|p| iface.ifname.starts_with(p)) {
             continue;
         }
         for a in iface.addr_info {
@@ -521,9 +520,10 @@ pub fn lan_cidrs_from_ip_json(json: &str, exclude_prefixes: &[&str]) -> Vec<Stri
 #[must_use]
 pub fn detect_lan_cidrs() -> Vec<String> {
     match Command::new("ip").args(["-j", "addr"]).output() {
-        Ok(o) if o.status.success() => {
-            lan_cidrs_from_ip_json(&String::from_utf8_lossy(&o.stdout), DEFAULT_EXCLUDE_IFACE_PREFIXES)
-        }
+        Ok(o) if o.status.success() => lan_cidrs_from_ip_json(
+            &String::from_utf8_lossy(&o.stdout),
+            DEFAULT_EXCLUDE_IFACE_PREFIXES,
+        ),
         _ => Vec::new(),
     }
 }
@@ -697,7 +697,14 @@ pub fn run_probe_cycle(
     deep: bool,
 ) -> usize {
     let targets = resolve_targets(workgroup_root, home);
-    run_probe_cycle_with(workgroup_root, self_node_id, binary, &targets, nse_dir, deep)
+    run_probe_cycle_with(
+        workgroup_root,
+        self_node_id,
+        binary,
+        &targets,
+        nse_dir,
+        deep,
+    )
 }
 
 #[cfg(test)]
@@ -905,7 +912,10 @@ mod tests {
         let path = inventory_path(&root, "self");
         assert!(write_inventory_if_changed(&path, "[]"), "absent → changed");
         assert!(!write_inventory_if_changed(&path, "[]"), "same → no change");
-        assert!(write_inventory_if_changed(&path, "[{\"x\":1}]"), "diff → changed");
+        assert!(
+            write_inventory_if_changed(&path, "[{\"x\":1}]"),
+            "diff → changed"
+        );
         let leftover = path.with_extension("json.tmp").exists();
         let body = std::fs::read_to_string(&path).unwrap();
         let _ = std::fs::remove_dir_all(&root);
@@ -942,10 +952,23 @@ mod tests {
 
     #[test]
     fn ipv4_network_cidr_masks_to_network() {
-        assert_eq!(ipv4_network_cidr("172.20.146.48", 16).as_deref(), Some("172.20.0.0/16"));
-        assert_eq!(ipv4_network_cidr("192.168.1.42", 24).as_deref(), Some("192.168.1.0/24"));
-        assert_eq!(ipv4_network_cidr("10.0.0.5", 8).as_deref(), Some("10.0.0.0/8"));
-        assert_eq!(ipv4_network_cidr("1.2.3.4", 33), None, "prefix > 32 rejected");
+        assert_eq!(
+            ipv4_network_cidr("172.20.146.48", 16).as_deref(),
+            Some("172.20.0.0/16")
+        );
+        assert_eq!(
+            ipv4_network_cidr("192.168.1.42", 24).as_deref(),
+            Some("192.168.1.0/24")
+        );
+        assert_eq!(
+            ipv4_network_cidr("10.0.0.5", 8).as_deref(),
+            Some("10.0.0.0/8")
+        );
+        assert_eq!(
+            ipv4_network_cidr("1.2.3.4", 33),
+            None,
+            "prefix > 32 rejected"
+        );
         assert_eq!(ipv4_network_cidr("not.an.ip", 24), None);
     }
 
@@ -995,7 +1018,10 @@ mod tests {
         let missing = read_toml_string_list(&path, "exclude");
         let absent = read_toml_string_list(&root.join("nope.toml"), "targets");
         let _ = std::fs::remove_dir_all(&root);
-        assert_eq!(got, vec!["10.0.0.1".to_string(), "192.168.0.0/24".to_string()]);
+        assert_eq!(
+            got,
+            vec!["10.0.0.1".to_string(), "192.168.0.0/24".to_string()]
+        );
         assert!(missing.is_empty(), "absent key → empty");
         assert!(absent.is_empty(), "absent file → empty");
     }
@@ -1033,11 +1059,7 @@ mod tests {
             svc_cards,
             1,
         );
-        std::fs::write(
-            dir.join(INVENTORY_FILENAME),
-            serialize_inventory(&[host]),
-        )
-        .unwrap();
+        std::fs::write(dir.join(INVENTORY_FILENAME), serialize_inventory(&[host])).unwrap();
     }
 
     #[test]
@@ -1062,7 +1084,12 @@ mod tests {
     #[test]
     fn peers_with_service_filters_by_kind() {
         let root = tmp_root("inv-svc");
-        seed_inventory(&root, "peer-a", "10.42.0.5", &[("ssh", 22), ("jellyfin", 8096)]);
+        seed_inventory(
+            &root,
+            "peer-a",
+            "10.42.0.5",
+            &[("ssh", 22), ("jellyfin", 8096)],
+        );
         seed_inventory(&root, "peer-b", "10.42.0.6", &[("airsonic", 4040)]);
         let jelly = peers_with_service(&root, "jellyfin");
         let airs = peers_with_service(&root, "AIRSONIC"); // case-insensitive
@@ -1085,7 +1112,10 @@ mod tests {
         seed_inventory(&root, "peer-b", "10.42.0.6", &[("ssh", 22)]);
         let fp2 = inventory_fingerprint(&root);
         let _ = std::fs::remove_dir_all(&root);
-        assert_ne!(fp1, fp2, "fingerprint changes when a peer's inventory appears");
+        assert_ne!(
+            fp1, fp2,
+            "fingerprint changes when a peer's inventory appears"
+        );
         assert_ne!(fp1, 0);
     }
 
@@ -1105,12 +1135,26 @@ mod tests {
         let home = root.join("home");
         let cfg = home.join(".config").join("mde");
         std::fs::create_dir_all(&cfg).unwrap();
-        std::fs::write(cfg.join(ARBITRARY_TARGETS_FILE), "targets = [\"8.8.8.8\"]\n").unwrap();
+        std::fs::write(
+            cfg.join(ARBITRARY_TARGETS_FILE),
+            "targets = [\"8.8.8.8\"]\n",
+        )
+        .unwrap();
         std::fs::write(cfg.join(DO_NOT_SCAN_FILE), "exclude = [\"10.42.0.99\"]\n").unwrap();
         let ts = resolve_targets(&qnm, &home);
         let _ = std::fs::remove_dir_all(&root);
-        assert!(ts.targets.contains(&"10.42.0.9".to_string()), "mesh peer included");
-        assert!(ts.targets.contains(&"8.8.8.8".to_string()), "arbitrary included");
-        assert_eq!(ts.excludes, vec!["10.42.0.99".to_string()], "do-not-scan loaded");
+        assert!(
+            ts.targets.contains(&"10.42.0.9".to_string()),
+            "mesh peer included"
+        );
+        assert!(
+            ts.targets.contains(&"8.8.8.8".to_string()),
+            "arbitrary included"
+        );
+        assert_eq!(
+            ts.excludes,
+            vec!["10.42.0.99".to_string()],
+            "do-not-scan loaded"
+        );
     }
 }

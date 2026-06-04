@@ -92,10 +92,9 @@ fn build_server_config(
     let key_pem = std::fs::read(server_key)
         .map_err(|e| TunnelError::CertIo(format!("read {}: {e}", server_key.display())))?;
 
-    let cert_chain: Vec<CertificateDer<'static>> =
-        rustls_pemfile::certs(&mut cert_pem.as_slice())
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| TunnelError::CertIo(format!("parse cert pem: {e}")))?;
+    let cert_chain: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut cert_pem.as_slice())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| TunnelError::CertIo(format!("parse cert pem: {e}")))?;
     if cert_chain.is_empty() {
         return Err(TunnelError::CertIo(format!(
             "no certs in {}",
@@ -134,9 +133,9 @@ fn build_client_config(ca_bundle: Option<&Path>) -> Result<Arc<ClientConfig>, Tu
     })?;
     for cert in rustls_pemfile::certs(&mut pem.as_slice()) {
         let cert = cert.map_err(|e| TunnelError::CertIo(format!("parse CA pem: {e}")))?;
-        roots.add(cert).map_err(|e| {
-            TunnelError::Config(format!("install CA: {e}"))
-        })?;
+        roots
+            .add(cert)
+            .map_err(|e| TunnelError::Config(format!("install CA: {e}")))?;
     }
     if roots.is_empty() {
         return Err(TunnelError::CertIo(format!(

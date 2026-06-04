@@ -261,8 +261,7 @@ pub fn parse_hhmm(s: &str) -> Option<u32> {
 /// "operator-tolerant lag from peer-A toggle → peer-B observe"
 /// (GFS heals dnd.yaml within ~1 s on the LAN) against polling
 /// overhead.
-pub const DEFAULT_WATCH_TICK: std::time::Duration =
-    std::time::Duration::from_secs(1);
+pub const DEFAULT_WATCH_TICK: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Outcome of one [`DndWatcher::tick_once`] cycle. Public so
 /// tests can assert which branch fired without inspecting logs.
@@ -354,9 +353,7 @@ impl DndWatcher {
         if !self.file_path.exists() {
             return DndTickOutcome::FileMissing;
         }
-        let now = match std::fs::metadata(&self.file_path)
-            .and_then(|m| m.modified())
-        {
+        let now = match std::fs::metadata(&self.file_path).and_then(|m| m.modified()) {
             Ok(t) => t,
             Err(_) => return DndTickOutcome::Idle,
         };
@@ -404,10 +401,7 @@ impl DndWatcher {
 
     /// Long-running async loop. Calls [`Self::tick_once`] every
     /// `tick_interval` until `shutdown.changed()` resolves.
-    pub async fn run(
-        &mut self,
-        mut shutdown: tokio::sync::watch::Receiver<bool>,
-    ) {
+    pub async fn run(&mut self, mut shutdown: tokio::sync::watch::Receiver<bool>) {
         loop {
             let _ = self.tick_once();
             tokio::select! {
@@ -557,11 +551,11 @@ mod tests {
             quiet_after: Some(9 * 3600),
             quiet_until: Some(17 * 3600),
         };
-        assert!(!is_quiet_hour(8 * 3600, h));    // 08:00 — before window
-        assert!(is_quiet_hour(9 * 3600, h));     // 09:00 — boundary in
-        assert!(is_quiet_hour(12 * 3600, h));    // 12:00 — middle
-        assert!(!is_quiet_hour(17 * 3600, h));   // 17:00 — boundary out
-        assert!(!is_quiet_hour(20 * 3600, h));   // 20:00 — after window
+        assert!(!is_quiet_hour(8 * 3600, h)); // 08:00 — before window
+        assert!(is_quiet_hour(9 * 3600, h)); // 09:00 — boundary in
+        assert!(is_quiet_hour(12 * 3600, h)); // 12:00 — middle
+        assert!(!is_quiet_hour(17 * 3600, h)); // 17:00 — boundary out
+        assert!(!is_quiet_hour(20 * 3600, h)); // 20:00 — after window
     }
 
     #[test]
@@ -571,11 +565,11 @@ mod tests {
             quiet_after: Some(22 * 3600),
             quiet_until: Some(7 * 3600),
         };
-        assert!(is_quiet_hour(23 * 3600, h));    // 23:00 — after `after`
-        assert!(is_quiet_hour(0, h));            // 00:00 — wrap midnight
-        assert!(is_quiet_hour(6 * 3600, h));     // 06:00 — before `until`
-        assert!(!is_quiet_hour(7 * 3600, h));    // 07:00 — boundary out
-        assert!(!is_quiet_hour(12 * 3600, h));   // 12:00 — daytime
+        assert!(is_quiet_hour(23 * 3600, h)); // 23:00 — after `after`
+        assert!(is_quiet_hour(0, h)); // 00:00 — wrap midnight
+        assert!(is_quiet_hour(6 * 3600, h)); // 06:00 — before `until`
+        assert!(!is_quiet_hour(7 * 3600, h)); // 07:00 — boundary out
+        assert!(!is_quiet_hour(12 * 3600, h)); // 12:00 — daytime
         assert!(!is_quiet_hour(21 * 3600 + 59 * 60, h)); // 21:59 — just before `after`
     }
 
@@ -616,7 +610,12 @@ mod tests {
         let hours = TopicQuietHours::default();
         let tags_with_override = ["priority=urgent", "override=dnd"];
         let tags_without = ["priority=urgent"];
-        assert!(!is_suppressed(&state, hours, &tags_with_override, 12 * 3600));
+        assert!(!is_suppressed(
+            &state,
+            hours,
+            &tags_with_override,
+            12 * 3600
+        ));
         assert!(is_suppressed(&state, hours, &tags_without, 12 * 3600));
     }
 
@@ -631,7 +630,12 @@ mod tests {
         let tags_without: [&str; 0] = [];
         // Inside quiet hour, override bypasses; without override
         // the quiet window suppresses.
-        assert!(!is_suppressed(&state, hours, &tags_with_override, 12 * 3600));
+        assert!(!is_suppressed(
+            &state,
+            hours,
+            &tags_with_override,
+            12 * 3600
+        ));
         assert!(is_suppressed(&state, hours, &tags_without, 12 * 3600));
     }
 
@@ -667,7 +671,8 @@ mod tests {
 
     #[test]
     fn save_default_round_trip() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-dnd-roundtrip-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-dnd-roundtrip-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let original = DndState {
             active: true,
@@ -695,7 +700,8 @@ mod tests {
 
     #[test]
     fn watcher_starts_with_default_when_file_missing() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-dnd-watch-init-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-dnd-watch-init-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let watcher = DndWatcher::new(tmp.clone());
         // File doesn't exist → initial state = default (DND off).
@@ -705,7 +711,8 @@ mod tests {
 
     #[test]
     fn watcher_starts_with_existing_file_state() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-dnd-watch-existing-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-dnd-watch-existing-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let existing = DndState {
             active: true,
@@ -721,7 +728,8 @@ mod tests {
 
     #[test]
     fn watcher_tick_file_missing() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-dnd-watch-missing-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-dnd-watch-missing-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let mut watcher = DndWatcher::new(tmp.clone());
         assert_eq!(watcher.tick_once(), DndTickOutcome::FileMissing);
@@ -730,7 +738,8 @@ mod tests {
 
     #[test]
     fn watcher_tick_reloads_on_mtime_advance() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-dnd-watch-reload-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-dnd-watch-reload-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let initial = DndState::default();
         save_default(&tmp, &initial).unwrap();
@@ -761,7 +770,8 @@ mod tests {
 
     #[test]
     fn watcher_subscribe_emits_clone_of_current_state() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-dnd-watch-sub-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-dnd-watch-sub-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let watcher = DndWatcher::new(tmp.clone());
         let rx = watcher.subscribe();

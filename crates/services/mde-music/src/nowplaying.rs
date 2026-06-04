@@ -58,7 +58,11 @@ pub fn parse_state(reply_json: &str) -> NowState {
             .unwrap_or("")
             .to_string(),
         position_ms: v.get("position_ms").and_then(Value::as_u64).unwrap_or(0),
-        volume: v.get("volume").and_then(Value::as_f64).map(|x| x as f32).unwrap_or(1.0),
+        volume: v
+            .get("volume")
+            .and_then(Value::as_f64)
+            .map(|x| x as f32)
+            .unwrap_or(1.0),
     }
 }
 
@@ -100,7 +104,11 @@ pub fn parse_queue(reply_json: &str) -> (Vec<String>, usize) {
     let songs = v
         .get("songs")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(str::to_string))
+                .collect()
+        })
         .unwrap_or_default();
     let current = v.get("current").and_then(Value::as_u64).unwrap_or(0) as usize;
     (songs, current)
@@ -123,7 +131,11 @@ pub fn parse_lyrics_reply(reply_json: &str) -> Vec<String> {
             v.get("result")?
                 .get("lyrics")
                 .and_then(Value::as_array)
-                .map(|a| a.iter().filter_map(|x| x.as_str().map(str::to_string)).collect())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| x.as_str().map(str::to_string))
+                        .collect()
+                })
         })
         .unwrap_or_default()
 }
@@ -133,7 +145,15 @@ pub fn parse_lyrics_reply(reply_json: &str) -> Vec<String> {
 /// # Errors
 /// Bus-store / request / timeout failures.
 pub async fn fetch_lyrics(song_id: String) -> Result<Vec<String>, String> {
-    with_bus(move |p, rt| Ok(parse_lyrics_reply(&req(p, rt, "action/music/get-lyrics", Some(&song_id))?))).await
+    with_bus(move |p, rt| {
+        Ok(parse_lyrics_reply(&req(
+            p,
+            rt,
+            "action/music/get-lyrics",
+            Some(&song_id),
+        )?))
+    })
+    .await
 }
 
 /// AIR-15.b.5 — a peer's last music activity snapshot (Peers-tab roster).
@@ -150,17 +170,24 @@ pub fn parse_peer_states(reply_json: &str) -> Vec<PeerState> {
     serde_json::from_str::<Value>(reply_json)
         .ok()
         .and_then(|v| {
-            v.get("result")?.get("peers").and_then(Value::as_array).map(|a| {
-                a.iter()
-                    .filter_map(|p| {
-                        Some(PeerState {
-                            host: p.get("peer").and_then(Value::as_str)?.to_string(),
-                            playing: p.get("playing").and_then(Value::as_bool).unwrap_or(false),
-                            song_id: p.get("song_id").and_then(Value::as_str).unwrap_or("").to_string(),
+            v.get("result")?
+                .get("peers")
+                .and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|p| {
+                            Some(PeerState {
+                                host: p.get("peer").and_then(Value::as_str)?.to_string(),
+                                playing: p.get("playing").and_then(Value::as_bool).unwrap_or(false),
+                                song_id: p
+                                    .get("song_id")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string(),
+                            })
                         })
-                    })
-                    .collect()
-            })
+                        .collect()
+                })
         })
         .unwrap_or_default()
 }
@@ -170,7 +197,15 @@ pub fn parse_peer_states(reply_json: &str) -> Vec<PeerState> {
 /// # Errors
 /// Bus-store / request / timeout failures.
 pub async fn fetch_peer_states() -> Result<Vec<PeerState>, String> {
-    with_bus(|p, rt| Ok(parse_peer_states(&req(p, rt, "action/music/peer-states", None)?))).await
+    with_bus(|p, rt| {
+        Ok(parse_peer_states(&req(
+            p,
+            rt,
+            "action/music/peer-states",
+            None,
+        )?))
+    })
+    .await
 }
 
 /// Post an AIR-8 take-over intent asking `peer` to yield
@@ -207,7 +242,11 @@ pub fn parse_cover_id(reply_json: &str) -> Option<String> {
     if v.get("ok").and_then(Value::as_bool) != Some(true) {
         return None;
     }
-    let cover = v.get("result")?.get("song")?.get("coverArt").and_then(Value::as_str)?;
+    let cover = v
+        .get("result")?
+        .get("song")?
+        .get("coverArt")
+        .and_then(Value::as_str)?;
     (!cover.is_empty()).then(|| cover.to_string())
 }
 
@@ -222,7 +261,12 @@ pub fn parse_cover_id(reply_json: &str) -> Option<String> {
 pub fn parse_song_duration(reply_json: &str) -> u64 {
     serde_json::from_str::<Value>(reply_json)
         .ok()
-        .and_then(|v| v.get("result")?.get("song")?.get("duration").and_then(Value::as_u64))
+        .and_then(|v| {
+            v.get("result")?
+                .get("song")?
+                .get("duration")
+                .and_then(Value::as_u64)
+        })
         .unwrap_or(0)
         * 1000
 }
@@ -304,7 +348,10 @@ mod tests {
     #[test]
     fn parse_lyrics_reply_reads_lines() {
         let r = r#"{"ok":true,"result":{"lyrics":["one","two"]}}"#;
-        assert_eq!(parse_lyrics_reply(r), vec!["one".to_string(), "two".to_string()]);
+        assert_eq!(
+            parse_lyrics_reply(r),
+            vec!["one".to_string(), "two".to_string()]
+        );
         assert!(parse_lyrics_reply(r#"{"ok":true,"result":{}}"#).is_empty());
     }
 
@@ -340,7 +387,10 @@ mod tests {
                 .as_deref(),
             Some("al-9")
         );
-        assert_eq!(parse_cover_id(r#"{"ok":true,"result":{"song":{"title":"X"}}}"#), None);
+        assert_eq!(
+            parse_cover_id(r#"{"ok":true,"result":{"song":{"title":"X"}}}"#),
+            None
+        );
         assert_eq!(parse_cover_id("nope"), None);
     }
 

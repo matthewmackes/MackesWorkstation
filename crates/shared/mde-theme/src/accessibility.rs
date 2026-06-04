@@ -166,7 +166,11 @@ mod tests {
         .apply(dark_base);
         // White border at full alpha in dark mode.
         assert_eq!(
-            (dark_after.border.r, dark_after.border.g, dark_after.border.b),
+            (
+                dark_after.border.r,
+                dark_after.border.g,
+                dark_after.border.b
+            ),
             (0xff, 0xff, 0xff),
         );
         assert!((dark_after.border.a - 1.0).abs() < 0.001);

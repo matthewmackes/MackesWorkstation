@@ -101,7 +101,8 @@ pub fn view<'a, Msg: 'a + Clone>(
         .color(rgba_to_color(palette.text)),
     )
     .padding([space.xs2, space.sm])
-    .style(move |_theme| container::Style { snap: false,
+    .style(move |_theme| container::Style {
+        snap: false,
         background: Some(Background::Color(rgba_to_color(palette.overlay))),
         border: Border {
             radius: (tokens.radii.full as f32).into(),
@@ -120,22 +121,23 @@ pub fn view<'a, Msg: 'a + Clone>(
 
     // Build the inner column. When federated, insert the federation
     // badge row immediately above the hostname row.
-    let mut inner_children: Vec<Element<'a, Msg>> = vec![
-        upper.into(),
-        Space::new().height(Length::Fill).into(),
-    ];
+    let mut inner_children: Vec<Element<'a, Msg>> =
+        vec![upper.into(), Space::new().height(Length::Fill).into()];
     if let Some(fed) = federation {
         inner_children.push(federation_row(fed, palette, space, tokens).into());
     }
     inner_children.push(lower.into());
-    let inner = column(inner_children).width(Length::Fill).height(Length::Fill);
+    let inner = column(inner_children)
+        .width(Length::Fill)
+        .height(Length::Fill);
 
     // The hero block: background placeholder (raised tier) until
     // the Wikidata image streams in via enrichment.
     container(inner)
         .width(Length::Fill)
         .height(Length::Fixed(f32::from(HERO_HEIGHT_PX)))
-        .style(move |_theme| container::Style { snap: false,
+        .style(move |_theme| container::Style {
+            snap: false,
             background: Some(Background::Color(rgba_to_color(palette.raised))),
             ..container::Style::default()
         })
@@ -154,7 +156,8 @@ fn federation_row<'a, Msg: 'a>(
     space: mde_theme::Space,
     tokens: &'a Tokens,
 ) -> Element<'a, Msg> {
-    let pill_style = move |_theme: &iced::Theme| container::Style { snap: false,
+    let pill_style = move |_theme: &iced::Theme| container::Style {
+        snap: false,
         background: Some(Background::Color(rgba_to_color(palette.overlay))),
         border: Border {
             radius: (tokens.radii.full as f32).into(),

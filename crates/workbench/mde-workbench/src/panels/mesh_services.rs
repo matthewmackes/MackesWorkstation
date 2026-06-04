@@ -95,10 +95,23 @@ pub struct MeshServicesPanel {
 pub enum Message {
     Loaded(Vec<UnitStatus>),
     RefreshClicked,
-    StartClicked { name: String, scope: UnitScope },
-    StopClicked { name: String, scope: UnitScope },
-    RestartClicked { name: String, scope: UnitScope },
-    OpFinished { name: String, op: String, success: bool },
+    StartClicked {
+        name: String,
+        scope: UnitScope,
+    },
+    StopClicked {
+        name: String,
+        scope: UnitScope,
+    },
+    RestartClicked {
+        name: String,
+        scope: UnitScope,
+    },
+    OpFinished {
+        name: String,
+        op: String,
+        success: bool,
+    },
 }
 
 impl MeshServicesPanel {
@@ -213,7 +226,8 @@ impl MeshServicesPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -266,11 +280,7 @@ impl MeshServicesPanel {
 
 fn unit_row<'a>(u: &'a UnitStatus, palette: Palette) -> Element<'a, crate::Message> {
     let (status_icon, status_color, status_label) = match u.active_state.as_str() {
-        "active" => (
-            Icon::StatusOk,
-            Color::from_rgb(0.20, 0.80, 0.40),
-            "ACTIVE",
-        ),
+        "active" => (Icon::StatusOk, Color::from_rgb(0.20, 0.80, 0.40), "ACTIVE"),
         "activating" | "reloading" => (
             Icon::StatusWarning,
             Color::from_rgb(0.95, 0.70, 0.20),
@@ -298,9 +308,11 @@ fn unit_row<'a>(u: &'a UnitStatus, palette: Palette) -> Element<'a, crate::Messa
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(18.0))
             .height(Length::Fixed(18.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(status_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(status_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -312,10 +324,13 @@ fn unit_row<'a>(u: &'a UnitStatus, palette: Palette) -> Element<'a, crate::Messa
     let name_text = text(u.name.clone())
         .size(14)
         .color(palette.text.into_iced_color());
-    let scope_chip = text(format!("[{}]", match u.scope {
-        UnitScope::System => "system",
-        UnitScope::User => "user",
-    }))
+    let scope_chip = text(format!(
+        "[{}]",
+        match u.scope {
+            UnitScope::System => "system",
+            UnitScope::User => "user",
+        }
+    ))
     .size(11)
     .color(palette.text_muted.into_iced_color());
     let status_chip = text(status_label).size(11).color(status_color);
@@ -344,13 +359,17 @@ fn unit_row<'a>(u: &'a UnitStatus, palette: Palette) -> Element<'a, crate::Messa
             name: name.clone(),
             scope,
         }));
-    let restart_btn = button(text("Restart").size(11).color(palette.text.into_iced_color()))
-        .padding(Padding::from([3u16, 10u16]))
-        .style(action_btn_style(palette, true))
-        .on_press(crate::Message::MeshServices(Message::RestartClicked {
-            name,
-            scope,
-        }));
+    let restart_btn = button(
+        text("Restart")
+            .size(11)
+            .color(palette.text.into_iced_color()),
+    )
+    .padding(Padding::from([3u16, 10u16]))
+    .style(action_btn_style(palette, true))
+    .on_press(crate::Message::MeshServices(Message::RestartClicked {
+        name,
+        scope,
+    }));
 
     let buttons: Element<'a, crate::Message> = if is_installed {
         row![start_btn, stop_btn, restart_btn].spacing(6).into()
@@ -385,7 +404,8 @@ fn unit_row<'a>(u: &'a UnitStatus, palette: Palette) -> Element<'a, crate::Messa
                     .color(palette.text_muted.into_iced_color()),
             )
             .padding(Padding::from([8u16, 12u16]))
-            .style(move |_| container::Style { snap: false,
+            .style(move |_| container::Style {
+                snap: false,
                 background: Some(Background::Color(Color {
                     r: 0.06,
                     g: 0.06,
@@ -407,7 +427,8 @@ fn unit_row<'a>(u: &'a UnitStatus, palette: Palette) -> Element<'a, crate::Messa
     container(col)
         .padding(Padding::from([12u16, 16u16]))
         .width(Length::Fill)
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             border: Border {
                 color: border,
@@ -449,7 +470,8 @@ fn action_btn_style(
             };
             (bg, Color::WHITE)
         };
-        iced::widget::button::Style { snap: false,
+        iced::widget::button::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             text_color,
             border: Border {

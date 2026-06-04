@@ -124,7 +124,12 @@ pub fn queue_kind(device_uri: &str) -> QueueKind {
 
 /// Build this peer's `printers/<host>.json` record.
 #[must_use]
-pub fn own_record(host: &str, overlay_ip: &str, queues: &[(String, QueueKind)], now_ms: u64) -> Value {
+pub fn own_record(
+    host: &str,
+    overlay_ip: &str,
+    queues: &[(String, QueueKind)],
+    now_ms: u64,
+) -> Value {
     let q: Vec<Value> = queues
         .iter()
         .map(|(name, kind)| {
@@ -164,11 +169,15 @@ pub struct ImportQueue {
 pub fn import_plan(self_host: &str, records: &[Value]) -> Vec<ImportQueue> {
     let mut out = Vec::new();
     for rec in records {
-        let Some(host) = rec.get("host").and_then(Value::as_str) else { continue };
+        let Some(host) = rec.get("host").and_then(Value::as_str) else {
+            continue;
+        };
         if host == self_host {
             continue;
         }
-        let Some(queues) = rec.get("queues").and_then(Value::as_array) else { continue };
+        let Some(queues) = rec.get("queues").and_then(Value::as_array) else {
+            continue;
+        };
         for q in queues {
             let (Some(name), Some(uri)) = (
                 q.get("name").and_then(Value::as_str),
@@ -373,8 +382,7 @@ impl CupsSyncWorker {
         names
             .into_iter()
             .map(|n| {
-                let kind = parse_device_uri(&uris, &n)
-                    .map_or(QueueKind::Ppd, |u| queue_kind(&u));
+                let kind = parse_device_uri(&uris, &n).map_or(QueueKind::Ppd, |u| queue_kind(&u));
                 (n, kind)
             })
             .collect()
@@ -382,7 +390,12 @@ impl CupsSyncWorker {
 
     /// Write `printers/<host>.json` + replicate legacy PPDs. Returns
     /// whether the record changed since last tick (drives the event).
-    fn publish_own(&self, dir: &std::path::Path, overlay_ip: &str, local: &[(String, QueueKind)]) -> bool {
+    fn publish_own(
+        &self,
+        dir: &std::path::Path,
+        overlay_ip: &str,
+        local: &[(String, QueueKind)],
+    ) -> bool {
         let rec = own_record(&self.hostname, overlay_ip, local, now_ms());
         let path = dir.join(format!("{}.json", self.hostname));
         let queues_now = serde_json::to_string(&rec["queues"]).unwrap_or_default();
@@ -416,7 +429,9 @@ impl CupsSyncWorker {
             if cupsd_needs_listen(&text, overlay_ip) {
                 let next = cupsd_with_listen(&text, overlay_ip, &self.overlay_cidr);
                 if std::fs::write(&conf, next).is_ok() {
-                    let _ = Command::new("systemctl").args(["reload", "cups.service"]).status();
+                    let _ = Command::new("systemctl")
+                        .args(["reload", "cups.service"])
+                        .status();
                 }
             }
         }
@@ -445,10 +460,14 @@ impl CupsSyncWorker {
 
     fn reconcile_defaults(&self, dir: &std::path::Path) {
         let path = dir.join("_defaults.json");
-        let Ok(text) = std::fs::read_to_string(&path) else { return };
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return;
+        };
         // The file holds a single object today; LWW is across historical
         // writers via `written_at_ms` once multiple peers contend.
-        let Ok(rec) = serde_json::from_str::<Value>(&text) else { return };
+        let Ok(rec) = serde_json::from_str::<Value>(&text) else {
+            return;
+        };
         let winner = resolve_defaults_lww(std::slice::from_ref(&rec));
         if let Some(d) = winner {
             if let Some(def) = d.get("default_printer").and_then(Value::as_str) {
@@ -634,13 +653,20 @@ mod tests {
 
     #[test]
     fn device_uri_parsed_and_classified() {
-        let out = "device for Office: ipp://10.0.0.5:631/ipp/print\ndevice for USBHP: usb://HP/LaserJet";
+        let out =
+            "device for Office: ipp://10.0.0.5:631/ipp/print\ndevice for USBHP: usb://HP/LaserJet";
         assert_eq!(
             parse_device_uri(out, "Office").as_deref(),
             Some("ipp://10.0.0.5:631/ipp/print")
         );
-        assert_eq!(queue_kind(&parse_device_uri(out, "Office").unwrap()), QueueKind::Everywhere);
-        assert_eq!(queue_kind(&parse_device_uri(out, "USBHP").unwrap()), QueueKind::Ppd);
+        assert_eq!(
+            queue_kind(&parse_device_uri(out, "Office").unwrap()),
+            QueueKind::Everywhere
+        );
+        assert_eq!(
+            queue_kind(&parse_device_uri(out, "USBHP").unwrap()),
+            QueueKind::Ppd
+        );
     }
 
     #[test]
@@ -663,8 +689,18 @@ mod tests {
 
     #[test]
     fn import_plan_names_at_host_and_excludes_self() {
-        let anvil = own_record("anvil", "10.42.0.7", &[("Office".to_string(), QueueKind::Everywhere)], 1);
-        let forge = own_record("forge", "10.42.0.8", &[("Lab".to_string(), QueueKind::Ppd)], 1);
+        let anvil = own_record(
+            "anvil",
+            "10.42.0.7",
+            &[("Office".to_string(), QueueKind::Everywhere)],
+            1,
+        );
+        let forge = own_record(
+            "forge",
+            "10.42.0.8",
+            &[("Lab".to_string(), QueueKind::Ppd)],
+            1,
+        );
         let plan = import_plan("anvil", &[anvil, forge]);
         // Only forge's queue imported (self excluded).
         assert_eq!(plan.len(), 1);
@@ -684,20 +720,28 @@ mod tests {
         };
         let argv = lpadmin_add_argv(&q, None);
         assert!(argv.windows(2).any(|w| w == ["-m", "everywhere"]));
-        let q2 = ImportQueue { kind: QueueKind::Ppd, ..q };
+        let q2 = ImportQueue {
+            kind: QueueKind::Ppd,
+            ..q
+        };
         let argv2 = lpadmin_add_argv(&q2, Some("/mesh/ppd/forge/Lab.ppd"));
-        assert!(argv2.windows(2).any(|w| w == ["-P", "/mesh/ppd/forge/Lab.ppd"]));
+        assert!(argv2
+            .windows(2)
+            .any(|w| w == ["-P", "/mesh/ppd/forge/Lab.ppd"]));
     }
 
     #[test]
     fn prune_targets_only_stale_at_host_queues() {
         let existing = vec![
-            "Office".to_string(),          // local — never pruned
-            "Lab@forge".to_string(),       // desired — keep
-            "Old@beacon".to_string(),      // vanished — prune
+            "Office".to_string(),     // local — never pruned
+            "Lab@forge".to_string(),  // desired — keep
+            "Old@beacon".to_string(), // vanished — prune
         ];
         let desired = vec!["Lab@forge".to_string()];
-        assert_eq!(prune_list(&existing, &desired), vec!["Old@beacon".to_string()]);
+        assert_eq!(
+            prune_list(&existing, &desired),
+            vec!["Old@beacon".to_string()]
+        );
     }
 
     #[test]
@@ -733,7 +777,7 @@ mod tests {
             lpadmin: "lpadmin".to_string(),
             lpoptions: "lpoptions".to_string(),
             cupsctl: "cupsctl".to_string(),
-            bus_root: None,               // no Bus in unit tests
+            bus_root: None, // no Bus in unit tests
             action_cursors: HashMap::new(),
         }
     }

@@ -193,10 +193,8 @@ mod tests {
 
     fn cfg_with_one_rule(rule: Rule) -> HooksConfig {
         let mut cfg = HooksConfig::default();
-        cfg.adapters.insert(
-            "stub".to_string(),
-            AdapterConfig { rules: vec![rule] },
-        );
+        cfg.adapters
+            .insert("stub".to_string(), AdapterConfig { rules: vec![rule] });
         cfg
     }
 
@@ -288,11 +286,9 @@ mod tests {
         let headers = BTreeMap::from([("x-event".to_string(), "push".to_string())]);
         // Mismatch on the field
         let body = json!({"key": "other"});
-        assert!(
-            match_request("stub", &headers, &body, &cfg, &StubAdapter)
-                .unwrap()
-                .is_none()
-        );
+        assert!(match_request("stub", &headers, &body, &cfg, &StubAdapter)
+            .unwrap()
+            .is_none());
         // Match on the field
         let body = json!({"key": "expected"});
         let r = match_request("stub", &headers, &body, &cfg, &StubAdapter)

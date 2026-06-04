@@ -119,11 +119,13 @@ pub fn run(op: CorrelateOp) -> Result<()> {
             }
             for issue in &issues {
                 match issue.rule_index {
-                    Some(i) => println!("[rule {i}: {name}] {msg}",
+                    Some(i) => println!(
+                        "[rule {i}: {name}] {msg}",
                         name = issue.rule_name,
                         msg = issue.message,
                     ),
-                    None => println!("[{name}] {msg}",
+                    None => println!(
+                        "[{name}] {msg}",
                         name = issue.rule_name,
                         msg = issue.message,
                     ),
@@ -158,13 +160,17 @@ mod tests {
         // Missing file is the most common case (operator hasn't
         // configured correlation yet) — must not error.
         let p = std::path::PathBuf::from("/nonexistent/path/bus-correlate.yaml");
-        let r = run(CorrelateOp::List { config: Some(p), json: false });
+        let r = run(CorrelateOp::List {
+            config: Some(p),
+            json: false,
+        });
         assert!(r.is_ok());
     }
 
     #[test]
     fn list_with_existing_config_succeeds() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-correlate-cli-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-correlate-cli-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let path = tmp.join("bus-correlate.yaml");
         std::fs::write(
@@ -172,10 +178,16 @@ mod tests {
             "rules:\n  - name: power-outage\n    sources: [a, b]\n    window_seconds: 60\n    emits: incident/outage\n    priority: high\n",
         )
         .unwrap();
-        let r = run(CorrelateOp::List { config: Some(path.clone()), json: false });
+        let r = run(CorrelateOp::List {
+            config: Some(path.clone()),
+            json: false,
+        });
         assert!(r.is_ok());
         // Also verify --json path runs without error.
-        let r_json = run(CorrelateOp::List { config: Some(path), json: true });
+        let r_json = run(CorrelateOp::List {
+            config: Some(path),
+            json: true,
+        });
         assert!(r_json.is_ok());
         let _ = std::fs::remove_dir_all(&tmp);
     }
@@ -207,7 +219,8 @@ mod tests {
 
     #[test]
     fn count_with_existing_config_succeeds() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-correlate-count-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-correlate-count-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let path = tmp.join("bus-correlate.yaml");
         std::fs::write(

@@ -88,10 +88,12 @@ impl KeyboardPanel {
     pub fn load(backend: Arc<dyn Backend>) -> Task<crate::Message> {
         Task::perform(
             async move {
-                let repeat_delay = parse_u32(&strip_json_quotes(&backend.get(KEY_REPEAT_DELAY).await?))
-                    .unwrap_or(REPEAT_DELAY_DEFAULT);
-                let repeat_rate = parse_u32(&strip_json_quotes(&backend.get(KEY_REPEAT_RATE).await?))
-                    .unwrap_or(REPEAT_RATE_DEFAULT);
+                let repeat_delay =
+                    parse_u32(&strip_json_quotes(&backend.get(KEY_REPEAT_DELAY).await?))
+                        .unwrap_or(REPEAT_DELAY_DEFAULT);
+                let repeat_rate =
+                    parse_u32(&strip_json_quotes(&backend.get(KEY_REPEAT_RATE).await?))
+                        .unwrap_or(REPEAT_RATE_DEFAULT);
                 let raw_layout = strip_json_quotes(&backend.get(KEY_XKB_LAYOUT).await?);
                 let xkb_layout = if raw_layout.trim().is_empty() {
                     XKB_LAYOUT_DEFAULT.to_owned()
@@ -203,11 +205,9 @@ impl KeyboardPanel {
             .spacing(12),
             row![
                 text("Repeat rate (chars/s)").width(Length::Fixed(180.0)),
-                slider(
-                    REPEAT_RATE_MIN..=REPEAT_RATE_MAX,
-                    self.repeat_rate,
-                    |v| crate::Message::Keyboard(Message::RepeatRateChanged(v)),
-                )
+                slider(REPEAT_RATE_MIN..=REPEAT_RATE_MAX, self.repeat_rate, |v| {
+                    crate::Message::Keyboard(Message::RepeatRateChanged(v))
+                },)
                 .step(1_u32),
                 text(format!("{}/s", self.repeat_rate)).size(13),
             ]
@@ -326,7 +326,10 @@ mod tests {
         let backend: Arc<dyn Backend> = Arc::new(DemoBackend::new());
         backend.set(KEY_REPEAT_DELAY, "300").await.unwrap();
         backend.set(KEY_REPEAT_RATE, "40").await.unwrap();
-        backend.set(KEY_XKB_LAYOUT, &quote_json("gb")).await.unwrap();
+        backend
+            .set(KEY_XKB_LAYOUT, &quote_json("gb"))
+            .await
+            .unwrap();
         assert_eq!(backend.get(KEY_REPEAT_DELAY).await.unwrap(), "300");
         assert_eq!(backend.get(KEY_REPEAT_RATE).await.unwrap(), "40");
         assert_eq!(backend.get(KEY_XKB_LAYOUT).await.unwrap(), "\"gb\"");

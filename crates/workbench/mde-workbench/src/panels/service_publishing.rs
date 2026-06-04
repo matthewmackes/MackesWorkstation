@@ -60,7 +60,10 @@ pub struct ServicePublishingPanel {
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    Loaded { rows: Vec<ServiceRow>, error: Option<String> },
+    Loaded {
+        rows: Vec<ServiceRow>,
+        error: Option<String>,
+    },
     RefreshClicked,
 }
 
@@ -82,9 +85,8 @@ impl ServicePublishingPanel {
                 self.rows = rows;
                 self.busy = false;
                 self.last_run_at = Some(SystemTime::now());
-                self.last_op = error.unwrap_or_else(|| {
-                    format!("{} canonical services loaded", self.rows.len())
-                });
+                self.last_op = error
+                    .unwrap_or_else(|| format!("{} canonical services loaded", self.rows.len()));
                 Task::none()
             }
             Message::RefreshClicked => {
@@ -132,7 +134,8 @@ impl ServicePublishingPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -198,7 +201,8 @@ fn empty_state<'a>(palette: Palette) -> Element<'a, crate::Message> {
     )
     .padding(Padding::from([18u16, 22u16]))
     .width(Length::Fill)
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(palette.raised.into_iced_color())),
         border: Border {
             color: palette.border.into_iced_color(),
@@ -214,31 +218,22 @@ fn service_row_view<'a>(r: &ServiceRow, palette: Palette) -> Element<'a, crate::
     let (pill_label, pill_color) = if r.is_publishable {
         ("Published", palette.accent.into_iced_color())
     } else {
-        (
-            "Not enrolled",
-            Color::from_rgb(0.95, 0.70, 0.20),
-        )
+        ("Not enrolled", Color::from_rgb(0.95, 0.70, 0.20))
     };
-    let pill = container(
-        text(pill_label)
-            .size(10)
-            .color(Color::WHITE),
-    )
-    .padding(Padding::from([2u16, 8u16]))
-    .style(move |_| container::Style { snap: false,
-        background: Some(Background::Color(pill_color)),
-        border: Border {
-            color: Color::TRANSPARENT,
-            width: 0.0,
-            radius: 10.0.into(),
-        },
-        ..container::Style::default()
-    });
+    let pill = container(text(pill_label).size(10).color(Color::WHITE))
+        .padding(Padding::from([2u16, 8u16]))
+        .style(move |_| container::Style {
+            snap: false,
+            background: Some(Background::Color(pill_color)),
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 10.0.into(),
+            },
+            ..container::Style::default()
+        });
 
-    let overlay_text = r
-        .overlay_ip
-        .clone()
-        .unwrap_or_else(|| "—".to_string());
+    let overlay_text = r.overlay_ip.clone().unwrap_or_else(|| "—".to_string());
     let port_proto = format!("{}/{}", r.port, r.proto);
 
     let bg = palette.raised.into_iced_color();
@@ -272,7 +267,8 @@ fn service_row_view<'a>(r: &ServiceRow, palette: Palette) -> Element<'a, crate::
     )
     .padding(Padding::from([10u16, 16u16]))
     .width(Length::Fill)
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: border,
@@ -335,10 +331,7 @@ pub fn parse_summary(raw: &str) -> (Vec<ServiceRow>, Option<String>) {
     }
     match serde_json::from_str::<Vec<ServiceRow>>(trimmed) {
         Ok(rows) => (rows, None),
-        Err(e) => (
-            Vec::new(),
-            Some(format!("invalid JSON: {e}")),
-        ),
+        Err(e) => (Vec::new(), Some(format!("invalid JSON: {e}"))),
     }
 }
 

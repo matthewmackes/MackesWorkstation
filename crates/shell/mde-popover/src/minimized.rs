@@ -189,35 +189,29 @@ fn view(state: &App) -> Element<'_, Message> {
     };
     let top_strip = row![
         dismiss(),
-        container(card)
-            .padding(Padding {
-                top: 44.0,
-                right: 14.0,
-                bottom: 0.0,
-                left: 0.0,
-            }),
+        container(card).padding(Padding {
+            top: 44.0,
+            right: 14.0,
+            bottom: 0.0,
+            left: 0.0,
+        }),
     ]
     .height(Length::Fixed((HEIGHT + 44) as f32));
-    container(
-        column![
-            top_strip,
-            dismiss(),
-        ],
-    )
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .style(|_| container::Style {
-        background: Some(Background::Color(Color::TRANSPARENT)),
-        border: Border {
-            color: Color::TRANSPARENT,
-            width: 0.0,
-            radius: 0.0.into(),
-        },
-        shadow: Shadow::default(),
-        text_color: None,
-        snap: false,
-    })
-    .into()
+    container(column![top_strip, dismiss(),])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(Color::TRANSPARENT)),
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
+            shadow: Shadow::default(),
+            text_color: None,
+            snap: false,
+        })
+        .into()
 }
 
 fn window_row<'a>(r: &'a MinimizedRow) -> Element<'a, Message> {
@@ -316,9 +310,7 @@ fn ghost_btn_style(status: iced::widget::button::Status) -> iced::widget::button
 pub fn scan_scratchpad() -> Vec<MinimizedRow> {
     let out = Command::new("swaymsg").args(["-t", "get_tree"]).output();
     match out {
-        Ok(o) if o.status.success() => {
-            parse_scratchpad(&String::from_utf8_lossy(&o.stdout))
-        }
+        Ok(o) if o.status.success() => parse_scratchpad(&String::from_utf8_lossy(&o.stdout)),
         _ => Vec::new(),
     }
 }
@@ -409,22 +401,26 @@ fn collect_leaves(node: &serde_json::Value, out: &mut Vec<MinimizedRow>) {
 
 pub fn run() -> iced_layershell::Result {
     iced_layershell::application(
-        || App { rows: scan_scratchpad() },
+        || App {
+            rows: scan_scratchpad(),
+        },
         namespace,
         update,
         view,
     )
-    .theme(|_: &App| iced::Theme::custom(
-        "mde-popover-minimized",
-        iced::theme::Palette {
-            background: SURFACE_BG,
-            text: FG_TEXT,
-            primary: ACCENT,
-            warning: Color::from_rgb(0.96, 0.65, 0.14),
-            success: Color::from_rgb(0.20, 0.80, 0.40),
-            danger: Color::from_rgb(0.92, 0.32, 0.30),
-        },
-    ))
+    .theme(|_: &App| {
+        iced::Theme::custom(
+            "mde-popover-minimized",
+            iced::theme::Palette {
+                background: SURFACE_BG,
+                text: FG_TEXT,
+                primary: ACCENT,
+                warning: Color::from_rgb(0.96, 0.65, 0.14),
+                success: Color::from_rgb(0.20, 0.80, 0.40),
+                danger: Color::from_rgb(0.92, 0.32, 0.30),
+            },
+        )
+    })
     .settings(Settings {
         id: Some("mde-popover-minimized".to_string()),
         fonts: crate::fonts::load_fallback_fonts(),

@@ -19,7 +19,10 @@
 use std::process::Command;
 
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::{
+    Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task,
+    Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -243,14 +246,14 @@ fn view(state: &App) -> Element<'_, Message> {
     }));
 
     for (section_name, actions) in SECTIONS {
-        body = body.push(container(text(*section_name).size(11).color(FG_MUTED)).padding(
-            Padding {
+        body = body.push(
+            container(text(*section_name).size(11).color(FG_MUTED)).padding(Padding {
                 top: 8.0,
                 right: 12.0,
                 bottom: 0.0,
                 left: 12.0,
-            },
-        ));
+            }),
+        );
         for action in *actions {
             let label_text = text(action.label).size(13).color(FG_TEXT);
             let needs_sudo_chip = if action.needs_sudo {
@@ -279,13 +282,17 @@ fn view(state: &App) -> Element<'_, Message> {
         }
     }
 
-    let footer = container(text("Esc closes · click × to dismiss").size(10).color(FG_MUTED))
-        .padding(Padding {
-            top: 6.0,
-            right: 12.0,
-            bottom: 8.0,
-            left: 12.0,
-        });
+    let footer = container(
+        text("Esc closes · click × to dismiss")
+            .size(10)
+            .color(FG_MUTED),
+    )
+    .padding(Padding {
+        top: 6.0,
+        right: 12.0,
+        bottom: 8.0,
+        left: 12.0,
+    });
     body = body.push(footer);
 
     let scroll = scrollable(body).height(Length::Fill);
@@ -354,7 +361,9 @@ fn subscription(_state: &App) -> Subscription<Message> {
 
 pub fn run() -> iced_layershell::Result {
     iced_layershell::application(
-        || App { sudo_cached: sudo_cached() },
+        || App {
+            sudo_cached: sudo_cached(),
+        },
         namespace,
         update,
         view,

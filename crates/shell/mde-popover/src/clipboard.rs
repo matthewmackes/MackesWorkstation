@@ -101,8 +101,7 @@ mod pin {
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            let json =
-                serde_json::to_string(self).map_err(std::io::Error::other)?;
+            let json = serde_json::to_string(self).map_err(std::io::Error::other)?;
             let tmp = path.with_extension("tmp");
             std::fs::write(&tmp, json.as_bytes())?;
             std::fs::rename(&tmp, path)?;
@@ -187,9 +186,7 @@ fn load_from_bus(dir: &Path) -> Vec<ClipEntry> {
                     .and_then(|b| String::from_utf8(b).ok())
                     .unwrap_or_default()
             }
-            ClipboardPayload::BlobRef { path } => {
-                std::fs::read_to_string(path).unwrap_or_default()
-            }
+            ClipboardPayload::BlobRef { path } => std::fs::read_to_string(path).unwrap_or_default(),
         };
         entries.push(ClipEntry {
             ulid: env.ulid,
@@ -270,8 +267,9 @@ pub fn split_by_pin<'a>(
 
 // ── Iced layer-shell popover ───────────────────────────────────────────────
 
-use iced::widget::{button, column, container, mouse_area, row, scrollable, text, text_input,
-    Space};
+use iced::widget::{
+    button, column, container, mouse_area, row, scrollable, text, text_input, Space,
+};
 use iced::{
     Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task,
     Theme,
@@ -283,10 +281,30 @@ use iced_layershell::to_layer_message;
 const WIDTH: u32 = 480;
 const CARD_HEIGHT: u32 = 520;
 
-const FG_TEXT: Color = Color { r: 0.957, g: 0.957, b: 0.957, a: 1.0 };
-const FG_MUTED: Color = Color { r: 0.659, g: 0.659, b: 0.659, a: 1.0 };
-const ACCENT: Color = Color { r: 0.169, g: 0.604, b: 0.953, a: 1.0 };
-const SURFACE_BG: Color = Color { r: 0.055, g: 0.055, b: 0.063, a: 0.97 };
+const FG_TEXT: Color = Color {
+    r: 0.957,
+    g: 0.957,
+    b: 0.957,
+    a: 1.0,
+};
+const FG_MUTED: Color = Color {
+    r: 0.659,
+    g: 0.659,
+    b: 0.659,
+    a: 1.0,
+};
+const ACCENT: Color = Color {
+    r: 0.169,
+    g: 0.604,
+    b: 0.953,
+    a: 1.0,
+};
+const SURFACE_BG: Color = Color {
+    r: 0.055,
+    g: 0.055,
+    b: 0.063,
+    a: 0.97,
+};
 
 #[to_layer_message]
 #[derive(Debug, Clone)]
@@ -297,9 +315,9 @@ pub enum Message {
     CursorDown,
     PasteSelected,
     // BUS-5.7 — right-click pin actions.
-    ShowContext(usize),  // real_idx into all_entries
+    ShowContext(usize), // real_idx into all_entries
     HideContext,
-    TogglePin(String),  // ULID
+    TogglePin(String), // ULID
     Exit,
 }
 
@@ -310,14 +328,15 @@ pub struct App {
     // BUS-5.7 — pin state.
     pin_store: pin::PinStore,
     pin_path: PathBuf,
-    context_entry: Option<usize>,  // real_idx of entry showing context menu
+    context_entry: Option<usize>, // real_idx of entry showing context menu
 }
 
 impl App {
     /// Returns matching entry indices, pinned first, then newest-first history.
     fn filtered_indices(&self) -> Vec<usize> {
         let q = self.filter.to_lowercase();
-        let mut indices: Vec<usize> = self.all_entries
+        let mut indices: Vec<usize> = self
+            .all_entries
             .iter()
             .enumerate()
             .filter(|(_, e)| {
@@ -440,13 +459,23 @@ fn view(state: &App) -> Element<'_, Message> {
         ]
         .align_y(Alignment::Center),
     )
-    .padding(Padding { top: 8.0, right: 12.0, bottom: 4.0, left: 12.0 });
+    .padding(Padding {
+        top: 8.0,
+        right: 12.0,
+        bottom: 4.0,
+        left: 12.0,
+    });
 
     let filter_row = container(
         text_input("Filter…", &state.filter)
             .on_input(Message::FilterChanged)
             .size(13)
-            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .padding(Padding {
+                top: 4.0,
+                right: 8.0,
+                bottom: 4.0,
+                left: 8.0,
+            })
             .style(|_theme, _status| text_input::Style {
                 background: Background::Color(Color {
                     r: ACCENT.r,
@@ -455,17 +484,32 @@ fn view(state: &App) -> Element<'_, Message> {
                     a: 0.08,
                 }),
                 border: Border {
-                    color: Color { r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.35 },
+                    color: Color {
+                        r: ACCENT.r,
+                        g: ACCENT.g,
+                        b: ACCENT.b,
+                        a: 0.35,
+                    },
                     width: 1.0,
                     radius: 4.0.into(),
                 },
                 icon: FG_MUTED,
                 placeholder: FG_MUTED,
                 value: FG_TEXT,
-                selection: Color { r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.30 },
+                selection: Color {
+                    r: ACCENT.r,
+                    g: ACCENT.g,
+                    b: ACCENT.b,
+                    a: 0.30,
+                },
             }),
     )
-    .padding(Padding { top: 0.0, right: 12.0, bottom: 6.0, left: 12.0 });
+    .padding(Padding {
+        top: 0.0,
+        right: 12.0,
+        bottom: 6.0,
+        left: 12.0,
+    });
 
     let (pinned_real, history_real) = split_by_pin(&state.all_entries, &indices, &state.pin_store);
     let cursor = state.cursor;
@@ -482,7 +526,12 @@ fn view(state: &App) -> Element<'_, Message> {
                 .size(13)
                 .color(FG_MUTED),
             )
-            .padding(Padding { top: 28.0, right: 0.0, bottom: 0.0, left: 12.0 }),
+            .padding(Padding {
+                top: 28.0,
+                right: 0.0,
+                bottom: 0.0,
+                left: 12.0,
+            }),
         );
     }
 
@@ -521,10 +570,19 @@ fn view(state: &App) -> Element<'_, Message> {
             .size(10)
             .color(FG_MUTED),
     )
-    .padding(Padding { top: 4.0, right: 12.0, bottom: 8.0, left: 12.0 });
+    .padding(Padding {
+        top: 4.0,
+        right: 12.0,
+        bottom: 8.0,
+        left: 12.0,
+    });
 
-    let body = column![header, filter_row, scroll, footer]
-        .padding(Padding { top: 4.0, right: 4.0, bottom: 4.0, left: 4.0 });
+    let body = column![header, filter_row, scroll, footer].padding(Padding {
+        top: 4.0,
+        right: 4.0,
+        bottom: 4.0,
+        left: 4.0,
+    });
 
     let card: Element<'_, Message> = container(body)
         .width(Length::Fixed(WIDTH as f32))
@@ -658,7 +716,12 @@ fn entry_row<'a>(
             pin_mark,
         ]
         .align_y(Alignment::Center)
-        .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 }),
+        .padding(Padding {
+            top: 6.0,
+            right: 12.0,
+            bottom: 6.0,
+            left: 12.0,
+        }),
     )
     .width(Length::Fill)
     .style(move |_theme, status| history_row_style(status, is_cursor))
@@ -681,18 +744,29 @@ fn context_menu_row<'a>(ulid: String, is_pinned: bool) -> Element<'a, Message> {
                     let bg = match status {
                         button::Status::Hovered | button::Status::Pressed => {
                             Some(Background::Color(Color {
-                                r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.20,
+                                r: ACCENT.r,
+                                g: ACCENT.g,
+                                b: ACCENT.b,
+                                a: 0.20,
                             }))
                         }
                         _ => Some(Background::Color(Color {
-                            r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.10,
+                            r: ACCENT.r,
+                            g: ACCENT.g,
+                            b: ACCENT.b,
+                            a: 0.10,
                         })),
                     };
                     button::Style {
                         background: bg,
                         text_color: FG_TEXT,
                         border: Border {
-                            color: Color { r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.40 },
+                            color: Color {
+                                r: ACCENT.r,
+                                g: ACCENT.g,
+                                b: ACCENT.b,
+                                a: 0.40,
+                            },
                             width: 1.0,
                             radius: 4.0.into(),
                         },
@@ -710,7 +784,10 @@ fn context_menu_row<'a>(ulid: String, is_pinned: bool) -> Element<'a, Message> {
                     };
                     button::Style {
                         background: Some(Background::Color(Color {
-                            r: FG_MUTED.r, g: FG_MUTED.g, b: FG_MUTED.b, a: alpha,
+                            r: FG_MUTED.r,
+                            g: FG_MUTED.g,
+                            b: FG_MUTED.b,
+                            a: alpha,
                         })),
                         text_color: FG_MUTED,
                         border: Border::default(),
@@ -721,13 +798,26 @@ fn context_menu_row<'a>(ulid: String, is_pinned: bool) -> Element<'a, Message> {
         ]
         .align_y(Alignment::Center),
     )
-    .padding(Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 8.0 })
+    .padding(Padding {
+        top: 3.0,
+        right: 8.0,
+        bottom: 3.0,
+        left: 8.0,
+    })
     .style(|_| container::Style {
         background: Some(Background::Color(Color {
-            r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.08,
+            r: ACCENT.r,
+            g: ACCENT.g,
+            b: ACCENT.b,
+            a: 0.08,
         })),
         border: Border {
-            color: Color { r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: 0.25 },
+            color: Color {
+                r: ACCENT.r,
+                g: ACCENT.g,
+                b: ACCENT.b,
+                a: 0.25,
+            },
             width: 1.0,
             radius: 4.0.into(),
         },
@@ -740,13 +830,14 @@ fn context_menu_row<'a>(ulid: String, is_pinned: bool) -> Element<'a, Message> {
 
 /// Section label row ("Pinned" / "History").
 fn section_label<'a>(label: &'static str) -> Element<'a, Message> {
-    container(
-        text(label)
-            .size(10)
-            .color(FG_MUTED),
-    )
-    .padding(Padding { top: 4.0, right: 12.0, bottom: 1.0, left: 12.0 })
-    .into()
+    container(text(label).size(10).color(FG_MUTED))
+        .padding(Padding {
+            top: 4.0,
+            right: 12.0,
+            bottom: 1.0,
+            left: 12.0,
+        })
+        .into()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -769,7 +860,12 @@ fn popover_surface(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(SURFACE_BG)),
         border: Border {
-            color: Color { r: 0.957, g: 0.957, b: 0.957, a: 0.10 },
+            color: Color {
+                r: 0.957,
+                g: 0.957,
+                b: 0.957,
+                a: 0.10,
+            },
             width: 1.0,
             radius: 8.0.into(),
         },
@@ -783,20 +879,33 @@ fn history_row_style(status: button::Status, is_cursor: bool) -> button::Style {
     let base_alpha: f32 = if is_cursor { 0.16 } else { 0.0 };
     let bg = match status {
         button::Status::Hovered => Some(Background::Color(Color {
-            r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: (base_alpha + 0.10).min(1.0),
+            r: ACCENT.r,
+            g: ACCENT.g,
+            b: ACCENT.b,
+            a: (base_alpha + 0.10).min(1.0),
         })),
         button::Status::Pressed => Some(Background::Color(Color {
-            r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: (base_alpha + 0.18).min(1.0),
+            r: ACCENT.r,
+            g: ACCENT.g,
+            b: ACCENT.b,
+            a: (base_alpha + 0.18).min(1.0),
         })),
         _ if is_cursor => Some(Background::Color(Color {
-            r: ACCENT.r, g: ACCENT.g, b: ACCENT.b, a: base_alpha,
+            r: ACCENT.r,
+            g: ACCENT.g,
+            b: ACCENT.b,
+            a: base_alpha,
         })),
         _ => None,
     };
     button::Style {
         background: bg,
         text_color: FG_TEXT,
-        border: Border { color: Color::TRANSPARENT, width: 0.0, radius: 4.0.into() },
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: 4.0.into(),
+        },
         shadow: Shadow::default(),
         snap: false,
     }
@@ -954,8 +1063,8 @@ mod tests {
         ps.pin("ULID-B");
         let all_indices = vec![0usize, 1, 2];
         let (pinned, history) = split_by_pin(&entries, &all_indices, &ps);
-        assert_eq!(pinned, vec![1]);       // ULID-B is pinned
-        assert_eq!(history, vec![0, 2]);   // A and C are history
+        assert_eq!(pinned, vec![1]); // ULID-B is pinned
+        assert_eq!(history, vec![0, 2]); // A and C are history
     }
 
     #[test]

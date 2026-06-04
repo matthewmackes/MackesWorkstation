@@ -429,10 +429,8 @@ mod tests {
 
     #[test]
     fn voice_mesh_extension_collision_is_a_conflict() {
-        let conflicts = detect_conflicts(&[
-            vm("r1", "1003", "peer:alice"),
-            vm("r2", "1003", "peer:bob"),
-        ]);
+        let conflicts =
+            detect_conflicts(&[vm("r1", "1003", "peer:alice"), vm("r2", "1003", "peer:bob")]);
         assert_eq!(conflicts.len(), 1);
         assert!(conflicts[0].reason.contains("1003"));
         assert!(conflicts[0].reason.contains("alice"));
@@ -453,10 +451,8 @@ mod tests {
 
     #[test]
     fn voice_mesh_different_extensions_no_conflict() {
-        let conflicts = detect_conflicts(&[
-            vm("r1", "1003", "peer:alice"),
-            vm("r2", "1004", "peer:bob"),
-        ]);
+        let conflicts =
+            detect_conflicts(&[vm("r1", "1003", "peer:alice"), vm("r2", "1004", "peer:bob")]);
         assert!(conflicts.is_empty());
     }
 
@@ -470,8 +466,7 @@ mod tests {
 
     #[test]
     fn voice_public_different_peers_no_conflict() {
-        let conflicts =
-            detect_conflicts(&[vp("r1", "peer:alice"), vp("r2", "peer:bob")]);
+        let conflicts = detect_conflicts(&[vp("r1", "peer:alice"), vp("r2", "peer:bob")]);
         assert!(conflicts.is_empty());
     }
 
@@ -480,8 +475,7 @@ mod tests {
         // Different policy kinds over the same peer are
         // orthogonal — one assigns an extension, the other a
         // PSTN trunk.
-        let conflicts =
-            detect_conflicts(&[vm("r1", "1003", "peer:alice"), vp("r2", "peer:alice")]);
+        let conflicts = detect_conflicts(&[vm("r1", "1003", "peer:alice"), vp("r2", "peer:alice")]);
         assert!(conflicts.is_empty());
     }
 

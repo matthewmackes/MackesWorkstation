@@ -150,7 +150,9 @@ async fn handle_focus(conn: &mut Connection, num: i32) {
     let cmd = client_focused_command(&color);
     match conn.run_command(&cmd).await {
         Ok(_) => tracing::debug!(workspace = num, %color, "border_tinter applied"),
-        Err(e) => tracing::warn!(workspace = num, %color, error = %e, "border_tinter command failed"),
+        Err(e) => {
+            tracing::warn!(workspace = num, %color, error = %e, "border_tinter command failed")
+        }
     }
 }
 
@@ -291,7 +293,9 @@ mod tests {
     #[test]
     fn malformed_color_falls_back_to_default() {
         let mut store = TagStore::default();
-        store.add(dev_tag_with_color(1, Some("rebeccapurple"))).unwrap();
+        store
+            .add(dev_tag_with_color(1, Some("rebeccapurple")))
+            .unwrap();
         assert_eq!(color_for_workspace(&store, 1), DEFAULT_FOCUSED_COLOR);
 
         let mut store2 = TagStore::default();
@@ -381,7 +385,9 @@ mod tests {
     #[test]
     fn manifest_border_color_overrides_tagstore_group_color() {
         let mut store = TagStore::default();
-        store.add(dev_tag_with_color(1, Some("#tagstore_color"))).unwrap();
+        store
+            .add(dev_tag_with_color(1, Some("#tagstore_color")))
+            .unwrap();
         // TagStore color is invalid (intentional, to confirm
         // the manifest path doesn't fall through to a malformed
         // legacy entry).

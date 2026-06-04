@@ -77,10 +77,7 @@ impl VoiceConfigWorker {
             node_id,
             tick_interval: DEFAULT_TICK_INTERVAL,
             last_mtime: None,
-            units_to_reload: vec![
-                "kamailio-mde.service",
-                "rtpengine-mde.service",
-            ],
+            units_to_reload: vec!["kamailio-mde.service", "rtpengine-mde.service"],
         }
     }
 
@@ -133,9 +130,7 @@ impl VoiceConfigWorker {
         // Look for a forward mtime jump vs the last-seen one.
         match std::fs::metadata(&self.desired_json).and_then(|m| m.modified()) {
             Ok(now) => {
-                let advanced = self
-                    .last_mtime
-                    .map_or(true, |last| now > last);
+                let advanced = self.last_mtime.map_or(true, |last| now > last);
                 self.last_mtime = Some(now);
                 if !advanced {
                     return TickOutcome::Idle;
@@ -206,21 +201,15 @@ impl Worker for VoiceConfigWorker {
 
 fn seed_boot_default(path: &Path, node_id: &str) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            anyhow::anyhow!(
-                "voice_config: mkdir {}: {e}",
-                parent.display()
-            )
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| anyhow::anyhow!("voice_config: mkdir {}: {e}", parent.display()))?;
     }
     let desired = mde_voice_config::VoiceDesired::boot_default(node_id);
-    let body = serde_json::to_string_pretty(&desired).map_err(|e| {
-        anyhow::anyhow!("voice_config: serialize boot_default: {e}")
-    })?;
+    let body = serde_json::to_string_pretty(&desired)
+        .map_err(|e| anyhow::anyhow!("voice_config: serialize boot_default: {e}"))?;
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, body.as_bytes()).map_err(|e| {
-        anyhow::anyhow!("voice_config: write {}: {e}", tmp.display())
-    })?;
+    std::fs::write(&tmp, body.as_bytes())
+        .map_err(|e| anyhow::anyhow!("voice_config: write {}: {e}", tmp.display()))?;
     std::fs::rename(&tmp, path).map_err(|e| {
         anyhow::anyhow!(
             "voice_config: rename {} → {}: {e}",
@@ -298,9 +287,9 @@ mod tests {
             .with_units(vec![]);
         let _ = w.tick_once(); // first edge
         let _ = w.tick_once(); // idle
-        // Touch the file so its mtime moves forward. mtime
-        // resolution on Linux is nanosecond, but some filesystems
-        // round to seconds — wait > 1 s to be safe across CI hosts.
+                               // Touch the file so its mtime moves forward. mtime
+                               // resolution on Linux is nanosecond, but some filesystems
+                               // round to seconds — wait > 1 s to be safe across CI hosts.
         sleep(Duration::from_millis(1100));
         std::fs::write(&path, "{\"node_id\":\"peer:carol\",\"mesh_bind_device\":\"nebula1\",\"mesh_bind_address\":\"0.0.0.0\",\"rtp_port_min\":30000,\"rtp_port_max\":40000}").expect("rewrite");
         let outcome = w.tick_once();

@@ -369,13 +369,7 @@ mod tests {
 
     #[test]
     fn icon_for_app_id_maps_well_known_system_surfaces() {
-        assert_eq!(
-            icon_for_app_id("nm-connection-editor"),
-            Icon::Network
-        );
-        assert_eq!(
-            icon_for_app_id("gnome-control-center"),
-            Icon::Settings
-        );
+        assert_eq!(icon_for_app_id("nm-connection-editor"), Icon::Network);
+        assert_eq!(icon_for_app_id("gnome-control-center"), Icon::Settings);
     }
 }

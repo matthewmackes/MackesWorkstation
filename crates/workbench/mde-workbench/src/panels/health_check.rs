@@ -126,9 +126,13 @@ impl HealthCheckPanel {
             .color(palette.text_muted.into_iced_color());
 
         let run_btn = button(
-            text(if self.busy { "Running…" } else { "Run checks" })
-                .size(13)
-                .color(Color::WHITE),
+            text(if self.busy {
+                "Running…"
+            } else {
+                "Run checks"
+            })
+            .size(13)
+            .color(Color::WHITE),
         )
         .padding(Padding::from([6u16, 14u16]))
         .style({
@@ -143,7 +147,8 @@ impl HealthCheckPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -207,9 +212,11 @@ fn probe_row<'a>(p: &'a ProbeResult, palette: Palette) -> Element<'a, crate::Mes
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(18.0))
             .height(Length::Fixed(18.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -221,16 +228,19 @@ fn probe_row<'a>(p: &'a ProbeResult, palette: Palette) -> Element<'a, crate::Mes
     let label = text(p.name.clone())
         .size(14)
         .color(palette.text.into_iced_color());
-    let status_chip = text(p.status.label())
-        .size(11)
-        .color(icon_color);
+    let status_chip = text(p.status.label()).size(11).color(icon_color);
     let detail = text(p.detail.clone())
         .size(12)
         .color(palette.text_muted.into_iced_color());
     let mut col = column![
-        row![icon_widget, label, Space::new().width(Length::Fill), status_chip]
-            .spacing(10)
-            .align_y(iced::alignment::Vertical::Center),
+        row![
+            icon_widget,
+            label,
+            Space::new().width(Length::Fill),
+            status_chip
+        ]
+        .spacing(10)
+        .align_y(iced::alignment::Vertical::Center),
         detail,
     ]
     .spacing(2);
@@ -247,7 +257,8 @@ fn probe_row<'a>(p: &'a ProbeResult, palette: Palette) -> Element<'a, crate::Mes
     container(col)
         .padding(Padding::from([12u16, 16u16]))
         .width(Length::Fill)
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             border: Border {
                 color: border,
@@ -301,7 +312,11 @@ fn probe_disk_space() -> ProbeResult {
     let avail: u64 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
     let size: u64 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(1);
     let pct_free = (avail as f64 / size as f64 * 100.0).round() as u32;
-    let detail = format!("{} free of {} ({pct_free}%)", fmt_bytes(avail), fmt_bytes(size));
+    let detail = format!(
+        "{} free of {} ({pct_free}%)",
+        fmt_bytes(avail),
+        fmt_bytes(size)
+    );
     let (status, remediation) = if pct_free < 5 {
         (
             ProbeStatus::Fail,
@@ -329,9 +344,17 @@ fn probe_memory() -> ProbeResult {
     let mut avail_kb: u64 = 0;
     for line in raw.lines() {
         if let Some(rest) = line.strip_prefix("MemTotal:") {
-            total_kb = rest.split_whitespace().next().and_then(|n| n.parse().ok()).unwrap_or(0);
+            total_kb = rest
+                .split_whitespace()
+                .next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
         } else if let Some(rest) = line.strip_prefix("MemAvailable:") {
-            avail_kb = rest.split_whitespace().next().and_then(|n| n.parse().ok()).unwrap_or(0);
+            avail_kb = rest
+                .split_whitespace()
+                .next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
         }
     }
     if total_kb == 0 {
@@ -432,7 +455,11 @@ fn probe_pending_updates() -> ProbeResult {
     let cache = std::env::var("XDG_CACHE_HOME")
         .ok()
         .map(PathBuf::from)
-        .or_else(|| std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".cache")))
+        .or_else(|| {
+            std::env::var("HOME")
+                .ok()
+                .map(|h| PathBuf::from(h).join(".cache"))
+        })
         .unwrap_or_default();
     let count: u32 = std::fs::read_to_string(cache.join("mde/dnf-updates.count"))
         .ok()
@@ -440,14 +467,23 @@ fn probe_pending_updates() -> ProbeResult {
         .unwrap_or(0);
     let (status, remediation) = match count {
         0 => (ProbeStatus::Ok, None),
-        1..=20 => (ProbeStatus::Ok, Some("run dnf upgrade at next reboot".into())),
+        1..=20 => (
+            ProbeStatus::Ok,
+            Some("run dnf upgrade at next reboot".into()),
+        ),
         21..=100 => (ProbeStatus::Warn, Some("dnf upgrade overdue".into())),
-        _ => (ProbeStatus::Warn, Some("large backlog — consider dnf upgrade now".into())),
+        _ => (
+            ProbeStatus::Warn,
+            Some("large backlog — consider dnf upgrade now".into()),
+        ),
     };
     ProbeResult {
         name: "Pending updates".into(),
         status,
-        detail: format!("{count} package{} queued", if count == 1 { "" } else { "s" }),
+        detail: format!(
+            "{count} package{} queued",
+            if count == 1 { "" } else { "s" }
+        ),
         remediation,
     }
 }
@@ -467,12 +503,19 @@ fn probe_snapshot_count() -> ProbeResult {
     let dir = home.join(".local/share/mackes-shell/snapshots");
     let count = std::fs::read_dir(&dir)
         .ok()
-        .map(|it| it.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).count())
+        .map(|it| {
+            it.flatten()
+                .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+                .count()
+        })
         .unwrap_or(0);
     ProbeResult {
         name: "Snapshots".into(),
         status: ProbeStatus::Ok,
-        detail: format!("{count} snapshot{} on disk", if count == 1 { "" } else { "s" }),
+        detail: format!(
+            "{count} snapshot{} on disk",
+            if count == 1 { "" } else { "s" }
+        ),
         remediation: None,
     }
 }

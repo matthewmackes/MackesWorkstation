@@ -285,20 +285,28 @@ fn host_type_from_vendor(vendor: &str) -> Option<HostType> {
     // Network infrastructure — router/AP/switch are hard to split by
     // vendor alone, so map to Router (the common LAN gateway device).
     for needle in [
-        "ubiquiti", "cisco", "netgear", "tp-link", "tplink", "mikrotik", "asustek",
-        "d-link", "dlink", "aruba", "ruckus", "juniper", "zyxel", "fortinet",
+        "ubiquiti", "cisco", "netgear", "tp-link", "tplink", "mikrotik", "asustek", "d-link",
+        "dlink", "aruba", "ruckus", "juniper", "zyxel", "fortinet",
     ] {
         if v.contains(needle) {
             return Some(HostType::Router);
         }
     }
-    for needle in ["hewlett", "hp inc", "canon", "epson", "brother", "lexmark", "xerox", "kyocera"]
-    {
+    for needle in [
+        "hewlett", "hp inc", "canon", "epson", "brother", "lexmark", "xerox", "kyocera",
+    ] {
         if v.contains(needle) {
             return Some(HostType::Printer);
         }
     }
-    for needle in ["hikvision", "dahua", "axis communications", "reolink", "wyze", "amcrest"] {
+    for needle in [
+        "hikvision",
+        "dahua",
+        "axis communications",
+        "reolink",
+        "wyze",
+        "amcrest",
+    ] {
         if v.contains(needle) {
             return Some(HostType::Camera);
         }
@@ -1213,7 +1221,10 @@ pub fn evil_twin_suspects(
 /// flagged before it is learned.
 pub fn learn_wifi(baseline: &mut WifiBaseline, scan: &[(String, String)]) {
     for (ssid, bssid) in scan {
-        baseline.entry(ssid.clone()).or_default().insert(bssid.clone());
+        baseline
+            .entry(ssid.clone())
+            .or_default()
+            .insert(bssid.clone());
     }
 }
 
@@ -1392,19 +1403,34 @@ mod tests {
     fn vendor_router_camera_console_nas() {
         assert_eq!(classify(&sig_vendor("Ubiquiti Inc")), HostType::Router);
         assert_eq!(classify(&sig_vendor("Hikvision Digital")), HostType::Camera);
-        assert_eq!(classify(&sig_vendor("Nintendo Co., Ltd.")), HostType::GameConsole);
-        assert_eq!(classify(&sig_vendor("Synology Incorporated")), HostType::Nas);
+        assert_eq!(
+            classify(&sig_vendor("Nintendo Co., Ltd.")),
+            HostType::GameConsole
+        );
+        assert_eq!(
+            classify(&sig_vendor("Synology Incorporated")),
+            HostType::Nas
+        );
         assert_eq!(classify(&sig_vendor("Hewlett Packard")), HostType::Printer);
     }
 
     #[test]
     fn port_fallback_only_for_unambiguous_ports() {
-        let printer = HostSignals { open_ports: vec![9100], ..Default::default() };
+        let printer = HostSignals {
+            open_ports: vec![9100],
+            ..Default::default()
+        };
         assert_eq!(classify(&printer), HostType::Printer);
-        let camera = HostSignals { open_ports: vec![554], ..Default::default() };
+        let camera = HostSignals {
+            open_ports: vec![554],
+            ..Default::default()
+        };
         assert_eq!(classify(&camera), HostType::Camera);
         // 443 alone is too generic — stays Unknown.
-        let web = HostSignals { open_ports: vec![443], ..Default::default() };
+        let web = HostSignals {
+            open_ports: vec![443],
+            ..Default::default()
+        };
         assert_eq!(classify(&web), HostType::Unknown);
     }
 
@@ -1424,7 +1450,10 @@ mod tests {
     #[test]
     fn empty_signals_are_unknown() {
         assert_eq!(classify(&HostSignals::default()), HostType::Unknown);
-        assert_eq!(classify(&sig_vendor("Totally Unknown Vendor")), HostType::Unknown);
+        assert_eq!(
+            classify(&sig_vendor("Totally Unknown Vendor")),
+            HostType::Unknown
+        );
     }
 
     #[test]
@@ -1451,16 +1480,31 @@ mod tests {
 
     #[test]
     fn host_type_serde_matches_wire_name() {
-        assert_eq!(serde_json::to_string(&HostType::TvCast).unwrap(), "\"tv-cast\"");
-        assert_eq!(serde_json::to_string(&HostType::GameConsole).unwrap(), "\"game-console\"");
+        assert_eq!(
+            serde_json::to_string(&HostType::TvCast).unwrap(),
+            "\"tv-cast\""
+        );
+        assert_eq!(
+            serde_json::to_string(&HostType::GameConsole).unwrap(),
+            "\"game-console\""
+        );
         assert_eq!(serde_json::to_string(&HostType::Ap).unwrap(), "\"ap\"");
     }
 
     #[test]
     fn trust_state_serializes_to_hostfacts_lowercase_strings() {
-        assert_eq!(serde_json::to_string(&TrustState::Trusted).unwrap(), "\"trusted\"");
-        assert_eq!(serde_json::to_string(&TrustState::Unknown).unwrap(), "\"unknown\"");
-        assert_eq!(serde_json::to_string(&TrustState::Blocked).unwrap(), "\"blocked\"");
+        assert_eq!(
+            serde_json::to_string(&TrustState::Trusted).unwrap(),
+            "\"trusted\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TrustState::Unknown).unwrap(),
+            "\"unknown\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TrustState::Blocked).unwrap(),
+            "\"blocked\""
+        );
         assert_eq!(TrustState::default(), TrustState::Unknown);
     }
 
@@ -1529,9 +1573,18 @@ mod tests {
 
     #[test]
     fn host_type_from_hostname_matches_consoles_only() {
-        assert_eq!(host_type_from_hostname("PS5-1234"), Some(HostType::GameConsole));
-        assert_eq!(host_type_from_hostname("Xbox-Living-Room"), Some(HostType::GameConsole));
-        assert_eq!(host_type_from_hostname("nintendo-switch"), Some(HostType::GameConsole));
+        assert_eq!(
+            host_type_from_hostname("PS5-1234"),
+            Some(HostType::GameConsole)
+        );
+        assert_eq!(
+            host_type_from_hostname("Xbox-Living-Room"),
+            Some(HostType::GameConsole)
+        );
+        assert_eq!(
+            host_type_from_hostname("nintendo-switch"),
+            Some(HostType::GameConsole)
+        );
         assert_eq!(host_type_from_hostname("fileserver.local"), None);
         assert_eq!(host_type_from_hostname(""), None);
     }
@@ -1564,8 +1617,14 @@ mod tests {
 
     #[test]
     fn mac_oui_prefix_normalises_separators() {
-        assert_eq!(mac_oui_prefix("00:1a:2b:cc:dd:ee").as_deref(), Some("001A2B"));
-        assert_eq!(mac_oui_prefix("00-1A-2B-cc-dd-ee").as_deref(), Some("001A2B"));
+        assert_eq!(
+            mac_oui_prefix("00:1a:2b:cc:dd:ee").as_deref(),
+            Some("001A2B")
+        );
+        assert_eq!(
+            mac_oui_prefix("00-1A-2B-cc-dd-ee").as_deref(),
+            Some("001A2B")
+        );
         assert_eq!(mac_oui_prefix("001a2bccddee").as_deref(), Some("001A2B"));
         assert_eq!(mac_oui_prefix("00:1a"), None); // < 3 octets of hex
     }
@@ -1580,8 +1639,14 @@ mod tests {
              00 TooShort\n",
         );
         assert_eq!(db.len(), 2, "comment / no-whitespace / short lines skipped");
-        assert_eq!(db.vendor_for("00:1a:2b:cc:dd:ee").as_deref(), Some("Hewlett Packard"));
-        assert_eq!(db.vendor_for("FF-FF-FF-00-00-00").as_deref(), Some("Some Vendor"));
+        assert_eq!(
+            db.vendor_for("00:1a:2b:cc:dd:ee").as_deref(),
+            Some("Hewlett Packard")
+        );
+        assert_eq!(
+            db.vendor_for("FF-FF-FF-00-00-00").as_deref(),
+            Some("Some Vendor")
+        );
         assert_eq!(db.vendor_for("12:34:56:78:90:ab"), None);
         assert!(db.vendor_for("zz").is_none()); // unparseable MAC
     }
@@ -1622,8 +1687,14 @@ mod tests {
                    192.168.1.3 dev eth0 lladdr AA:BB:CC:DD:EE:FF STALE\n";
         let m = parse_neigh_map(raw);
         assert_eq!(m.len(), 2, "the lladdr-less FAILED entry is skipped");
-        assert_eq!(m.get("192.168.1.1").map(String::as_str), Some("00:00:0c:aa:bb:cc"));
-        assert_eq!(m.get("192.168.1.3").map(String::as_str), Some("aa:bb:cc:dd:ee:ff")); // lowercased
+        assert_eq!(
+            m.get("192.168.1.1").map(String::as_str),
+            Some("00:00:0c:aa:bb:cc")
+        );
+        assert_eq!(
+            m.get("192.168.1.3").map(String::as_str),
+            Some("aa:bb:cc:dd:ee:ff")
+        ); // lowercased
     }
 
     #[test]
@@ -1631,7 +1702,11 @@ mod tests {
         let mut macs = HashMap::new();
         macs.insert("192.168.1.1".to_string(), "00:00:0c:aa:bb:cc".to_string());
         let oui = parse_oui_db("00000C Cisco Systems\n");
-        let out = enrich_hosts(vec![bare_host("192.168.1.1", &[], HostType::Unknown)], &macs, &oui);
+        let out = enrich_hosts(
+            vec![bare_host("192.168.1.1", &[], HostType::Unknown)],
+            &macs,
+            &oui,
+        );
         assert_eq!(out[0].mac, "00:00:0c:aa:bb:cc");
         assert_eq!(out[0].vendor, "Cisco Systems");
         assert_eq!(out[0].host_type, HostType::Router); // vendor typed it
@@ -1654,7 +1729,11 @@ mod tests {
     #[test]
     fn enrich_without_a_mac_leaves_type_unchanged() {
         let out = enrich_hosts(
-            vec![bare_host("10.0.0.9", &["_googlecast._tcp"], HostType::TvCast)],
+            vec![bare_host(
+                "10.0.0.9",
+                &["_googlecast._tcp"],
+                HostType::TvCast,
+            )],
             &HashMap::new(),
             &OuiTable::default(),
         );
@@ -1666,18 +1745,34 @@ mod tests {
 
     #[test]
     fn parse_http_server_extracts_case_insensitive() {
-        let headers = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nSERVER: CUPS/2.4 IPP/2.1\r\n\r\n";
-        assert_eq!(parse_http_server(headers).as_deref(), Some("CUPS/2.4 IPP/2.1"));
+        let headers =
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nSERVER: CUPS/2.4 IPP/2.1\r\n\r\n";
+        assert_eq!(
+            parse_http_server(headers).as_deref(),
+            Some("CUPS/2.4 IPP/2.1")
+        );
         assert_eq!(parse_http_server("HTTP/1.1 200 OK\r\n\r\n"), None);
         assert_eq!(parse_http_server("Server:   \r\n"), None); // empty value
     }
 
     #[test]
     fn host_type_from_http_server_maps_embedded_devices() {
-        assert_eq!(host_type_from_http_server("CUPS/2.4"), Some(HostType::Printer));
-        assert_eq!(host_type_from_http_server("Hikvision-Webs"), Some(HostType::Camera));
-        assert_eq!(host_type_from_http_server("Synology DiskStation"), Some(HostType::Nas));
-        assert_eq!(host_type_from_http_server("RouterOS/7.1 (MikroTik)"), Some(HostType::Router));
+        assert_eq!(
+            host_type_from_http_server("CUPS/2.4"),
+            Some(HostType::Printer)
+        );
+        assert_eq!(
+            host_type_from_http_server("Hikvision-Webs"),
+            Some(HostType::Camera)
+        );
+        assert_eq!(
+            host_type_from_http_server("Synology DiskStation"),
+            Some(HostType::Nas)
+        );
+        assert_eq!(
+            host_type_from_http_server("RouterOS/7.1 (MikroTik)"),
+            Some(HostType::Router)
+        );
         // Generic web servers say nothing about device type.
         assert_eq!(host_type_from_http_server("nginx/1.24"), None);
         assert_eq!(host_type_from_http_server("Apache/2.4.57"), None);
@@ -1703,18 +1798,39 @@ mod tests {
 
     #[test]
     fn host_type_from_nmap_device_type_maps_classes() {
-        assert_eq!(host_type_from_nmap_device_type("printer"), Some(HostType::Printer));
-        assert_eq!(host_type_from_nmap_device_type("router"), Some(HostType::Router));
+        assert_eq!(
+            host_type_from_nmap_device_type("printer"),
+            Some(HostType::Printer)
+        );
+        assert_eq!(
+            host_type_from_nmap_device_type("router"),
+            Some(HostType::Router)
+        );
         assert_eq!(host_type_from_nmap_device_type("WAP"), Some(HostType::Ap));
-        assert_eq!(host_type_from_nmap_device_type("switch"), Some(HostType::Switch));
-        assert_eq!(host_type_from_nmap_device_type("webcam"), Some(HostType::Camera));
-        assert_eq!(host_type_from_nmap_device_type("storage-misc"), Some(HostType::Nas));
-        assert_eq!(host_type_from_nmap_device_type("media device"), Some(HostType::TvCast));
+        assert_eq!(
+            host_type_from_nmap_device_type("switch"),
+            Some(HostType::Switch)
+        );
+        assert_eq!(
+            host_type_from_nmap_device_type("webcam"),
+            Some(HostType::Camera)
+        );
+        assert_eq!(
+            host_type_from_nmap_device_type("storage-misc"),
+            Some(HostType::Nas)
+        );
+        assert_eq!(
+            host_type_from_nmap_device_type("media device"),
+            Some(HostType::TvCast)
+        );
         assert_eq!(
             host_type_from_nmap_device_type("game console"),
             Some(HostType::GameConsole)
         );
-        assert_eq!(host_type_from_nmap_device_type("phone"), Some(HostType::Phone));
+        assert_eq!(
+            host_type_from_nmap_device_type("phone"),
+            Some(HostType::Phone)
+        );
         // First specific match wins across `|`-separated guesses.
         assert_eq!(
             host_type_from_nmap_device_type("general purpose|router"),
@@ -1753,7 +1869,11 @@ mod tests {
         assert_eq!(mac_card.sightings, 2);
         assert_eq!(mac_card.host.last_seen_ms, 300, "freshest sighting wins");
         assert_eq!(mac_card.host.host_type, HostType::Router);
-        assert_eq!(mac_card.ips_seen, vec!["10.0.0.5", "10.0.0.9"], "roaming history");
+        assert_eq!(
+            mac_card.ips_seen,
+            vec!["10.0.0.5", "10.0.0.9"],
+            "roaming history"
+        );
         let ip_card = out.iter().find(|c| c.key == "10.0.0.7").unwrap();
         assert_eq!(ip_card.sightings, 1);
     }
@@ -1766,13 +1886,15 @@ mod tests {
         std::fs::create_dir_all(root.join("peerA")).unwrap();
         std::fs::write(
             root.join("peerA").join("20260101T000000-a.json"),
-            serde_json::to_string(&vec![seen_host("10.0.0.5", "aa:bb", 1, HostType::Unknown)]).unwrap(),
+            serde_json::to_string(&vec![seen_host("10.0.0.5", "aa:bb", 1, HostType::Unknown)])
+                .unwrap(),
         )
         .unwrap();
         std::fs::create_dir_all(root.join("peerB")).unwrap();
         std::fs::write(
             root.join("peerB").join("20260101T000000-b.json"),
-            serde_json::to_string(&vec![seen_host("10.0.0.9", "aa:bb", 2, HostType::Router)]).unwrap(),
+            serde_json::to_string(&vec![seen_host("10.0.0.9", "aa:bb", 2, HostType::Router)])
+                .unwrap(),
         )
         .unwrap();
         let out = read_all_surrounding(root);
@@ -1852,7 +1974,11 @@ mod tests {
             ips_seen: vec!["10.0.0.7".into()],
         };
         let ips = blocked_ips(&[blocked, other]);
-        assert_eq!(ips, vec!["10.0.0.5", "10.0.0.9"], "both roaming IPs, non-blocked excluded");
+        assert_eq!(
+            ips,
+            vec!["10.0.0.5", "10.0.0.9"],
+            "both roaming IPs, non-blocked excluded"
+        );
     }
 
     #[test]
@@ -1871,7 +1997,7 @@ mod tests {
         let mut neigh = HashMap::new();
         neigh.insert("192.168.1.1".to_string(), "aa:bb:cc:00:00:01".to_string()); // gateway
         neigh.insert("192.168.1.5".to_string(), "aa:bb:cc:00:00:02".to_string()); // a host
-        // Attacker MAC answers ARP for two IPv4s (gateway impersonation):
+                                                                                  // Attacker MAC answers ARP for two IPv4s (gateway impersonation):
         neigh.insert("192.168.1.50".to_string(), "de:ad:be:ef:00:00".to_string());
         neigh.insert("192.168.1.60".to_string(), "de:ad:be:ef:00:00".to_string());
         let suspects = arp_spoof_suspects(&neigh);
@@ -1902,7 +2028,11 @@ mod tests {
                    |     IP Offered: 192.168.1.51\n\
                    |_    Server Identifier: 192.168.1.250\n";
         let servers = parse_dhcp_servers(out);
-        assert_eq!(servers, vec!["192.168.1.1", "192.168.1.250"], "2 servers → rogue");
+        assert_eq!(
+            servers,
+            vec!["192.168.1.1", "192.168.1.250"],
+            "2 servers → rogue"
+        );
     }
 
     #[test]
@@ -1924,7 +2054,10 @@ mod tests {
     #[test]
     fn captive_portal_detection() {
         // Clear — generate_204 returns 204.
-        assert_eq!(captive_portal_from_headers("HTTP/1.1 204 No Content\r\n\r\n"), None);
+        assert_eq!(
+            captive_portal_from_headers("HTTP/1.1 204 No Content\r\n\r\n"),
+            None
+        );
         // Captive: 302 redirect to the portal.
         assert_eq!(
             captive_portal_from_headers(
@@ -1975,13 +2108,19 @@ mod tests {
         let out = "HomeNet:AA\\:BB\\:CC\\:DD\\:EE\\:FF\n:11\\:22\\:33\\:44\\:55\\:66\n";
         let aps = parse_wifi_bssids(out);
         assert_eq!(aps.len(), 1, "empty-SSID hidden network skipped");
-        assert_eq!(aps[0], ("HomeNet".to_string(), "AA:BB:CC:DD:EE:FF".to_string()));
+        assert_eq!(
+            aps[0],
+            ("HomeNet".to_string(), "AA:BB:CC:DD:EE:FF".to_string())
+        );
     }
 
     #[test]
     fn evil_twin_flags_known_ssid_on_new_bssid() {
         let mut baseline = WifiBaseline::new();
-        learn_wifi(&mut baseline, &[("HomeNet".into(), "AA:BB:CC:DD:EE:FF".into())]);
+        learn_wifi(
+            &mut baseline,
+            &[("HomeNet".into(), "AA:BB:CC:DD:EE:FF".into())],
+        );
         // Same SSID, attacker BSSID → evil twin.
         let attack = vec![("HomeNet".to_string(), "DE:AD:BE:EF:00:00".to_string())];
         assert_eq!(evil_twin_suspects(&attack, &baseline), attack);
@@ -2038,7 +2177,11 @@ mod tests {
     #[test]
     fn mde_peer_candidates_flags_mde_advertisers_only() {
         let hosts = vec![
-            bare_host("10.0.0.5", &["_map2-node._tcp", "_device-info._tcp"], HostType::Computer),
+            bare_host(
+                "10.0.0.5",
+                &["_map2-node._tcp", "_device-info._tcp"],
+                HostType::Computer,
+            ),
             bare_host("10.0.0.6", &["_smb._tcp"], HostType::Nas), // not MDE
         ];
         let cands = mde_peer_candidates(&hosts);

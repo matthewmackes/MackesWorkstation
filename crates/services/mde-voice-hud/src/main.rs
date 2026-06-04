@@ -146,22 +146,15 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
 }
 
 pub fn view(state: &VoiceHud) -> Element<'_, Message> {
-    container(
-        column![
-            build_topbar(),
-            build_display(state),
-            build_keypad(),
-        ]
-        .spacing(12),
-    )
-    .padding(Padding::from([16, 16]))
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .style(|_: &Theme| iced::widget::container::Style {
-        background: Some(iced::Background::Color(theme::SURF)),
-        ..Default::default()
-    })
-    .into()
+    container(column![build_topbar(), build_display(state), build_keypad(),].spacing(12))
+        .padding(Padding::from([16, 16]))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(|_: &Theme| iced::widget::container::Style {
+            background: Some(iced::Background::Color(theme::SURF)),
+            ..Default::default()
+        })
+        .into()
 }
 
 fn subscription(_state: &VoiceHud) -> iced::Subscription<Message> {
@@ -226,7 +219,9 @@ fn build_topbar<'a>() -> Element<'a, Message> {
         row![
             presence_pip,
             iced::widget::space().width(Length::Fixed(6.0)),
-            text(REGISTRATION_PLACEHOLDER).size(11.0).color(theme::ON_SURF_VAR),
+            text(REGISTRATION_PLACEHOLDER)
+                .size(11.0)
+                .color(theme::ON_SURF_VAR),
         ]
         .align_y(iced::Alignment::Center),
     ]
@@ -245,26 +240,28 @@ fn build_topbar<'a>() -> Element<'a, Message> {
 /// receives keypad/keyboard input; the chip to its right
 /// renders the `resolve_target` classification.
 fn build_display<'a>(state: &VoiceHud) -> Element<'a, Message> {
-    let display = text_input("Type 1NNN for mesh, 9 + E.164 for PSTN", &state.dialer_input)
-        .on_input(Message::DialerInputChanged)
-        .size(20.0)
-        .padding(Padding::from([10, 12]))
-        .width(Length::Fill);
+    let display = text_input(
+        "Type 1NNN for mesh, 9 + E.164 for PSTN",
+        &state.dialer_input,
+    )
+    .on_input(Message::DialerInputChanged)
+    .size(20.0)
+    .padding(Padding::from([10, 12]))
+    .width(Length::Fill);
 
     let resolved = resolve_target(&state.dialer_input, &state.roster);
     let chip = build_resolved_chip(&resolved);
 
     column![
-        container(display)
-            .style(|_: &Theme| iced::widget::container::Style {
-                background: Some(iced::Background::Color(theme::SURF_C)),
-                border: iced::Border {
-                    radius: iced::border::Radius::from(8.0),
-                    color: theme::OUTLINE_VAR,
-                    width: 1.0,
-                },
-                ..Default::default()
-            }),
+        container(display).style(|_: &Theme| iced::widget::container::Style {
+            background: Some(iced::Background::Color(theme::SURF_C)),
+            border: iced::Border {
+                radius: iced::border::Radius::from(8.0),
+                color: theme::OUTLINE_VAR,
+                width: 1.0,
+            },
+            ..Default::default()
+        }),
         chip,
     ]
     .spacing(8)
@@ -292,34 +289,25 @@ fn build_resolved_chip<'a>(resolved: &Resolved) -> Element<'a, Message> {
 #[must_use]
 pub fn resolved_chip_label_and_color(resolved: &Resolved) -> (String, Color) {
     match resolved {
-        Resolved::Empty => (
-            "type 1NNN or 9+E.164".to_string(),
-            theme::SURF_C_HI,
-        ),
-        Resolved::Mesh { name, .. } => (
-            format!("mesh · {name}"),
-            theme::PRESENCE_AVAILABLE,
-        ),
-        Resolved::MeshUnknown => (
-            "mesh · not in roster".to_string(),
-            theme::ERROR,
-        ),
+        Resolved::Empty => ("type 1NNN or 9+E.164".to_string(), theme::SURF_C_HI),
+        Resolved::Mesh { name, .. } => (format!("mesh · {name}"), theme::PRESENCE_AVAILABLE),
+        Resolved::MeshUnknown => ("mesh · not in roster".to_string(), theme::ERROR),
         Resolved::MeshPartial { remaining } => (
-            format!("{remaining} more digit{}", if *remaining == 1 { "" } else { "s" }),
+            format!(
+                "{remaining} more digit{}",
+                if *remaining == 1 { "" } else { "s" }
+            ),
             theme::INFO,
         ),
-        Resolved::Pstn { formatted } => (
-            format!("PSTN · {formatted}"),
-            theme::PRIMARY,
-        ),
+        Resolved::Pstn { formatted } => (format!("PSTN · {formatted}"), theme::PRIMARY),
         Resolved::PstnPartial { remaining } => (
-            format!("{remaining} more digit{} via Vitelity", if *remaining == 1 { "" } else { "s" }),
+            format!(
+                "{remaining} more digit{} via Vitelity",
+                if *remaining == 1 { "" } else { "s" }
+            ),
             theme::INFO,
         ),
-        Resolved::Invalid => (
-            "invalid prefix".to_string(),
-            theme::ERROR,
-        ),
+        Resolved::Invalid => ("invalid prefix".to_string(), theme::ERROR),
     }
 }
 
@@ -339,11 +327,7 @@ fn build_keypad<'a>() -> Element<'a, Message> {
         for c in line {
             row_buf.push(keypad_button(c));
         }
-        col.push(
-            row(row_buf)
-                .spacing(8)
-                .into(),
-        );
+        col.push(row(row_buf).spacing(8).into());
     }
     column(col).spacing(8).into()
 }
@@ -406,7 +390,11 @@ fn main() -> iced_layershell::Result {
     iced_layershell::application(
         || {
             let RosterLoad { peers, source } = roster::load();
-            tracing::info!(roster_count = peers.len(), ?source, "voice-hud: roster loaded");
+            tracing::info!(
+                roster_count = peers.len(),
+                ?source,
+                "voice-hud: roster loaded"
+            );
             VoiceHud {
                 dialer_input: String::new(),
                 roster: peers,
@@ -453,7 +441,10 @@ mod tests {
     }
 
     fn make_hud() -> VoiceHud {
-        VoiceHud { dialer_input: String::new(), roster: vec![] }
+        VoiceHud {
+            dialer_input: String::new(),
+            roster: vec![],
+        }
     }
 
     #[test]
@@ -580,7 +571,10 @@ mod tests {
     fn voice_hud_dialer_input_changed_filters_input() {
         let mut hud = make_hud();
         // Paste a formatted number — non-dialer chars drop.
-        let _ = update(&mut hud, Message::DialerInputChanged("(415) 555-1234".to_string()));
+        let _ = update(
+            &mut hud,
+            Message::DialerInputChanged("(415) 555-1234".to_string()),
+        );
         assert_eq!(hud.dialer_input, "4155551234");
     }
 

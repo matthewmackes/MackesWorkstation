@@ -172,10 +172,7 @@ pub fn settings_value_shape_matches(
     if ok {
         Ok(())
     } else {
-        Err(format!(
-            "expected {}; got {got}",
-            shape.describe(),
-        ))
+        Err(format!("expected {}; got {got}", shape.describe(),))
     }
 }
 
@@ -342,21 +339,23 @@ mod tests {
 
     #[test]
     fn shape_check_accepts_bool_for_do_not_disturb() {
-        assert!(settings_value_shape_matches(SettingKey::NotificationDoNotDisturb, &json!(true))
-            .is_ok());
-        assert!(settings_value_shape_matches(SettingKey::NotificationDoNotDisturb, &json!(false))
-            .is_ok());
+        assert!(
+            settings_value_shape_matches(SettingKey::NotificationDoNotDisturb, &json!(true))
+                .is_ok()
+        );
+        assert!(
+            settings_value_shape_matches(SettingKey::NotificationDoNotDisturb, &json!(false))
+                .is_ok()
+        );
     }
 
     #[test]
     fn shape_check_rejects_string_bool() {
         // JSON booleans should land as Value::Bool. A string
         // "true" is a regression we want flagged.
-        let err = settings_value_shape_matches(
-            SettingKey::NotificationDoNotDisturb,
-            &json!("true"),
-        )
-        .expect_err("string is not a bool");
+        let err =
+            settings_value_shape_matches(SettingKey::NotificationDoNotDisturb, &json!("true"))
+                .expect_err("string is not a bool");
         assert!(err.contains("expected boolean"));
     }
 
@@ -396,9 +395,8 @@ mod tests {
 
     #[test]
     fn shape_check_rejects_array_for_keybinds_map() {
-        let err =
-            settings_value_shape_matches(SettingKey::KeybindsMap, &json!(["super+Return"]))
-                .expect_err("array is not an object");
+        let err = settings_value_shape_matches(SettingKey::KeybindsMap, &json!(["super+Return"]))
+            .expect_err("array is not an object");
         assert!(err.contains("expected object"));
     }
 
@@ -412,7 +410,10 @@ mod tests {
             allow_east_west: vec![],
             settings_keys: vec![
                 ("theme.name".into(), serde_json::json!(42).to_string()),
-                ("display.brightness".into(), serde_json::json!(75).to_string()),
+                (
+                    "display.brightness".into(),
+                    serde_json::json!(75).to_string(),
+                ),
             ],
             voice_policies: vec![],
         };
@@ -437,10 +438,22 @@ mod tests {
             nodes: vec![],
             allow_east_west: vec![],
             settings_keys: vec![
-                ("theme.name".into(), serde_json::json!("Mackes-Carbon").to_string()),
-                ("display.brightness".into(), serde_json::json!(75).to_string()),
-                ("notification.do_not_disturb".into(), serde_json::json!(true).to_string()),
-                ("autostart.hidden".into(), serde_json::json!(["a.desktop"]).to_string()),
+                (
+                    "theme.name".into(),
+                    serde_json::json!("Mackes-Carbon").to_string(),
+                ),
+                (
+                    "display.brightness".into(),
+                    serde_json::json!(75).to_string(),
+                ),
+                (
+                    "notification.do_not_disturb".into(),
+                    serde_json::json!(true).to_string(),
+                ),
+                (
+                    "autostart.hidden".into(),
+                    serde_json::json!(["a.desktop"]).to_string(),
+                ),
             ],
             voice_policies: vec![],
         };
@@ -448,7 +461,8 @@ mod tests {
         let any_setting_error = errors.iter().any(|e| {
             matches!(
                 e,
-                ValidationError::InvalidSettingValue { .. } | ValidationError::UnknownSettingKey { .. }
+                ValidationError::InvalidSettingValue { .. }
+                    | ValidationError::UnknownSettingKey { .. }
             )
         });
         assert!(!any_setting_error, "unexpected errors: {errors:?}");

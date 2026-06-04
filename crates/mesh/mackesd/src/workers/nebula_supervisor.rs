@@ -205,8 +205,8 @@ impl NebulaSupervisor {
     /// QNM-Shared bundle + signal the running nebula
     /// process to reload.
     async fn refresh_config(&self) -> Result<(), String> {
-        let bundle = crate::ca::bundle::read_bundle(&self.bundle_path)
-            .map_err(|e| e.to_string())?;
+        let bundle =
+            crate::ca::bundle::read_bundle(&self.bundle_path).map_err(|e| e.to_string())?;
         let role = if self.last_is_leader {
             ConfigRole::Host
         } else {
@@ -282,7 +282,10 @@ pub fn materialize_config(
         .map_err(|e| format!("mkdir {}: {e}", config_dir.display()))?;
 
     write_atomic(&config_dir.join("ca.crt"), bundle.ca_cert_pem.as_bytes())?;
-    write_atomic(&config_dir.join("host.crt"), bundle.peer_cert_pem.as_bytes())?;
+    write_atomic(
+        &config_dir.join("host.crt"),
+        bundle.peer_cert_pem.as_bytes(),
+    )?;
     write_atomic(&config_dir.join("host.key"), bundle.peer_key_pem.as_bytes())?;
     let yaml = render_config_yaml(bundle, role);
     write_atomic(&config_dir.join("config.yaml"), yaml.as_bytes())?;
@@ -312,10 +315,7 @@ pub const VM_SUBNET_CIDR: &str = "10.42.128.0/17";
 /// Pure helper — build the regular peer-role config YAML.
 /// Pulled out for testing without filesystem IO.
 #[must_use]
-pub fn render_config_yaml(
-    bundle: &crate::ca::bundle::NebulaBundle,
-    role: ConfigRole,
-) -> String {
+pub fn render_config_yaml(bundle: &crate::ca::bundle::NebulaBundle, role: ConfigRole) -> String {
     render_config_yaml_inner(bundle, role, true)
 }
 
@@ -408,9 +408,7 @@ fn render_config_yaml_inner(
 /// Pure helper — lighthouse-role config (overrides
 /// am_lighthouse + adds the relay/punchy stanzas).
 #[must_use]
-pub fn render_lighthouse_config_yaml(
-    bundle: &crate::ca::bundle::NebulaBundle,
-) -> String {
+pub fn render_lighthouse_config_yaml(bundle: &crate::ca::bundle::NebulaBundle) -> String {
     let mut out = render_config_yaml(bundle, ConfigRole::Host);
     out.push_str("\n# Lighthouse-only:\n");
     out.push_str("relay:\n");
@@ -448,8 +446,7 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
 /// `std::fs` call when directory creation or rename fails.
 pub fn publish_overlay_ip(path: &Path, overlay_ip: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
     let body = format!("{overlay_ip}\n");
     let tmp = path.with_extension("ip.tmp");
@@ -501,10 +498,7 @@ fn systemctl_reload(unit: &str) -> Result<(), String> {
 /// consults `crate::leader::current_holder()` once the
 /// leader module's read API is reachable from the
 /// async-services feature.
-async fn check_leader(
-    _store: &Arc<Mutex<rusqlite::Connection>>,
-    _node_id: &str,
-) -> bool {
+async fn check_leader(_store: &Arc<Mutex<rusqlite::Connection>>, _node_id: &str) -> bool {
     // NF-3.4.a follow-up: read crate::leader::current_holder
     // once that module ships an async-services entry point.
     // For now, the boot-time wizard explicitly promotes the
@@ -631,7 +625,10 @@ mod tests {
         let yaml = render_guest_config_yaml(&sample_bundle());
         // Guest is a normal peer node: lighthouse roster present.
         assert!(yaml.contains("am_lighthouse: false"));
-        assert!(yaml.contains("\"10.42.0.1\""), "guest needs lighthouse roster");
+        assert!(
+            yaml.contains("\"10.42.0.1\""),
+            "guest needs lighthouse roster"
+        );
         // But NOT the host-only VM-subnet route.
         assert!(
             !yaml.contains("unsafe_routes"),
@@ -747,6 +744,9 @@ mod tests {
 
     #[test]
     fn default_overlay_ip_path_matches_design_doc() {
-        assert_eq!(DEFAULT_OVERLAY_IP_PATH, "/var/lib/mackesd/nebula/overlay-ip");
+        assert_eq!(
+            DEFAULT_OVERLAY_IP_PATH,
+            "/var/lib/mackesd/nebula/overlay-ip"
+        );
     }
 }

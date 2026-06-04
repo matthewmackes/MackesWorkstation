@@ -111,7 +111,10 @@ mod tests {
         let mut buf = rgba(&[(0, 0, 0), (0, 0, 0), (255, 255, 255), (255, 255, 255)]);
         buf.extend(rgba(&[(200, 30, 30), (205, 35, 35), (195, 25, 25)]));
         let d = dominant_color(&buf).unwrap();
-        assert!(d.0 > 150 && d.1 < 90 && d.2 < 90, "expected red-ish, got {d:?}");
+        assert!(
+            d.0 > 150 && d.1 < 90 && d.2 < 90,
+            "expected red-ish, got {d:?}"
+        );
     }
 
     #[test]

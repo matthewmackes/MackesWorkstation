@@ -302,7 +302,11 @@ fn derive_key(passphrase: &[u8], salt: &[u8]) -> Result<[u8; 32], BackupError> {
     Ok(key)
 }
 
-fn aead_seal(key: &[u8; 32], nonce: &[u8; NONCE_LEN], plaintext: &[u8]) -> Result<Vec<u8>, BackupError> {
+fn aead_seal(
+    key: &[u8; 32],
+    nonce: &[u8; NONCE_LEN],
+    plaintext: &[u8],
+) -> Result<Vec<u8>, BackupError> {
     use chacha20poly1305::aead::{Aead, KeyInit};
     use chacha20poly1305::XChaCha20Poly1305;
     let cipher = XChaCha20Poly1305::new(key.into());
@@ -443,7 +447,13 @@ pub fn restore_to_store(
             "INSERT OR REPLACE INTO nebula_ca \
              (mesh_id, epoch, ca_cert_pem, created_at, retired_at) \
              VALUES (?1, ?2, ?3, ?4, ?5)",
-            rusqlite::params![bundle.mesh_id, ca.epoch, ca.ca_cert_pem, ca.created_at, ca.retired_at],
+            rusqlite::params![
+                bundle.mesh_id,
+                ca.epoch,
+                ca.ca_cert_pem,
+                ca.created_at,
+                ca.retired_at
+            ],
         )
         .map_err(|e| CaError::Sql(e.to_string()))?;
     }
@@ -453,7 +463,12 @@ pub fn restore_to_store(
              (node_id, epoch, cert_pem, overlay_ip, created_at, expires_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             rusqlite::params![
-                p.node_id, p.epoch, p.cert_pem, p.overlay_ip, p.created_at, p.expires_at,
+                p.node_id,
+                p.epoch,
+                p.cert_pem,
+                p.overlay_ip,
+                p.created_at,
+                p.expires_at,
             ],
         )
         .map_err(|e| CaError::Sql(e.to_string()))?;
@@ -500,10 +515,7 @@ mod tests {
     #[test]
     fn seal_rejects_empty_passphrase() {
         let pt = sample_plaintext();
-        assert!(matches!(
-            seal("", &pt),
-            Err(BackupError::EmptyPassphrase)
-        ));
+        assert!(matches!(seal("", &pt), Err(BackupError::EmptyPassphrase)));
     }
 
     #[test]

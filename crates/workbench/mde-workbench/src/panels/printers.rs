@@ -192,7 +192,10 @@ impl PrintersPanel {
                 None => format!("{name}   · this peer"),
                 Some(h) => {
                     let up = self.reachable_hosts.iter().any(|r| r == &h);
-                    format!("{name}   · on {h} ({})", if up { "online" } else { "offline" })
+                    format!(
+                        "{name}   · on {h} ({})",
+                        if up { "online" } else { "offline" }
+                    )
                 }
             };
             rows.push(text(line).size(13).into());

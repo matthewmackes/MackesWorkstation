@@ -179,16 +179,12 @@ pub fn new_bus_entries_since(
         }
 
         let text = match &msg.payload {
-            BusPayload::Inline { data_b64 } => {
-                base64::engine::general_purpose::STANDARD
-                    .decode(data_b64)
-                    .ok()
-                    .and_then(|b| String::from_utf8(b).ok())
-                    .unwrap_or_default()
-            }
-            BusPayload::BlobRef { path } => {
-                std::fs::read_to_string(path).unwrap_or_default()
-            }
+            BusPayload::Inline { data_b64 } => base64::engine::general_purpose::STANDARD
+                .decode(data_b64)
+                .ok()
+                .and_then(|b| String::from_utf8(b).ok())
+                .unwrap_or_default(),
+            BusPayload::BlobRef { path } => std::fs::read_to_string(path).unwrap_or_default(),
         };
 
         if !text.is_empty() {
@@ -212,12 +208,7 @@ pub fn new_bus_entries_since(
 mod tests {
     use super::*;
 
-    fn make_bus_msg(
-        bus_root: &Path,
-        ulid: &str,
-        peer_id: &str,
-        content: &str,
-    ) {
+    fn make_bus_msg(bus_root: &Path, ulid: &str, peer_id: &str, content: &str) {
         let data_b64 = base64::engine::general_purpose::STANDARD.encode(content.as_bytes());
         let msg = BusSyncMsg {
             publisher_peer: peer_id.to_owned(),
@@ -305,13 +296,12 @@ mod tests {
         let leftovers: Vec<_> = std::fs::read_dir(&topic_dir)
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .map_or(false, |x| x == "tmp")
-            })
+            .filter(|e| e.path().extension().map_or(false, |x| x == "tmp"))
             .collect();
-        assert!(leftovers.is_empty(), "no .tmp files left after atomic write");
+        assert!(
+            leftovers.is_empty(),
+            "no .tmp files left after atomic write"
+        );
     }
 
     // ── new_bus_entries_since ─────────────────────────────────────────────
@@ -320,7 +310,12 @@ mod tests {
     fn entries_from_other_peer_returned() {
         let tmp = tempfile::tempdir().unwrap();
         let bus_root = tmp.path().join("bus");
-        make_bus_msg(&bus_root, "01AAAAAAAAAAAAAAAAAAAAAAAAA", "peer-02", "hello mesh");
+        make_bus_msg(
+            &bus_root,
+            "01AAAAAAAAAAAAAAAAAAAAAAAAA",
+            "peer-02",
+            "hello mesh",
+        );
 
         let mut cursor = String::new();
         let results = new_bus_entries_since(&bus_root, "local-peer", &mut cursor);
@@ -332,7 +327,12 @@ mod tests {
     fn own_peer_entries_skipped() {
         let tmp = tempfile::tempdir().unwrap();
         let bus_root = tmp.path().join("bus");
-        make_bus_msg(&bus_root, "01BBBBBBBBBBBBBBBBBBBBBBBBB", "local-peer", "own copy");
+        make_bus_msg(
+            &bus_root,
+            "01BBBBBBBBBBBBBBBBBBBBBBBBB",
+            "local-peer",
+            "own copy",
+        );
 
         let mut cursor = String::new();
         let results = new_bus_entries_since(&bus_root, "local-peer", &mut cursor);
@@ -385,8 +385,18 @@ mod tests {
     fn multiple_peers_all_included() {
         let tmp = tempfile::tempdir().unwrap();
         let bus_root = tmp.path().join("bus");
-        make_bus_msg(&bus_root, "01FFFFFFFFFFFFFFFFFFFFFFF0A", "peer-02", "from p2");
-        make_bus_msg(&bus_root, "01FFFFFFFFFFFFFFFFFFFFFFF0B", "peer-03", "from p3");
+        make_bus_msg(
+            &bus_root,
+            "01FFFFFFFFFFFFFFFFFFFFFFF0A",
+            "peer-02",
+            "from p2",
+        );
+        make_bus_msg(
+            &bus_root,
+            "01FFFFFFFFFFFFFFFFFFFFFFF0B",
+            "peer-03",
+            "from p3",
+        );
 
         let mut cursor = String::new();
         let results = new_bus_entries_since(&bus_root, "local", &mut cursor);

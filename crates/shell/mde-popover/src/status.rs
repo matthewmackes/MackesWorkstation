@@ -13,9 +13,9 @@
 
 #![forbid(unsafe_code)]
 
-use iced::widget::{column, container, row, slider, text, Space};
-use iced::widget::mouse_area;
 use iced::widget::container::Style as ContainerStyle;
+use iced::widget::mouse_area;
+use iced::widget::{column, container, row, slider, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Subscription, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
@@ -23,11 +23,31 @@ use iced_layershell::to_layer_message;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
-const SURFACE: Color = Color { r: 0.102, g: 0.106, b: 0.118, a: 0.97 };
+const SURFACE: Color = Color {
+    r: 0.102,
+    g: 0.106,
+    b: 0.118,
+    a: 0.97,
+};
 const FG: Color = Color::WHITE;
-const FG_DIM: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.55 };
-const FG_MUTED: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.30 };
-const INDIGO: Color = Color { r: 0.357, g: 0.416, b: 0.961, a: 1.0 };
+const FG_DIM: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.55,
+};
+const FG_MUTED: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.30,
+};
+const INDIGO: Color = Color {
+    r: 0.357,
+    g: 0.416,
+    b: 0.961,
+    a: 1.0,
+};
 
 // Strip sits 56 px above the bottom edge (Dock shelf height).
 const DOCK_HEIGHT: f32 = 56.0;
@@ -114,8 +134,8 @@ pub enum Message {
 
 pub struct App {
     active_tab: Tab,
-    volume: f32,       // 0..=100
-    brightness: f32,   // 0..=100
+    volume: f32,     // 0..=100
+    brightness: f32, // 0..=100
 }
 
 fn namespace() -> String {
@@ -185,7 +205,12 @@ fn view(state: &App) -> Element<'_, Message> {
         tab_btn(Tab::Power, state.active_tab),
     ]
     .spacing(2)
-    .padding(Padding { top: 6.0, right: 12.0, bottom: 4.0, left: 12.0 });
+    .padding(Padding {
+        top: 6.0,
+        right: 12.0,
+        bottom: 4.0,
+        left: 12.0,
+    });
 
     // ── Card content ──────────────────────────────────────────────────────
     let content: Element<'_, Message> = match state.active_tab {
@@ -216,7 +241,12 @@ fn view(state: &App) -> Element<'_, Message> {
                 .align_y(iced::Alignment::Center),
             ]
             .spacing(8)
-            .padding(Padding { top: 4.0, right: 16.0, bottom: 8.0, left: 16.0 })
+            .padding(Padding {
+                top: 4.0,
+                right: 16.0,
+                bottom: 8.0,
+                left: 16.0,
+            })
             .into()
         }
         Tab::Brightness => {
@@ -246,23 +276,26 @@ fn view(state: &App) -> Element<'_, Message> {
                 .align_y(iced::Alignment::Center),
             ]
             .spacing(8)
-            .padding(Padding { top: 4.0, right: 16.0, bottom: 8.0, left: 16.0 })
+            .padding(Padding {
+                top: 4.0,
+                right: 16.0,
+                bottom: 8.0,
+                left: 16.0,
+            })
             .into()
         }
-        Tab::Power => {
-            row![
-                power_btn("Lock", Message::Lock, COLOR_SAGE),
-                Space::new().width(Length::Fill),
-                power_btn("Suspend", Message::Suspend, FG_DIM),
-                Space::new().width(Length::Fixed(8.0)),
-                power_btn("Reboot", Message::Reboot, COLOR_AMBER),
-                Space::new().width(Length::Fixed(8.0)),
-                power_btn("Shutdown", Message::Shutdown, COLOR_RED),
-            ]
-            .align_y(iced::Alignment::Center)
-            .padding(Padding::from([12, 16]))
-            .into()
-        }
+        Tab::Power => row![
+            power_btn("Lock", Message::Lock, COLOR_SAGE),
+            Space::new().width(Length::Fill),
+            power_btn("Suspend", Message::Suspend, FG_DIM),
+            Space::new().width(Length::Fixed(8.0)),
+            power_btn("Reboot", Message::Reboot, COLOR_AMBER),
+            Space::new().width(Length::Fixed(8.0)),
+            power_btn("Shutdown", Message::Shutdown, COLOR_RED),
+        ]
+        .align_y(iced::Alignment::Center)
+        .padding(Padding::from([12, 16]))
+        .into(),
     };
 
     let strip_card = column![tab_bar, content]
@@ -275,7 +308,12 @@ fn view(state: &App) -> Element<'_, Message> {
         .style(|_: &Theme| ContainerStyle {
             background: Some(Background::Color(SURFACE)),
             border: Border {
-                color: Color { r: 1.0, g: 1.0, b: 1.0, a: 0.06 },
+                color: Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.06,
+                },
                 width: 1.0,
                 radius: 4.0.into(),
             },
@@ -335,15 +373,35 @@ fn subscription(_state: &App) -> Subscription<Message> {
 
 // ── Widget helpers ────────────────────────────────────────────────────────────
 
-const COLOR_SAGE: Color = Color { r: 0.33, g: 0.70, b: 0.54, a: 1.0 };
-const COLOR_AMBER: Color = Color { r: 0.95, g: 0.67, b: 0.22, a: 1.0 };
-const COLOR_RED: Color = Color { r: 0.86, g: 0.21, b: 0.16, a: 1.0 };
+const COLOR_SAGE: Color = Color {
+    r: 0.33,
+    g: 0.70,
+    b: 0.54,
+    a: 1.0,
+};
+const COLOR_AMBER: Color = Color {
+    r: 0.95,
+    g: 0.67,
+    b: 0.22,
+    a: 1.0,
+};
+const COLOR_RED: Color = Color {
+    r: 0.86,
+    g: 0.21,
+    b: 0.16,
+    a: 1.0,
+};
 
 fn tab_btn(tab: Tab, active: Tab) -> Element<'static, Message> {
     let is_active = tab == active;
     let color = if is_active { FG } else { FG_MUTED };
     let bg = if is_active {
-        Background::Color(Color { r: 1.0, g: 1.0, b: 1.0, a: 0.08 })
+        Background::Color(Color {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+            a: 0.08,
+        })
     } else {
         Background::Color(Color::TRANSPARENT)
     };
@@ -353,7 +411,11 @@ fn tab_btn(tab: Tab, active: Tab) -> Element<'static, Message> {
             .style(move |_: &Theme| ContainerStyle {
                 background: Some(bg),
                 border: Border {
-                    color: if is_active { INDIGO } else { Color::TRANSPARENT },
+                    color: if is_active {
+                        INDIGO
+                    } else {
+                        Color::TRANSPARENT
+                    },
                     width: if is_active { 0.0 } else { 0.0 },
                     radius: 3.0.into(),
                 },
@@ -370,9 +432,15 @@ fn vol_quick_btn(label: &'static str, target: f32) -> Element<'static, Message> 
             .padding(Padding::from([3, 7]))
             .style(|_: &Theme| ContainerStyle {
                 background: Some(Background::Color(Color {
-                    r: 1.0, g: 1.0, b: 1.0, a: 0.05,
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.05,
                 })),
-                border: Border { radius: 3.0.into(), ..Default::default() },
+                border: Border {
+                    radius: 3.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             }),
     )
@@ -386,9 +454,15 @@ fn bri_quick_btn(label: &'static str, target: f32) -> Element<'static, Message> 
             .padding(Padding::from([3, 7]))
             .style(|_: &Theme| ContainerStyle {
                 background: Some(Background::Color(Color {
-                    r: 1.0, g: 1.0, b: 1.0, a: 0.05,
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.05,
                 })),
-                border: Border { radius: 3.0.into(), ..Default::default() },
+                border: Border {
+                    radius: 3.0.into(),
+                    ..Default::default()
+                },
                 ..Default::default()
             }),
     )
@@ -402,10 +476,18 @@ fn power_btn(label: &'static str, msg: Message, color: Color) -> Element<'static
             .padding(Padding::from([10, 20]))
             .style(|_: &Theme| ContainerStyle {
                 background: Some(Background::Color(Color {
-                    r: 1.0, g: 1.0, b: 1.0, a: 0.06,
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.06,
                 })),
                 border: Border {
-                    color: Color { r: 1.0, g: 1.0, b: 1.0, a: 0.12 },
+                    color: Color {
+                        r: 1.0,
+                        g: 1.0,
+                        b: 1.0,
+                        a: 0.12,
+                    },
                     width: 1.0,
                     radius: 4.0.into(),
                 },
@@ -422,7 +504,11 @@ pub fn run() -> iced_layershell::Result {
             let volume = read_volume_pct() as f32;
             let brightness = read_brightness_pct() as f32;
             tracing::info!(volume, brightness, "status popover open");
-            App { active_tab: Tab::Volume, volume, brightness }
+            App {
+                active_tab: Tab::Volume,
+                volume,
+                brightness,
+            }
         },
         namespace,
         update,
@@ -482,7 +568,10 @@ mod tests {
 
     #[test]
     fn strip_height_is_above_dock() {
-        assert!(STRIP_HEIGHT > DOCK_HEIGHT, "strip must clear the dock shelf");
+        assert!(
+            STRIP_HEIGHT > DOCK_HEIGHT,
+            "strip must clear the dock shelf"
+        );
     }
 
     #[test]

@@ -56,7 +56,9 @@ pub struct NavState {
 
 impl Default for NavState {
     fn default() -> Self {
-        Self { stack: vec![Route::Hub] }
+        Self {
+            stack: vec![Route::Hub],
+        }
     }
 }
 

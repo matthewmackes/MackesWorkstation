@@ -72,7 +72,9 @@ impl FailureWindow {
     /// the field can stay private.
     #[must_use]
     pub fn from_consecutive_failures(n: u32) -> Self {
-        Self { consecutive_failures: n }
+        Self {
+            consecutive_failures: n,
+        }
     }
 
     /// Feed one probe-pair outcome. Returns the new failure
@@ -202,16 +204,11 @@ pub fn transition(
 
         // From Active — revert on UDP recovery; flip to Failing
         // on tunnel loss.
-        (
-            HttpsFallbackState::Active,
-            TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded),
-        ) => {
+        (HttpsFallbackState::Active, TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded)) => {
             *window = FailureWindow::new();
             HttpsFallbackState::Inactive
         }
-        (HttpsFallbackState::Active, TransitionInput::TunnelLost) => {
-            HttpsFallbackState::Failing
-        }
+        (HttpsFallbackState::Active, TransitionInput::TunnelLost) => HttpsFallbackState::Failing,
         (HttpsFallbackState::Active, _) => HttpsFallbackState::Active,
 
         // From Failing — recovery → Inactive; re-threshold →
@@ -223,10 +220,7 @@ pub fn transition(
             *window = FailureWindow::new();
             HttpsFallbackState::Inactive
         }
-        (
-            HttpsFallbackState::Failing,
-            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
-        ) => {
+        (HttpsFallbackState::Failing, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed)) => {
             window.observe(ProbePairOutcome::BothUdpFailed);
             if window.threshold_met() {
                 *window = FailureWindow::new();
@@ -344,11 +338,23 @@ mod tests {
     fn inactive_to_activating_after_three_failures() {
         let mut w = FailureWindow::new();
         let s = HttpsFallbackState::Inactive;
-        let s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        let s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(s, HttpsFallbackState::Inactive);
-        let s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        let s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(s, HttpsFallbackState::Inactive);
-        let s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        let s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(s, HttpsFallbackState::Activating);
         assert_eq!(w.consecutive_failures(), 0, "window resets on activation");
     }
@@ -357,8 +363,16 @@ mod tests {
     fn inactive_stays_inactive_when_udp_recovers_mid_window() {
         let mut w = FailureWindow::new();
         let mut s = HttpsFallbackState::Inactive;
-        s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
-        s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded));
+        s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
+        s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded),
+        );
         assert_eq!(s, HttpsFallbackState::Inactive);
         assert_eq!(w.consecutive_failures(), 0);
     }
@@ -435,11 +449,23 @@ mod tests {
     fn failing_retries_activating_on_threshold() {
         let mut w = FailureWindow::new();
         let mut s = HttpsFallbackState::Failing;
-        s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(s, HttpsFallbackState::Failing);
-        s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(s, HttpsFallbackState::Failing);
-        s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        s = transition(
+            s,
+            &mut w,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(s, HttpsFallbackState::Activating);
         assert_eq!(w.consecutive_failures(), 0);
     }
@@ -447,7 +473,11 @@ mod tests {
     #[test]
     fn handshake_inputs_in_inactive_are_noops() {
         let mut w = FailureWindow::new();
-        let s = transition(HttpsFallbackState::Inactive, &mut w, TransitionInput::HandshakeOk);
+        let s = transition(
+            HttpsFallbackState::Inactive,
+            &mut w,
+            TransitionInput::HandshakeOk,
+        );
         assert_eq!(s, HttpsFallbackState::Inactive);
         let s = transition(s, &mut w, TransitionInput::HandshakeFailed);
         assert_eq!(s, HttpsFallbackState::Inactive);
@@ -477,7 +507,11 @@ mod tests {
         let mut w = FailureWindow::new();
         let mut s = HttpsFallbackState::Inactive;
         for _ in 0..FAILURE_THRESHOLD {
-            s = transition(s, &mut w, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+            s = transition(
+                s,
+                &mut w,
+                TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+            );
         }
         assert_eq!(s, HttpsFallbackState::Activating);
         s = transition(s, &mut w, TransitionInput::HandshakeOk);
@@ -514,14 +548,22 @@ mod tests {
     #[test]
     fn activating_ignores_tunnel_lost() {
         let mut w = FailureWindow::new();
-        let s = transition(HttpsFallbackState::Activating, &mut w, TransitionInput::TunnelLost);
+        let s = transition(
+            HttpsFallbackState::Activating,
+            &mut w,
+            TransitionInput::TunnelLost,
+        );
         assert_eq!(s, HttpsFallbackState::Activating);
     }
 
     #[test]
     fn active_to_active_on_handshake_inputs_noop() {
         let mut w = FailureWindow::new();
-        let s = transition(HttpsFallbackState::Active, &mut w, TransitionInput::HandshakeOk);
+        let s = transition(
+            HttpsFallbackState::Active,
+            &mut w,
+            TransitionInput::HandshakeOk,
+        );
         assert_eq!(s, HttpsFallbackState::Active);
         let s = transition(s, &mut w, TransitionInput::HandshakeFailed);
         assert_eq!(s, HttpsFallbackState::Active);
@@ -530,7 +572,11 @@ mod tests {
     #[test]
     fn failing_to_failing_on_handshake_inputs_noop() {
         let mut w = FailureWindow::new();
-        let s = transition(HttpsFallbackState::Failing, &mut w, TransitionInput::HandshakeOk);
+        let s = transition(
+            HttpsFallbackState::Failing,
+            &mut w,
+            TransitionInput::HandshakeOk,
+        );
         assert_eq!(s, HttpsFallbackState::Failing);
         let s = transition(s, &mut w, TransitionInput::HandshakeFailed);
         assert_eq!(s, HttpsFallbackState::Failing);

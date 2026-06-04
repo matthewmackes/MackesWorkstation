@@ -90,10 +90,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
         let path = write_audit_event(root, "host-blocked", "10.0.0.66 by operator").unwrap();
-        assert!(path.starts_with(root.join("audit")), "under the audit/ type dir");
+        assert!(
+            path.starts_with(root.join("audit")),
+            "under the audit/ type dir"
+        );
         let name = path.file_name().unwrap().to_str().unwrap();
         assert!(name.ends_with(".json") && !name.contains(':'));
-        let entry: AuditEntry = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let entry: AuditEntry =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(entry.kind, "audit");
         assert_eq!(entry.event, "host-blocked");
         assert_eq!(entry.detail, "10.0.0.66 by operator");

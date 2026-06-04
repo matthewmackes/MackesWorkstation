@@ -29,7 +29,9 @@
 use std::process::{Command, Stdio};
 
 use iced::widget::{button, column, container, mouse_area, row, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -158,9 +160,7 @@ fn view(state: &App) -> Element<'_, Message> {
     }
     body = body.push(ws_row);
     body = body.push(Space::new().height(Length::Fixed(12.0)));
-    body = body.push(
-        menu_button("Close window", URGENT, Message::CloseWindow),
-    );
+    body = body.push(menu_button("Close window", URGENT, Message::CloseWindow));
     body = body.push(Space::new().height(Length::Fixed(6.0)));
     let pin_label = if state.pinned {
         "Unpin from dock"

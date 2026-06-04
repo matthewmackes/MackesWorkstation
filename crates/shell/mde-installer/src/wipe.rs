@@ -151,7 +151,10 @@ pub fn write_profile_marker(profile: Profile) -> std::io::Result<()> {
 /// the audit trail.
 #[must_use]
 pub fn revoke_own_cert(node_id: &str) -> String {
-    match Command::new("mackesd").args(["ca", "revoke", node_id]).output() {
+    match Command::new("mackesd")
+        .args(["ca", "revoke", node_id])
+        .output()
+    {
         Ok(out) if out.status.success() => {
             let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
             format!("cert revoked: {stdout}")
@@ -311,7 +314,10 @@ mod tests {
         // systemctl is absent (CI containers): spawn failure → `unwrap_or(false)`
         // → "not still_active" → immediate return.
         let msg = wait_for_peer_detach(5);
-        assert!(msg.contains("proceeding"), "expected 'proceeding', got: {msg}");
+        assert!(
+            msg.contains("proceeding"),
+            "expected 'proceeding', got: {msg}"
+        );
     }
 
     #[test]

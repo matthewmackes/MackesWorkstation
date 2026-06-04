@@ -49,8 +49,7 @@ impl ProbeWorker {
     /// `$HOME` for the arbitrary-target / do-not-scan config files.
     #[must_use]
     pub fn new(workgroup_root: PathBuf, self_node_id: String) -> Self {
-        let home = std::env::var_os("HOME")
-            .map_or_else(|| PathBuf::from("/root"), PathBuf::from);
+        let home = std::env::var_os("HOME").map_or_else(|| PathBuf::from("/root"), PathBuf::from);
         Self {
             workgroup_root,
             self_node_id,
@@ -125,6 +124,9 @@ mod tests {
 
     #[test]
     fn worker_name_is_probe() {
-        assert_eq!(ProbeWorker::new(PathBuf::from("/x"), "n".into()).name(), "probe");
+        assert_eq!(
+            ProbeWorker::new(PathBuf::from("/x"), "n".into()).name(),
+            "probe"
+        );
     }
 }

@@ -43,8 +43,7 @@ pub const DEFAULT_TICK_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Default path of the role.host marker
 /// (`is_lighthouse = marker.exists()`).
-pub const DEFAULT_ROLE_MARKER_PATH: &str =
-    crate::ipc::nebula::DEFAULT_ROLE_HOST_MARKER;
+pub const DEFAULT_ROLE_MARKER_PATH: &str = crate::ipc::nebula::DEFAULT_ROLE_HOST_MARKER;
 
 /// Nebula firewall preset: (port, protocol) tuples to open
 /// inbound. Mirrors `mesh_nebula.py::NEBULA_FIREWALL_PORTS` for
@@ -125,13 +124,9 @@ impl FirewallPresetWorker {
         // an enrolment refresh touched the file even though the
         // role didn't flip).
         let mtime_advanced = if is_lighthouse {
-            match std::fs::metadata(&self.role_marker_path)
-                .and_then(|m| m.modified())
-            {
+            match std::fs::metadata(&self.role_marker_path).and_then(|m| m.modified()) {
                 Ok(now) => {
-                    let advanced = self
-                        .last_marker_mtime
-                        .is_none_or(|last| now > last);
+                    let advanced = self.last_marker_mtime.is_none_or(|last| now > last);
                     self.last_marker_mtime = Some(now);
                     advanced
                 }
@@ -212,8 +207,7 @@ impl Worker for FirewallPresetWorker {
 /// All peers: UDP/4242. Lighthouses additionally: TCP/443.
 #[must_use]
 pub fn desired_ports(is_lighthouse: bool) -> Vec<(u16, &'static str)> {
-    let mut out: Vec<(u16, &'static str)> =
-        NEBULA_PORTS_ALL_PEERS.iter().copied().collect();
+    let mut out: Vec<(u16, &'static str)> = NEBULA_PORTS_ALL_PEERS.iter().copied().collect();
     if is_lighthouse {
         out.extend(NEBULA_PORTS_LIGHTHOUSE_EXTRA.iter().copied());
     }
@@ -223,10 +217,7 @@ pub fn desired_ports(is_lighthouse: bool) -> Vec<(u16, &'static str)> {
 /// Shell out to `firewall-cmd --permanent --add-port <port>/<proto>`
 /// for each entry + `firewall-cmd --reload` to activate. Idempotent:
 /// re-adding an existing port is a no-op on the firewalld side.
-fn apply_preset(
-    firewall_cmd: &str,
-    ports: &[(u16, &'static str)],
-) -> Result<(), String> {
+fn apply_preset(firewall_cmd: &str, ports: &[(u16, &'static str)]) -> Result<(), String> {
     if which(firewall_cmd).is_none() {
         return Err(format!(
             "{firewall_cmd} not on PATH; preset deferred until firewalld is installed"

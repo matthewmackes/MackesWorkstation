@@ -82,7 +82,10 @@ pub struct AlertEvent {
 /// vars do all the heavy lifting + the args just override
 /// the output dir + opt into dry-run mode for tests.
 #[derive(Debug, Parser)]
-#[command(version, about = "MON-3 — translate a Netdata alert env block into a JSON event under ~/.local/share/mde/alerts/")]
+#[command(
+    version,
+    about = "MON-3 — translate a Netdata alert env block into a JSON event under ~/.local/share/mde/alerts/"
+)]
 struct Args {
     /// Output directory for the JSON event. Defaults to
     /// `$XDG_DATA_HOME/mde/alerts/` or
@@ -186,22 +189,13 @@ pub fn assemble_from_env(env: &BTreeMap<String, String>) -> Option<AlertEvent> {
             .get("NETDATA_ALARM_CHART_CONTEXT")
             .cloned()
             .unwrap_or_default(),
-        alert: env
-            .get("NETDATA_ALARM_NAME")
-            .cloned()
-            .unwrap_or_default(),
+        alert: env.get("NETDATA_ALARM_NAME").cloned().unwrap_or_default(),
         host: env
             .get("NETDATA_ALARM_HOSTNAME")
             .cloned()
             .unwrap_or_default(),
-        summary: env
-            .get("NETDATA_ALARM_INFO")
-            .cloned()
-            .unwrap_or_default(),
-        value: env
-            .get("NETDATA_ALARM_VALUE")
-            .cloned()
-            .unwrap_or_default(),
+        summary: env.get("NETDATA_ALARM_INFO").cloned().unwrap_or_default(),
+        value: env.get("NETDATA_ALARM_VALUE").cloned().unwrap_or_default(),
         threshold: env
             .get("NETDATA_ALARM_THRESHOLD")
             .cloned()
@@ -222,7 +216,13 @@ fn default_output_dir() -> Option<PathBuf> {
         return Some(PathBuf::from(xdg).join("mde").join("alerts"));
     }
     let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join(".local").join("share").join("mde").join("alerts"))
+    Some(
+        PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("mde")
+            .join("alerts"),
+    )
 }
 
 /// Atomic-write the event JSON to `<output_dir>/<id>.json`.
@@ -233,8 +233,9 @@ fn write_event(event: &AlertEvent, output_dir: &std::path::Path) -> std::io::Res
     std::fs::create_dir_all(output_dir)?;
     let final_path = output_dir.join(format!("{}.json", event.id));
     let tmp_path = output_dir.join(format!("{}.json.tmp", event.id));
-    let body = serde_json::to_string_pretty(event)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("encode: {e}")))?;
+    let body = serde_json::to_string_pretty(event).map_err(|e| {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, format!("encode: {e}"))
+    })?;
     {
         use std::io::Write;
         let mut f = std::fs::File::create(&tmp_path)?;
@@ -261,21 +262,19 @@ fn main() -> std::io::Result<()> {
     };
 
     if args.dry_run_from_env {
-        let body = serde_json::to_string_pretty(&event)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, format!("encode: {e}")))?;
+        let body = serde_json::to_string_pretty(&event).map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, format!("encode: {e}"))
+        })?;
         println!("{body}");
         return Ok(());
     }
 
-    let output_dir = args
-        .output_dir
-        .or_else(default_output_dir)
-        .ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                "$XDG_DATA_HOME / $HOME unset; pass --output-dir",
-            )
-        })?;
+    let output_dir = args.output_dir.or_else(default_output_dir).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "$XDG_DATA_HOME / $HOME unset; pass --output-dir",
+        )
+    })?;
     let path = write_event(&event, &output_dir)?;
     println!("{}", path.display());
 
@@ -471,7 +470,10 @@ mod tests {
             ("NETDATA_ALARM_INFO", "Nebula process inactive for 45s"),
             ("NETDATA_ALARM_VALUE", "inactive"),
             ("NETDATA_ALARM_THRESHOLD", "active"),
-            ("NETDATA_ALARM_CHART_URL", "https://peer:alice:19999/#menu_nebula"),
+            (
+                "NETDATA_ALARM_CHART_URL",
+                "https://peer:alice:19999/#menu_nebula",
+            ),
         ]);
         let ev = assemble_from_env(&e).expect("complete env → event");
         assert_eq!(ev.ts, 1_716_000_000);

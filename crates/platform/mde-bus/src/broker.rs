@@ -102,18 +102,13 @@ pub enum BrokerSkipReason {
 impl std::fmt::Display for BrokerSkipReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NoOverlayIp => write!(
-                f,
-                "overlay-IP publish file missing (peer not enrolled yet)"
-            ),
-            Self::EmptyOverlayIp => write!(
-                f,
-                "overlay-IP publish file empty (enrolment in progress)"
-            ),
-            Self::NtfyMissing => write!(
-                f,
-                "ntfy binary not on PATH (install the `ntfy` RPM)"
-            ),
+            Self::NoOverlayIp => {
+                write!(f, "overlay-IP publish file missing (peer not enrolled yet)")
+            }
+            Self::EmptyOverlayIp => {
+                write!(f, "overlay-IP publish file empty (enrolment in progress)")
+            }
+            Self::NtfyMissing => write!(f, "ntfy binary not on PATH (install the `ntfy` RPM)"),
             Self::TemplateMissing => {
                 write!(f, "ntfy config template not present")
             }
@@ -182,32 +177,18 @@ pub fn render_config(
 ///
 /// # Errors
 /// Returns `std::io::Error` on mkdir/write/rename failure.
-pub fn materialize_config(
-    cfg: &BrokerConfig,
-    overlay_ip: &str,
-) -> anyhow::Result<PathBuf> {
+pub fn materialize_config(cfg: &BrokerConfig, overlay_ip: &str) -> anyhow::Result<PathBuf> {
     let template_body = std::fs::read_to_string(&cfg.template_path)
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "read ntfy template {}: {e}",
-                cfg.template_path.display()
-            )
-        })?;
+        .map_err(|e| anyhow::anyhow!("read ntfy template {}: {e}", cfg.template_path.display()))?;
     let rendered = render_config(&template_body, overlay_ip, &cfg.cache_dir)?;
-    std::fs::create_dir_all(&cfg.cache_dir).map_err(|e| {
-        anyhow::anyhow!("mkdir {}: {e}", cfg.cache_dir.display())
-    })?;
+    std::fs::create_dir_all(&cfg.cache_dir)
+        .map_err(|e| anyhow::anyhow!("mkdir {}: {e}", cfg.cache_dir.display()))?;
     let out_path = cfg.cache_dir.join("server.yml");
     let tmp = out_path.with_extension("yml.tmp");
     std::fs::write(&tmp, rendered.as_bytes())
         .map_err(|e| anyhow::anyhow!("write {}: {e}", tmp.display()))?;
-    std::fs::rename(&tmp, &out_path).map_err(|e| {
-        anyhow::anyhow!(
-            "rename {} → {}: {e}",
-            tmp.display(),
-            out_path.display()
-        )
-    })?;
+    std::fs::rename(&tmp, &out_path)
+        .map_err(|e| anyhow::anyhow!("rename {} → {}: {e}", tmp.display(), out_path.display()))?;
     Ok(out_path)
 }
 
@@ -218,10 +199,7 @@ pub fn materialize_config(
 /// # Errors
 /// Returns `std::io::Error` if the binary can't be spawned (e.g.
 /// PATH lookup failed mid-flight, EPERM, etc.).
-pub fn spawn_ntfy(
-    cfg: &BrokerConfig,
-    config_path: &Path,
-) -> std::io::Result<Child> {
+pub fn spawn_ntfy(cfg: &BrokerConfig, config_path: &Path) -> std::io::Result<Child> {
     Command::new(&cfg.ntfy_bin)
         .arg("serve")
         .arg("--config")
@@ -241,9 +219,7 @@ pub fn spawn_ntfy(
 /// prereqs were green (template parse error, ntfy spawn EPERM,
 /// etc.). Missing prereqs return `Ok(BrokerOutcome::Skipped(_))`
 /// — they're expected non-fatal states.
-pub async fn start_if_ready(
-    cfg: &BrokerConfig,
-) -> anyhow::Result<BrokerOutcome> {
+pub async fn start_if_ready(cfg: &BrokerConfig) -> anyhow::Result<BrokerOutcome> {
     match evaluate_prereqs(cfg) {
         Prereqs::Skip(reason) => {
             tracing::info!(
@@ -332,8 +308,7 @@ mod tests {
     #[test]
     fn render_resolves_overlay_ip_and_cache_dir() {
         let rendered =
-            render_config(template_body(), "10.42.0.5", Path::new("/tmp/c"))
-                .expect("render ok");
+            render_config(template_body(), "10.42.0.5", Path::new("/tmp/c")).expect("render ok");
         assert!(rendered.contains("listen-http: \"10.42.0.5:8443\""));
         assert!(rendered.contains("cache-file: \"/tmp/c/ntfy.db\""));
         // Per design lock — no TLS config rendered.

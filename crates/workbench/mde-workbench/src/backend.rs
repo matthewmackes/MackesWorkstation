@@ -127,11 +127,7 @@ pub struct FileBackend {
 
 impl fmt::Debug for FileBackend {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let n = self
-            .values
-            .lock()
-            .map(|g| g.len())
-            .unwrap_or(0);
+        let n = self.values.lock().map(|g| g.len()).unwrap_or(0);
         f.debug_struct("FileBackend")
             .field("path", &self.path)
             .field("keys", &n)
@@ -166,9 +162,8 @@ impl FileBackend {
 
     fn flush(&self, values: &HashMap<String, String>) -> Result<(), BackendError> {
         if let Some(parent) = self.path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                BackendError::Bus(format!("mkdir {}: {e}", parent.display()))
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| BackendError::Bus(format!("mkdir {}: {e}", parent.display())))?;
         }
         let raw = serialize_settings(values);
         std::fs::write(&self.path, raw)
@@ -493,8 +488,14 @@ mod tests {
         "#;
         let m = parse_settings(raw);
         assert_eq!(m.len(), 2);
-        assert_eq!(m.get("theme.gtk").map(String::as_str), Some("\"Mackes-Dark\""));
-        assert_eq!(m.get("font.body").map(String::as_str), Some("\"Geologica\""));
+        assert_eq!(
+            m.get("theme.gtk").map(String::as_str),
+            Some("\"Mackes-Dark\"")
+        );
+        assert_eq!(
+            m.get("font.body").map(String::as_str),
+            Some("\"Geologica\"")
+        );
     }
 
     #[test]
@@ -515,7 +516,10 @@ mod tests {
     #[test]
     fn serialize_settings_escapes_embedded_quotes() {
         let mut m = HashMap::new();
-        m.insert("custom.key".to_string(), "{\"name\":\"with\\\"quotes\"}".to_string());
+        m.insert(
+            "custom.key".to_string(),
+            "{\"name\":\"with\\\"quotes\"}".to_string(),
+        );
         let raw = serialize_settings(&m);
         // Round-trip should preserve the escaped JSON body.
         let back = parse_settings(&raw);
@@ -524,13 +528,14 @@ mod tests {
 
     #[tokio::test]
     async fn file_backend_persists_set_across_construction() {
-        let tmp = std::env::temp_dir().join(format!(
-            "mde-workbench-test-{}.toml",
-            std::process::id()
-        ));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-workbench-test-{}.toml", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
         let backend = FileBackend::with_path(tmp.clone());
-        backend.set("theme.gtk", "\"Mackes-Dark\"").await.expect("set");
+        backend
+            .set("theme.gtk", "\"Mackes-Dark\"")
+            .await
+            .expect("set");
         // Reconstructing from the same path reads the value back.
         let backend2 = FileBackend::with_path(tmp.clone());
         let got = backend2.get("theme.gtk").await.expect("get");

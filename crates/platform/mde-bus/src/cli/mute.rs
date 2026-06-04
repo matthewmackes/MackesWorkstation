@@ -95,23 +95,19 @@ fn read_or_default(path: &std::path::Path) -> Result<SubsManifest> {
     if !path.exists() {
         return Ok(SubsManifest::default());
     }
-    let body = std::fs::read_to_string(path)
-        .with_context(|| format!("read {}", path.display()))?;
+    let body = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     SubsManifest::parse_yaml(&body).with_context(|| format!("parse {}", path.display()))
 }
 
 fn write_atomic(path: &std::path::Path, m: &SubsManifest) -> Result<()> {
     let body = m.to_yaml().context("encode subs.yaml")?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("mkdir {}", parent.display()))?;
+        std::fs::create_dir_all(parent).with_context(|| format!("mkdir {}", parent.display()))?;
     }
     let tmp = path.with_extension("yaml.tmp");
-    std::fs::write(&tmp, body.as_bytes())
-        .with_context(|| format!("write {}", tmp.display()))?;
-    std::fs::rename(&tmp, path).with_context(|| {
-        format!("rename {} → {}", tmp.display(), path.display())
-    })?;
+    std::fs::write(&tmp, body.as_bytes()).with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::rename(&tmp, path)
+        .with_context(|| format!("rename {} → {}", tmp.display(), path.display()))?;
     Ok(())
 }
 
@@ -119,8 +115,7 @@ fn resolve_bus_root(arg: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(p) = arg {
         return Ok(p);
     }
-    crate::default_data_dir()
-        .ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
+    crate::default_data_dir().ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
 }
 
 fn local_hostname() -> String {
@@ -238,11 +233,18 @@ pub async fn run(op: MuteOp) -> Result<()> {
                 }
             }
         }
-        MuteOp::Count { manifest, pattern, json } => {
+        MuteOp::Count {
+            manifest,
+            pattern,
+            json,
+        } => {
             let path = resolve_manifest_path(manifest)?;
             let m = read_or_default(&path)?;
             let n = if let Some(p) = pattern.as_deref() {
-                m.mute.iter().filter(|t| crate::wildcard::matches(p, t)).count()
+                m.mute
+                    .iter()
+                    .filter(|t| crate::wildcard::matches(p, t))
+                    .count()
             } else {
                 m.mute.len()
             };
@@ -252,7 +254,11 @@ pub async fn run(op: MuteOp) -> Result<()> {
                 println!("{n}");
             }
         }
-        MuteOp::List { manifest, pattern, json } => {
+        MuteOp::List {
+            manifest,
+            pattern,
+            json,
+        } => {
             let path = resolve_manifest_path(manifest)?;
             let m = read_or_default(&path)?;
             for t in &m.mute {
@@ -264,8 +270,7 @@ pub async fn run(op: MuteOp) -> Result<()> {
                 if json {
                     // JSON-encoded string per line — guarantees
                     // proper quoting of topics with special chars.
-                    let s = serde_json::to_string(t)
-                        .unwrap_or_else(|_| format!("{t:?}"));
+                    let s = serde_json::to_string(t).unwrap_or_else(|_| format!("{t:?}"));
                     println!("{s}");
                 } else {
                     println!("{t}");

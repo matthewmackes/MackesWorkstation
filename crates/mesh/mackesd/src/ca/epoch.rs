@@ -207,10 +207,7 @@ pub fn bump_epoch_into<B: NebulaCertBackend>(
 /// Mark every non-retired row as retired_at = now(). Returns
 /// the epoch of the row that was retired, or None when none
 /// existed.
-fn retire_active_ca(
-    tx: &rusqlite::Transaction<'_>,
-    mesh_id: &str,
-) -> Result<Option<i64>, CaError> {
+fn retire_active_ca(tx: &rusqlite::Transaction<'_>, mesh_id: &str) -> Result<Option<i64>, CaError> {
     let mut stmt = tx
         .prepare(
             "SELECT epoch FROM nebula_ca \
@@ -326,15 +323,8 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let crt = tmp.path().join("ca.crt");
         let key = tmp.path().join("ca.key");
-        let outcome = bump_epoch(
-            &MockBackend,
-            &mut conn,
-            "m1",
-            Some(&crt),
-            Some(&key),
-            365,
-        )
-        .expect("rotate empty");
+        let outcome = bump_epoch(&MockBackend, &mut conn, "m1", Some(&crt), Some(&key), 365)
+            .expect("rotate empty");
         assert_eq!(outcome.retired_epoch, None);
         assert_eq!(outcome.new_epoch, 0);
         assert_eq!(outcome.re_signed, 0);
@@ -347,18 +337,10 @@ mod tests {
         let crt = tmp.path().join("ca.crt");
         let key = tmp.path().join("ca.key");
         // Mint epoch 0 first.
-        mint::mint_ca(&MockBackend, &conn, "m1", Some(&crt), Some(&key))
-            .expect("initial mint");
+        mint::mint_ca(&MockBackend, &conn, "m1", Some(&crt), Some(&key)).expect("initial mint");
         // Rotate.
-        let outcome = bump_epoch(
-            &MockBackend,
-            &mut conn,
-            "m1",
-            Some(&crt),
-            Some(&key),
-            365,
-        )
-        .expect("rotate");
+        let outcome =
+            bump_epoch(&MockBackend, &mut conn, "m1", Some(&crt), Some(&key), 365).expect("rotate");
         assert_eq!(outcome.retired_epoch, Some(0));
         assert_eq!(outcome.new_epoch, 1);
     }
@@ -369,10 +351,8 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let crt = tmp.path().join("ca.crt");
         let key = tmp.path().join("ca.key");
-        mint::mint_ca(&MockBackend, &conn, "m1", Some(&crt), Some(&key))
-            .expect("mint");
-        bump_epoch(&MockBackend, &mut conn, "m1", Some(&crt), Some(&key), 365)
-            .expect("rotate");
+        mint::mint_ca(&MockBackend, &conn, "m1", Some(&crt), Some(&key)).expect("mint");
+        bump_epoch(&MockBackend, &mut conn, "m1", Some(&crt), Some(&key), 365).expect("rotate");
         // Prior row's retired_at should be non-null.
         let retired_at: Option<i64> = conn
             .query_row(
@@ -400,8 +380,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let crt = tmp.path().join("ca.crt");
         let key = tmp.path().join("ca.key");
-        mint::mint_ca(&MockBackend, &conn, "m1", Some(&crt), Some(&key))
-            .expect("mint");
+        mint::mint_ca(&MockBackend, &conn, "m1", Some(&crt), Some(&key)).expect("mint");
         // Pre-populate a peer in nodes + nebula_peer_certs at
         // epoch 0.
         conn.execute(

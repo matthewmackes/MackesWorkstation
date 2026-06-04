@@ -234,7 +234,8 @@ fn write_atomic(path: &Path, payload: &str, mode: u32) -> bool {
     }
     let tmp = path.with_extension(format!(
         "{}tmp",
-        path.extension().map_or(String::new(), |e| format!("{}.", e.to_string_lossy()))
+        path.extension()
+            .map_or(String::new(), |e| format!("{}.", e.to_string_lossy()))
     ));
     if std::fs::write(&tmp, payload).is_err() {
         return false;
@@ -576,7 +577,10 @@ mod tests {
             r#"{"airsonic":{"peer-a":{"user":"mm","password":"hunter2"}}}"#,
         )
         .unwrap();
-        sync_servers(&paths, &[srv(KIND_AIRSONIC, "peer-a", "10.42.0.5", AIRSONIC_PORT)]);
+        sync_servers(
+            &paths,
+            &[srv(KIND_AIRSONIC, "peer-a", "10.42.0.5", AIRSONIC_PORT)],
+        );
         let got = std::fs::read_to_string(&paths.sublime).unwrap();
         let _ = std::fs::remove_dir_all(&home);
         assert!(got.contains("\"username\": \"mm\""));
@@ -590,7 +594,10 @@ mod tests {
         // Pre-seed a stale launcher that should be pruned.
         std::fs::create_dir_all(&paths.media_dir).unwrap();
         std::fs::write(paths.media_dir.join("Stale_Server.desktop"), "old").unwrap();
-        sync_servers(&paths, &[srv(KIND_AIRSONIC, "peer-a", "10.42.0.5", AIRSONIC_PORT)]);
+        sync_servers(
+            &paths,
+            &[srv(KIND_AIRSONIC, "peer-a", "10.42.0.5", AIRSONIC_PORT)],
+        );
         let live = paths.media_dir.join("Airsonic_-_peer-a.desktop");
         let stale = paths.media_dir.join("Stale_Server.desktop");
         let live_exists = live.is_file();
@@ -612,6 +619,10 @@ mod tests {
         let got = std::fs::read_to_string(&paths.bookmarks).unwrap();
         let _ = std::fs::remove_dir_all(&home);
         let line = format!("file://{}/Mackes Media Mackes Media", home.display());
-        assert_eq!(got.matches(&line).count(), 1, "bookmark line appears exactly once");
+        assert_eq!(
+            got.matches(&line).count(),
+            1,
+            "bookmark line appears exactly once"
+        );
     }
 }

@@ -250,10 +250,7 @@ pub fn build_pool_list_args() -> Vec<String> {
 /// payload (one pool name per line).
 #[must_use]
 pub fn pool_exists(pool_list_stdout: &str, pool: &str) -> bool {
-    pool_list_stdout
-        .lines()
-        .map(str::trim)
-        .any(|l| l == pool)
+    pool_list_stdout.lines().map(str::trim).any(|l| l == pool)
 }
 
 /// `virsh pool-define-as` args per VIRT-3 (positional dir-pool form).
@@ -354,7 +351,10 @@ pub fn build_virt_install_args(
         "--vcpus".into(),
         req.vcpus.to_string(),
         "--disk".into(),
-        format!("path={disk_path},size={},format=qcow2,pool={POOL_NAME}", req.disk_gb),
+        format!(
+            "path={disk_path},size={},format=qcow2,pool={POOL_NAME}",
+            req.disk_gb
+        ),
         "--network".into(),
         "network=default".into(),
         "--osinfo".into(),
@@ -386,7 +386,11 @@ pub fn build_virt_install_args(
 
 /// Build the cert-sign-request body (VIRT-5 caller side, lock 5).
 #[must_use]
-pub fn build_cert_sign_request_body(common_name: &str, ip_cidr: &str, public_key_pem: &str) -> String {
+pub fn build_cert_sign_request_body(
+    common_name: &str,
+    ip_cidr: &str,
+    public_key_pem: &str,
+) -> String {
     let body = serde_json::json!({
         "common_name": common_name,
         "ip": ip_cidr,
@@ -606,11 +610,12 @@ fn provision(ctx: &ProvisionCtx, persist: &Persist, req: &CreateRequest) -> Resu
         return Err("nebula-cert keygen failed".into());
     }
     let host_key_pem = std::fs::read_to_string(&key_path).map_err(|e| format!("read key: {e}"))?;
-    let public_key_pem = std::fs::read_to_string(&pub_path).map_err(|e| format!("read pub: {e}"))?;
+    let public_key_pem =
+        std::fs::read_to_string(&pub_path).map_err(|e| format!("read pub: {e}"))?;
 
     // 4. Cert RPC — request, await reply (one retry).
-    let (cert_pem, ca_pem) = request_cert(persist, &vm_id, &ip_cidr, &public_key_pem)
-        .map_err(|e| {
+    let (cert_pem, ca_pem) =
+        request_cert(persist, &vm_id, &ip_cidr, &public_key_pem).map_err(|e| {
             let _ = std::fs::remove_dir_all(&tmp_dir);
             e
         })?;
@@ -750,7 +755,9 @@ fn read_new_creates(
         let body = msg.body.as_deref().unwrap_or("");
         match parse_create_request(body) {
             Ok(req) => out.push(req),
-            Err(e) => tracing::warn!(ulid = %msg.ulid, error = %e, "compute_provision: bad create request"),
+            Err(e) => {
+                tracing::warn!(ulid = %msg.ulid, error = %e, "compute_provision: bad create request")
+            }
         }
     }
     out
@@ -1019,7 +1026,13 @@ mod tests {
         let args = build_keygen_args("/t/host.key", "/t/host.pub");
         assert_eq!(
             args,
-            vec!["keygen", "-out-key", "/t/host.key", "-out-pub", "/t/host.pub"]
+            vec![
+                "keygen",
+                "-out-key",
+                "/t/host.key",
+                "-out-pub",
+                "/t/host.pub"
+            ]
         );
     }
 
@@ -1157,7 +1170,10 @@ mod tests {
         std::fs::write(tmp.path().join("vm-a.qcow2"), b"disk").unwrap(); // ignored
         let mut ips = scan_local_vm_ips(tmp.path());
         ips.sort();
-        assert_eq!(ips, vec!["10.42.129.1".to_string(), "10.42.129.7".to_string()]);
+        assert_eq!(
+            ips,
+            vec!["10.42.129.1".to_string(), "10.42.129.7".to_string()]
+        );
     }
 
     #[test]
@@ -1188,7 +1204,12 @@ mod tests {
         let persist = Persist::open(tmp.path().to_path_buf()).expect("persist");
         let ulid = "01HASREPLY";
         persist
-            .write(&reply_topic(ulid), Priority::Default, None, Some("{\"cert_pem\":\"X\"}"))
+            .write(
+                &reply_topic(ulid),
+                Priority::Default,
+                None,
+                Some("{\"cert_pem\":\"X\"}"),
+            )
             .expect("write reply");
         let body = await_reply_sync(
             &persist,

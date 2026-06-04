@@ -238,19 +238,22 @@ pub fn validate_config(cfg: &CorrelateConfig) -> Vec<ValidationIssue> {
             issues.push(ValidationIssue {
                 rule_index: Some(i),
                 rule_name: rule.name.clone(),
-                message: "rule.emits is empty (synthesized topic would be the empty string)".to_string(),
+                message: "rule.emits is empty (synthesized topic would be the empty string)"
+                    .to_string(),
             });
         }
         if rule.window_seconds == 0 {
             issues.push(ValidationIssue {
                 rule_index: Some(i),
                 rule_name: rule.name.clone(),
-                message: "rule.window_seconds is 0 (requires all sources in the same millisecond)".to_string(),
+                message: "rule.window_seconds is 0 (requires all sources in the same millisecond)"
+                    .to_string(),
             });
         }
     }
     // Cross-rule: duplicate names.
-    let mut seen: std::collections::BTreeMap<String, Vec<usize>> = std::collections::BTreeMap::new();
+    let mut seen: std::collections::BTreeMap<String, Vec<usize>> =
+        std::collections::BTreeMap::new();
     for (i, rule) in cfg.rules.iter().enumerate() {
         if !rule.name.is_empty() {
             seen.entry(rule.name.clone()).or_default().push(i);
@@ -461,8 +464,7 @@ impl CorrelateEvaluator {
 fn synth_publish(emission: &SynthesizedEmission) {
     // Re-invoke our own binary so the child is the same `mde-bus`
     // build the daemon is running, without a PATH lookup.
-    let exe = std::env::current_exe()
-        .unwrap_or_else(|_| std::path::PathBuf::from("mde-bus"));
+    let exe = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("mde-bus"));
     let title = synth_marker_title(&emission.rule_name);
     let body = format!(
         "Correlation rule '{}' fired — all source topics observed within the window.",
@@ -624,7 +626,10 @@ rules:
     fn sample_rule() -> CorrelateRule {
         CorrelateRule {
             name: "likely-power-outage".to_string(),
-            sources: vec!["power/ups/grid-loss".to_string(), "network/wan-down".to_string()],
+            sources: vec![
+                "power/ups/grid-loss".to_string(),
+                "network/wan-down".to_string(),
+            ],
             window_seconds: 60,
             emits: "incident/likely-power-outage".to_string(),
             priority: Priority::High,
@@ -748,7 +753,9 @@ rules:
             }],
         };
         let issues = validate_config(&cfg);
-        assert!(issues.iter().any(|i| i.message.contains("rule.emits is empty")));
+        assert!(issues
+            .iter()
+            .any(|i| i.message.contains("rule.emits is empty")));
     }
 
     #[test]
@@ -763,7 +770,9 @@ rules:
             }],
         };
         let issues = validate_config(&cfg);
-        assert!(issues.iter().any(|i| i.message.contains("window_seconds is 0")));
+        assert!(issues
+            .iter()
+            .any(|i| i.message.contains("window_seconds is 0")));
     }
 
     #[test]
@@ -807,12 +816,15 @@ rules:
         // operators see the "name is empty" finding, not a
         // confusing "duplicate empty name" finding.
         assert_eq!(issues.len(), 2);
-        assert!(issues.iter().all(|i| i.message.contains("rule.name is empty")));
+        assert!(issues
+            .iter()
+            .all(|i| i.message.contains("rule.name is empty")));
     }
 
     #[test]
     fn load_default_round_trips() {
-        let tmp = std::env::temp_dir().join(format!("mde-bus-correlate-load-{}", std::process::id()));
+        let tmp =
+            std::env::temp_dir().join(format!("mde-bus-correlate-load-{}", std::process::id()));
         std::fs::create_dir_all(&tmp).unwrap();
         let path = tmp.join("bus-correlate.yaml");
         std::fs::write(
@@ -852,7 +864,9 @@ rules:
         let tmp = tempfile::tempdir().unwrap();
         let p = crate::persist::Persist::open(tmp.path().to_path_buf()).unwrap();
         for (topic, title, ts) in msgs {
-            let m = p.write(topic, Priority::Default, *title, Some("body")).unwrap();
+            let m = p
+                .write(topic, Priority::Default, *title, Some("body"))
+                .unwrap();
             let conn = rusqlite::Connection::open(tmp.path().join("index.sqlite")).unwrap();
             conn.execute(
                 "UPDATE messages SET ts_unix_ms = ?1 WHERE ulid = ?2",
@@ -962,7 +976,11 @@ rules:
         // never sees two live sources.
         let now = 1_000_000_000_000_i64;
         let (_tmp, p) = persist_with(&[
-            ("power/ups/grid-loss", Some("[correlate] upstream-rule"), now - 5_000),
+            (
+                "power/ups/grid-loss",
+                Some("[correlate] upstream-rule"),
+                now - 5_000,
+            ),
             ("network/wan-down", None, now - 3_000),
         ]);
         let mut e = CorrelateEvaluator::new(cfg_with(vec![eval_rule(
@@ -984,7 +1002,11 @@ rules:
         // rule fires alongside a live wan-down.
         let now = 1_000_000_000_000_i64;
         let (_tmp, p) = persist_with(&[
-            ("power/ups/grid-loss", Some("[correlate] noise"), now - 50_000),
+            (
+                "power/ups/grid-loss",
+                Some("[correlate] noise"),
+                now - 50_000,
+            ),
             ("power/ups/grid-loss", Some("Grid loss"), now - 4_000),
             ("network/wan-down", None, now - 3_000),
         ]);
@@ -1012,8 +1034,7 @@ rules:
         ]));
         let out = e.poll_once(&p, now);
         assert_eq!(out.len(), 2);
-        let topics: std::collections::BTreeSet<_> =
-            out.iter().map(|e| e.topic.as_str()).collect();
+        let topics: std::collections::BTreeSet<_> = out.iter().map(|e| e.topic.as_str()).collect();
         assert!(topics.contains("incident/ab"));
         assert!(topics.contains("incident/cd"));
     }
@@ -1027,7 +1048,10 @@ rules:
         let now = 1_000_000_000_000_i64;
         let (_tmp, p) = persist_with(&[("a", None, now - 1_000), ("b", None, now - 1_000)]);
         let mut e = CorrelateEvaluator::new(cfg_with(vec![eval_rule(
-            "ab", &["a", "b"], 60, "incident/ab",
+            "ab",
+            &["a", "b"],
+            60,
+            "incident/ab",
         )]));
         assert_eq!(e.poll_once(&p, now).len(), 1);
         // Cursors now point past both messages; nothing new to read.
@@ -1048,8 +1072,7 @@ rules:
     /// The 5-rule reference template shipped to
     /// `/usr/share/mde/bus/correlate.yaml.tmpl`. Embedded at compile
     /// time so a broken example fails the build, not just a bench run.
-    const SAMPLE_TEMPLATE: &str =
-        include_str!("../../../../data/bus/correlate.yaml.tmpl");
+    const SAMPLE_TEMPLATE: &str = include_str!("../../../../data/bus/correlate.yaml.tmpl");
 
     #[test]
     fn shipped_template_parses_to_five_rules() {

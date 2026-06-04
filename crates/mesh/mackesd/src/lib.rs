@@ -38,11 +38,11 @@ pub mod events;
 pub mod fleet;
 pub mod health;
 // MESHFS-14.1 (v5.0.0) — LizardFS state snapshot for the backup bundle.
-pub mod meshfs;
 pub mod identity;
 pub mod leader;
 pub mod legacy_inventory;
 pub mod logging;
+pub mod meshfs;
 // EPIC-SYNC-APP-CONFIG (Q26) — native-Rust mesh media-server
 // discovery (replaces the discovery half of the retired
 // `mackes/mesh_media.py`). Consumed by `workers::app_sync`.

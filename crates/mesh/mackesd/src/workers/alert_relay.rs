@@ -158,7 +158,9 @@ impl AlertRelayWorker {
             let path = entry.path();
             // Only consume *.json files; skip the *.json.tmp
             // tempfiles MON-3's atomic-rename uses.
-            let Some(ext) = path.extension() else { continue };
+            let Some(ext) = path.extension() else {
+                continue;
+            };
             if ext != "json" {
                 continue;
             }
@@ -194,7 +196,8 @@ impl AlertRelayWorker {
     fn fire_notification(&self, event: &AlertEventPartial) {
         let sev = event.severity.to_ascii_uppercase();
         if sev == "CRITICAL" || sev == "ERROR" {
-            self.had_critical.store(true, std::sync::atomic::Ordering::Relaxed);
+            self.had_critical
+                .store(true, std::sync::atomic::Ordering::Relaxed);
         }
         let argv = notify_send_argv(&self.notify_send, event);
         match std::process::Command::new(&argv[0])
@@ -271,7 +274,13 @@ fn default_alerts_dir() -> Option<PathBuf> {
         return Some(PathBuf::from(xdg).join("mde").join("alerts"));
     }
     let home = std::env::var_os("HOME")?;
-    Some(PathBuf::from(home).join(".local").join("share").join("mde").join("alerts"))
+    Some(
+        PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("mde")
+            .join("alerts"),
+    )
 }
 
 #[async_trait::async_trait]
@@ -418,9 +427,9 @@ mod tests {
             chart_url: "https://peer:alice:19999/#menu_nebula".into(),
         };
         let argv = notify_send_argv("notify-send", &event);
-        assert!(
-            argv.iter().any(|s| s == "--hint=string:chart-url:https://peer:alice:19999/#menu_nebula")
-        );
+        assert!(argv
+            .iter()
+            .any(|s| s == "--hint=string:chart-url:https://peer:alice:19999/#menu_nebula"));
     }
 
     #[test]
@@ -434,7 +443,9 @@ mod tests {
             chart_url: String::new(),
         };
         let argv = notify_send_argv("notify-send", &event);
-        assert!(!argv.iter().any(|s| s.starts_with("--hint=string:chart-url:")));
+        assert!(!argv
+            .iter()
+            .any(|s| s.starts_with("--hint=string:chart-url:")));
     }
 
     #[test]

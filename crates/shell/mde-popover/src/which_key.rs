@@ -9,21 +9,53 @@
 
 use std::path::PathBuf;
 
-use iced::widget::{column, container, mouse_area, row, scrollable, text, Space};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Subscription, Task, Theme};
 use iced::widget::container::Style as ContainerStyle;
+use iced::widget::{column, container, mouse_area, row, scrollable, text, Space};
+use iced::{
+    Alignment, Background, Border, Color, Element, Length, Padding, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
-const CHARCOAL: Color = Color { r: 0.125, g: 0.129, b: 0.141, a: 0.97 };
-const FG: Color = Color { r: 0.957, g: 0.957, b: 0.957, a: 1.0 };
-const FG_DIM: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.55 };
-const FG_LABEL: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.35 };
-const ACCENT: Color = Color { r: 0.357, g: 0.416, b: 0.961, a: 1.0 };
-const BACKDROP: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.55 };
+const CHARCOAL: Color = Color {
+    r: 0.125,
+    g: 0.129,
+    b: 0.141,
+    a: 0.97,
+};
+const FG: Color = Color {
+    r: 0.957,
+    g: 0.957,
+    b: 0.957,
+    a: 1.0,
+};
+const FG_DIM: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.55,
+};
+const FG_LABEL: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.35,
+};
+const ACCENT: Color = Color {
+    r: 0.357,
+    g: 0.416,
+    b: 0.961,
+    a: 1.0,
+};
+const BACKDROP: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.55,
+};
 const CARD_WIDTH: f32 = 440.0;
 /// Cap the rendered rows so the card doesn't overflow the screen.
 const MAX_ROWS: usize = 24;
@@ -131,10 +163,12 @@ fn view(state: &App) -> Element<'_, Message> {
         format!("MODE: {}", state.mode_name.to_ascii_uppercase())
     };
 
-    let header = container(
-        text(heading).size(12).color(ACCENT),
-    )
-    .padding(Padding { top: 0.0, right: 0.0, bottom: 6.0, left: 0.0 });
+    let header = container(text(heading).size(12).color(ACCENT)).padding(Padding {
+        top: 0.0,
+        right: 0.0,
+        bottom: 6.0,
+        left: 0.0,
+    });
 
     let body: Element<'_, Message> = if state.bindings.is_empty() {
         text("No bindings found for this mode.")
@@ -144,54 +178,53 @@ fn view(state: &App) -> Element<'_, Message> {
     } else {
         let mut rows = column![].spacing(4);
         for binding in state.bindings.iter().take(MAX_ROWS) {
-            let key_cell = container(
-                text(binding.key.clone()).size(12).color(FG),
-            )
-            .width(Length::Fixed(150.0));
+            let key_cell =
+                container(text(binding.key.clone()).size(12).color(FG)).width(Length::Fixed(150.0));
 
-            let sep = container(text("→").size(12).color(FG_LABEL))
-                .width(Length::Fixed(20.0));
+            let sep = container(text("→").size(12).color(FG_LABEL)).width(Length::Fixed(20.0));
 
-            let action_cell = container(
-                text(binding.action.clone()).size(12).color(FG_DIM),
-            )
-            .width(Length::Fill);
+            let action_cell =
+                container(text(binding.action.clone()).size(12).color(FG_DIM)).width(Length::Fill);
 
-            rows = rows.push(
-                row![key_cell, sep, action_cell].align_y(Alignment::Center),
-            );
+            rows = rows.push(row![key_cell, sep, action_cell].align_y(Alignment::Center));
         }
         if state.bindings.len() > MAX_ROWS {
             let extra = state.bindings.len() - MAX_ROWS;
-            rows = rows.push(
-                text(format!("… {extra} more"))
-                    .size(11)
-                    .color(FG_DIM),
-            );
+            rows = rows.push(text(format!("… {extra} more")).size(11).color(FG_DIM));
         }
         scrollable(rows).height(Length::Shrink).into()
     };
 
     let dismiss_hint = container(
-        text("Esc or click outside to close").size(10).color(FG_LABEL),
+        text("Esc or click outside to close")
+            .size(10)
+            .color(FG_LABEL),
     )
-    .padding(Padding { top: 8.0, right: 0.0, bottom: 0.0, left: 0.0 });
-
-    let card = container(
-        column![header, body, dismiss_hint].padding(Padding::from([14, 16])),
-    )
-    .width(Length::Fixed(CARD_WIDTH))
-    .style(|_: &Theme| ContainerStyle {
-        background: Some(Background::Color(CHARCOAL)),
-        border: Border {
-            color: Color { r: 1.0, g: 1.0, b: 1.0, a: 0.10 },
-            width: 1.0,
-            radius: 8.0.into(),
-        },
-        text_color: Some(FG),
-        shadow: iced::Shadow::default(),
-        snap: false,
+    .padding(Padding {
+        top: 8.0,
+        right: 0.0,
+        bottom: 0.0,
+        left: 0.0,
     });
+
+    let card = container(column![header, body, dismiss_hint].padding(Padding::from([14, 16])))
+        .width(Length::Fixed(CARD_WIDTH))
+        .style(|_: &Theme| ContainerStyle {
+            background: Some(Background::Color(CHARCOAL)),
+            border: Border {
+                color: Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.10,
+                },
+                width: 1.0,
+                radius: 8.0.into(),
+            },
+            text_color: Some(FG),
+            shadow: iced::Shadow::default(),
+            snap: false,
+        });
 
     let centered = column![
         Space::new().height(Length::Fill),
@@ -243,7 +276,10 @@ pub fn run() -> iced_layershell::Result {
             } else {
                 parse_mode_bindings(&mode_name)
             };
-            App { mode_name, bindings }
+            App {
+                mode_name,
+                bindings,
+            }
         },
         namespace,
         update,

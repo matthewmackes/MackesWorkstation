@@ -147,7 +147,9 @@ mod tests {
             rtt_ms: None,
             ts_ms: 0,
         };
-        assert!(serde_json::to_string(&down).unwrap().contains("\"rtt_ms\":null"));
+        assert!(serde_json::to_string(&down)
+            .unwrap()
+            .contains("\"rtt_ms\":null"));
     }
 
     #[test]

@@ -262,10 +262,7 @@ mod tests {
             "metadata": { "flavor": "ginger" }
         });
         let c: Card = serde_json::from_value(raw).unwrap();
-        assert_eq!(
-            c.metadata.get("flavor"),
-            Some(&serde_json::json!("ginger"))
-        );
+        assert_eq!(c.metadata.get("flavor"), Some(&serde_json::json!("ginger")));
         let back = serde_json::to_value(&c).unwrap();
         assert_eq!(back["metadata"]["flavor"], serde_json::json!("ginger"));
     }

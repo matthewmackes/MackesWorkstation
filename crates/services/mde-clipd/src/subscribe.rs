@@ -118,7 +118,6 @@ pub(crate) fn collect_ulids(topic_dir: &Path) -> anyhow::Result<BTreeSet<String>
     Ok(out)
 }
 
-
 /// Parse a bus envelope JSON, return `(ClipboardSyncMsg, payload_bytes)` if
 /// the message is from a different peer and the payload decodes cleanly.
 /// Returns `None` on parse failure, own-peer dedup, or blob-read error.
@@ -140,11 +139,9 @@ pub(crate) fn decode_message(
     }
 
     let data = match &msg.payload {
-        ClipboardPayload::Inline { data_b64 } => {
-            base64::engine::general_purpose::STANDARD
-                .decode(data_b64)
-                .ok()?
-        }
+        ClipboardPayload::Inline { data_b64 } => base64::engine::general_purpose::STANDARD
+            .decode(data_b64)
+            .ok()?,
         ClipboardPayload::BlobRef { path, .. } => std::fs::read(path).ok()?,
     };
 
@@ -206,17 +203,13 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let bus_root = tmp.path().join("bus");
         let data_home = tmp.path().to_path_buf();
-        publish_clipboard(
-            &bus_root,
-            &data_home,
-            peer,
-            &[mime.to_string()],
-            mime,
-            data,
-        )
-        .unwrap();
+        publish_clipboard(&bus_root, &data_home, peer, &[mime.to_string()], mime, data).unwrap();
         let topic_dir = bus_root.join("clipboard/sync");
-        let e = std::fs::read_dir(&topic_dir).unwrap().next().unwrap().unwrap();
+        let e = std::fs::read_dir(&topic_dir)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
         std::fs::read_to_string(e.path()).unwrap()
     }
 
@@ -296,16 +289,17 @@ mod tests {
         .unwrap();
 
         let topic_dir = bus_root.join("clipboard/sync");
-        let e = std::fs::read_dir(&topic_dir).unwrap().next().unwrap().unwrap();
+        let e = std::fs::read_dir(&topic_dir)
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap();
         let envelope = std::fs::read_to_string(e.path()).unwrap();
 
         let (msg, data) = decode_message(&envelope, "peer-a").unwrap();
         assert_eq!(msg.publisher_peer, "peer-b");
         assert_eq!(data.len(), big.len());
-        assert!(matches!(
-            msg.payload,
-            ClipboardPayload::BlobRef { .. }
-        ));
+        assert!(matches!(msg.payload, ClipboardPayload::BlobRef { .. }));
     }
 
     #[test]

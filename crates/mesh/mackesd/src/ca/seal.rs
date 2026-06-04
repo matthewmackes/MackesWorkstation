@@ -25,9 +25,8 @@ use super::CaError;
 ///     - the file's owner uid doesn't match the running
 ///       process's effective uid.
 pub fn read_sealed(path: &Path) -> Result<Vec<u8>, CaError> {
-    let meta = std::fs::metadata(path).map_err(|e| {
-        CaError::Io(format!("metadata {}: {e}", path.display()))
-    })?;
+    let meta = std::fs::metadata(path)
+        .map_err(|e| CaError::Io(format!("metadata {}: {e}", path.display())))?;
     enforce_seal(path, &meta)?;
     std::fs::read(path).map_err(|e| CaError::Io(format!("read {}: {e}", path.display())))
 }
@@ -43,11 +42,11 @@ pub fn read_sealed(path: &Path) -> Result<Vec<u8>, CaError> {
 pub fn write_sealed(path: &Path, bytes: &[u8]) -> Result<(), CaError> {
     use std::os::unix::fs::PermissionsExt;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            CaError::Io(format!("mkdir {}: {e}", parent.display()))
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| CaError::Io(format!("mkdir {}: {e}", parent.display())))?;
     }
-    std::fs::write(path, bytes).map_err(|e| CaError::Io(format!("write {}: {e}", path.display())))?;
+    std::fs::write(path, bytes)
+        .map_err(|e| CaError::Io(format!("write {}: {e}", path.display())))?;
     let mut perms = std::fs::metadata(path)
         .map_err(|e| CaError::Io(format!("metadata {}: {e}", path.display())))?
         .permissions();

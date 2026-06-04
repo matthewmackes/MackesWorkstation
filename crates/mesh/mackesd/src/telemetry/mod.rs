@@ -89,7 +89,10 @@ pub fn heartbeat_path(workgroup_root: &Path, node_id: &str) -> PathBuf {
 /// Build the on-disk path a peer's link-sample JSON lives at.
 #[must_use]
 pub fn links_path(workgroup_root: &Path, node_id: &str) -> PathBuf {
-    workgroup_root.join(node_id).join("mackesd").join("links.json")
+    workgroup_root
+        .join(node_id)
+        .join("mackesd")
+        .join("links.json")
 }
 
 /// 12.3.3 heartbeat cadence. Locked at 10 s per the lock.

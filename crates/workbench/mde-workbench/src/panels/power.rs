@@ -232,7 +232,8 @@ impl PowerPanel {
                     .on_input(|v| { crate::Message::Power(Message::IdleAcChanged(v)) }),
             ]
             .spacing(12),
-            checkbox(self.presentation_mode).label("Presentation mode (caffeine)")
+            checkbox(self.presentation_mode)
+                .label("Presentation mode (caffeine)")
                 .on_toggle(|v| { crate::Message::Power(Message::PresentationChanged(v)) }),
             row![apply_btn, text(&self.status).size(13)].spacing(12),
         ]

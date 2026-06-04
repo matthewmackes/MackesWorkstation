@@ -76,10 +76,9 @@ impl PanelAppsPanel {
                     self.visible.push(id);
                 }
                 let to_save = self.visible.clone();
-                Task::perform(
-                    async move { save_visible_applets(&to_save) },
-                    |r| crate::Message::PanelApps(Message::Saved(r)),
-                )
+                Task::perform(async move { save_visible_applets(&to_save) }, |r| {
+                    crate::Message::PanelApps(Message::Saved(r))
+                })
             }
             Message::Saved(Ok(())) => {
                 self.status = format!(
@@ -160,9 +159,11 @@ fn applet_row<'a>(
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(18.0))
             .height(Length::Fixed(18.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -209,7 +210,8 @@ fn applet_row<'a>(
                 _ => Color::TRANSPARENT,
             }
         };
-        iced::widget::button::Style { snap: false,
+        iced::widget::button::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             text_color: if on {
                 Color::WHITE
@@ -220,7 +222,10 @@ fn applet_row<'a>(
                 color: if on {
                     Color::TRANSPARENT
                 } else {
-                    Color { a: 0.20, ..Color::WHITE }
+                    Color {
+                        a: 0.20,
+                        ..Color::WHITE
+                    }
                 },
                 width: if on { 0.0 } else { 1.0 },
                 radius: 4.0.into(),
@@ -244,7 +249,8 @@ fn applet_row<'a>(
     )
     .padding(Padding::from([10u16, 16u16]))
     .width(Length::Fill)
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: border,
@@ -288,8 +294,7 @@ pub fn default_visible_applets() -> Vec<String> {
 pub fn save_visible_applets(visible: &[String]) -> Result<(), String> {
     let path = primary_config_path().ok_or_else(|| "no $HOME".to_string())?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
     // Load current cfg (may be the default), patch status_items,
     // round-trip back to TOML so other sections survive.
@@ -298,8 +303,7 @@ pub fn save_visible_applets(visible: &[String]) -> Result<(), String> {
         .and_then(|raw| mackes_config::parse(&raw).ok())
         .unwrap_or_else(mackes_config::default_config);
     cfg.top_bar.status_items = visible.to_vec();
-    let text = mackes_config::to_toml_string(&cfg)
-        .map_err(|e| format!("encode: {e}"))?;
+    let text = mackes_config::to_toml_string(&cfg).map_err(|e| format!("encode: {e}"))?;
     std::fs::write(&path, text).map_err(|e| format!("write {}: {e}", path.display()))?;
     Ok(())
 }

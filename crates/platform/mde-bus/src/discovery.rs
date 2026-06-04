@@ -238,9 +238,8 @@ impl DiscoveryHandle {
     ) -> Result<Self, DiscoverySkipReason> {
         let daemon = ServiceDaemon::new()
             .map_err(|e| DiscoverySkipReason::DaemonInitFailed(format!("{e}")))?;
-        let info = build_service_info(cfg).map_err(|e| {
-            DiscoverySkipReason::DaemonInitFailed(format!("ServiceInfo: {e}"))
-        })?;
+        let info = build_service_info(cfg)
+            .map_err(|e| DiscoverySkipReason::DaemonInitFailed(format!("ServiceInfo: {e}")))?;
         let fullname = info.get_fullname().to_string();
         daemon
             .register(info)
@@ -348,20 +347,16 @@ mod tests {
 
     #[test]
     fn config_defaults_to_8443() {
-        let cfg = DiscoveryConfig::new(
-            "alice".to_string(),
-            IpAddr::V4(Ipv4Addr::new(10, 42, 0, 5)),
-        );
+        let cfg =
+            DiscoveryConfig::new("alice".to_string(), IpAddr::V4(Ipv4Addr::new(10, 42, 0, 5)));
         assert_eq!(cfg.port, DEFAULT_BROKER_PORT);
         assert_eq!(cfg.port, 8443);
     }
 
     #[test]
     fn service_info_carries_overlay_ip_and_host_txt() {
-        let cfg = DiscoveryConfig::new(
-            "alice".to_string(),
-            IpAddr::V4(Ipv4Addr::new(10, 42, 0, 5)),
-        );
+        let cfg =
+            DiscoveryConfig::new("alice".to_string(), IpAddr::V4(Ipv4Addr::new(10, 42, 0, 5)));
         let info = build_service_info(&cfg).expect("build_service_info ok");
         assert!(info.get_fullname().starts_with("alice."));
         assert!(info.get_fullname().ends_with(SERVICE_TYPE));

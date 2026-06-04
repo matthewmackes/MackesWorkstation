@@ -17,8 +17,7 @@ mod inner {
     /// Opens the Bus store, writes, and returns — the non-`Send` `Persist`
     /// never crosses an `.await`.
     fn publish_shell(verb: &str, body: &str) -> anyhow::Result<()> {
-        let dir =
-            mde_bus::default_data_dir().ok_or_else(|| anyhow::anyhow!("no Bus data dir"))?;
+        let dir = mde_bus::default_data_dir().ok_or_else(|| anyhow::anyhow!("no Bus data dir"))?;
         let persist = mde_bus::persist::Persist::open(dir)?;
         persist.write(
             &format!("{SHELL_TOPIC_PREFIX}/{verb}"),

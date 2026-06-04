@@ -78,19 +78,13 @@ impl Adapter for SonarrAdapter {
                         let season = first.get("seasonNumber").and_then(Value::as_i64);
                         let ep = first.get("episodeNumber").and_then(Value::as_i64);
                         if let (Some(s), Some(e)) = (season, ep) {
-                            fields.insert(
-                                "target".to_string(),
-                                format!("S{s:02}E{e:02}"),
-                            );
+                            fields.insert("target".to_string(), format!("S{s:02}E{e:02}"));
                         }
                     }
                 }
                 // Year for Radarr — `movie.year`.
                 if !fields.contains_key("target") {
-                    if let Some(year) = body
-                        .pointer("/movie/year")
-                        .and_then(Value::as_i64)
-                    {
+                    if let Some(year) = body.pointer("/movie/year").and_then(Value::as_i64) {
                         fields.insert("target".to_string(), year.to_string());
                     }
                 }
@@ -174,7 +168,10 @@ mod tests {
         assert_eq!(event, "Download");
         assert_eq!(fields.get("title").map(String::as_str), Some("Severance"));
         assert_eq!(fields.get("target").map(String::as_str), Some("S01E03"));
-        assert_eq!(fields.get("quality").map(String::as_str), Some("Bluray-1080p"));
+        assert_eq!(
+            fields.get("quality").map(String::as_str),
+            Some("Bluray-1080p")
+        );
         assert_eq!(fields.get("size_human").map(String::as_str), Some("3.5 GB"));
         assert_eq!(fields.get("instance").map(String::as_str), Some("Sonarr"));
     }
@@ -189,9 +186,15 @@ mod tests {
         });
         let (event, fields) = SonarrAdapter.extract(&BTreeMap::new(), &body).unwrap();
         assert_eq!(event, "Download");
-        assert_eq!(fields.get("title").map(String::as_str), Some("Dune Part Two"));
+        assert_eq!(
+            fields.get("title").map(String::as_str),
+            Some("Dune Part Two")
+        );
         assert_eq!(fields.get("target").map(String::as_str), Some("2024"));
-        assert_eq!(fields.get("quality").map(String::as_str), Some("WEBDL-2160p"));
+        assert_eq!(
+            fields.get("quality").map(String::as_str),
+            Some("WEBDL-2160p")
+        );
         assert_eq!(fields.get("size_human").map(String::as_str), Some("4.0 GB"));
     }
 

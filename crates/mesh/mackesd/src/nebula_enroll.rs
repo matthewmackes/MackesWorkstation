@@ -266,18 +266,22 @@ pub fn publish_enrollment_request(
 ) -> Result<PathBuf, EnrollError> {
     let path = pending_enroll_path(workgroup_root, node_id);
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| EnrollError::PublishFailed { reason: e.to_string() })?;
+        std::fs::create_dir_all(parent).map_err(|e| EnrollError::PublishFailed {
+            reason: e.to_string(),
+        })?;
     }
-    let body = serde_json::to_vec_pretty(pending)
-        .map_err(|e| EnrollError::PublishFailed { reason: e.to_string() })?;
+    let body = serde_json::to_vec_pretty(pending).map_err(|e| EnrollError::PublishFailed {
+        reason: e.to_string(),
+    })?;
     // Atomic write: temp file + rename so a lighthouse polling
     // mid-write never reads a half-formed CSR.
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, &body)
-        .map_err(|e| EnrollError::PublishFailed { reason: e.to_string() })?;
-    std::fs::rename(&tmp, &path)
-        .map_err(|e| EnrollError::PublishFailed { reason: e.to_string() })?;
+    std::fs::write(&tmp, &body).map_err(|e| EnrollError::PublishFailed {
+        reason: e.to_string(),
+    })?;
+    std::fs::rename(&tmp, &path).map_err(|e| EnrollError::PublishFailed {
+        reason: e.to_string(),
+    })?;
     Ok(path)
 }
 
@@ -344,8 +348,12 @@ pub fn enroll_with_token(
     let identity = build_identity();
     let pending = build_pending(&identity, node_id, display_name, token);
     publish_enrollment_request(workgroup_root, node_id, &pending)?;
-    let (bundle, waited) =
-        wait_for_signed_bundle(workgroup_root, node_id, ENROLL_POLL_INTERVAL, ENROLL_WAIT_TIMEOUT)?;
+    let (bundle, waited) = wait_for_signed_bundle(
+        workgroup_root,
+        node_id,
+        ENROLL_POLL_INTERVAL,
+        ENROLL_WAIT_TIMEOUT,
+    )?;
     Ok(EnrollOutcome {
         overlay_ip: bundle.overlay_ip,
         mesh_id: bundle.mesh_id,
@@ -606,8 +614,11 @@ pub fn sign_pending_csr<B: crate::ca::NebulaCertBackend + ?Sized>(
     // already fails at the SQL layer with a clear constraint
     // error, so this gate is concerned only with NEW peers
     // pushing past the cap.
-    let active_count = crate::ca::sign::count_active_peers(conn, mesh_id)
-        .map_err(|e| SignCsrError::SignFailed { reason: e.to_string() })?;
+    let active_count = crate::ca::sign::count_active_peers(conn, mesh_id).map_err(|e| {
+        SignCsrError::SignFailed {
+            reason: e.to_string(),
+        }
+    })?;
     if active_count >= crate::ca::sign::MAX_PEER_CAP {
         if allow_override {
             tracing::warn!(
@@ -629,10 +640,8 @@ pub fn sign_pending_csr<B: crate::ca::NebulaCertBackend + ?Sized>(
     // Hand-off to the underlying ca::sign machinery. Output
     // paths go into the scratch dir keyed by node_id so multiple
     // concurrent signings don't trample each other.
-    std::fs::create_dir_all(&paths.scratch_dir).map_err(|e| {
-        SignCsrError::SignFailed {
-            reason: format!("mkdir {}: {e}", paths.scratch_dir.display()),
-        }
+    std::fs::create_dir_all(&paths.scratch_dir).map_err(|e| SignCsrError::SignFailed {
+        reason: format!("mkdir {}: {e}", paths.scratch_dir.display()),
     })?;
     let crt_out = paths.scratch_dir.join(format!("{}.crt", csr.node_id));
     let key_out = paths.scratch_dir.join(format!("{}.key", csr.node_id));
@@ -648,25 +657,29 @@ pub fn sign_pending_csr<B: crate::ca::NebulaCertBackend + ?Sized>(
         &key_out,
         cert_lifetime_days,
     )
-    .map_err(|e| SignCsrError::SignFailed { reason: e.to_string() })?;
+    .map_err(|e| SignCsrError::SignFailed {
+        reason: e.to_string(),
+    })?;
     // Read the unsealed key bytes for the bundle. seal::read_sealed
     // only enforces 0600 + uid match; the bytes are the raw PEM.
-    let peer_key_pem_bytes = crate::ca::seal::read_sealed(&key_out)
-        .map_err(|e| SignCsrError::KeyReadFailed { reason: e.to_string() })?;
-    let peer_key_pem = String::from_utf8(peer_key_pem_bytes).map_err(|e| {
-        SignCsrError::KeyReadFailed {
+    let peer_key_pem_bytes =
+        crate::ca::seal::read_sealed(&key_out).map_err(|e| SignCsrError::KeyReadFailed {
+            reason: e.to_string(),
+        })?;
+    let peer_key_pem =
+        String::from_utf8(peer_key_pem_bytes).map_err(|e| SignCsrError::KeyReadFailed {
             reason: format!("peer key isn't UTF-8: {e}"),
-        }
-    })?;
+        })?;
     // Read the CA cert PEM for the bundle.
-    let ca_cert_pem = std::fs::read_to_string(&paths.ca_crt).map_err(|e| {
-        SignCsrError::SignFailed {
+    let ca_cert_pem =
+        std::fs::read_to_string(&paths.ca_crt).map_err(|e| SignCsrError::SignFailed {
             reason: format!("read CA cert {}: {e}", paths.ca_crt.display()),
-        }
-    })?;
+        })?;
     // Look up the active epoch + assemble the bundle.
     let active_epoch = crate::ca::sign::active_epoch(conn, mesh_id)
-        .map_err(|e| SignCsrError::SignFailed { reason: e.to_string() })?
+        .map_err(|e| SignCsrError::SignFailed {
+            reason: e.to_string(),
+        })?
         .unwrap_or(0);
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -685,7 +698,9 @@ pub fn sign_pending_csr<B: crate::ca::NebulaCertBackend + ?Sized>(
     };
     let bundle_path = crate::ca::bundle::bundle_path(workgroup_root, peer_id);
     crate::ca::bundle::write_bundle(&bundle_path, &bundle).map_err(|e| {
-        SignCsrError::BundleWriteFailed { reason: e.to_string() }
+        SignCsrError::BundleWriteFailed {
+            reason: e.to_string(),
+        }
     })?;
     Ok(SignOutcome {
         peer_id: csr.node_id,
@@ -833,10 +848,9 @@ mod tests {
         let tmp = tempdir().expect("tempdir");
         let identity = build_identity();
         let token = parse_join_token("mesh:m@10.0.0.5:4242#bearer").unwrap();
-        let pending =
-            build_pending(&identity, "peer:anvil", "anvil", token);
-        let written = publish_enrollment_request(tmp.path(), "peer:anvil", &pending)
-            .expect("publish");
+        let pending = build_pending(&identity, "peer:anvil", "anvil", token);
+        let written =
+            publish_enrollment_request(tmp.path(), "peer:anvil", &pending).expect("publish");
         assert!(written.exists());
         let on_disk: PendingEnrollment =
             serde_json::from_slice(&std::fs::read(&written).unwrap()).unwrap();
@@ -850,8 +864,7 @@ mod tests {
         let tmp = tempdir().expect("tempdir");
         let identity = build_identity();
         let token = parse_join_token("mesh:m@10.0.0.5:4242#bearer").unwrap();
-        let pending =
-            build_pending(&identity, "peer:anvil", "anvil", token);
+        let pending = build_pending(&identity, "peer:anvil", "anvil", token);
         let p1 = publish_enrollment_request(tmp.path(), "peer:anvil", &pending).unwrap();
         let p2 = publish_enrollment_request(tmp.path(), "peer:anvil", &pending).unwrap();
         assert_eq!(p1, p2);
@@ -1066,8 +1079,7 @@ mod tests {
         place_csr(tmp.path(), "peer:evil");
         // Ban the node-id from a (different) peer's ban list — the
         // union check must still see it.
-        crate::ca::ban_list::add_banned(tmp.path(), "peer:lh", "peer:evil")
-            .expect("ban");
+        crate::ca::ban_list::add_banned(tmp.path(), "peer:lh", "peer:evil").expect("ban");
         let paths = SignCsrPaths {
             ca_crt,
             ca_key,
@@ -1110,8 +1122,7 @@ mod tests {
         let conn = fresh_store();
         let (ca_crt, ca_key) = make_test_ca(tmp.path(), &conn);
         place_csr(tmp.path(), "peer:anvil");
-        crate::ca::ban_list::add_banned(tmp.path(), "peer:lh", "peer:someone-else")
-            .expect("ban");
+        crate::ca::ban_list::add_banned(tmp.path(), "peer:lh", "peer:someone-else").expect("ban");
         let paths = SignCsrPaths {
             ca_crt,
             ca_key,

@@ -78,7 +78,10 @@ impl Tween {
     /// the final/static frame without any interpolation. Q99.
     #[must_use]
     pub fn static_frame(now: Instant) -> Self {
-        Self { start: now, duration: Duration::ZERO }
+        Self {
+            start: now,
+            duration: Duration::ZERO,
+        }
     }
 }
 
@@ -269,7 +272,10 @@ mod tests {
         // consumer renders the final static frame without interpolation.
         let now = Instant::now();
         let tw = Tween::static_frame(now);
-        assert!(tw.is_complete(now), "static_frame must be complete at t=start");
+        assert!(
+            tw.is_complete(now),
+            "static_frame must be complete at t=start"
+        );
         assert!(
             (tw.progress(now) - 1.0).abs() < 1e-6,
             "static_frame progress must be 1.0 at t=start"
@@ -289,7 +295,10 @@ mod tests {
         // at exactly t=start+80ms — the consumer sees the static/final
         // frame no later than 80 ms after the animation begins.
         use crate::accessibility::A11y;
-        let a11y = A11y { reduce_motion: true, ..A11y::default() };
+        let a11y = A11y {
+            reduce_motion: true,
+            ..A11y::default()
+        };
         let cap_ms = a11y.transition_duration_ms(180) as u64;
         assert_eq!(cap_ms, 80, "Q4: reduce_motion must cap at 80 ms");
         let now = Instant::now();
@@ -313,6 +322,9 @@ mod tests {
         let a11y = A11y::default();
         assert!(!a11y.reduce_motion);
         let cap_ms = a11y.transition_duration_ms(180) as u64;
-        assert_eq!(cap_ms, 180, "reduce_motion=false must preserve standard duration");
+        assert_eq!(
+            cap_ms, 180,
+            "reduce_motion=false must preserve standard duration"
+        );
     }
 }

@@ -316,7 +316,10 @@ adapters:
 "#;
         let cfg = HooksConfig::parse_yaml(yaml).expect("parses ok");
         let rule = &cfg.adapters["github"].rules[0];
-        assert_eq!(rule.r#match.field.get("action").map(String::as_str), Some("opened"));
+        assert_eq!(
+            rule.r#match.field.get("action").map(String::as_str),
+            Some("opened")
+        );
     }
 
     #[test]

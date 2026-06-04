@@ -241,7 +241,10 @@ mod tests {
         assert!(argv.contains(&"--with-key=auto".to_string()));
         // stdin input marker comes before the output path.
         let dash = argv.iter().position(|a| a == "-").unwrap();
-        let out = argv.iter().position(|a| a == "/var/lib/mackesd/x.cred").unwrap();
+        let out = argv
+            .iter()
+            .position(|a| a == "/var/lib/mackesd/x.cred")
+            .unwrap();
         assert!(dash < out, "stdin `-` must precede the output path");
     }
 
@@ -251,7 +254,10 @@ mod tests {
         assert_eq!(argv[0], "decrypt");
         assert!(argv.contains(&"--name=mde.mesh.passcode".to_string()));
         // input path precedes the stdout `-`.
-        let inp = argv.iter().position(|a| a == "/var/lib/mackesd/x.cred").unwrap();
+        let inp = argv
+            .iter()
+            .position(|a| a == "/var/lib/mackesd/x.cred")
+            .unwrap();
         let dash = argv.iter().rposition(|a| a == "-").unwrap();
         assert!(inp < dash, "cred input must precede the stdout `-`");
     }

@@ -301,9 +301,7 @@ impl FleetFilesService {
 /// # Errors
 ///
 /// Returns whatever zbus reports.
-pub async fn register_fleet_files(
-    state: FleetFilesService,
-) -> zbus::Result<zbus::Connection> {
+pub async fn register_fleet_files(state: FleetFilesService) -> zbus::Result<zbus::Connection> {
     zbus::connection::Builder::session()?
         .name(FLEET_FILES_BUS_NAME)?
         .serve_at(FLEET_FILES_OBJECT_PATH, state)?

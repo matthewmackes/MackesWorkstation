@@ -425,7 +425,8 @@ mod tests {
     /// default version filled in by serde.
     #[test]
     fn pre_schema_files_load_with_default_version() {
-        let json = r#"{"workspaces":[{"workspace_num":1,"name":"1","output":"eDP-1","layout":"splith"}]}"#;
+        let json =
+            r#"{"workspaces":[{"workspace_num":1,"name":"1","output":"eDP-1","layout":"splith"}]}"#;
         let snap: SessionSnapshot = serde_json::from_str(json).unwrap();
         assert_eq!(snap.schema_version, SCHEMA_VERSION);
         assert_eq!(snap.workspaces.len(), 1);

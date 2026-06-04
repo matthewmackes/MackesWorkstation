@@ -258,7 +258,8 @@ impl SoundPanel {
             crate::Message::Sound(Message::VolumeChanged(v as u32))
         })
         .step(1.0_f32);
-        let mute_checkbox = checkbox(self.muted).label("Muted")
+        let mute_checkbox = checkbox(self.muted)
+            .label("Muted")
             .on_toggle(|v| crate::Message::Sound(Message::MuteToggled(v)));
 
         column![

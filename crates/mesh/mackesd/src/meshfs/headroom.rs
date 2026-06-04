@@ -234,10 +234,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let report = check(
             tmp.path(),
-            &[
-                tmp.path().join("Documents"),
-                tmp.path().join("Music"),
-            ],
+            &[tmp.path().join("Documents"), tmp.path().join("Music")],
         );
         assert_eq!(report.xdg_total_bytes, 0);
         for (_, n) in &report.xdg_sizes {

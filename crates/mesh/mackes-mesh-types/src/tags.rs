@@ -323,8 +323,12 @@ mod tests {
             name: "Dev".to_string(),
             flavor: TagFlavor::Manual,
             members: vec![
-                TagMember::App { app_id: "helix".to_string() },
-                TagMember::App { app_id: "foot".to_string() },
+                TagMember::App {
+                    app_id: "helix".to_string(),
+                },
+                TagMember::App {
+                    app_id: "foot".to_string(),
+                },
             ],
             group_color: Some("#42be65".to_string()),
             preferred_output: Some("HDMI-A-1".to_string()),
@@ -486,7 +490,10 @@ mod tests {
         store.add(sample_dev_tag()).unwrap();
         store.save_to(&path).unwrap();
         let tmp_sibling = path.with_extension("json.tmp");
-        assert!(!tmp_sibling.exists(), "atomic write must clean up tmp sibling");
+        assert!(
+            !tmp_sibling.exists(),
+            "atomic write must clean up tmp sibling"
+        );
         assert!(path.exists());
     }
 

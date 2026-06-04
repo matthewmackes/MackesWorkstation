@@ -46,8 +46,7 @@ impl Adapter for GiteaAdapter {
         match event.as_str() {
             "push" => {
                 if let Some(refs) = body.pointer("/ref").and_then(Value::as_str) {
-                    let branch =
-                        refs.strip_prefix("refs/heads/").unwrap_or(refs).to_string();
+                    let branch = refs.strip_prefix("refs/heads/").unwrap_or(refs).to_string();
                     fields.insert("branch".to_string(), branch);
                 }
                 // Gitea uses `pusher.username` (newer) or
@@ -63,10 +62,7 @@ impl Adapter for GiteaAdapter {
                 if let Some(commits) = body.pointer("/commits").and_then(Value::as_array) {
                     fields.insert("commit_count".to_string(), commits.len().to_string());
                 }
-                if let Some(head) = body
-                    .pointer("/head_commit/message")
-                    .and_then(Value::as_str)
-                {
+                if let Some(head) = body.pointer("/head_commit/message").and_then(Value::as_str) {
                     fields.insert(
                         "head_message".to_string(),
                         head.lines().next().unwrap_or("").to_string(),
@@ -77,16 +73,10 @@ impl Adapter for GiteaAdapter {
                 if let Some(action) = body.pointer("/action").and_then(Value::as_str) {
                     fields.insert("action".to_string(), action.to_string());
                 }
-                if let Some(num) = body
-                    .pointer("/pull_request/number")
-                    .and_then(Value::as_u64)
-                {
+                if let Some(num) = body.pointer("/pull_request/number").and_then(Value::as_u64) {
                     fields.insert("pr_number".to_string(), num.to_string());
                 }
-                if let Some(title) = body
-                    .pointer("/pull_request/title")
-                    .and_then(Value::as_str)
-                {
+                if let Some(title) = body.pointer("/pull_request/title").and_then(Value::as_str) {
                     fields.insert("pr_title".to_string(), title.to_string());
                 }
                 // Gitea uses `user.login` or `user.username`.
@@ -124,10 +114,7 @@ impl Adapter for GiteaAdapter {
                 if let Some(u) = user {
                     fields.insert("issue_user".to_string(), u.to_string());
                 }
-                if let Some(url) = body
-                    .pointer("/issue/html_url")
-                    .and_then(Value::as_str)
-                {
+                if let Some(url) = body.pointer("/issue/html_url").and_then(Value::as_str) {
                     fields.insert("issue_url".to_string(), url.to_string());
                 }
             }
@@ -164,7 +151,10 @@ mod tests {
         assert_eq!(fields.get("branch").map(String::as_str), Some("main"));
         assert_eq!(fields.get("pusher").map(String::as_str), Some("alice"));
         assert_eq!(fields.get("commit_count").map(String::as_str), Some("3"));
-        assert_eq!(fields.get("head_message").map(String::as_str), Some("fix the thing"));
+        assert_eq!(
+            fields.get("head_message").map(String::as_str),
+            Some("fix the thing")
+        );
     }
 
     #[test]
@@ -185,7 +175,10 @@ mod tests {
             "commits": [],
         });
         let (_, fields) = GiteaAdapter.extract(&headers("push"), &body).unwrap();
-        assert_eq!(fields.get("pusher").map(String::as_str), Some("Carol Operator"));
+        assert_eq!(
+            fields.get("pusher").map(String::as_str),
+            Some("Carol Operator")
+        );
     }
 
     #[test]
@@ -206,7 +199,10 @@ mod tests {
         assert_eq!(event, "pull_request");
         assert_eq!(fields.get("pr_user").map(String::as_str), Some("dev"));
         assert_eq!(fields.get("pr_number").map(String::as_str), Some("17"));
-        assert_eq!(fields.get("pr_title").map(String::as_str), Some("Add Gitea support"));
+        assert_eq!(
+            fields.get("pr_title").map(String::as_str),
+            Some("Add Gitea support")
+        );
         assert_eq!(
             fields.get("pr_url").map(String::as_str),
             Some("https://gitea.local/team/proj/pulls/17")

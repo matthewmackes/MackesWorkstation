@@ -38,8 +38,7 @@ fn resolve_bus_root(arg: Option<PathBuf>) -> Result<PathBuf> {
     if let Some(p) = arg {
         return Ok(p);
     }
-    crate::default_data_dir()
-        .ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
+    crate::default_data_dir().ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
 }
 
 fn format_bytes(b: u64) -> String {
@@ -101,9 +100,15 @@ pub fn run(op: RetentionOp) -> Result<()> {
                 println!("  hard: {}", format_bytes(DEFAULT_QUOTA_HARD_BYTES));
                 println!("  used: {}", format_bytes(used));
                 if used >= DEFAULT_QUOTA_HARD_BYTES {
-                    println!("  *** OVER HARD QUOTA *** ({}%)", used * 100 / DEFAULT_QUOTA_HARD_BYTES);
+                    println!(
+                        "  *** OVER HARD QUOTA *** ({}%)",
+                        used * 100 / DEFAULT_QUOTA_HARD_BYTES
+                    );
                 } else if used >= DEFAULT_QUOTA_SOFT_BYTES {
-                    println!("  ! over soft quota ({}%)", used * 100 / DEFAULT_QUOTA_SOFT_BYTES);
+                    println!(
+                        "  ! over soft quota ({}%)",
+                        used * 100 / DEFAULT_QUOTA_SOFT_BYTES
+                    );
                 }
                 println!();
                 println!("bus_root: {}", root.display());

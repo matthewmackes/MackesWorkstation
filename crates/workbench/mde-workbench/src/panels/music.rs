@@ -59,7 +59,10 @@ pub enum Message {
 impl MusicPanel {
     #[must_use]
     pub fn new() -> Self {
-        Self { cache_cap_gb: 10, ..Self::default() }
+        Self {
+            cache_cap_gb: 10,
+            ..Self::default()
+        }
     }
 
     /// Read the saved creds + current cache size off disk.
@@ -68,7 +71,10 @@ impl MusicPanel {
             async move {
                 let creds = creds::load().ok();
                 let size = cache::human_bytes(cache::read_index(&cache::cache_dir()).total_bytes());
-                Message::Loaded { creds, cache_size: size }
+                Message::Loaded {
+                    creds,
+                    cache_size: size,
+                }
             },
             crate::Message::Music,
         )
@@ -124,8 +130,11 @@ impl MusicPanel {
                 }
                 self.busy = true;
                 self.status = "Testing…".to_string();
-                let (url, user, pass) =
-                    (self.server_url.clone(), self.username.clone(), self.password.clone());
+                let (url, user, pass) = (
+                    self.server_url.clone(),
+                    self.username.clone(),
+                    self.password.clone(),
+                );
                 Task::perform(
                     async move {
                         let client = Client::new(&url, &user, &pass);
@@ -146,20 +155,24 @@ impl MusicPanel {
             Message::CacheCapChanged(gb) => {
                 self.cache_cap_gb = gb.clamp(CAP_MIN_GB, CAP_MAX_GB);
                 // Apply eviction immediately so the cache fits the new cap.
-                let evicted = cache::run_gc(&cache::cache_dir(), self.cap_bytes()).unwrap_or_default();
+                let evicted =
+                    cache::run_gc(&cache::cache_dir(), self.cap_bytes()).unwrap_or_default();
                 let size = cache::human_bytes(cache::read_index(&cache::cache_dir()).total_bytes());
                 self.cache_size = size;
                 if !evicted.is_empty() {
-                    self.status = format!("Trimmed {} track(s) to fit {} GiB.", evicted.len(), self.cache_cap_gb);
+                    self.status = format!(
+                        "Trimmed {} track(s) to fit {} GiB.",
+                        evicted.len(),
+                        self.cache_cap_gb
+                    );
                 }
                 Task::none()
             }
             Message::ClearCache => {
                 // Evict everything (cap 0) — starred pins still apply.
                 let _ = cache::run_gc(&cache::cache_dir(), 0);
-                self.cache_size = cache::human_bytes(
-                    cache::read_index(&cache::cache_dir()).total_bytes(),
-                );
+                self.cache_size =
+                    cache::human_bytes(cache::read_index(&cache::cache_dir()).total_bytes());
                 self.status = "Cache cleared.".to_string();
                 Task::none()
             }
@@ -182,7 +195,12 @@ impl MusicPanel {
         let password = text_input("password", &self.password)
             .secure(true)
             .on_input(move |s| m(Message::PassChanged(s)))
-            .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 10.0 })
+            .padding(Padding {
+                top: 0.0,
+                right: 10.0,
+                bottom: 0.0,
+                left: 10.0,
+            })
             .size(13);
 
         let server = column![
@@ -193,7 +211,12 @@ impl MusicPanel {
                 move |s| m(Message::UrlChanged(s)),
                 pal,
             ),
-            styled_text_input("username", &self.username, move |s| m(Message::UserChanged(s)), pal),
+            styled_text_input(
+                "username",
+                &self.username,
+                move |s| m(Message::UserChanged(s)),
+                pal
+            ),
             password,
             row![
                 variant_button("Apply", ButtonVariant::Primary, Some(m(Message::Save)), pal),
@@ -210,15 +233,29 @@ impl MusicPanel {
 
         let cache_section = column![
             text("Cache").size(16),
-            text(format!("Using {} (cap {} GiB)", self.cache_size, self.cache_cap_gb)).size(13),
+            text(format!(
+                "Using {} (cap {} GiB)",
+                self.cache_size, self.cache_cap_gb
+            ))
+            .size(13),
             slider(
                 (CAP_MIN_GB as u32)..=(CAP_MAX_GB as u32),
                 self.cache_cap_gb as u32,
                 move |v| m(Message::CacheCapChanged(u64::from(v))),
             ),
             row![
-                variant_button("Clear cache", ButtonVariant::Ghost, Some(m(Message::ClearCache)), pal),
-                variant_button("Sign out", ButtonVariant::Ghost, Some(m(Message::SignOut)), pal),
+                variant_button(
+                    "Clear cache",
+                    ButtonVariant::Ghost,
+                    Some(m(Message::ClearCache)),
+                    pal
+                ),
+                variant_button(
+                    "Sign out",
+                    ButtonVariant::Ghost,
+                    Some(m(Message::SignOut)),
+                    pal
+                ),
             ]
             .spacing(8),
         ]

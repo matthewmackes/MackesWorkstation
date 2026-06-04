@@ -124,38 +124,36 @@ impl DBusBackend {
             .enable_all()
             .build()
             .map_err(|e| BackendError::Rejected(format!("tokio runtime: {e}")))?;
-        let connection = rt
-            .block_on(async {
-                tokio::time::timeout(timeout, Connection::session())
-                    .await
-                    .map_err(|_| BackendError::Rejected("session bus: timeout".into()))?
-                    .map_err(|e| BackendError::Rejected(format!("session bus: {e}")))
-            })?;
+        let connection = rt.block_on(async {
+            tokio::time::timeout(timeout, Connection::session())
+                .await
+                .map_err(|_| BackendError::Rejected("session bus: timeout".into()))?
+                .map_err(|e| BackendError::Rejected(format!("session bus: {e}")))
+        })?;
         // Probe: NameHasOwner(BUS_NAME). If false, mackesd isn't
         // running and we should fall back rather than wait for
         // the first real call to time out.
-        let alive: bool = rt
-            .block_on(async {
-                let dbus_proxy = Proxy::new(
-                    &connection,
-                    "org.freedesktop.DBus",
-                    "/org/freedesktop/DBus",
-                    "org.freedesktop.DBus",
-                )
-                .await
-                .map_err(|e| BackendError::Rejected(format!("dbus proxy: {e}")))?;
-                let res: zbus::Result<bool> = tokio::time::timeout(timeout, async {
-                    dbus_proxy
-                        .call_method("NameHasOwner", &(BUS_NAME,))
-                        .await?
-                        .body()
-                        .deserialize::<bool>()
-                })
-                .await
-                .map_err(|_| zbus::Error::Failure("NameHasOwner timeout".into()))
-                .and_then(|x| x);
-                res.map_err(|e| BackendError::Rejected(format!("NameHasOwner: {e}")))
-            })?;
+        let alive: bool = rt.block_on(async {
+            let dbus_proxy = Proxy::new(
+                &connection,
+                "org.freedesktop.DBus",
+                "/org/freedesktop/DBus",
+                "org.freedesktop.DBus",
+            )
+            .await
+            .map_err(|e| BackendError::Rejected(format!("dbus proxy: {e}")))?;
+            let res: zbus::Result<bool> = tokio::time::timeout(timeout, async {
+                dbus_proxy
+                    .call_method("NameHasOwner", &(BUS_NAME,))
+                    .await?
+                    .body()
+                    .deserialize::<bool>()
+            })
+            .await
+            .map_err(|_| zbus::Error::Failure("NameHasOwner timeout".into()))
+            .and_then(|x| x);
+            res.map_err(|e| BackendError::Rejected(format!("NameHasOwner: {e}")))
+        })?;
         if !alive {
             return Err(BackendError::Rejected(format!(
                 "{BUS_NAME} not on the session bus"
@@ -297,7 +295,12 @@ impl WireFileRow {
             "disk" | "iso" | "qcow2" => Mime::Disk,
             _ => Mime::Doc,
         };
-        let row = FileRow::local(self.name, mime, fmt_bytes_u64(self.size), fmt_age_ms(self.modified_ms));
+        let row = FileRow::local(
+            self.name,
+            mime,
+            fmt_bytes_u64(self.size),
+            fmt_age_ms(self.modified_ms),
+        );
         if self.peer.is_empty() {
             row
         } else {

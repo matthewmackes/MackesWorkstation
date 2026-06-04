@@ -47,7 +47,7 @@ pub mod sonarr;
 pub use config::{AdapterConfig, HooksConfig, Match, Priority, PublishSpec, Rule};
 pub use matcher::{match_request, RenderedPublish};
 pub use publisher::{publish_to_ntfy, PublisherError};
-pub use server::{run_listener, ListenerSkipReason, ListenerOutcome};
+pub use server::{run_listener, ListenerOutcome, ListenerSkipReason};
 
 /// Default port the webhook ingress listens on. Matches the
 /// `BUS-3.1` task body's `https://$peer:8444/<topic>` URL form;

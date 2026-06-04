@@ -284,11 +284,7 @@ mod tests {
 
     #[test]
     fn format_cluster_with_fabric_prepends_glyph_when_enrolled() {
-        let s = format_cluster_with_fabric(
-            None,
-            "balanced",
-            "nebula_direct",
-        );
+        let s = format_cluster_with_fabric(None, "balanced", "nebula_direct");
         assert!(s.starts_with("\u{25CF} "));
         assert!(s.contains("balanced"));
     }

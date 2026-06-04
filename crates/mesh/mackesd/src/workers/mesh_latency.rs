@@ -289,7 +289,10 @@ mod tests {
     #[test]
     fn parse_ping_rtt_returns_none_when_missing() {
         assert_eq!(parse_ping_rtt(""), None);
-        assert_eq!(parse_ping_rtt("ping: anvil: Name or service not known"), None);
+        assert_eq!(
+            parse_ping_rtt("ping: anvil: Name or service not known"),
+            None
+        );
     }
 
     #[test]
@@ -308,7 +311,10 @@ mod tests {
     fn default_cache_path_uses_xdg_when_set() {
         std::env::set_var("XDG_CACHE_HOME", "/tmp/xdg-cache-test");
         let p = default_cache_path();
-        assert_eq!(p, PathBuf::from("/tmp/xdg-cache-test/mde/mesh-latency.json"));
+        assert_eq!(
+            p,
+            PathBuf::from("/tmp/xdg-cache-test/mde/mesh-latency.json")
+        );
         std::env::remove_var("XDG_CACHE_HOME");
     }
 

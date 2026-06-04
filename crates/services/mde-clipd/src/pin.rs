@@ -35,8 +35,7 @@ impl PinStore {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let json =
-            serde_json::to_string(self).map_err(std::io::Error::other)?;
+        let json = serde_json::to_string(self).map_err(std::io::Error::other)?;
         let tmp = path.with_extension("tmp");
         std::fs::write(&tmp, json.as_bytes())?;
         std::fs::rename(&tmp, path)?;

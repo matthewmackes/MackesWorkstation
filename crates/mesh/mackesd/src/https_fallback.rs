@@ -60,14 +60,20 @@ mod tests {
     fn observe_peer_progresses_inactive_to_activating_after_threshold() {
         let mut p = fresh_path();
         for _ in 0..2 {
-            observe_peer(&mut p, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+            observe_peer(
+                &mut p,
+                TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+            );
         }
         // Threshold is 3 consecutive failures for activation.
         assert_eq!(
             HttpsFallbackState::from(p.https_state),
             HttpsFallbackState::Inactive
         );
-        observe_peer(&mut p, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        observe_peer(
+            &mut p,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(
             HttpsFallbackState::from(p.https_state),
             HttpsFallbackState::Activating
@@ -77,12 +83,21 @@ mod tests {
     #[test]
     fn observe_peer_writes_consecutive_failures_back_to_path() {
         let mut p = fresh_path();
-        observe_peer(&mut p, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        observe_peer(
+            &mut p,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(p.consecutive_udp_failures, 1);
-        observe_peer(&mut p, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+        observe_peer(
+            &mut p,
+            TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+        );
         assert_eq!(p.consecutive_udp_failures, 2);
         // UDP success resets the counter.
-        observe_peer(&mut p, TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded));
+        observe_peer(
+            &mut p,
+            TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded),
+        );
         assert_eq!(p.consecutive_udp_failures, 0);
     }
 
@@ -91,7 +106,10 @@ mod tests {
         let mut p = fresh_path();
         // Drive into Activating, then Active by a tunnel signal.
         for _ in 0..3 {
-            observe_peer(&mut p, TransitionInput::Probe(ProbePairOutcome::BothUdpFailed));
+            observe_peer(
+                &mut p,
+                TransitionInput::Probe(ProbePairOutcome::BothUdpFailed),
+            );
         }
         assert_eq!(
             HttpsFallbackState::from(p.https_state),
@@ -103,7 +121,10 @@ mod tests {
             HttpsFallbackState::Active
         );
         // A successful UDP probe demotes back to Inactive.
-        observe_peer(&mut p, TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded));
+        observe_peer(
+            &mut p,
+            TransitionInput::Probe(ProbePairOutcome::AnyUdpSucceeded),
+        );
         assert_eq!(
             HttpsFallbackState::from(p.https_state),
             HttpsFallbackState::Inactive

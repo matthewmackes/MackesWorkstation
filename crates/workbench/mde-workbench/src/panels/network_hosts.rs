@@ -120,7 +120,11 @@ impl NetworkHostsPanel {
                 "{n} host{} · {} service{} identified",
                 if n == 1 { "" } else { "s" },
                 self.inventory.service_count(),
-                if self.inventory.service_count() == 1 { "" } else { "s" },
+                if self.inventory.service_count() == 1 {
+                    ""
+                } else {
+                    "s"
+                },
             )
         } else {
             "click Refresh to read the merged probe inventory".into()
@@ -166,7 +170,12 @@ impl NetworkHostsPanel {
         let body: Element<'_, crate::Message> = if let Some(ref e) = self.error {
             text(format!("Error: {e}"))
                 .size(TypeRole::Body.size_in(sizes))
-                .color(Color { r: 1.0, g: 0.35, b: 0.35, a: 1.0 })
+                .color(Color {
+                    r: 1.0,
+                    g: 0.35,
+                    b: 0.35,
+                    a: 1.0,
+                })
                 .into()
         } else if self.inventory.hosts.is_empty() && self.last_run_at.is_some() {
             text("No hosts in the inventory yet — the probe worker populates it on its scan cadence.")
@@ -203,8 +212,18 @@ impl NetworkHostsPanel {
 /// an explicit trusted/untrusted verdict gets green/red.
 fn trust_color(trust: &str, palette: Palette) -> Color {
     match trust.to_ascii_lowercase().as_str() {
-        "trusted" | "mesh" | "enrolled" => Color { r: 0.4, g: 0.82, b: 0.45, a: 1.0 },
-        "untrusted" | "blocked" | "denied" => Color { r: 1.0, g: 0.35, b: 0.35, a: 1.0 },
+        "trusted" | "mesh" | "enrolled" => Color {
+            r: 0.4,
+            g: 0.82,
+            b: 0.45,
+            a: 1.0,
+        },
+        "untrusted" | "blocked" | "denied" => Color {
+            r: 1.0,
+            g: 0.35,
+            b: 0.35,
+            a: 1.0,
+        },
         _ => palette.text_muted.into_iced_color(),
     }
 }
@@ -218,7 +237,11 @@ fn trust_label(trust: &str) -> String {
     }
 }
 
-fn host_block<'a>(h: &'a HostRow, palette: Palette, sizes: FontSize) -> Element<'a, crate::Message> {
+fn host_block<'a>(
+    h: &'a HostRow,
+    palette: Palette,
+    sizes: FontSize,
+) -> Element<'a, crate::Message> {
     // Header: display name, IP (when the display is a hostname), source
     // chip on the right, trust badge.
     let mut head = row![text(&h.display)
@@ -368,7 +391,13 @@ mod tests {
     use super::*;
     use mde_card::probe::{host_card, service_card, HostFacts, ServiceFacts};
 
-    fn host(ip: &str, hostname: &str, source: HostSource, trust: &str, ports: &[(u16, &str)]) -> Card {
+    fn host(
+        ip: &str,
+        hostname: &str,
+        source: HostSource,
+        trust: &str,
+        ports: &[(u16, &str)],
+    ) -> Card {
         let services: Vec<Card> = ports
             .iter()
             .map(|(port, kind)| {
@@ -400,8 +429,20 @@ mod tests {
     #[test]
     fn inventory_flattens_hosts_and_services_sorted() {
         let cards = vec![
-            host("10.0.0.9", "router", HostSource::Lan, "", &[(443, "https"), (22, "ssh")]),
-            host("10.42.0.2", "", HostSource::Mesh, "trusted", &[(8096, "http")]),
+            host(
+                "10.0.0.9",
+                "router",
+                HostSource::Lan,
+                "",
+                &[(443, "https"), (22, "ssh")],
+            ),
+            host(
+                "10.42.0.2",
+                "",
+                HostSource::Mesh,
+                "trusted",
+                &[(8096, "http")],
+            ),
         ];
         let inv = inventory_from_cards(&cards);
         assert_eq!(inv.hosts.len(), 2);
@@ -450,7 +491,13 @@ mod tests {
         assert!(!panel.busy);
 
         let mut panel = panel;
-        let inv = inventory_from_cards(&[host("10.0.0.1", "gw", HostSource::Lan, "", &[(53, "domain")])]);
+        let inv = inventory_from_cards(&[host(
+            "10.0.0.1",
+            "gw",
+            HostSource::Lan,
+            "",
+            &[(53, "domain")],
+        )]);
         let _ = panel.update(Message::Loaded(Ok(inv)));
         assert_eq!(panel.inventory.hosts.len(), 1);
         assert!(panel.last_run_at.is_some());

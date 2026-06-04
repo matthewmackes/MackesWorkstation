@@ -354,7 +354,10 @@ impl EngineHandle {
             });
         match handle {
             Ok(joined) => {
-                *self.decode.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(joined);
+                *self
+                    .decode
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(joined);
             }
             Err(e) => {
                 eprintln!("mde-musicd: could not start decode thread: {e}");
@@ -380,10 +383,19 @@ impl EngineHandle {
     pub fn stop(&self) {
         self.shared.stop.store(true, Ordering::Relaxed);
         self.shared.playing.store(false, Ordering::Relaxed);
-        if let Some(handle) = self.decode.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
+        if let Some(handle) = self
+            .decode
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+        {
             let _ = handle.join();
         }
-        self.shared.ring.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clear();
+        self.shared
+            .ring
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
         self.shared.decode_done.store(true, Ordering::Relaxed);
     }
 
@@ -423,7 +435,12 @@ impl EngineHandle {
     #[must_use]
     pub fn is_active(&self) -> bool {
         !self.shared.decode_done.load(Ordering::Relaxed)
-            || !self.shared.ring.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_empty()
+            || !self
+                .shared
+                .ring
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_empty()
     }
 
     /// Is the current track within [`GAPLESS_LEAD_MS`] of its end? The
@@ -462,7 +479,10 @@ where
             let volume = f32::from_bits(shared.volume.load(Ordering::Relaxed));
             let mut real = 0usize;
             {
-                let mut ring = shared.ring.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                let mut ring = shared
+                    .ring
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
                 for slot in out.iter_mut() {
                     match pull_sample(&mut ring, playing, volume) {
                         Some(s) => {
@@ -568,11 +588,20 @@ fn decode_track(url: &str, codec: SourceCodec, shared: &Shared) -> Result<(), St
         // Back-pressure: keep the ring bounded so we don't decode an
         // entire FLAC into RAM ahead of the playhead.
         while !shared.stop.load(Ordering::Relaxed)
-            && shared.ring.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len() > shared.target_ring
+            && shared
+                .ring
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len()
+                > shared.target_ring
         {
             std::thread::sleep(Duration::from_millis(8));
         }
-        shared.ring.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend(mapped);
+        shared
+            .ring
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .extend(mapped);
     }
     Ok(())
 }
@@ -651,12 +680,20 @@ fn decode_opus(
         let resampled = resample_linear(samples, channels, OPUS_RATE, dst_rate);
         let mapped = map_channels(&resampled, channels, dst_ch);
         while !shared.stop.load(Ordering::Relaxed)
-            && shared.ring.lock().unwrap_or_else(std::sync::PoisonError::into_inner).len()
+            && shared
+                .ring
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len()
                 > shared.target_ring
         {
             std::thread::sleep(Duration::from_millis(8));
         }
-        shared.ring.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend(mapped);
+        shared
+            .ring
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .extend(mapped);
     }
     Ok(())
 }
@@ -701,8 +738,13 @@ mod tests {
 
         let mut dec = opus::Decoder::new(OPUS_RATE, opus::Channels::Stereo).expect("opus decoder");
         let mut out = vec![0.0_f32; OPUS_MAX_FRAME * 2];
-        let frames = dec.decode_float(&packet, &mut out, false).expect("opus decode");
-        assert_eq!(frames, frame, "decoded frame count matches the encoded frame");
+        let frames = dec
+            .decode_float(&packet, &mut out, false)
+            .expect("opus decode");
+        assert_eq!(
+            frames, frame,
+            "decoded frame count matches the encoded frame"
+        );
     }
 
     #[test]
@@ -760,7 +802,7 @@ mod tests {
     #[test]
     fn resample_identity_up_and_down() {
         let stereo = [0.0, 1.0, 0.2, 0.8, 0.4, 0.6, 0.6, 0.4]; // 4 frames, 2ch
-        // Same rate → identity.
+                                                               // Same rate → identity.
         assert_eq!(resample_linear(&stereo, 2, 48_000, 48_000), stereo.to_vec());
         // Upsample 2× → ~double the frames.
         let up = resample_linear(&stereo, 2, 24_000, 48_000);

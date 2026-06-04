@@ -95,13 +95,21 @@ mod tests {
     fn database_services_use_host_flagged_clients() {
         assert_eq!(connect_argv("h", 5432).unwrap().1.join(" "), "psql -h h");
         assert_eq!(connect_argv("h", 3306).unwrap().1.join(" "), "mysql -h h");
-        assert_eq!(connect_argv("h", 6379).unwrap().1.join(" "), "redis-cli -h h");
-        assert_eq!(connect_argv("h", 27017).unwrap().1.join(" "), "mongosh --host h");
+        assert_eq!(
+            connect_argv("h", 6379).unwrap().1.join(" "),
+            "redis-cli -h h"
+        );
+        assert_eq!(
+            connect_argv("h", 27017).unwrap().1.join(" "),
+            "mongosh --host h"
+        );
     }
 
     #[test]
     fn all_well_known_ports_resolve_with_a_service_name() {
-        for port in [22u16, 80, 443, 5900, 3389, 445, 21, 631, 5432, 3306, 6379, 8080, 27017] {
+        for port in [
+            22u16, 80, 443, 5900, 3389, 445, 21, 631, 5432, 3306, 6379, 8080, 27017,
+        ] {
             let resolved = connect_argv("10.0.0.1", port);
             assert!(resolved.is_some(), "port {port} should map");
             assert!(!resolved.unwrap().0.is_empty(), "service name non-empty");

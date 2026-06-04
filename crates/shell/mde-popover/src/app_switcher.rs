@@ -24,7 +24,9 @@ use std::process::Command;
 use iced::keyboard::key::{Key, Named};
 use iced::keyboard::{self, Modifiers};
 use iced::widget::{column, container, image, row, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -236,35 +238,29 @@ fn view(state: &App) -> Element<'_, Message> {
 
 fn subscription(_state: &App) -> Subscription<Message> {
     use iced::event;
-    event::listen_with(|event, status, _window| {
-        match event {
-            iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. })
-                if status == event::Status::Ignored =>
-            {
-                match key.as_ref() {
-                    Key::Named(Named::Tab) => {
-                        if modifiers.shift() {
-                            Some(Message::Prev)
-                        } else {
-                            Some(Message::Next)
-                        }
-                    }
-                    Key::Named(Named::Enter) => Some(Message::Commit),
-                    Key::Named(Named::Escape) => Some(Message::Cancel),
-                    Key::Named(Named::ArrowRight) | Key::Named(Named::ArrowDown) => {
+    event::listen_with(|event, status, _window| match event {
+        iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. })
+            if status == event::Status::Ignored =>
+        {
+            match key.as_ref() {
+                Key::Named(Named::Tab) => {
+                    if modifiers.shift() {
+                        Some(Message::Prev)
+                    } else {
                         Some(Message::Next)
                     }
-                    Key::Named(Named::ArrowLeft) | Key::Named(Named::ArrowUp) => {
-                        Some(Message::Prev)
-                    }
-                    _ => {
-                        let _ = (key, modifiers as Modifiers);
-                        None
-                    }
+                }
+                Key::Named(Named::Enter) => Some(Message::Commit),
+                Key::Named(Named::Escape) => Some(Message::Cancel),
+                Key::Named(Named::ArrowRight) | Key::Named(Named::ArrowDown) => Some(Message::Next),
+                Key::Named(Named::ArrowLeft) | Key::Named(Named::ArrowUp) => Some(Message::Prev),
+                _ => {
+                    let _ = (key, modifiers as Modifiers);
+                    None
                 }
             }
-            _ => None,
         }
+        _ => None,
     })
 }
 
@@ -338,7 +334,9 @@ fn card_view<'a>(card: &'a WindowCard, idx: usize, selected: bool) -> Element<'a
                 })),
                 text_color: FG_TEXT,
                 border: Border {
-                    color: if selected { ACCENT } else {
+                    color: if selected {
+                        ACCENT
+                    } else {
                         Color {
                             a: 0.06,
                             ..Color::WHITE
@@ -370,9 +368,7 @@ fn truncate_for_card(s: &str) -> String {
 
 #[must_use]
 pub fn scan_windows() -> Vec<WindowCard> {
-    let out = Command::new("swaymsg")
-        .args(["-t", "get_tree"])
-        .output();
+    let out = Command::new("swaymsg").args(["-t", "get_tree"]).output();
     match out {
         Ok(o) if o.status.success() => parse_tree(&String::from_utf8_lossy(&o.stdout)),
         _ => Vec::new(),
@@ -402,14 +398,8 @@ pub fn parse_rect(v: &serde_json::Value) -> WindowRect {
     WindowRect {
         x: v.get("x").and_then(|n| n.as_i64()).unwrap_or(0) as i32,
         y: v.get("y").and_then(|n| n.as_i64()).unwrap_or(0) as i32,
-        width: v
-            .get("width")
-            .and_then(|n| n.as_u64())
-            .unwrap_or(0) as u32,
-        height: v
-            .get("height")
-            .and_then(|n| n.as_u64())
-            .unwrap_or(0) as u32,
+        width: v.get("width").and_then(|n| n.as_u64()).unwrap_or(0) as u32,
+        height: v.get("height").and_then(|n| n.as_u64()).unwrap_or(0) as u32,
     }
 }
 
@@ -435,10 +425,7 @@ fn walk(node: &serde_json::Value, out: &mut Vec<WindowCard>, inside_scratch: boo
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
-            let rect = node
-                .get("rect")
-                .map(parse_rect)
-                .unwrap_or_default();
+            let rect = node.get("rect").map(parse_rect).unwrap_or_default();
             out.push(WindowCard {
                 con_id,
                 app_id,
@@ -505,10 +492,9 @@ pub fn run() -> iced_layershell::Result {
                 .map(|c| {
                     let con_id = c.con_id;
                     let rect = c.rect;
-                    Task::perform(
-                        async move { capture_thumbnail(rect) },
-                        move |bytes| Message::ThumbnailLoaded(con_id, bytes),
-                    )
+                    Task::perform(async move { capture_thumbnail(rect) }, move |bytes| {
+                        Message::ThumbnailLoaded(con_id, bytes)
+                    })
                 })
                 .collect();
             let task = if captures.is_empty() {
@@ -522,17 +508,19 @@ pub fn run() -> iced_layershell::Result {
         update,
         view,
     )
-    .theme(|_: &App| iced::Theme::custom(
-        "mde-popover-app-switcher",
-        iced::theme::Palette {
-            background: SURFACE_BG,
-            text: FG_TEXT,
-            primary: ACCENT,
-            warning: Color::from_rgb(0.96, 0.65, 0.14),
-            success: Color::from_rgb(0.20, 0.80, 0.40),
-            danger: Color::from_rgb(0.92, 0.32, 0.30),
-        },
-    ))
+    .theme(|_: &App| {
+        iced::Theme::custom(
+            "mde-popover-app-switcher",
+            iced::theme::Palette {
+                background: SURFACE_BG,
+                text: FG_TEXT,
+                primary: ACCENT,
+                warning: Color::from_rgb(0.96, 0.65, 0.14),
+                success: Color::from_rgb(0.20, 0.80, 0.40),
+                danger: Color::from_rgb(0.92, 0.32, 0.30),
+            },
+        )
+    })
     .subscription(subscription)
     .settings(Settings {
         id: Some("mde-popover-app-switcher".to_string()),
@@ -642,8 +630,20 @@ mod tests {
     fn next_wraps_at_end() {
         let mut app = App {
             cards: vec![
-                WindowCard { con_id: 1, app_id: "a".into(), title: "A".into(), rect: WindowRect::default(), thumbnail: None },
-                WindowCard { con_id: 2, app_id: "b".into(), title: "B".into(), rect: WindowRect::default(), thumbnail: None },
+                WindowCard {
+                    con_id: 1,
+                    app_id: "a".into(),
+                    title: "A".into(),
+                    rect: WindowRect::default(),
+                    thumbnail: None,
+                },
+                WindowCard {
+                    con_id: 2,
+                    app_id: "b".into(),
+                    title: "B".into(),
+                    rect: WindowRect::default(),
+                    thumbnail: None,
+                },
             ],
             selected: 1,
         };
@@ -655,8 +655,20 @@ mod tests {
     fn prev_wraps_at_start() {
         let mut app = App {
             cards: vec![
-                WindowCard { con_id: 1, app_id: "a".into(), title: "A".into(), rect: WindowRect::default(), thumbnail: None },
-                WindowCard { con_id: 2, app_id: "b".into(), title: "B".into(), rect: WindowRect::default(), thumbnail: None },
+                WindowCard {
+                    con_id: 1,
+                    app_id: "a".into(),
+                    title: "A".into(),
+                    rect: WindowRect::default(),
+                    thumbnail: None,
+                },
+                WindowCard {
+                    con_id: 2,
+                    app_id: "b".into(),
+                    title: "B".into(),
+                    rect: WindowRect::default(),
+                    thumbnail: None,
+                },
             ],
             selected: 0,
         };
@@ -668,9 +680,27 @@ mod tests {
     fn default_selection_is_second_card_for_alt_tab_idiom() {
         // Manual lock check — real sway not available in tests.
         let cards = vec![
-            WindowCard { con_id: 1, app_id: "a".into(), title: "A".into(), rect: WindowRect::default(), thumbnail: None },
-            WindowCard { con_id: 2, app_id: "b".into(), title: "B".into(), rect: WindowRect::default(), thumbnail: None },
-            WindowCard { con_id: 3, app_id: "c".into(), title: "C".into(), rect: WindowRect::default(), thumbnail: None },
+            WindowCard {
+                con_id: 1,
+                app_id: "a".into(),
+                title: "A".into(),
+                rect: WindowRect::default(),
+                thumbnail: None,
+            },
+            WindowCard {
+                con_id: 2,
+                app_id: "b".into(),
+                title: "B".into(),
+                rect: WindowRect::default(),
+                thumbnail: None,
+            },
+            WindowCard {
+                con_id: 3,
+                app_id: "c".into(),
+                title: "C".into(),
+                rect: WindowRect::default(),
+                thumbnail: None,
+            },
         ];
         let expected = if cards.len() > 1 { 1 } else { 0 };
         assert_eq!(expected, 1);

@@ -270,9 +270,12 @@ impl NetdataAggregator {
         let existing = std::fs::read_to_string(&self.netdata_conf_path).unwrap_or_default();
         // When self is the aggregator, strip the [stream]
         // block (parent doesn't stream to itself).
-        let am_aggregator = aggregator_ip == Some(read_overlay_ip(&self.overlay_ip_source)
-            .unwrap_or_default()
-            .as_str());
+        let am_aggregator = aggregator_ip
+            == Some(
+                read_overlay_ip(&self.overlay_ip_source)
+                    .unwrap_or_default()
+                    .as_str(),
+            );
         let target_ip = if am_aggregator { None } else { aggregator_ip };
         let block = build_stream_block(target_ip, self.stream_port, &self.api_key);
         let rewritten = rewrite_stream_block(&existing, block.as_deref());
@@ -322,8 +325,7 @@ impl Worker for NetdataAggregator {
 /// read failure, or `"empty"` when the file contains only
 /// whitespace.
 pub fn read_overlay_ip(path: &Path) -> Result<String, String> {
-    let raw = std::fs::read_to_string(path)
-        .map_err(|e| format!("read {}: {e}", path.display()))?;
+    let raw = std::fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return Err(format!("{} is empty", path.display()));
@@ -350,11 +352,9 @@ pub fn self_pointer_path(workgroup_root: &Path, node_id: &str) -> PathBuf {
 /// surfaces `serde_json` serialization errors.
 pub fn write_pointer(path: &Path, pointer: &AggregatorPointer) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
-    let body = serde_json::to_vec_pretty(pointer)
-        .map_err(|e| format!("serialize pointer: {e}"))?;
+    let body = serde_json::to_vec_pretty(pointer).map_err(|e| format!("serialize pointer: {e}"))?;
     atomic_write(path, &body)
 }
 
@@ -371,10 +371,7 @@ pub fn scan_aggregator_pointers(workgroup_root: &Path) -> Vec<AggregatorPointer>
         return out;
     };
     for entry in entries.flatten() {
-        let candidate = entry
-            .path()
-            .join("mackesd")
-            .join("netdata-aggregator.json");
+        let candidate = entry.path().join("mackesd").join("netdata-aggregator.json");
         let Ok(bytes) = std::fs::read(&candidate) else {
             continue;
         };
@@ -407,10 +404,7 @@ pub fn latest_aggregator(mut pointers: Vec<AggregatorPointer>) -> Option<Aggrega
 ///
 /// Returns the formatted underlying I/O error string when
 /// the directory create, atomic-write, or remove fails.
-pub fn apply_aggregator_ip(
-    path: &Path,
-    desired: Option<&str>,
-) -> Result<ApplyOutcome, String> {
+pub fn apply_aggregator_ip(path: &Path, desired: Option<&str>) -> Result<ApplyOutcome, String> {
     let existing = std::fs::read_to_string(path).ok();
     match (existing.as_deref().map(str::trim), desired) {
         (Some(prev), Some(want)) if prev == want => Ok(ApplyOutcome::Unchanged),
@@ -425,8 +419,7 @@ pub fn apply_aggregator_ip(
             Ok(ApplyOutcome::Updated)
         }
         (Some(_), None) => {
-            std::fs::remove_file(path)
-                .map_err(|e| format!("remove {}: {e}", path.display()))?;
+            std::fs::remove_file(path).map_err(|e| format!("remove {}: {e}", path.display()))?;
             Ok(ApplyOutcome::Cleared)
         }
     }
@@ -497,8 +490,7 @@ pub fn rewrite_stream_block(existing: &str, block: Option<&str>) -> String {
 
 fn atomic_write(path: &Path, body: &[u8]) -> Result<(), String> {
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
     }
     let tmp = path.with_extension("tmp");
     std::fs::write(&tmp, body).map_err(|e| format!("write {}: {e}", tmp.display()))?;
@@ -750,7 +742,8 @@ mod tests {
 
     #[test]
     fn rewrite_stream_block_preserves_section_order() {
-        let existing = "[global]\n    a = 1\n[cloud]\n    enabled = no\n[plugins]\n    python.d = yes\n";
+        let existing =
+            "[global]\n    a = 1\n[cloud]\n    enabled = no\n[plugins]\n    python.d = yes\n";
         let block = build_stream_block(Some("10.42.0.5"), 19999, "k").expect("some");
         let out = rewrite_stream_block(existing, Some(&block));
         let pos_global = out.find("[global]").expect("global");

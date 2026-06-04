@@ -21,7 +21,9 @@
 
 use iced::widget::button::Status as ButtonStatus;
 use iced::widget::{button, column, container, row, text, Column, Space};
-use iced::{alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow as IcedShadow};
+use iced::{
+    alignment, Background, Border, Color, Element, Font, Length, Padding, Shadow as IcedShadow,
+};
 
 use mde_theme::{
     components::empty_state::{BODY_CTA_GAP, EMPTY_ICON_SIZE, HEADING_BODY_GAP, VERTICAL_PADDING},
@@ -36,9 +38,7 @@ use mde_theme::{
 // Object Cards without taking a heavyweight dep on mde-workbench.
 // Re-exported here so existing workbench call sites stay
 // unchanged.
-pub use mde_iced_components::{
-    object_card, overlay_color_on, overlay_white_on, with_alpha,
-};
+pub use mde_iced_components::{object_card, overlay_color_on, overlay_white_on, with_alpha};
 
 /// UX-6 — minimum data-row height. Component dimension, not
 /// density-scaled.
@@ -184,7 +184,8 @@ pub fn status_badge<'a, Message: 'a>(
         bottom: 4.0,
         left: 10.0,
     })
-    .style(move |_theme| container::Style { snap: false,
+    .style(move |_theme| container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: Color::TRANSPARENT,
@@ -217,7 +218,8 @@ pub fn card<'a, Message: 'a>(
             bottom: f32::from(space.lg),
             left: f32::from(space.lg),
         })
-        .style(move |_theme| container::Style { snap: false,
+        .style(move |_theme| container::Style {
+            snap: false,
             background: Some(Background::Color(palette.surface.into_iced_color())),
             border: Border {
                 color: palette.border.into_iced_color(),
@@ -262,9 +264,11 @@ pub fn empty_state<'a, Message: Clone + 'a>(
             widget_svg(widget_svg::Handle::from_memory(svg_bytes))
                 .width(Length::Fixed(resolved.size_px()))
                 .height(Length::Fixed(resolved.size_px()))
-                .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                    color: Some(muted),
-                })
+                .style(
+                    move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                        color: Some(muted),
+                    },
+                )
                 .into()
         } else {
             text(resolved.fallback_glyph)
@@ -310,7 +314,8 @@ pub fn empty_state<'a, Message: Clone + 'a>(
                 ButtonStatus::Pressed => brighten(accent_color, 0.90),
                 _ => accent_color,
             };
-            button::Style { snap: false,
+            button::Style {
+                snap: false,
                 background: Some(Background::Color(bg)),
                 text_color: Color::WHITE,
                 border: Border {
@@ -381,7 +386,8 @@ pub fn dialog<'a, Message: 'a>(
             bottom: dialog_tokens::H_PAD,
             left: dialog_tokens::H_PAD,
         })
-        .style(move |_theme| container::Style { snap: false,
+        .style(move |_theme| container::Style {
+            snap: false,
             background: Some(Background::Color(palette.raised.into_iced_color())),
             border: Border {
                 color: palette.border.into_iced_color(),
@@ -429,7 +435,10 @@ pub fn dialog_title_row<'a, Message: 'a>(
 pub fn dialog_button_row<'a, Message: 'a>(
     actions: Vec<Element<'a, Message>>,
 ) -> Element<'a, Message> {
-    let spacer: Element<'a, Message> = Space::new().width(Length::Fill).height(Length::Shrink).into();
+    let spacer: Element<'a, Message> = Space::new()
+        .width(Length::Fill)
+        .height(Length::Shrink)
+        .into();
     let mut items = vec![spacer];
     items.extend(actions);
     container(
@@ -458,7 +467,8 @@ pub fn dialog_backdrop<'a, Message: 'a>() -> Element<'a, Message> {
     container(Space::new().width(Length::Fill).height(Length::Fill))
         .width(Length::Fill)
         .height(Length::Fill)
-        .style(|_theme| container::Style { snap: false,
+        .style(|_theme| container::Style {
+            snap: false,
             background: Some(Background::Color(Color {
                 r: 0.0,
                 g: 0.0,
@@ -488,7 +498,8 @@ pub fn tooltip<'a, Message: 'a>(body: impl Into<String>, palette: Palette) -> El
         bottom: 6.0,
         left: 8.0,
     })
-    .style(move |_theme| container::Style { snap: false,
+    .style(move |_theme| container::Style {
+        snap: false,
         background: Some(Background::Color(palette.overlay.into_iced_color())),
         border: Border {
             color: palette.border.into_iced_color(),
@@ -590,8 +601,7 @@ mod tests {
     #[test]
     fn object_card_reexport_resolves() {
         let palette = Palette::dark();
-        let card =
-            mde_theme::ObjectCard::small(mde_theme::Icon::Fleet, "smoke");
+        let card = mde_theme::ObjectCard::small(mde_theme::Icon::Fleet, "smoke");
         let _: Element<'_, ()> = object_card(card, palette);
     }
 }

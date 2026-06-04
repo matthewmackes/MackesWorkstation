@@ -241,7 +241,10 @@ mod tests {
         w.write_snapshot(&hosts);
 
         let dir = tmp.path().join("alice");
-        let entries: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(Result::ok).collect();
+        let entries: Vec<_> = std::fs::read_dir(&dir)
+            .unwrap()
+            .filter_map(Result::ok)
+            .collect();
         assert_eq!(entries.len(), 1, "one snapshot written");
         let name = entries[0].file_name().into_string().unwrap();
         assert!(name.ends_with(".json"), "snapshot is JSON");
@@ -258,9 +261,16 @@ mod tests {
         let bus_root = tmp.path().to_path_buf();
         let persist = Persist::open(bus_root.clone()).expect("persist");
         // Two triggers (bare + payload-bearing) — both count as signals.
-        persist.write(REFRESH_TOPIC, Priority::Default, None, None).expect("write bare");
         persist
-            .write(REFRESH_TOPIC, Priority::Default, None, Some("{\"source\":\"portal\"}"))
+            .write(REFRESH_TOPIC, Priority::Default, None, None)
+            .expect("write bare");
+        persist
+            .write(
+                REFRESH_TOPIC,
+                Priority::Default,
+                None,
+                Some("{\"source\":\"portal\"}"),
+            )
             .expect("write payload");
         let mut cursor: Option<String> = None;
         assert_eq!(drain_refresh(&bus_root, &mut cursor), 2);

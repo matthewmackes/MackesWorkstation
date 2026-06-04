@@ -105,11 +105,20 @@ mod tests {
         });
         let (event, fields) = NutAdapter.extract(&BTreeMap::new(), &body).unwrap();
         assert_eq!(event, "ONBATT");
-        assert_eq!(fields.get("ups_name").map(String::as_str), Some("myups@srv1"));
-        assert_eq!(fields.get("ups_status").map(String::as_str), Some("ONBATT LB"));
+        assert_eq!(
+            fields.get("ups_name").map(String::as_str),
+            Some("myups@srv1")
+        );
+        assert_eq!(
+            fields.get("ups_status").map(String::as_str),
+            Some("ONBATT LB")
+        );
         assert_eq!(fields.get("battery_charge").map(String::as_str), Some("42"));
         assert_eq!(fields.get("runtime").map(String::as_str), Some("600"));
-        assert_eq!(fields.get("runtime_human").map(String::as_str), Some("10m 0s"));
+        assert_eq!(
+            fields.get("runtime_human").map(String::as_str),
+            Some("10m 0s")
+        );
     }
 
     #[test]

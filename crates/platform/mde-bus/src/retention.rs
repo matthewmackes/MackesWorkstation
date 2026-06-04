@@ -148,8 +148,7 @@ pub fn disk_usage_bytes(root: &Path) -> Result<u64, RetentionError> {
         let entries = std::fs::read_dir(dir)
             .map_err(|e| RetentionError::Io(format!("readdir {}: {e}", dir.display())))?;
         for entry in entries {
-            let entry = entry
-                .map_err(|e| RetentionError::Io(format!("readdir entry: {e}")))?;
+            let entry = entry.map_err(|e| RetentionError::Io(format!("readdir entry: {e}")))?;
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
             if name.starts_with("index.sqlite") || name.ends_with(".tmp") {
@@ -158,15 +157,15 @@ pub fn disk_usage_bytes(root: &Path) -> Result<u64, RetentionError> {
             if name.starts_with('.') {
                 continue;
             }
-            let ft = entry.file_type().map_err(|e| {
-                RetentionError::Io(format!("file_type {}: {e}", path.display()))
-            })?;
+            let ft = entry
+                .file_type()
+                .map_err(|e| RetentionError::Io(format!("file_type {}: {e}", path.display())))?;
             if ft.is_dir() {
                 walk(&path, acc)?;
             } else if ft.is_file() && name.ends_with(".json") {
-                let meta = entry.metadata().map_err(|e| {
-                    RetentionError::Io(format!("metadata {}: {e}", path.display()))
-                })?;
+                let meta = entry
+                    .metadata()
+                    .map_err(|e| RetentionError::Io(format!("metadata {}: {e}", path.display())))?;
                 *acc += meta.len();
             }
         }
@@ -239,9 +238,8 @@ pub fn run_pass_at(
     for (ulid, rel_path) in &victims {
         let abs = bus_root.join(rel_path);
         if abs.exists() {
-            std::fs::remove_file(&abs).map_err(|e| {
-                RetentionError::Io(format!("rm {}: {e}", abs.display()))
-            })?;
+            std::fs::remove_file(&abs)
+                .map_err(|e| RetentionError::Io(format!("rm {}: {e}", abs.display())))?;
         }
         conn.execute("DELETE FROM messages WHERE ulid = ?1", params![ulid])
             .map_err(|e| RetentionError::Sql(format!("delete row {ulid}: {e}")))?;
@@ -435,8 +433,7 @@ mod tests {
         // 20 years ago — still urgent, still kept.
         let twenty_years = 20_i64 * 365 * 24 * 60 * 60 * 1000;
         let ancient = now - twenty_years;
-        let (_tmp, root) =
-            open_tmp_with(&[("t", Priority::Urgent, ancient)]);
+        let (_tmp, root) = open_tmp_with(&[("t", Priority::Urgent, ancient)]);
         let report = run_pass_at(&RetentionPolicy::default(), &root, now).unwrap();
         assert_eq!(report.removed, 0);
     }
@@ -468,8 +465,10 @@ mod tests {
         let p = Persist::open(root.clone()).unwrap();
         // audit/peerx is cycle-guarded (no further audit); the regular
         // write also emits an audit/<peer> record.
-        p.write("audit/peerx", Priority::Min, None, Some("{}")).unwrap();
-        p.write("t/regular", Priority::Min, None, Some("body")).unwrap();
+        p.write("audit/peerx", Priority::Min, None, Some("{}"))
+            .unwrap();
+        p.write("t/regular", Priority::Min, None, Some("body"))
+            .unwrap();
         // Back-date everything to 10 days ago — well past the 24h min TTL.
         let conn = Connection::open(root.join("index.sqlite")).unwrap();
         conn.execute("UPDATE messages SET ts_unix_ms = ?1", params![ten_days])
@@ -555,11 +554,8 @@ mod tests {
         // Hack: write a row with an unknown priority string by
         // bypassing the typed write path.
         let conn = Connection::open(root.join("index.sqlite")).unwrap();
-        conn.execute(
-            "UPDATE messages SET priority = 'wat'",
-            [],
-        )
-        .unwrap();
+        conn.execute("UPDATE messages SET priority = 'wat'", [])
+            .unwrap();
         // The run_pass only walks min/default/high — 'wat' isn't
         // any of those, so it survives. This documents the
         // safety semantics: unknown priorities are immortal

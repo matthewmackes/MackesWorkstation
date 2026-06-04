@@ -51,9 +51,9 @@ use mackes_transport::{
     MessageClassSet, Transport, TransportError, TransportKind,
 };
 use mde_kdc_proto::discovery::DiscoveryRegistry;
+use tokio::net::TcpStream;
 use tokio::sync::Mutex as AsyncMutex;
 use tokio_rustls::client::TlsStream;
-use tokio::net::TcpStream;
 
 use crate::pairing::PairingStore;
 use crate::tls;
@@ -77,10 +77,7 @@ impl KdcHost {
     /// `kdc_discovery` worker writes to `discovery`; the D-Bus
     /// host scaffold (KDC2-3.3) writes to `pairing`).
     #[must_use]
-    pub fn new(
-        pairing: Arc<PairingStore>,
-        discovery: Arc<AsyncMutex<DiscoveryRegistry>>,
-    ) -> Self {
+    pub fn new(pairing: Arc<PairingStore>, discovery: Arc<AsyncMutex<DiscoveryRegistry>>) -> Self {
         Self { pairing, discovery }
     }
 
@@ -204,9 +201,10 @@ impl Transport for KdcHost {
     }
 
     async fn open(&self, peer_id: &str) -> Result<Box<dyn Connection>, TransportError> {
-        let device = self.pairing.get(peer_id).ok_or(TransportError::Unreachable {
-            code: "not_paired",
-        })?;
+        let device = self
+            .pairing
+            .get(peer_id)
+            .ok_or(TransportError::Unreachable { code: "not_paired" })?;
         let addr = {
             let guard = self.discovery.lock().await;
             guard.source_addr_for(peer_id)
@@ -219,23 +217,20 @@ impl Transport for KdcHost {
         // announce's port (announces only carry identity, not
         // wire ports) — KDC_TLS_PORT is the stock default.
         let dial_addr = std::net::SocketAddr::new(addr.ip(), KDC_TLS_PORT);
-        let stream = tls::connect_pinned_tls(
-            dial_addr,
-            &device.id,
-            Some(device.fingerprint.clone()),
-        )
-        .await
-        .map_err(|e| match e {
-            tls::ConnectError::Tcp(_) => TransportError::Unreachable {
-                code: "tcp_refused",
-            },
-            tls::ConnectError::Tls(_) => TransportError::HandshakeFailed {
-                code: "fingerprint_mismatch",
-            },
-            tls::ConnectError::BadPeerName(_) => TransportError::Misconfigured {
-                code: "bad_peer_name",
-            },
-        })?;
+        let stream =
+            tls::connect_pinned_tls(dial_addr, &device.id, Some(device.fingerprint.clone()))
+                .await
+                .map_err(|e| match e {
+                    tls::ConnectError::Tcp(_) => TransportError::Unreachable {
+                        code: "tcp_refused",
+                    },
+                    tls::ConnectError::Tls(_) => TransportError::HandshakeFailed {
+                        code: "fingerprint_mismatch",
+                    },
+                    tls::ConnectError::BadPeerName(_) => TransportError::Misconfigured {
+                        code: "bad_peer_name",
+                    },
+                })?;
         Ok(Box::new(KdcTlsConnection {
             id: format!("kdc-tls:{peer_id}"),
             stream: AsyncMutex::new(stream),
@@ -427,8 +422,7 @@ mod tests {
         // Bind the listener synchronously so we have the addr
         // before returning. The blocking listener spawns its
         // own tokio runtime in a thread.
-        let std_listener =
-            std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+        let std_listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
         let addr = std_listener.local_addr().expect("local_addr");
 
         std::thread::spawn(move || {
@@ -437,9 +431,7 @@ mod tests {
                 .build()
                 .expect("loopback rt");
             rt.block_on(async move {
-                std_listener
-                    .set_nonblocking(true)
-                    .expect("set nonblocking");
+                std_listener.set_nonblocking(true).expect("set nonblocking");
                 let listener = TcpListener::from_std(std_listener).expect("from_std");
                 if let Ok((tcp, _)) = listener.accept().await {
                     let cert_chain = vec![CertificateDer::from(cert_for_thread)];
@@ -492,7 +484,11 @@ mod tests {
             device_id,
             Some(fingerprint),
         ));
-        assert!(result.is_ok(), "pinned TLS handshake should succeed: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "pinned TLS handshake should succeed: {:?}",
+            result.err()
+        );
     }
 
     #[test]

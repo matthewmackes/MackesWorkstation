@@ -168,18 +168,9 @@ mod tests {
         encode_frame(b"second", &mut buf).expect("encode b");
         encode_frame(b"third", &mut buf).expect("encode c");
 
-        assert_eq!(
-            &decode_frame(&mut buf).unwrap().unwrap()[..],
-            b"first"
-        );
-        assert_eq!(
-            &decode_frame(&mut buf).unwrap().unwrap()[..],
-            b"second"
-        );
-        assert_eq!(
-            &decode_frame(&mut buf).unwrap().unwrap()[..],
-            b"third"
-        );
+        assert_eq!(&decode_frame(&mut buf).unwrap().unwrap()[..], b"first");
+        assert_eq!(&decode_frame(&mut buf).unwrap().unwrap()[..], b"second");
+        assert_eq!(&decode_frame(&mut buf).unwrap().unwrap()[..], b"third");
         assert_eq!(decode_frame(&mut buf).unwrap(), None);
     }
 

@@ -126,8 +126,7 @@ fn read_stdin() -> Result<String> {
 
 /// Resolve the default bus root from the env (XDG fallback).
 fn default_bus_root() -> Result<PathBuf> {
-    crate::default_data_dir()
-        .ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
+    crate::default_data_dir().ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
 }
 
 /// Resolve the default broker URL by reading the published
@@ -136,16 +135,14 @@ fn default_bus_root() -> Result<PathBuf> {
 /// caller should treat the publish as persist-only.
 fn default_broker_url() -> Option<String> {
     let path = crate::broker::DEFAULT_OVERLAY_IP_PATH;
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|s| {
-            let t = s.trim().to_string();
-            if t.is_empty() {
-                None
-            } else {
-                Some(format!("http://{t}:{}", crate::broker::DEFAULT_LISTEN_PORT))
-            }
-        })
+    std::fs::read_to_string(path).ok().and_then(|s| {
+        let t = s.trim().to_string();
+        if t.is_empty() {
+            None
+        } else {
+            Some(format!("http://{t}:{}", crate::broker::DEFAULT_LISTEN_PORT))
+        }
+    })
 }
 
 /// Execute the publish verb.
@@ -171,8 +168,7 @@ pub async fn run(args: PublishArgs) -> Result<()> {
         .with_context(|| format!("persist publish {} → {}", args.topic, args.topic))?;
 
     if args.json {
-        let s = serde_json::to_string(&stored)
-            .with_context(|| "serialize stored message")?;
+        let s = serde_json::to_string(&stored).with_context(|| "serialize stored message")?;
         println!("{s}");
     } else {
         println!("{}", stored.ulid);
@@ -229,10 +225,11 @@ pub(crate) fn parse_actions(specs: &[String]) -> Vec<crate::persist::Action> {
     specs
         .iter()
         .filter_map(|s| {
-            s.split_once('=').map(|(label, url)| crate::persist::Action {
-                label: label.trim().to_string(),
-                url: url.trim().to_string(),
-            })
+            s.split_once('=')
+                .map(|(label, url)| crate::persist::Action {
+                    label: label.trim().to_string(),
+                    url: url.trim().to_string(),
+                })
         })
         .collect()
 }
@@ -243,9 +240,10 @@ mod tests {
 
     #[test]
     fn resolve_body_prefers_positional() {
-        let body =
-            resolve_body(Some("from-arg"), Some("from-flag"), || Ok("from-stdin".to_string()))
-                .unwrap();
+        let body = resolve_body(Some("from-arg"), Some("from-flag"), || {
+            Ok("from-stdin".to_string())
+        })
+        .unwrap();
         assert_eq!(body, "from-arg");
     }
 

@@ -207,7 +207,10 @@ mod tests {
     #[test]
     fn slug_from_body_trims_and_normalises_empty() {
         assert_eq!(slug_from_body(Some("network.mesh_ssh")), "network.mesh_ssh");
-        assert_eq!(slug_from_body(Some("  network.mesh_ssh  ")), "network.mesh_ssh");
+        assert_eq!(
+            slug_from_body(Some("  network.mesh_ssh  ")),
+            "network.mesh_ssh"
+        );
         assert_eq!(slug_from_body(Some("   ")), "");
         assert_eq!(slug_from_body(None), "");
     }

@@ -88,25 +88,20 @@ fn read_or_default(path: &std::path::Path) -> Result<SubsManifest> {
     if !path.exists() {
         return Ok(SubsManifest::default());
     }
-    let body = std::fs::read_to_string(path)
-        .with_context(|| format!("read {}", path.display()))?;
-    let m = SubsManifest::parse_yaml(&body)
-        .with_context(|| format!("parse {}", path.display()))?;
+    let body = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let m = SubsManifest::parse_yaml(&body).with_context(|| format!("parse {}", path.display()))?;
     Ok(m)
 }
 
 fn write_atomic(path: &std::path::Path, m: &SubsManifest) -> Result<()> {
     let body = m.to_yaml().context("encode subs.yaml")?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("mkdir {}", parent.display()))?;
+        std::fs::create_dir_all(parent).with_context(|| format!("mkdir {}", parent.display()))?;
     }
     let tmp = path.with_extension("yaml.tmp");
-    std::fs::write(&tmp, body.as_bytes())
-        .with_context(|| format!("write {}", tmp.display()))?;
-    std::fs::rename(&tmp, path).with_context(|| {
-        format!("rename {} → {}", tmp.display(), path.display())
-    })?;
+    std::fs::write(&tmp, body.as_bytes()).with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::rename(&tmp, path)
+        .with_context(|| format!("rename {} → {}", tmp.display(), path.display()))?;
     Ok(())
 }
 
@@ -138,11 +133,18 @@ pub async fn run(op: SubOp) -> Result<()> {
                 println!("not subscribed: {topic}");
             }
         }
-        SubOp::Count { manifest, pattern, json } => {
+        SubOp::Count {
+            manifest,
+            pattern,
+            json,
+        } => {
             let path = resolve_manifest_path(manifest)?;
             let m = read_or_default(&path)?;
             let n = if let Some(p) = pattern.as_deref() {
-                m.topics.iter().filter(|t| crate::wildcard::matches(p, t)).count()
+                m.topics
+                    .iter()
+                    .filter(|t| crate::wildcard::matches(p, t))
+                    .count()
             } else {
                 m.topics.len()
             };
@@ -152,7 +154,11 @@ pub async fn run(op: SubOp) -> Result<()> {
                 println!("{n}");
             }
         }
-        SubOp::List { manifest, pattern, json } => {
+        SubOp::List {
+            manifest,
+            pattern,
+            json,
+        } => {
             let path = resolve_manifest_path(manifest)?;
             let m = read_or_default(&path)?;
             for t in &m.topics {
@@ -162,8 +168,7 @@ pub async fn run(op: SubOp) -> Result<()> {
                     }
                 }
                 if json {
-                    let s = serde_json::to_string(t)
-                        .unwrap_or_else(|_| format!("{t:?}"));
+                    let s = serde_json::to_string(t).unwrap_or_else(|_| format!("{t:?}"));
                     println!("{s}");
                 } else {
                     println!("{t}");

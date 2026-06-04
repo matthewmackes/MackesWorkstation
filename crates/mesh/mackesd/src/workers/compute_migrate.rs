@@ -758,7 +758,11 @@ mod tests {
 
     #[test]
     fn rsync_args_use_compress_and_overlay_target() {
-        let args = build_rsync_args("/var/lib/mde-vms/abc.qcow2", "10.42.0.2", "/var/lib/mde-vms/");
+        let args = build_rsync_args(
+            "/var/lib/mde-vms/abc.qcow2",
+            "10.42.0.2",
+            "/var/lib/mde-vms/",
+        );
         assert!(args.contains(&"--compress".to_string()));
         assert!(args.contains(&"--progress".to_string()));
         assert!(args.contains(&"/var/lib/mde-vms/abc.qcow2".to_string()));
@@ -806,7 +810,10 @@ mod tests {
     #[test]
     fn dumpxml_define_start_args_are_minimal() {
         assert_eq!(build_virsh_dumpxml_args("abc"), vec!["dumpxml", "abc"]);
-        assert_eq!(build_virsh_define_args("/t/abc.xml"), vec!["define", "/t/abc.xml"]);
+        assert_eq!(
+            build_virsh_define_args("/t/abc.xml"),
+            vec!["define", "/t/abc.xml"]
+        );
         assert_eq!(build_virsh_start_args("abc"), vec!["start", "abc"]);
     }
 
@@ -957,10 +964,7 @@ mod tests {
         let domstate_args = build_virsh_domstate_args(&req.vm_id);
         assert!(domstate_args.contains(&"abc-uuid".to_string()));
         let rsync_args = build_rsync_args(&req.disk_path, &req.target_peer, DEFAULT_TARGET_VM_DIR);
-        assert_eq!(
-            rsync_args.last().unwrap(),
-            "10.42.0.2:/var/lib/mde-vms/"
-        );
+        assert_eq!(rsync_args.last().unwrap(), "10.42.0.2:/var/lib/mde-vms/");
         let undef_args = build_virsh_undefine_args(&req.vm_id);
         assert!(undef_args.contains(&"abc-uuid".to_string()));
         let dumpxml_args = build_virsh_dumpxml_args(&req.vm_id);

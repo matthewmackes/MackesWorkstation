@@ -11,20 +11,35 @@
 
 #![forbid(unsafe_code)]
 
+use iced::widget::container::Style as ContainerStyle;
+use iced::widget::mouse_area;
 use iced::widget::{column, container, row, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Subscription, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
-use iced::widget::mouse_area;
-use iced::widget::container::Style as ContainerStyle;
 
 // ── Design tokens (Classic ChromeOS, §3) ─────────────────────────────────────
 
-const CHARCOAL: Color = Color { r: 0.125, g: 0.129, b: 0.141, a: 1.0 };
+const CHARCOAL: Color = Color {
+    r: 0.125,
+    g: 0.129,
+    b: 0.141,
+    a: 1.0,
+};
 const FG: Color = Color::WHITE;
-const FG_DIM: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.55 };
-const FG_LABEL: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.35 };
+const FG_DIM: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.55,
+};
+const FG_LABEL: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.35,
+};
 const CARD_WIDTH: u32 = 248;
 const CARD_HEIGHT: u32 = 132;
 // Bottom padding — Dock is 56 px; add 4 px gap.
@@ -65,9 +80,7 @@ fn read_uptime() -> String {
 
 fn read_primary_ip() -> String {
     // `hostname -I` returns all non-loopback IPs; take the first.
-    let out = std::process::Command::new("hostname")
-        .arg("-I")
-        .output();
+    let out = std::process::Command::new("hostname").arg("-I").output();
     match out {
         Ok(o) => String::from_utf8_lossy(&o.stdout)
             .split_whitespace()
@@ -127,11 +140,14 @@ fn view(state: &App) -> Element<'_, Message> {
         Space::new().height(Length::Fixed(4.0)),
         row_item("mesh", &state.mesh_role),
         Space::new().height(Length::Fill),
-        text("Esc or click outside to close")
-            .size(9)
-            .color(FG_DIM),
+        text("Esc or click outside to close").size(9).color(FG_DIM),
     ]
-    .padding(Padding { top: 14.0, right: 16.0, bottom: 10.0, left: 16.0 })
+    .padding(Padding {
+        top: 14.0,
+        right: 16.0,
+        bottom: 10.0,
+        left: 16.0,
+    })
     .spacing(0);
 
     let card: Element<'_, Message> = container(card_body)
@@ -140,7 +156,12 @@ fn view(state: &App) -> Element<'_, Message> {
         .style(|_: &Theme| ContainerStyle {
             background: Some(Background::Color(CHARCOAL)),
             border: Border {
-                color: Color { r: 1.0, g: 1.0, b: 1.0, a: 0.08 },
+                color: Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.08,
+                },
                 width: 1.0,
                 radius: 4.0.into(),
             },
@@ -207,7 +228,12 @@ pub fn run() -> iced_layershell::Result {
             let ip = read_primary_ip();
             let mesh_role = "peer".to_string();
             tracing::info!(hostname = %hostname, ip = %ip, "hostname-info popover open");
-            App { hostname, uptime, ip, mesh_role }
+            App {
+                hostname,
+                uptime,
+                ip,
+                mesh_role,
+            }
         },
         namespace,
         update,

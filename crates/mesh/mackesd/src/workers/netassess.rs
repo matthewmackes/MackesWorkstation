@@ -350,7 +350,10 @@ pub fn parse_speedtest_json(stdout: &str) -> Option<Speedtest> {
     let v: serde_json::Value = serde_json::from_str(stdout).ok()?;
     let download_bps = v.get("download")?.as_f64()?;
     let upload_bps = v.get("upload")?.as_f64()?;
-    let ping_ms = v.get("ping").and_then(serde_json::Value::as_f64).unwrap_or(0.0);
+    let ping_ms = v
+        .get("ping")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0);
     Some(Speedtest {
         download_mbps: download_bps / 1_000_000.0,
         upload_mbps: upload_bps / 1_000_000.0,
@@ -625,8 +628,7 @@ pub fn parse_refresh_request(body: &str) -> Result<RefreshRequest, String> {
     if trimmed.is_empty() {
         return Ok(RefreshRequest::default());
     }
-    serde_json::from_str(trimmed)
-        .map_err(|e| format!("malformed netassess refresh request: {e}"))
+    serde_json::from_str(trimmed).map_err(|e| format!("malformed netassess refresh request: {e}"))
 }
 
 /// Drain new [`REFRESH_TOPIC`] triggers since `cursor`, returning the
@@ -787,13 +789,18 @@ impl NetAssessWorker {
 
     fn collect(&self) -> AssessmentSnapshot {
         let wifi = if binary_present("nmcli") {
-            run_stdout("nmcli", &["-t", "-f", "SSID,SIGNAL,CHAN,SECURITY", "dev", "wifi"])
-                .map(|s| parse_nmcli_wifi(&s))
-                .unwrap_or_default()
+            run_stdout(
+                "nmcli",
+                &["-t", "-f", "SSID,SIGNAL,CHAN,SECURITY", "dev", "wifi"],
+            )
+            .map(|s| parse_nmcli_wifi(&s))
+            .unwrap_or_default()
         } else {
             vec![]
         };
-        let arp = run_stdout("ip", &["neigh"]).map(|s| parse_ip_neigh(&s)).unwrap_or_default();
+        let arp = run_stdout("ip", &["neigh"])
+            .map(|s| parse_ip_neigh(&s))
+            .unwrap_or_default();
         let gateway = run_stdout("ip", &["route", "show", "default"])
             .map(|s| parse_default_gateway(&s))
             .unwrap_or_default();
@@ -812,8 +819,10 @@ impl NetAssessWorker {
             ipv6: ping_reachable("2606:4700:4700::1111", true),
         };
         let iface = self.primary_iface();
-        let mtu = run_stdout("ip", &["link", "show", &iface]).and_then(|s| parse_ip_link_mtu(&s, &iface));
-        let tunnel_stdout = run_stdout("ip", &["link", "show", &self.nebula_iface]).unwrap_or_default();
+        let mtu =
+            run_stdout("ip", &["link", "show", &iface]).and_then(|s| parse_ip_link_mtu(&s, &iface));
+        let tunnel_stdout =
+            run_stdout("ip", &["link", "show", &self.nebula_iface]).unwrap_or_default();
         let tunnel = TunnelHealth {
             iface: self.nebula_iface.clone(),
             up: parse_tunnel_up(&tunnel_stdout, &self.nebula_iface),
@@ -1016,9 +1025,15 @@ mod tests {
 
     #[test]
     fn tunnel_up_detected_from_flags_and_state() {
-        assert!(parse_tunnel_up("4: nebula1: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1300", "nebula1"));
+        assert!(parse_tunnel_up(
+            "4: nebula1: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1300",
+            "nebula1"
+        ));
         assert!(parse_tunnel_up("nebula1: state UP mtu 1300", "nebula1"));
-        assert!(!parse_tunnel_up("4: nebula1: <POINTOPOINT,NOARP> state DOWN", "nebula1"));
+        assert!(!parse_tunnel_up(
+            "4: nebula1: <POINTOPOINT,NOARP> state DOWN",
+            "nebula1"
+        ));
         assert!(!parse_tunnel_up("", "nebula1")); // absent interface
     }
 
@@ -1072,8 +1087,16 @@ mod tests {
     #[test]
     fn subnet_arp_fallback_counts_entries() {
         let arp = vec![
-            ArpEntry { ip: "10.0.0.1".into(), mac: "a".into(), iface: "e".into() },
-            ArpEntry { ip: "10.0.0.2".into(), mac: "b".into(), iface: "e".into() },
+            ArpEntry {
+                ip: "10.0.0.1".into(),
+                mac: "a".into(),
+                iface: "e".into(),
+            },
+            ArpEntry {
+                ip: "10.0.0.2".into(),
+                mac: "b".into(),
+                iface: "e".into(),
+            },
         ];
         // No probe inventory in a clean test env → arp-fallback.
         let s = collect_subnet(&arp);
@@ -1145,8 +1168,14 @@ mod tests {
         };
         let s = serde_json::to_string(&snap).unwrap();
         for field in [
-            "\"ts_ms\"", "\"host\"", "\"wifi\"", "\"arp\"", "\"gateway_dns\"",
-            "\"connectivity\"", "\"tunnel\"", "\"subnet\"",
+            "\"ts_ms\"",
+            "\"host\"",
+            "\"wifi\"",
+            "\"arp\"",
+            "\"gateway_dns\"",
+            "\"connectivity\"",
+            "\"tunnel\"",
+            "\"subnet\"",
         ] {
             assert!(s.contains(field), "missing {field}");
         }
@@ -1184,7 +1213,10 @@ mod tests {
 
         let mut cursor: Option<String> = None;
         let fired = drain_refresh_triggers(&bus_root, &mut cursor);
-        assert_eq!(fired, 2, "both valid refresh triggers should fire collection");
+        assert_eq!(
+            fired, 2,
+            "both valid refresh triggers should fire collection"
+        );
 
         // Cursor advanced: a second drain with no new messages is a
         // no-op — collection does NOT re-fire on the same triggers.
@@ -1200,7 +1232,12 @@ mod tests {
         let bus_root = tmp.path().to_path_buf();
         let persist = Persist::open(bus_root.clone()).expect("persist");
         persist
-            .write(REFRESH_TOPIC, Priority::Default, None, Some("not json at all"))
+            .write(
+                REFRESH_TOPIC,
+                Priority::Default,
+                None,
+                Some("not json at all"),
+            )
             .expect("write garbage");
         persist
             .write(REFRESH_TOPIC, Priority::Default, None, Some("[1,2,3]"))
@@ -1216,8 +1253,14 @@ mod tests {
 
     #[test]
     fn parse_refresh_request_accepts_empty_and_object() {
-        assert_eq!(parse_refresh_request("").unwrap(), RefreshRequest::default());
-        assert_eq!(parse_refresh_request("   ").unwrap(), RefreshRequest::default());
+        assert_eq!(
+            parse_refresh_request("").unwrap(),
+            RefreshRequest::default()
+        );
+        assert_eq!(
+            parse_refresh_request("   ").unwrap(),
+            RefreshRequest::default()
+        );
         assert_eq!(
             parse_refresh_request(r#"{"source":"portal-compact"}"#)
                 .unwrap()

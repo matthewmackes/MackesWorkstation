@@ -120,7 +120,10 @@ mod tests {
         ];
         let (data, _) = resolve_batch(msgs).unwrap();
         let text = String::from_utf8(data).unwrap();
-        assert_eq!(text, "first\n--- @peer-b ---\nsecond\n--- @peer-c ---\nthird");
+        assert_eq!(
+            text,
+            "first\n--- @peer-b ---\nsecond\n--- @peer-c ---\nthird"
+        );
     }
 
     #[test]

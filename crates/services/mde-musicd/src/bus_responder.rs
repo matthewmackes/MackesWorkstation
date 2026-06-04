@@ -34,8 +34,14 @@ pub const POLL_INTERVAL: Duration = Duration::from_millis(500);
 
 /// The queue-control verbs served on `action/music/<verb>` (synchronous
 /// — they only touch the local queue file).
-pub const ACTION_VERBS: [&str; 6] =
-    ["enqueue", "enqueue-after", "clear", "next", "prev", "get-queue"];
+pub const ACTION_VERBS: [&str; 6] = [
+    "enqueue",
+    "enqueue-after",
+    "clear",
+    "next",
+    "prev",
+    "get-queue",
+];
 
 /// The library-browse verbs served on `action/music/<verb>`
 /// (asynchronous — each proxies an Airsonic REST call).
@@ -128,7 +134,8 @@ fn error_reply(message: &str) -> Dispatch {
 pub fn dispatch_peer(verb: &str, body: &str, dir: &Path) -> String {
     match verb {
         "peer-states" => {
-            json!({ "ok": true, "result": { "peers": state::read_all_peer_states(dir) } }).to_string()
+            json!({ "ok": true, "result": { "peers": state::read_all_peer_states(dir) } })
+                .to_string()
         }
         "take-over" => {
             let to = body.trim().trim_matches('"').to_string();
@@ -181,7 +188,12 @@ pub fn dispatch_queue_action(verb: &str, body: &str, q: &mut Queue) -> Dispatch 
 /// via the shared [`Client`]; missing creds / server errors become an
 /// `{ok:false,error}` reply rather than a panic. I/O, so not pure — the
 /// URL-building + parse logic it leans on is unit-tested in [`crate::airsonic`].
-fn dispatch_browse(verb: &str, body: &str, client: &Client, rt: &tokio::runtime::Runtime) -> String {
+fn dispatch_browse(
+    verb: &str,
+    body: &str,
+    client: &Client,
+    rt: &tokio::runtime::Runtime,
+) -> String {
     let result: Result<serde_json::Value, String> = rt.block_on(async {
         match verb {
             "list-albums" => client
@@ -302,7 +314,9 @@ pub fn poll_browse(
     rt: &tokio::runtime::Runtime,
     cursors: &mut HashMap<String, String>,
 ) {
-    let client = creds::load().ok().map(|c| Client::new(&c.server_url, &c.username, &c.password));
+    let client = creds::load()
+        .ok()
+        .map(|c| Client::new(&c.server_url, &c.username, &c.password));
     for verb in BROWSE_VERBS {
         let topic = format!("action/music/{verb}");
         let since = cursors.get(&topic).map(String::as_str);
@@ -314,9 +328,16 @@ pub fn poll_browse(
             cursors.insert(topic.clone(), msg.ulid.clone());
             let reply = match &client {
                 Some(c) => dispatch_browse(verb, msg.body.as_deref().unwrap_or(""), c, rt),
-                None => json!({ "ok": false, "error": "no Airsonic server configured" }).to_string(),
+                None => {
+                    json!({ "ok": false, "error": "no Airsonic server configured" }).to_string()
+                }
             };
-            let _ = persist.write(&reply_topic(&msg.ulid), Priority::Default, None, Some(&reply));
+            let _ = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&reply),
+            );
         }
     }
 }
@@ -484,7 +505,12 @@ pub fn poll_transport(
                 client.as_ref(),
                 &queue,
             );
-            let _ = persist.write(&reply_topic(&msg.ulid), Priority::Default, None, Some(&reply));
+            let _ = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&reply),
+            );
         }
     }
 }
@@ -562,7 +588,12 @@ pub fn poll_peers(persist: &Persist, cursors: &mut HashMap<String, String>) {
         for msg in msgs {
             cursors.insert(topic.clone(), msg.ulid.clone());
             let reply = dispatch_peer(verb, msg.body.as_deref().unwrap_or(""), &dir);
-            let _ = persist.write(&reply_topic(&msg.ulid), Priority::Default, None, Some(&reply));
+            let _ = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&reply),
+            );
         }
     }
 }
@@ -664,7 +695,10 @@ mod tests {
         // A second poll with the advanced cursor does nothing new.
         poll_once(&persist, &queue_path, &mut cursors);
         assert_eq!(
-            persist.list_since(&reply_topic(&req.ulid), None).unwrap().len(),
+            persist
+                .list_since(&reply_topic(&req.ulid), None)
+                .unwrap()
+                .len(),
             1
         );
     }
@@ -688,21 +722,33 @@ mod tests {
     fn parse_transport_verbs() {
         assert_eq!(parse_transport("play", ""), Some(TransportCommand::Play));
         assert_eq!(parse_transport("pause", ""), Some(TransportCommand::Pause));
-        assert_eq!(parse_transport("resume", ""), Some(TransportCommand::Resume));
+        assert_eq!(
+            parse_transport("resume", ""),
+            Some(TransportCommand::Resume)
+        );
         assert_eq!(parse_transport("stop", ""), Some(TransportCommand::Stop));
-        assert_eq!(parse_transport("get-state", ""), Some(TransportCommand::GetState));
+        assert_eq!(
+            parse_transport("get-state", ""),
+            Some(TransportCommand::GetState)
+        );
         assert_eq!(parse_transport("teleport", ""), None);
     }
 
     #[test]
     fn parse_transport_set_volume_forms() {
         // bare number, JSON object, and an out-of-range value (engine clamps).
-        assert_eq!(parse_transport("set-volume", "0.6"), Some(TransportCommand::SetVolume(0.6)));
+        assert_eq!(
+            parse_transport("set-volume", "0.6"),
+            Some(TransportCommand::SetVolume(0.6))
+        );
         assert_eq!(
             parse_transport("set-volume", r#"{"volume":0.25}"#),
             Some(TransportCommand::SetVolume(0.25))
         );
-        assert_eq!(parse_transport("set-volume", "2"), Some(TransportCommand::SetVolume(2.0)));
+        assert_eq!(
+            parse_transport("set-volume", "2"),
+            Some(TransportCommand::SetVolume(2.0))
+        );
         // Non-numeric body → no command.
         assert_eq!(parse_transport("set-volume", "loud"), None);
     }

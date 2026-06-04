@@ -46,8 +46,7 @@ pub fn ensure_phone_drop_folder(phone_name: &str) -> Result<PathBuf, String> {
         .map(PathBuf::from)
         .ok_or_else(|| "HOME not set".to_owned())?;
     let dir = drop_folder_path(&home, phone_name);
-    std::fs::create_dir_all(&dir)
-        .map_err(|e| format!("create_dir_all {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create_dir_all {}: {e}", dir.display()))?;
     Ok(dir)
 }
 
@@ -367,14 +366,11 @@ mod tests {
         let payload = b"hello receive".as_slice();
         let mut h = Sha256::new();
         h.update(payload);
-        let hex: String = h
-            .finalize()
-            .iter()
-            .fold(String::new(), |mut s, b| {
-                use std::fmt::Write as _;
-                let _ = write!(s, "{b:02x}");
-                s
-            });
+        let hex: String = h.finalize().iter().fold(String::new(), |mut s, b| {
+            use std::fmt::Write as _;
+            let _ = write!(s, "{b:02x}");
+            s
+        });
 
         let mut cursor = std::io::Cursor::new(payload.to_vec());
         pull_payload_to_path(&mut cursor, payload.len() as u64, &dest, &hex)
@@ -394,7 +390,10 @@ mod tests {
             pull_payload_to_path(&mut cursor, payload.len() as u64, &dest, "deadbeef").await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("sha256 mismatch"));
-        assert!(!dest.exists(), "partial file must be removed on hash failure");
+        assert!(
+            !dest.exists(),
+            "partial file must be removed on hash failure"
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]

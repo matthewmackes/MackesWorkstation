@@ -95,12 +95,12 @@ pub fn classify_session(current_desktop: Option<&str>) -> Outcome {
 #[must_use]
 pub fn run(profile: Profile) -> Vec<CheckResult> {
     let mut out = vec![
-        CheckResult::new("mackesd", classify_service(service_active("mackesd.service"))),
-        CheckResult::new("nebula", classify_service(service_active("nebula.service"))),
         CheckResult::new(
-            "peers",
-            classify_peers(other_peer_count()),
+            "mackesd",
+            classify_service(service_active("mackesd.service")),
         ),
+        CheckResult::new("nebula", classify_service(service_active("nebula.service"))),
+        CheckResult::new("peers", classify_peers(other_peer_count())),
     ];
     if matches!(profile, Profile::Headless | Profile::Full) {
         out.push(CheckResult::new(

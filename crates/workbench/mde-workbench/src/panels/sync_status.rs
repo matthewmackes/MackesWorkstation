@@ -90,13 +90,11 @@ impl SyncStatusPanel {
         let title = text("Panel Sync Status")
             .size(TypeRole::Display.size_in(sizes))
             .color(palette.text.into_iced_color());
-        let subtitle = text(
-            if let Some(t) = self.last_run_at {
-                format!("last probe {}", fmt_age(t))
-            } else {
-                "click Refresh to probe".into()
-            },
-        )
+        let subtitle = text(if let Some(t) = self.last_run_at {
+            format!("last probe {}", fmt_age(t))
+        } else {
+            "click Refresh to probe".into()
+        })
         .size(TypeRole::Body.size_in(sizes))
         .color(palette.text_muted.into_iced_color());
 
@@ -118,7 +116,8 @@ impl SyncStatusPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -175,9 +174,11 @@ fn file_status_card<'a>(snap: &'a SyncSnapshot, palette: Palette) -> Element<'a,
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(28.0))
             .height(Length::Fixed(28.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(status_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(status_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -229,7 +230,8 @@ fn file_status_card<'a>(snap: &'a SyncSnapshot, palette: Palette) -> Element<'a,
     )
     .padding(Padding::from([14u16, 18u16]))
     .width(Length::Fill)
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: border,
@@ -245,47 +247,48 @@ fn healthz_status_card<'a>(
     snap: &'a SyncSnapshot,
     palette: Palette,
 ) -> Element<'a, crate::Message> {
-    let (status_icon, status_color, summary): (Icon, Color, String) = if !snap
-        .healthz_node
-        .is_empty()
-        && (!snap.healthz_revision.is_empty() || snap.drift_count.is_some())
-    {
-        let rev = if snap.healthz_revision.is_empty() {
-            "(no revision in healthz)".into()
+    let (status_icon, status_color, summary): (Icon, Color, String) =
+        if !snap.healthz_node.is_empty()
+            && (!snap.healthz_revision.is_empty() || snap.drift_count.is_some())
+        {
+            let rev = if snap.healthz_revision.is_empty() {
+                "(no revision in healthz)".into()
+            } else {
+                snap.healthz_revision.clone()
+            };
+            let drift = snap
+                .drift_count
+                .map(|n| format!(" · drift={n}"))
+                .unwrap_or_default();
+            (
+                Icon::StatusOk,
+                Color::from_rgb(0.20, 0.80, 0.40),
+                format!("synced to revision {rev} on {}{drift}", snap.healthz_node),
+            )
+        } else if !snap.healthz_raw.is_empty() {
+            (
+                Icon::StatusWarning,
+                Color::from_rgb(0.95, 0.70, 0.20),
+                "mackesd healthz returned data but no revision/drift fields populated yet".into(),
+            )
         } else {
-            snap.healthz_revision.clone()
+            (
+                Icon::StatusUnknown,
+                palette.text_muted.into_iced_color(),
+                "mackesd healthz not reachable — is the daemon installed?".into(),
+            )
         };
-        let drift = snap
-            .drift_count
-            .map(|n| format!(" · drift={n}"))
-            .unwrap_or_default();
-        (
-            Icon::StatusOk,
-            Color::from_rgb(0.20, 0.80, 0.40),
-            format!("synced to revision {rev} on {}{drift}", snap.healthz_node),
-        )
-    } else if !snap.healthz_raw.is_empty() {
-        (
-            Icon::StatusWarning,
-            Color::from_rgb(0.95, 0.70, 0.20),
-            "mackesd healthz returned data but no revision/drift fields populated yet".into(),
-        )
-    } else {
-        (
-            Icon::StatusUnknown,
-            palette.text_muted.into_iced_color(),
-            "mackesd healthz not reachable — is the daemon installed?".into(),
-        )
-    };
     let resolved = mde_icon(status_icon, IconSize::Inline);
     let icon_widget: Element<'a, crate::Message> = if let Some(svg_bytes) = resolved.svg_bytes() {
         use iced::widget::svg as widget_svg;
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(18.0))
             .height(Length::Fixed(18.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(status_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(status_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -321,24 +324,30 @@ fn healthz_status_card<'a>(
             text(summary)
                 .size(12)
                 .color(palette.text_muted.into_iced_color()),
-            container(text(body_text).size(10).color(palette.text_muted.into_iced_color()))
-                .padding(Padding::from([8u16, 12u16]))
-                .width(Length::Fill)
-                .style(move |_| container::Style { snap: false,
-                    background: Some(Background::Color(raw_bg)),
-                    border: Border {
-                        color: border,
-                        width: 1.0,
-                        radius: 4.0.into(),
-                    },
-                    ..container::Style::default()
-                }),
+            container(
+                text(body_text)
+                    .size(10)
+                    .color(palette.text_muted.into_iced_color())
+            )
+            .padding(Padding::from([8u16, 12u16]))
+            .width(Length::Fill)
+            .style(move |_| container::Style {
+                snap: false,
+                background: Some(Background::Color(raw_bg)),
+                border: Border {
+                    color: border,
+                    width: 1.0,
+                    radius: 4.0.into(),
+                },
+                ..container::Style::default()
+            }),
         ]
         .spacing(8),
     )
     .padding(Padding::from([14u16, 18u16]))
     .width(Length::Fill)
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: border,

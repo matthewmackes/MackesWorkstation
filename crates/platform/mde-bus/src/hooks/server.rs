@@ -53,10 +53,10 @@ use super::github::GitHubAdapter;
 use super::home_assistant::HomeAssistantAdapter;
 use super::matcher::{match_request, Adapter, MatchError};
 use super::nut::NutAdapter;
+use super::publisher::{publish_to_ntfy, PublisherError};
 use super::sonarr::SonarrAdapter;
 use crate::persist::Persist;
 use crate::surface::{dispatch_with_dnd, LogOnlySurfaces};
-use super::publisher::{publish_to_ntfy, PublisherError};
 
 /// Default port. Mirrored from `super::DEFAULT_LISTEN_PORT` so
 /// other modules don't have to know the constant lives one level
@@ -112,7 +112,9 @@ pub enum ListenerSkipReason {
 impl std::fmt::Display for ListenerSkipReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::NoConfigPath => write!(f, "no $HOME / $XDG_CONFIG_HOME — can't resolve config path"),
+            Self::NoConfigPath => {
+                write!(f, "no $HOME / $XDG_CONFIG_HOME — can't resolve config path")
+            }
             Self::BindFailed(e) => write!(f, "bind failed: {e}"),
         }
     }
@@ -307,13 +309,8 @@ async fn handle_hook(
         }
     };
 
-    let rendered = match match_request(
-        &adapter_name,
-        &lower_headers,
-        &body_json,
-        &config,
-        adapter,
-    ) {
+    let rendered = match match_request(&adapter_name, &lower_headers, &body_json, &config, adapter)
+    {
         Ok(Some(r)) => r,
         Ok(None) => return StatusCode::NO_CONTENT.into_response(),
         Err(MatchError::UnknownAdapter(a)) => {
@@ -489,9 +486,9 @@ mod tests {
                     tokio::spawn(async move {
                         let mut buf = vec![0u8; 8192];
                         if let Ok(n) = s.read(&mut buf).await {
-                            cap.lock().unwrap().push(
-                                String::from_utf8_lossy(&buf[..n]).to_string(),
-                            );
+                            cap.lock()
+                                .unwrap()
+                                .push(String::from_utf8_lossy(&buf[..n]).to_string());
                         }
                         let _ = s
                             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
@@ -514,7 +511,9 @@ mod tests {
             broker_base: format!("http://{ntfy_addr}"),
             bus_root: None, // tests don't need persistence
         };
-        let outcome = run_listener(IpAddr::from([127, 0, 0, 1]), cfg).await.unwrap();
+        let outcome = run_listener(IpAddr::from([127, 0, 0, 1]), cfg)
+            .await
+            .unwrap();
         match outcome {
             ListenerOutcome::Running {
                 task: _,
@@ -568,7 +567,10 @@ adapters:
         let raw = captured.lock().unwrap().clone();
         assert_eq!(raw.len(), 1, "expected exactly one publish: {raw:?}");
         let req = &raw[0];
-        assert!(req.contains("POST /gh/push"), "expected topic in path: {req}");
+        assert!(
+            req.contains("POST /gh/push"),
+            "expected topic in path: {req}"
+        );
         let title_ok = req.contains("matthewmackes/MDE-X push to main");
         assert!(title_ok, "title rendering wrong:\n{req}");
         let body_ok = req.contains("matt pushed 2 commits");

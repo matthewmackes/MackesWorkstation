@@ -335,8 +335,11 @@ mod tests {
         }
         // chat (5)
         for app in [
-            "discord", "element-desktop", "signal-desktop",
-            "telegram-desktop", "slack",
+            "discord",
+            "element-desktop",
+            "signal-desktop",
+            "telegram-desktop",
+            "slack",
         ] {
             assert_eq!(taxonomy_for_app_id(app), Some("chat"), "{app}");
         }

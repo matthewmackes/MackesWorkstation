@@ -233,7 +233,10 @@ fn state_cmd(op: &StateOp) -> ExitCode {
         StateOp::Show => {
             match state::read_state(&dir) {
                 Some(s) if s.playing => {
-                    println!("playing on {}: song {} @ {}ms", s.peer, s.song_id, s.position_ms);
+                    println!(
+                        "playing on {}: song {} @ {}ms",
+                        s.peer, s.song_id, s.position_ms
+                    );
                 }
                 Some(s) => println!("idle (last owner: {})", s.peer),
                 None => println!("no mesh playback state (nobody is playing)"),
@@ -251,11 +254,7 @@ fn state_cmd(op: &StateOp) -> ExitCode {
                             .and_then(|t| serde_json::from_str::<state::MusicState>(&t).ok())
                         {
                             any = true;
-                            println!(
-                                "{}: {}",
-                                s.peer,
-                                if s.playing { "playing" } else { "idle" }
-                            );
+                            println!("{}: {}", s.peer, if s.playing { "playing" } else { "idle" });
                         }
                     }
                     if !any {
@@ -270,7 +269,10 @@ fn state_cmd(op: &StateOp) -> ExitCode {
             let me = local_hostname();
             match state::post_takeover(&dir, &me, Some(peer.clone()), now_ms()) {
                 Ok(i) => {
-                    println!("take-over requested: {} → {} (intent {})", me, peer, i.intent_id);
+                    println!(
+                        "take-over requested: {} → {} (intent {})",
+                        me, peer, i.intent_id
+                    );
                     ExitCode::SUCCESS
                 }
                 Err(e) => {

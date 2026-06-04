@@ -308,8 +308,7 @@ mod tests {
 
     #[test]
     fn snapshot_deserializes_with_all_fields_missing() {
-        let back: MeshFsSnapshot =
-            serde_json::from_str("{}").expect("legacy-shape JSON parses");
+        let back: MeshFsSnapshot = serde_json::from_str("{}").expect("legacy-shape JSON parses");
         assert_eq!(back, MeshFsSnapshot::default());
     }
 }

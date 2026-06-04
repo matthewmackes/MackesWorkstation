@@ -56,7 +56,12 @@ impl CacheIndex {
     pub fn upsert(&mut self, song_id: &str, bytes: u64, suffix: &str, now_ms: u64, starred: bool) {
         self.entries.insert(
             song_id.to_string(),
-            CacheEntry { bytes, last_played_ms: now_ms, starred, suffix: suffix.to_string() },
+            CacheEntry {
+                bytes,
+                last_played_ms: now_ms,
+                starred,
+                suffix: suffix.to_string(),
+            },
         );
     }
 

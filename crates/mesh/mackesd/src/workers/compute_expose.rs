@@ -75,7 +75,9 @@ pub const LAN_ZONE: &str = "public";
 pub const DEFAULT_WAN_ZONE: &str = "public";
 
 /// Which network the expose rule applies to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Network {
     /// Nebula overlay — `trusted` zone with `destination address`
@@ -517,7 +519,12 @@ fn resolve_nebula_addr(worker: &ComputeExposeWorker) -> String {
     local_nebula_addr(&worker.nebula_interface)
 }
 
-fn apply_expose(worker: &ComputeExposeWorker, nebula_ip: &str, wan_zone: &str, req: &ExposeRequest) {
+fn apply_expose(
+    worker: &ComputeExposeWorker,
+    nebula_ip: &str,
+    wan_zone: &str,
+    req: &ExposeRequest,
+) {
     let mut active = worker.active.lock().expect("active mutex");
     let new_rules = diff_expose(&active, req);
     if new_rules.is_empty() {
@@ -637,7 +644,9 @@ fn poll_once(
                 }
             }
         }
-        Err(e) => tracing::debug!(error = %e, topic = expose_topic, "compute_expose: list_since failed"),
+        Err(e) => {
+            tracing::debug!(error = %e, topic = expose_topic, "compute_expose: list_since failed")
+        }
     }
 
     match persist.list_since(&unexpose_topic, unexpose_cursor.as_deref()) {
@@ -656,7 +665,9 @@ fn poll_once(
                 }
             }
         }
-        Err(e) => tracing::debug!(error = %e, topic = unexpose_topic, "compute_expose: list_since failed"),
+        Err(e) => {
+            tracing::debug!(error = %e, topic = unexpose_topic, "compute_expose: list_since failed")
+        }
     }
 
     if changed {
@@ -687,10 +698,8 @@ fn seed_active_from_firewalld(worker: &ComputeExposeWorker, wan_zone: &str) {
         if !seen_zones.insert(zone.clone()) {
             continue;
         }
-        let stdout = firewall_cmd_stdout(&[
-            "--list-rich-rules".to_string(),
-            format!("--zone={zone}"),
-        ]);
+        let stdout =
+            firewall_cmd_stdout(&["--list-rich-rules".to_string(), format!("--zone={zone}")]);
         for line in stdout.lines() {
             if let Some(rule) = parse_rich_rule(network, line) {
                 active.insert(rule);
@@ -798,7 +807,10 @@ mod tests {
     fn parse_rich_rule_skips_unmanaged() {
         // A plain service rule (no forward-port).
         assert_eq!(
-            parse_rich_rule(Network::Lan, r#"rule family="ipv4" service name="ssh" accept"#),
+            parse_rich_rule(
+                Network::Lan,
+                r#"rule family="ipv4" service name="ssh" accept"#
+            ),
             None
         );
         // A forward-port to a non-VM address (not one of ours).
@@ -846,8 +858,7 @@ mod tests {
 
     #[test]
     fn rich_rule_mesh_includes_destination_address() {
-        let body =
-            build_rich_rule_body(Network::Mesh, "10.42.0.5", "10.42.128.1", 8080, "tcp");
+        let body = build_rich_rule_body(Network::Mesh, "10.42.0.5", "10.42.128.1", 8080, "tcp");
         assert!(body.contains(r#"destination address="10.42.0.5""#));
         assert!(body.contains(r#"port port="8080""#));
         assert!(body.contains(r#"to-addr="10.42.128.1""#));
@@ -856,8 +867,7 @@ mod tests {
 
     #[test]
     fn rich_rule_lan_has_no_destination_address() {
-        let body =
-            build_rich_rule_body(Network::Lan, "10.42.0.5", "10.42.128.1", 8080, "tcp");
+        let body = build_rich_rule_body(Network::Lan, "10.42.0.5", "10.42.128.1", 8080, "tcp");
         assert!(!body.contains("destination address"));
         assert!(body.contains(r#"to-addr="10.42.128.1""#));
     }
@@ -894,7 +904,8 @@ mod tests {
 
     #[test]
     fn parse_expose_rejects_unknown_network() {
-        let body = r#"{"vm_nebula_ip":"10.42.128.1","guest_port":8080,"proto":"tcp","networks":["pony"]}"#;
+        let body =
+            r#"{"vm_nebula_ip":"10.42.128.1","guest_port":8080,"proto":"tcp","networks":["pony"]}"#;
         let err = parse_expose_request(body).expect_err("unknown network");
         assert!(err.contains("pony"));
     }
@@ -1057,7 +1068,10 @@ mod tests {
         // operator intent.
         apply_unexpose(&worker, "public", &unexpose_req("10.42.128.1", 8080));
         let active = worker.active.lock().expect("active mutex");
-        assert!(active.is_empty(), "shadow set should be empty after unexpose");
+        assert!(
+            active.is_empty(),
+            "shadow set should be empty after unexpose"
+        );
     }
 
     // ── ExposedState serializes with all required fields ──

@@ -202,7 +202,11 @@ impl MeshFsWorker {
     /// supplied or the worker skips goal-convergence and eviction
     /// (silent no-op).
     #[must_use]
-    pub fn with_qnm_peer_discovery(mut self, workgroup_root: PathBuf, self_node_id: String) -> Self {
+    pub fn with_qnm_peer_discovery(
+        mut self,
+        workgroup_root: PathBuf,
+        self_node_id: String,
+    ) -> Self {
         self.workgroup_root = Some(workgroup_root);
         self.self_node_id = Some(self_node_id);
         self
@@ -307,7 +311,9 @@ impl MeshFsWorker {
         // 3. Genesis: if no master answers the VIP, bootstrap one.
         //    Track down→up transition for `meshfs/export-ready` (MESHFS-10.1).
         let master_up = master_reachable(&self.vip);
-        let prev_up = self.master_was_up.swap(master_up, std::sync::atomic::Ordering::Relaxed);
+        let prev_up = self
+            .master_was_up
+            .swap(master_up, std::sync::atomic::Ordering::Relaxed);
         if !master_up {
             tracing::info!(
                 target: "mackesd::meshfs_worker",
@@ -353,8 +359,7 @@ impl MeshFsWorker {
             // Evict peers whose bundle has disappeared from QNM-Shared
             // (CA-revoke proxy, mirroring gluster_worker's peer-detach).
             let current_peers = current_chunkserver_ips(&self.admin_binary, &self.vip);
-            let enrolled_set: std::collections::BTreeSet<String> =
-                enrolled.into_iter().collect();
+            let enrolled_set: std::collections::BTreeSet<String> = enrolled.into_iter().collect();
             let enrolled_set: std::collections::BTreeSet<&str> =
                 enrolled_set.iter().map(|s| s.as_str()).collect();
 
@@ -422,8 +427,11 @@ impl MeshFsWorker {
         //     once on reconnect is sufficient because the setting is persistent
         //     in the LizardFS metadata.
         if master_up && !prev_up && binary_on_path(&self.settrashtime_binary) {
-            let argv =
-                settrashtime_argv(&self.settrashtime_binary, self.trash_retention_secs, DEFAULT_MOUNT_PATH);
+            let argv = settrashtime_argv(
+                &self.settrashtime_binary,
+                self.trash_retention_secs,
+                DEFAULT_MOUNT_PATH,
+            );
             tracing::info!(
                 target: "mackesd::meshfs_worker",
                 secs = self.trash_retention_secs,
@@ -890,7 +898,10 @@ pub fn parse_ip_addr_output(text: &str, vip: &str) -> bool {
 /// subprocess error (binary absent, interface doesn't exist, etc.).
 #[must_use]
 pub fn vip_is_local(vip: &str, iface: &str) -> bool {
-    let Ok(out) = Command::new("ip").args(["addr", "show", "dev", iface]).output() else {
+    let Ok(out) = Command::new("ip")
+        .args(["addr", "show", "dev", iface])
+        .output()
+    else {
         return false;
     };
     let text = String::from_utf8_lossy(&out.stdout);
@@ -1025,9 +1036,7 @@ pub fn parse_cslist_full(text: &str) -> Vec<ChunkserverStatus> {
             let marked_for_removal = removal_col
                 .and_then(|i| cols.get(i))
                 .map(|v| {
-                    *v == "1"
-                        || v.eq_ignore_ascii_case("yes")
-                        || v.eq_ignore_ascii_case("true")
+                    *v == "1" || v.eq_ignore_ascii_case("yes") || v.eq_ignore_ascii_case("true")
                 })
                 .unwrap_or(false);
             Some(ChunkserverStatus {
@@ -1221,7 +1230,10 @@ pub fn dispatch_meshfs_action(
 /// The same logic is invoked via the Bus `action/resolve-conflict` handler
 /// (which wraps this through `dispatch_resolve_conflict`).
 pub fn resolve_conflict_to_archive(path: &str) -> Result<(), String> {
-    let body = format!(r#"{{"path":{}}}"#, serde_json::Value::String(path.to_owned()));
+    let body = format!(
+        r#"{{"path":{}}}"#,
+        serde_json::Value::String(path.to_owned())
+    );
     let reply = dispatch_resolve_conflict(&body);
     let v: serde_json::Value = serde_json::from_str(&reply).unwrap_or_default();
     if v["ok"].as_bool().unwrap_or(false) {
@@ -1295,7 +1307,10 @@ pub enum ReplayOutcome {
     /// Staged file applied to the mesh mount (no conflict or staged won).
     Applied { mesh_path: PathBuf },
     /// Staged file won the LWW race; old mesh file renamed to the conflict path.
-    ConflictStagedWins { mesh_path: PathBuf, conflict_path: PathBuf },
+    ConflictStagedWins {
+        mesh_path: PathBuf,
+        conflict_path: PathBuf,
+    },
     /// Mesh file won the LWW race; staged file renamed to the conflict path.
     ConflictMeshWins { conflict_path: PathBuf },
     /// Replay skipped (IO error or could not determine relative path).
@@ -1304,7 +1319,9 @@ pub enum ReplayOutcome {
 
 /// Recursively collect regular files under `dir` into `out`.
 fn collect_staged_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(rd) = std::fs::read_dir(dir) else { return };
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in rd.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -1339,7 +1356,11 @@ pub fn replay_file_lww(staged: &Path, mesh_path: &Path, host: &str) -> ReplayOut
     // Staged mtime — required for any comparison.
     let staged_mtime = match std::fs::metadata(staged).and_then(|m| m.modified()) {
         Ok(t) => t,
-        Err(e) => return ReplayOutcome::Skipped { reason: format!("staged stat: {e}") },
+        Err(e) => {
+            return ReplayOutcome::Skipped {
+                reason: format!("staged stat: {e}"),
+            }
+        }
     };
 
     if !mesh_path.exists() {
@@ -1348,15 +1369,23 @@ pub fn replay_file_lww(staged: &Path, mesh_path: &Path, host: &str) -> ReplayOut
             let _ = std::fs::create_dir_all(parent);
         }
         if let Err(e) = std::fs::copy(staged, mesh_path) {
-            return ReplayOutcome::Skipped { reason: format!("copy to mesh: {e}") };
+            return ReplayOutcome::Skipped {
+                reason: format!("copy to mesh: {e}"),
+            };
         }
         let _ = std::fs::remove_file(staged);
-        return ReplayOutcome::Applied { mesh_path: mesh_path.to_path_buf() };
+        return ReplayOutcome::Applied {
+            mesh_path: mesh_path.to_path_buf(),
+        };
     }
 
     let mesh_mtime = match std::fs::metadata(mesh_path).and_then(|m| m.modified()) {
         Ok(t) => t,
-        Err(e) => return ReplayOutcome::Skipped { reason: format!("mesh stat: {e}") },
+        Err(e) => {
+            return ReplayOutcome::Skipped {
+                reason: format!("mesh stat: {e}"),
+            }
+        }
     };
 
     let ts = staged_mtime
@@ -1372,15 +1401,22 @@ pub fn replay_file_lww(staged: &Path, mesh_path: &Path, host: &str) -> ReplayOut
         );
         let conflict_path = mesh_path.with_file_name(conflict_name);
         if let Err(e) = std::fs::rename(mesh_path, &conflict_path) {
-            return ReplayOutcome::Skipped { reason: format!("rename mesh to conflict: {e}") };
+            return ReplayOutcome::Skipped {
+                reason: format!("rename mesh to conflict: {e}"),
+            };
         }
         if let Err(e) = std::fs::copy(staged, mesh_path) {
             // Rollback the rename so the mesh file isn't lost.
             let _ = std::fs::rename(&conflict_path, mesh_path);
-            return ReplayOutcome::Skipped { reason: format!("copy to mesh (after rename): {e}") };
+            return ReplayOutcome::Skipped {
+                reason: format!("copy to mesh (after rename): {e}"),
+            };
         }
         let _ = std::fs::remove_file(staged);
-        ReplayOutcome::ConflictStagedWins { mesh_path: mesh_path.to_path_buf(), conflict_path }
+        ReplayOutcome::ConflictStagedWins {
+            mesh_path: mesh_path.to_path_buf(),
+            conflict_path,
+        }
     } else {
         // Mesh wins: staged file is the loser — rename it to conflict path.
         let conflict_name = format!(
@@ -1389,7 +1425,9 @@ pub fn replay_file_lww(staged: &Path, mesh_path: &Path, host: &str) -> ReplayOut
         );
         let conflict_path = staged.with_file_name(conflict_name);
         if let Err(e) = std::fs::rename(staged, &conflict_path) {
-            return ReplayOutcome::Skipped { reason: format!("rename staged to conflict: {e}") };
+            return ReplayOutcome::Skipped {
+                reason: format!("rename staged to conflict: {e}"),
+            };
         }
         ReplayOutcome::ConflictMeshWins { conflict_path }
     }
@@ -1404,21 +1442,38 @@ pub fn replay_all_staged(stage_dir: &Path, mesh_mount: &Path, host: &str) -> Vec
         let rel = match staged.strip_prefix(stage_dir) {
             Ok(r) => r,
             Err(_) => {
-                log.push(format!("meshfs replay: skip {} (not under stage dir)", staged.display()));
+                log.push(format!(
+                    "meshfs replay: skip {} (not under stage dir)",
+                    staged.display()
+                ));
                 continue;
             }
         };
         let mesh_path = mesh_mount.join(rel);
         let outcome = replay_file_lww(&staged, &mesh_path, host);
         let msg = match &outcome {
-            ReplayOutcome::Applied { mesh_path: mp } =>
-                format!("meshfs replay: applied staged {} → {}", staged.display(), mp.display()),
-            ReplayOutcome::ConflictStagedWins { mesh_path: mp, conflict_path: cp } =>
-                format!("meshfs replay: staged wins (LWW) {} → {}; mesh loser → {}", staged.display(), mp.display(), cp.display()),
-            ReplayOutcome::ConflictMeshWins { conflict_path: cp } =>
-                format!("meshfs replay: mesh wins (LWW) {}; staged loser → {}", staged.display(), cp.display()),
-            ReplayOutcome::Skipped { reason } =>
-                format!("meshfs replay: skip {} ({reason})", staged.display()),
+            ReplayOutcome::Applied { mesh_path: mp } => format!(
+                "meshfs replay: applied staged {} → {}",
+                staged.display(),
+                mp.display()
+            ),
+            ReplayOutcome::ConflictStagedWins {
+                mesh_path: mp,
+                conflict_path: cp,
+            } => format!(
+                "meshfs replay: staged wins (LWW) {} → {}; mesh loser → {}",
+                staged.display(),
+                mp.display(),
+                cp.display()
+            ),
+            ReplayOutcome::ConflictMeshWins { conflict_path: cp } => format!(
+                "meshfs replay: mesh wins (LWW) {}; staged loser → {}",
+                staged.display(),
+                cp.display()
+            ),
+            ReplayOutcome::Skipped { reason } => {
+                format!("meshfs replay: skip {} ({reason})", staged.display())
+            }
         };
         log.push(msg);
     }
@@ -1429,7 +1484,9 @@ pub fn replay_all_staged(stage_dir: &Path, mesh_mount: &Path, host: &str) -> Vec
 /// error. Logs a `warn!` on non-zero exit so every command failure
 /// is traceable without panicking.
 fn run_argv(argv: &[String]) -> anyhow::Result<std::process::Output> {
-    let (prog, args) = argv.split_first().ok_or_else(|| anyhow::anyhow!("empty argv"))?;
+    let (prog, args) = argv
+        .split_first()
+        .ok_or_else(|| anyhow::anyhow!("empty argv"))?;
     let out = Command::new(prog).args(args).output()?;
     if !out.status.success() {
         tracing::warn!(
@@ -1451,10 +1508,7 @@ mod tests {
 
     #[test]
     fn genesis_start_argv_shape() {
-        assert_eq!(
-            genesis_start_argv("mfsmaster"),
-            vec!["mfsmaster", "start"]
-        );
+        assert_eq!(genesis_start_argv("mfsmaster"), vec!["mfsmaster", "start"]);
     }
 
     #[test]
@@ -1530,7 +1584,11 @@ ip              port  used       avail\n\
     fn enrolled_peer_ips_skips_self() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
-        let pairs = [("self", "10.42.0.1"), ("peer-a", "10.42.0.5"), ("peer-b", "10.42.0.7")];
+        let pairs = [
+            ("self", "10.42.0.1"),
+            ("peer-a", "10.42.0.5"),
+            ("peer-b", "10.42.0.7"),
+        ];
         for (name, ip) in &pairs {
             let dir = root.join(name).join("mackesd");
             std::fs::create_dir_all(&dir).unwrap();
@@ -1562,8 +1620,7 @@ ip              port  used       avail\n\
 
     #[test]
     fn tick_once_no_ops_when_binary_absent() {
-        let worker = MeshFsWorker::new()
-            .with_master_binary("this-binary-does-not-exist-xyzzy-42");
+        let worker = MeshFsWorker::new().with_master_binary("this-binary-does-not-exist-xyzzy-42");
         // Shouldn't panic or block.
         worker.tick_once();
     }
@@ -1571,13 +1628,19 @@ ip              port  used       avail\n\
     #[test]
     fn vip_claim_argv_shape() {
         let argv = vip_claim_argv("10.42.0.1", "nebula1", 16);
-        assert_eq!(argv, ["ip", "addr", "add", "10.42.0.1/16", "dev", "nebula1"]);
+        assert_eq!(
+            argv,
+            ["ip", "addr", "add", "10.42.0.1/16", "dev", "nebula1"]
+        );
     }
 
     #[test]
     fn vip_release_argv_shape() {
         let argv = vip_release_argv("10.42.0.1", "nebula1", 16);
-        assert_eq!(argv, ["ip", "addr", "del", "10.42.0.1/16", "dev", "nebula1"]);
+        assert_eq!(
+            argv,
+            ["ip", "addr", "del", "10.42.0.1/16", "dev", "nebula1"]
+        );
     }
 
     #[test]
@@ -1603,7 +1666,13 @@ ip              port  used       avail\n\
         let argv = set_topology_argv("mfsadmin", "10.42.0.1", "10.42.0.5", "10.42.0.5");
         assert_eq!(
             argv,
-            ["mfsadmin", "10.42.0.1", "CS-SET-TOPOLOGY", "10.42.0.5", "10.42.0.5"]
+            [
+                "mfsadmin",
+                "10.42.0.1",
+                "CS-SET-TOPOLOGY",
+                "10.42.0.5",
+                "10.42.0.5"
+            ]
         );
     }
 
@@ -1612,7 +1681,16 @@ ip              port  used       avail\n\
         let argv = setquota_argv("mfssetquota", 70_000_000, 80_000_000, "/mnt/mesh-storage");
         assert_eq!(
             argv,
-            ["mfssetquota", "-p", "/", "0", "0", "70000000", "80000000", "/mnt/mesh-storage"]
+            [
+                "mfssetquota",
+                "-p",
+                "/",
+                "0",
+                "0",
+                "70000000",
+                "80000000",
+                "/mnt/mesh-storage"
+            ]
         );
     }
 
@@ -1639,21 +1717,24 @@ ip              port  used       avail\n\
 
     #[test]
     fn dispatch_action_unknown_verb_returns_error() {
-        let reply = dispatch_meshfs_action("mfsmaster", "mfsadmin", "10.42.0.1", 2, "frobnicate", "{}");
+        let reply =
+            dispatch_meshfs_action("mfsmaster", "mfsadmin", "10.42.0.1", 2, "frobnicate", "{}");
         let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
         assert_eq!(v["ok"], false);
     }
 
     #[test]
     fn dispatch_action_add_peer_ok() {
-        let reply = dispatch_meshfs_action("mfsmaster", "mfsadmin", "10.42.0.1", 3, "add-peer", "{}");
+        let reply =
+            dispatch_meshfs_action("mfsmaster", "mfsadmin", "10.42.0.1", 3, "add-peer", "{}");
         let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
         assert_eq!(v["ok"], true);
     }
 
     #[test]
     fn dispatch_action_remove_peer_ok() {
-        let reply = dispatch_meshfs_action("mfsmaster", "mfsadmin", "10.42.0.1", 1, "remove-peer", "{}");
+        let reply =
+            dispatch_meshfs_action("mfsmaster", "mfsadmin", "10.42.0.1", 1, "remove-peer", "{}");
         let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
         assert_eq!(v["ok"], true);
     }
@@ -1668,7 +1749,9 @@ ip              port  used       avail\n\
 
     #[test]
     fn dispatch_resolve_conflict_path_not_found() {
-        let reply = dispatch_resolve_conflict(r#"{"path":"/tmp/meshfs-xyzzy-does-not-exist.conflict-peer-0"}"#);
+        let reply = dispatch_resolve_conflict(
+            r#"{"path":"/tmp/meshfs-xyzzy-does-not-exist.conflict-peer-0"}"#,
+        );
         let v: serde_json::Value = serde_json::from_str(&reply).unwrap();
         assert_eq!(v["ok"], false);
         assert!(v["error"].as_str().unwrap_or("").contains("not found"));
@@ -1713,8 +1796,14 @@ ip              port  used       avail\n\
         let mesh_path = mesh_dir.path().join("doc.txt");
         let outcome = replay_file_lww(&staged, &mesh_path, "testpeer");
         assert!(matches!(outcome, ReplayOutcome::Applied { .. }));
-        assert_eq!(std::fs::read_to_string(&mesh_path).unwrap(), "offline content");
-        assert!(!staged.exists(), "staged file should be removed after replay");
+        assert_eq!(
+            std::fs::read_to_string(&mesh_path).unwrap(),
+            "offline content"
+        );
+        assert!(
+            !staged.exists(),
+            "staged file should be removed after replay"
+        );
     }
 
     #[test]
@@ -1730,7 +1819,10 @@ ip              port  used       avail\n\
         std::fs::write(&staged, b"staged version").unwrap();
         let outcome = replay_file_lww(&staged, &mesh_path, "testpeer");
         assert!(matches!(outcome, ReplayOutcome::ConflictStagedWins { .. }));
-        assert_eq!(std::fs::read_to_string(&mesh_path).unwrap(), "staged version");
+        assert_eq!(
+            std::fs::read_to_string(&mesh_path).unwrap(),
+            "staged version"
+        );
         // Conflict file should exist with the old mesh content.
         if let ReplayOutcome::ConflictStagedWins { conflict_path, .. } = outcome {
             assert!(conflict_path.exists());

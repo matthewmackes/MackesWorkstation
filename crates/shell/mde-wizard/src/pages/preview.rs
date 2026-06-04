@@ -109,20 +109,16 @@ pub fn diagnostic_message(snap: &PreviewSnapshot) -> String {
              confirm the active transport.",
             s.overlay_ip,
         ),
-        Some(_) => {
-            "Mesh probe returned a self-node row with no overlay IP. \
+        Some(_) => "Mesh probe returned a self-node row with no overlay IP. \
              Enrollment didn't complete — re-run `mackesd enroll \
              --token <…>` and check journalctl -u mackesd.service \
              for the signing error."
-                .to_string()
-        }
-        None => {
-            "No reply on `action/nebula/self-node` after 30s. \
+            .to_string(),
+        None => "No reply on `action/nebula/self-node` after 30s. \
              Is mackesd.service running? `systemctl status \
              mackesd.service` — if it's down, start it then click \
              Refresh."
-                .to_string()
-        }
+            .to_string(),
     }
 }
 
@@ -209,7 +205,10 @@ pub fn probe() -> PreviewSnapshot {
     });
     PreviewSnapshot {
         self_node: self_raw.as_deref().and_then(parse_self_node),
-        peers: peers_raw.as_deref().map(parse_peer_list).unwrap_or_default(),
+        peers: peers_raw
+            .as_deref()
+            .map(parse_peer_list)
+            .unwrap_or_default(),
         error: String::new(),
     }
 }
@@ -343,7 +342,10 @@ mod tests {
     fn diagnostics_dont_fire_before_threshold() {
         let snap = PreviewSnapshot::default();
         assert!(!should_show_diagnostics(&snap, 0));
-        assert!(!should_show_diagnostics(&snap, EMPTY_ROSTER_THRESHOLD_S - 1));
+        assert!(!should_show_diagnostics(
+            &snap,
+            EMPTY_ROSTER_THRESHOLD_S - 1
+        ));
     }
 
     #[test]
@@ -364,7 +366,10 @@ mod tests {
             }],
             ..PreviewSnapshot::default()
         };
-        assert!(!should_show_diagnostics(&snap, EMPTY_ROSTER_THRESHOLD_S * 10));
+        assert!(!should_show_diagnostics(
+            &snap,
+            EMPTY_ROSTER_THRESHOLD_S * 10
+        ));
     }
 
     // ---- diagnostic-message branches --------------------------

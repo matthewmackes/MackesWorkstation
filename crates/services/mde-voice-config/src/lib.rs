@@ -400,11 +400,7 @@ fn render_uacreg_list(desired: &VoiceDesired) -> String {
         // Outbound CID is consumed by Kamailio's `route[VITELITY_OUT]`
         // via the htable; emit it as a comment so the operator can
         // see what CID Vitelity will see on outbound calls.
-        let _ = writeln!(
-            out,
-            "# outbound CID for this trunk: {}",
-            v.outbound_cid,
-        );
+        let _ = writeln!(out, "# outbound CID for this trunk: {}", v.outbound_cid,);
     } else {
         out.push_str("# (no Vitelity sub-account — empty voice_public policy)\n");
     }
@@ -558,7 +554,9 @@ mod tests {
     fn kamailio_includes_uac_module_pointing_at_uacreg_file() {
         let set = generate(&fixture_desired());
         assert!(set.kamailio_cfg.contains("loadmodule \"uac.so\""));
-        assert!(set.kamailio_cfg.contains("text:///etc/kamailio-mde/uacreg.list"));
+        assert!(set
+            .kamailio_cfg
+            .contains("text:///etc/kamailio-mde/uacreg.list"));
     }
 
     #[test]

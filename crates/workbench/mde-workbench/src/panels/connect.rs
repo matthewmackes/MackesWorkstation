@@ -352,7 +352,10 @@ impl ConnectPanel {
                 self.peers = peers;
                 Task::none()
             }
-            Message::PeerAction { peer_id: _, action: _ } => {
+            Message::PeerAction {
+                peer_id: _,
+                action: _,
+            } => {
                 // Real D-Bus routing lands when KDC2-3.4..3.6/3.9
                 // close. The Phase 0.7 audit catches this branch
                 // as a Tier 1-mockup if it ships with an action
@@ -392,30 +395,31 @@ impl ConnectPanel {
             "Open KDE Connect on a phone or tablet and pick this PC \
              to pair. Paired devices land here with Ring / Find / \
              Send-File actions — and the same mesh dock that hosts \
-             your other peers."
+             your other peers.",
         )
         .size(TypeRole::Body.size_in(mde_theme::FontSize::defaults()))
         .color(palette.text_muted.into_iced_color());
         // Use the same SVG-or-fallback resolver chain BUG-13.c
         // wired in panel_chrome.rs::view, but stripped to the
         // minimum needed for an inline empty state.
-        let icon_slot: Element<'_, crate::Message> =
-            if let Some(svg_bytes) = resolved.svg_bytes() {
-                use iced::widget::svg as widget_svg;
-                let muted = palette.text_muted.into_iced_color();
-                widget_svg(widget_svg::Handle::from_memory(svg_bytes))
-                    .width(Length::Fixed(resolved.size_px()))
-                    .height(Length::Fixed(resolved.size_px()))
-                    .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+        let icon_slot: Element<'_, crate::Message> = if let Some(svg_bytes) = resolved.svg_bytes() {
+            use iced::widget::svg as widget_svg;
+            let muted = palette.text_muted.into_iced_color();
+            widget_svg(widget_svg::Handle::from_memory(svg_bytes))
+                .width(Length::Fixed(resolved.size_px()))
+                .height(Length::Fixed(resolved.size_px()))
+                .style(
+                    move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
                         color: Some(muted),
-                    })
-                    .into()
-            } else {
-                text(resolved.fallback_glyph)
-                    .size(resolved.size_px())
-                    .color(palette.text_muted.into_iced_color())
-                    .into()
-            };
+                    },
+                )
+                .into()
+        } else {
+            text(resolved.fallback_glyph)
+                .size(resolved.size_px())
+                .color(palette.text_muted.into_iced_color())
+                .into()
+        };
         container(
             column![
                 icon_slot,
@@ -438,10 +442,7 @@ impl ConnectPanel {
 /// identity row + every section from `render_card(peer)` in the
 /// locked visibility order (Phone / Messaging / Share /
 /// CommonChrome).
-fn peer_card_view<'a>(
-    peer: &'a ConnectPeer,
-    palette: Palette,
-) -> Element<'a, crate::Message> {
+fn peer_card_view<'a>(peer: &'a ConnectPeer, palette: Palette) -> Element<'a, crate::Message> {
     let kind_glyph = match peer.kind.as_str() {
         "phone" => Icon::Devices,
         "tablet" => Icon::Devices,
@@ -455,9 +456,11 @@ fn peer_card_view<'a>(
             widget_svg(widget_svg::Handle::from_memory(svg_bytes))
                 .width(Length::Fixed(resolved.size_px()))
                 .height(Length::Fixed(resolved.size_px()))
-                .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                    color: Some(fg),
-                })
+                .style(
+                    move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                        color: Some(fg),
+                    },
+                )
                 .into()
         } else {
             text(resolved.fallback_glyph)
@@ -489,10 +492,9 @@ fn peer_card_view<'a>(
     }
     container(card.padding(Padding::from([12u16, 16u16])))
         .width(Length::Fill)
-        .style(move |_t: &iced::Theme| iced::widget::container::Style { snap: false,
-            background: Some(iced::Background::Color(
-                palette.raised.into_iced_color(),
-            )),
+        .style(move |_t: &iced::Theme| iced::widget::container::Style {
+            snap: false,
+            background: Some(iced::Background::Color(palette.raised.into_iced_color())),
             border: iced::Border {
                 color: palette.border.into_iced_color(),
                 width: 1.0,
@@ -508,10 +510,7 @@ fn peer_card_view<'a>(
 /// SHA-256 fingerprint for the per-card identity row.
 /// `AB:CD:EF:01:23:45:67:89:…` → `AB:CD:EF:01:23:45:67:89`.
 fn short_fingerprint(full: &str) -> String {
-    full.split(':')
-        .take(8)
-        .collect::<Vec<_>>()
-        .join(":")
+    full.split(':').take(8).collect::<Vec<_>>().join(":")
 }
 
 #[cfg(test)]

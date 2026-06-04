@@ -150,7 +150,9 @@ async fn handle_init(conn: &mut Connection, node: &swayipc_async::Node) {
     let cmd = move_workspace_command(num, &output_name);
     match conn.run_command(&cmd).await {
         Ok(_) => tracing::debug!(workspace = num, %output_name, "workspace_router moved workspace"),
-        Err(e) => tracing::warn!(workspace = num, %output_name, error = %e, "workspace_router move failed"),
+        Err(e) => {
+            tracing::warn!(workspace = num, %output_name, error = %e, "workspace_router move failed")
+        }
     }
 }
 
@@ -370,8 +372,7 @@ mod tests {
         let mut store = TagStore::default();
         store.add(dev_tag_on_hdmi(&[1])).unwrap(); // TagStore: HDMI-A-1
         let manifests = vec![dev_manifest_with(Some("DP-2"))];
-        let out =
-            preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
+        let out = preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
         assert_eq!(out.as_deref(), Some("DP-2"));
     }
 
@@ -381,8 +382,7 @@ mod tests {
         let mut store = TagStore::default();
         store.add(dev_tag_on_hdmi(&[1])).unwrap();
         let manifests = vec![dev_manifest_with(None)];
-        let out =
-            preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
+        let out = preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
         assert_eq!(out.as_deref(), Some("HDMI-A-1"));
     }
 
@@ -393,8 +393,7 @@ mod tests {
         let mut store = TagStore::default();
         store.add(dev_tag_on_hdmi(&[1])).unwrap();
         let manifests = vec![dev_manifest_with(Some("  "))];
-        let out =
-            preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
+        let out = preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
         assert_eq!(out.as_deref(), Some("HDMI-A-1"));
     }
 
@@ -417,8 +416,7 @@ mod tests {
             output: Some("DP-2".to_string()),
             ..crate::config::TagManifest::default()
         }];
-        let out =
-            preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
+        let out = preferred_output_for_workspace_with_manifests(&store, 1, Some(&manifests));
         // Falls through to TagStore.
         assert_eq!(out.as_deref(), Some("HDMI-A-1"));
     }

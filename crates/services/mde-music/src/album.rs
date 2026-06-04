@@ -59,8 +59,16 @@ pub fn parse_album(reply_json: &str) -> Option<AlbumView> {
     let result = v.get("result")?;
     let album = result.get("album")?;
     let id = album.get("id").and_then(Value::as_str)?.to_string();
-    let name = album.get("name").and_then(Value::as_str).unwrap_or(&id).to_string();
-    let artist = album.get("artist").and_then(Value::as_str).unwrap_or("").to_string();
+    let name = album
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or(&id)
+        .to_string();
+    let artist = album
+        .get("artist")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let cover_art = album
         .get("coverArt")
         .and_then(Value::as_str)
@@ -77,8 +85,11 @@ pub fn parse_album(reply_json: &str) -> Option<AlbumView> {
             arr.iter()
                 .filter_map(|s| {
                     let id = s.get("id").and_then(Value::as_str)?.to_string();
-                    let title =
-                        s.get("title").and_then(Value::as_str).unwrap_or(&id).to_string();
+                    let title = s
+                        .get("title")
+                        .and_then(Value::as_str)
+                        .unwrap_or(&id)
+                        .to_string();
                     let track_no = s
                         .get("track")
                         .and_then(Value::as_u64)
@@ -88,12 +99,24 @@ pub fn parse_album(reply_json: &str) -> Option<AlbumView> {
                         .and_then(Value::as_u64)
                         .and_then(|n| u32::try_from(n).ok())
                         .unwrap_or(0);
-                    Some(Track { id, title, track_no, duration })
+                    Some(Track {
+                        id,
+                        title,
+                        track_no,
+                        duration,
+                    })
                 })
                 .collect()
         })
         .unwrap_or_default();
-    Some(AlbumView { id, name, artist, year, cover_art, tracks })
+    Some(AlbumView {
+        id,
+        name,
+        artist,
+        year,
+        cover_art,
+        tracks,
+    })
 }
 
 /// Format seconds as `M:SS` for the duration column.
@@ -134,8 +157,7 @@ where
     T: Send + 'static,
 {
     tokio::task::spawn_blocking(move || -> Result<T, String> {
-        let bus_root =
-            mde_bus::default_data_dir().ok_or_else(|| "no Bus data dir".to_string())?;
+        let bus_root = mde_bus::default_data_dir().ok_or_else(|| "no Bus data dir".to_string())?;
         let persist =
             mde_bus::persist::Persist::open(bus_root).map_err(|e| format!("Bus store: {e}"))?;
         let rt = tokio::runtime::Builder::new_current_thread()

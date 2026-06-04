@@ -25,7 +25,9 @@ use std::time::{Duration, SystemTime};
 use crate::dbus_backend::DBusBackend;
 #[cfg(feature = "dbus")]
 use crate::mesh_backend::{MeshBackend, MeshPeer, NebulaStatus};
-use crate::model::{FileRow, LocalPin, Mime, Peer, PeerKind, PeerStatus, PinIcon, SelfNode, Transfer};
+use crate::model::{
+    FileRow, LocalPin, Mime, Peer, PeerKind, PeerStatus, PinIcon, SelfNode, Transfer,
+};
 
 /// Stable identifier for a long-running transfer operation. Iced
 /// renders the transfer drawer keyed by this.
@@ -218,7 +220,9 @@ impl BackendSnapshot {
                     .map(|s| s.to_string_lossy().into_owned())
                     .unwrap_or_else(|| a.source.display().to_string()),
                 peer: match a.destination {
-                    Destination::Peer(p) | Destination::Group(p) | Destination::Role(p)
+                    Destination::Peer(p)
+                    | Destination::Group(p)
+                    | Destination::Role(p)
                     | Destination::Site(p) => p,
                 },
                 size: format!("{} B", a.bytes),

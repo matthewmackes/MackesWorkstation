@@ -23,7 +23,9 @@ use std::time::Duration;
 use clap::Parser;
 
 use mde_bus::cli::{Cli, Cmd};
-use mde_bus::{broker, discovery, hooks, retention, seed, subs, template::Renderer, topic::Registry};
+use mde_bus::{
+    broker, discovery, hooks, retention, seed, subs, template::Renderer, topic::Registry,
+};
 
 fn init_tracing() {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
@@ -103,41 +105,43 @@ async fn run_daemon() -> anyhow::Result<()> {
     // and browse for peers. Only run when the broker is live so we
     // don't advertise a port nothing's listening on. Missing overlay
     // IP or mdns-sd init failure logs the skip and continues.
-    let discovery_handle: Option<discovery::DiscoveryHandle> =
-        match overlay_ip_for_discovery.as_deref().map(str::parse::<std::net::IpAddr>) {
-            Some(Ok(ip_addr)) => {
-                let instance_name = hostname_for_discovery();
-                let cfg = discovery::DiscoveryConfig::new(instance_name, ip_addr);
-                let registry = discovery::PeerRegistry::new();
-                match discovery::DiscoveryHandle::start(&cfg, registry) {
-                    Ok(handle) => {
-                        tracing::info!(
-                            target: "mde_bus::discovery",
-                            "mDNS service active"
-                        );
-                        Some(handle)
-                    }
-                    Err(reason) => {
-                        tracing::info!(
-                            target: "mde_bus::discovery",
-                            skip_reason = %reason,
-                            "mDNS registration skipped — non-fatal"
-                        );
-                        None
-                    }
+    let discovery_handle: Option<discovery::DiscoveryHandle> = match overlay_ip_for_discovery
+        .as_deref()
+        .map(str::parse::<std::net::IpAddr>)
+    {
+        Some(Ok(ip_addr)) => {
+            let instance_name = hostname_for_discovery();
+            let cfg = discovery::DiscoveryConfig::new(instance_name, ip_addr);
+            let registry = discovery::PeerRegistry::new();
+            match discovery::DiscoveryHandle::start(&cfg, registry) {
+                Ok(handle) => {
+                    tracing::info!(
+                        target: "mde_bus::discovery",
+                        "mDNS service active"
+                    );
+                    Some(handle)
+                }
+                Err(reason) => {
+                    tracing::info!(
+                        target: "mde_bus::discovery",
+                        skip_reason = %reason,
+                        "mDNS registration skipped — non-fatal"
+                    );
+                    None
                 }
             }
-            Some(Err(e)) => {
-                tracing::warn!(
-                    target: "mde_bus::discovery",
-                    error = %e,
-                    raw = ?overlay_ip_for_discovery,
-                    "overlay IP failed to parse; skipping mDNS registration"
-                );
-                None
-            }
-            None => None,
-        };
+        }
+        Some(Err(e)) => {
+            tracing::warn!(
+                target: "mde_bus::discovery",
+                error = %e,
+                raw = ?overlay_ip_for_discovery,
+                "overlay IP failed to parse; skipping mDNS registration"
+            );
+            None
+        }
+        None => None,
+    };
 
     // BUS-1.7 — subscription manifest watcher. Polls the per-peer
     // subs.yaml every 100ms; on change re-parses + broadcasts the
@@ -272,43 +276,43 @@ async fn run_daemon() -> anyhow::Result<()> {
     // The shutdown sender is held in this function's scope so it
     // drops naturally when run_daemon returns — that triggers the
     // axum graceful-shutdown path.
-    let (_hooks_shutdown_tx, _hooks_task, _hooks_local_addr) =
-        match overlay_ip_for_discovery.as_deref().map(str::parse::<std::net::IpAddr>) {
-            Some(Ok(ip_addr)) => {
-                let cfg = hooks::server::ListenerConfig::for_overlay_ip(
-                    &ip_addr.to_string(),
-                );
-                match hooks::run_listener(ip_addr, cfg).await? {
-                    hooks::ListenerOutcome::Running {
-                        task,
-                        shutdown_tx,
-                        local_addr,
-                    } => {
-                        tracing::info!(
-                            target: "mde_bus::hooks",
-                            local_addr = %local_addr,
-                            "webhook listener active"
-                        );
-                        (Some(shutdown_tx), Some(task), Some(local_addr))
-                    }
-                    hooks::ListenerOutcome::Skipped(reason) => {
-                        tracing::info!(
-                            target: "mde_bus::hooks",
-                            skip_reason = %reason,
-                            "webhook listener skipped — non-fatal"
-                        );
-                        (None, None, None)
-                    }
+    let (_hooks_shutdown_tx, _hooks_task, _hooks_local_addr) = match overlay_ip_for_discovery
+        .as_deref()
+        .map(str::parse::<std::net::IpAddr>)
+    {
+        Some(Ok(ip_addr)) => {
+            let cfg = hooks::server::ListenerConfig::for_overlay_ip(&ip_addr.to_string());
+            match hooks::run_listener(ip_addr, cfg).await? {
+                hooks::ListenerOutcome::Running {
+                    task,
+                    shutdown_tx,
+                    local_addr,
+                } => {
+                    tracing::info!(
+                        target: "mde_bus::hooks",
+                        local_addr = %local_addr,
+                        "webhook listener active"
+                    );
+                    (Some(shutdown_tx), Some(task), Some(local_addr))
+                }
+                hooks::ListenerOutcome::Skipped(reason) => {
+                    tracing::info!(
+                        target: "mde_bus::hooks",
+                        skip_reason = %reason,
+                        "webhook listener skipped — non-fatal"
+                    );
+                    (None, None, None)
                 }
             }
-            Some(Err(_)) | None => {
-                tracing::info!(
-                    target: "mde_bus::hooks",
-                    "webhook listener skipped — no overlay IP available yet"
-                );
-                (None, None, None)
-            }
-        };
+        }
+        Some(Err(_)) | None => {
+            tracing::info!(
+                target: "mde_bus::hooks",
+                "webhook listener skipped — no overlay IP available yet"
+            );
+            (None, None, None)
+        }
+    };
 
     // BUS-1.9 — retention loop. Spawns a tokio task that runs
     // one GC pass every hour: walks the SQLite index by

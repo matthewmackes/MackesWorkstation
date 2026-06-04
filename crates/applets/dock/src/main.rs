@@ -207,8 +207,7 @@ impl iced_layershell::Application for App {
         // apps and no running windows.
         if self.cells.is_empty() {
             bar = bar.push(
-                container(text("No windows or pinned apps").size(11).color(FG_MUTED))
-                    .padding(8),
+                container(text("No windows or pinned apps").size(11).color(FG_MUTED)).padding(8),
             );
         }
         container(

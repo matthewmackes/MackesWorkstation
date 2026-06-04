@@ -81,13 +81,14 @@ pub fn migrate(raw: &mut Value) -> Result<u32, MigrationError> {
     }
 
     while current < SCHEMA_VERSION {
-        let step = MIGRATIONS
-            .iter()
-            .find(|m| m.from == current)
-            .ok_or(MigrationError::NoStepFor {
-                from: current,
-                to: current + 1,
-            })?;
+        let step =
+            MIGRATIONS
+                .iter()
+                .find(|m| m.from == current)
+                .ok_or(MigrationError::NoStepFor {
+                    from: current,
+                    to: current + 1,
+                })?;
         (step.apply)(raw)?;
         current = step.to;
         if let Some(slot) = raw.get_mut("schema_version") {

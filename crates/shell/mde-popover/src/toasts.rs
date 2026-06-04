@@ -376,8 +376,7 @@ fn app_theme(_state: &App) -> Theme {
 }
 
 fn subscription(_state: &App) -> Subscription<Message> {
-    iced::time::every(std::time::Duration::from_millis(POLL_INTERVAL_MS))
-        .map(|_| Message::Tick)
+    iced::time::every(std::time::Duration::from_millis(POLL_INTERVAL_MS)).map(|_| Message::Tick)
 }
 
 impl App {
@@ -416,9 +415,7 @@ impl App {
                     let visible = event
                         .visible_ms
                         .map(std::time::Duration::from_millis)
-                        .unwrap_or_else(|| {
-                            std::time::Duration::from_millis(DEFAULT_VISIBLE_MS)
-                        });
+                        .unwrap_or_else(|| std::time::Duration::from_millis(DEFAULT_VISIBLE_MS));
                     let toast = Toast::with(event.kind.into(), event.body, visible);
                     if let Ok(mut s) = self.stack.lock() {
                         s.push(toast);

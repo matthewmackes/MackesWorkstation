@@ -79,7 +79,10 @@ impl Renderer {
     /// the include-root and real `/proc`/`/var` paths for mesh
     /// variables.
     pub fn new() -> Self {
-        Self::with(VarSources::default(), PathBuf::from("/var/lib/mde/bus/include"))
+        Self::with(
+            VarSources::default(),
+            PathBuf::from("/var/lib/mde/bus/include"),
+        )
     }
 
     /// Construct with explicit sources + include-root (used in tests
@@ -362,7 +365,9 @@ mod tests {
     fn renders_curated_mesh_variables() {
         let tmp = tempfile::tempdir().unwrap();
         let r = Renderer::with(fake_sources(tmp.path()), tmp.path().join("inc"));
-        let out = r.render("h={{peer.hostname}} ip={{peer.overlay_ip}} up={{peer.uptime_s}}").unwrap();
+        let out = r
+            .render("h={{peer.hostname}} ip={{peer.overlay_ip}} up={{peer.uptime_s}}")
+            .unwrap();
         assert_eq!(out, "h=alpha ip=100.64.0.5 up=12345");
     }
 
@@ -370,7 +375,9 @@ mod tests {
     fn renders_mesh_size_and_load() {
         let tmp = tempfile::tempdir().unwrap();
         let r = Renderer::with(fake_sources(tmp.path()), tmp.path().join("inc"));
-        let out = r.render("size={{mesh.size}} load={{system.load_1}}").unwrap();
+        let out = r
+            .render("size={{mesh.size}} load={{system.load_1}}")
+            .unwrap();
         assert_eq!(out, "size=3 load=0.42");
     }
 
@@ -425,7 +432,9 @@ mod tests {
         std::fs::create_dir(&inc).unwrap();
         std::fs::write(inc.join("hello.txt"), "from disk").unwrap();
         let r = Renderer::with(fake_sources(tmp.path()), inc);
-        let out = r.render(r#"x={{ include_file(path="hello.txt") }}"#).unwrap();
+        let out = r
+            .render(r#"x={{ include_file(path="hello.txt") }}"#)
+            .unwrap();
         assert_eq!(out, "x=from disk");
     }
 
@@ -441,7 +450,9 @@ mod tests {
             msg.contains("escapes include-root"),
             "expected path-escape rejection, got: {msg}"
         );
-        let err = r.render(r#"x={{ include_file(path="/etc/passwd") }}"#).unwrap_err();
+        let err = r
+            .render(r#"x={{ include_file(path="/etc/passwd") }}"#)
+            .unwrap_err();
         let msg = format!("{err:#}");
         assert!(msg.contains("escapes include-root"));
     }

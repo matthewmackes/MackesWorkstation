@@ -600,7 +600,11 @@ mod tests {
     #[test]
     fn classify_meshfs_covers_three_states() {
         // Master down → MasterDown regardless of peers.
-        let down = MeshFsStatus { master_reachable: false, goal: 3, ..Default::default() };
+        let down = MeshFsStatus {
+            master_reachable: false,
+            goal: 3,
+            ..Default::default()
+        };
         assert_eq!(classify_meshfs(&down), MeshFsHealth::MasterDown);
         // Up + under-goal → Healing.
         let healing = MeshFsStatus {
@@ -619,15 +623,27 @@ mod tests {
         };
         assert_eq!(classify_meshfs(&synced), MeshFsHealth::InSync);
         // goal=0 (pre-enrollment) + master up → InSync (nothing to heal).
-        let fresh = MeshFsStatus { master_reachable: true, ..Default::default() };
+        let fresh = MeshFsStatus {
+            master_reachable: true,
+            ..Default::default()
+        };
         assert_eq!(classify_meshfs(&fresh), MeshFsHealth::InSync);
     }
 
     #[test]
     fn meshfs_color_maps_health_to_status_palette() {
-        assert_eq!(meshfs_color(MeshFsHealth::InSync), NebulaTransportColor::Green);
-        assert_eq!(meshfs_color(MeshFsHealth::Healing), NebulaTransportColor::Amber);
-        assert_eq!(meshfs_color(MeshFsHealth::MasterDown), NebulaTransportColor::Red);
+        assert_eq!(
+            meshfs_color(MeshFsHealth::InSync),
+            NebulaTransportColor::Green
+        );
+        assert_eq!(
+            meshfs_color(MeshFsHealth::Healing),
+            NebulaTransportColor::Amber
+        );
+        assert_eq!(
+            meshfs_color(MeshFsHealth::MasterDown),
+            NebulaTransportColor::Red
+        );
     }
 
     #[test]
@@ -681,7 +697,10 @@ mod tests {
         let s = MeshFsStatus {
             master_reachable: true,
             goal: 2,
-            peers: vec![MeshFsPeer { addr: "10.42.0.5".into(), ..Default::default() }],
+            peers: vec![MeshFsPeer {
+                addr: "10.42.0.5".into(),
+                ..Default::default()
+            }],
             offline_peers: vec!["10.42.0.7".into()],
             ..Default::default()
         };
@@ -693,7 +712,11 @@ mod tests {
         let s = MeshFsStatus {
             master_reachable: true,
             goal: 1,
-            peers: vec![MeshFsPeer { addr: "10.42.0.5".into(), undergoal_chunks: 0, ..Default::default() }],
+            peers: vec![MeshFsPeer {
+                addr: "10.42.0.5".into(),
+                undergoal_chunks: 0,
+                ..Default::default()
+            }],
             offline_peers: vec![],
             ..Default::default()
         };
@@ -740,7 +763,10 @@ mod tests {
         let s = MeshFsStatus {
             master_reachable: true,
             goal: 2,
-            peers: vec![MeshFsPeer { addr: "10.42.0.5".into(), ..Default::default() }],
+            peers: vec![MeshFsPeer {
+                addr: "10.42.0.5".into(),
+                ..Default::default()
+            }],
             offline_peers: vec!["10.42.0.9".into()],
             ..Default::default()
         };

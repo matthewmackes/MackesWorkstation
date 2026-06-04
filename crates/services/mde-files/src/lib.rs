@@ -8,11 +8,11 @@ pub mod app;
 pub mod backend;
 #[cfg(feature = "dbus")]
 pub mod dbus_backend;
-#[cfg(feature = "dbus")]
-pub mod mesh_backend;
 pub mod demo_data;
 pub mod grid;
 pub mod icons;
+#[cfg(feature = "dbus")]
+pub mod mesh_backend;
 pub mod model;
 pub mod panels;
 pub mod prefs;

@@ -72,8 +72,8 @@ fn run(args: &Args) -> Result<u8, String> {
     // profile (dropping the brick and/or desktop)? Drives the extra
     // typed-`<prev>` confirm below and the audit-log WARNING line.
     let prev_profile = wipe::read_installed_profile();
-    let lossy = prev_profile
-        .is_some_and(|prev| mde_installer::profile::is_lossy_downgrade(prev, profile));
+    let lossy =
+        prev_profile.is_some_and(|prev| mde_installer::profile::is_lossy_downgrade(prev, profile));
 
     // Preflight — what the wipe will remove, with du-style size + file
     // count per path (INST-5a).
@@ -127,22 +127,30 @@ fn run(args: &Args) -> Result<u8, String> {
             );
         }
         if profile.needs_desktop_rpm() && !desktop_rpm_present() {
-            println!("[dry-run] would `dnf install -y mde-desktop` (building up to the full desktop).");
+            println!(
+                "[dry-run] would `dnf install -y mde-desktop` (building up to the full desktop)."
+            );
         }
         if args.backup {
-            println!("[dry-run] would tar existing MDE state to /var/lib/mde/backups/ before wiping.");
+            println!(
+                "[dry-run] would tar existing MDE state to /var/lib/mde/backups/ before wiping."
+            );
         }
         if args.keep_mesh {
-            println!("[dry-run] --keep-mesh: cert revoke + LizardFS data teardown will be SKIPPED.");
+            println!(
+                "[dry-run] --keep-mesh: cert revoke + LizardFS data teardown will be SKIPPED."
+            );
         } else {
             println!(
                 "[dry-run] would revoke this node's Nebula cert, wait up to 10s for peer \
                  detach, then remove the LizardFS data dir at /var/lib/mde/meshfs/."
             );
         }
-        println!("\n[dry-run] would stop {:?}, wipe the paths above, write the \
+        println!(
+            "\n[dry-run] would stop {:?}, wipe the paths above, write the \
                   profile marker, restart services, then run birthrights for {profile}.",
-                 wipe::MANAGED_SERVICES);
+            wipe::MANAGED_SERVICES
+        );
         if !args.skip_smoke {
             println!("[dry-run] would then run the post-install smoke check.");
         }
@@ -157,11 +165,8 @@ fn run(args: &Args) -> Result<u8, String> {
                  LizardFS data teardown skipped.)"
             );
         }
-        let ok = confirm::require_typed(
-            "NUKE",
-            "\nType NUKE to wipe the above and (re)install: ",
-        )
-        .map_err(|e| format!("reading confirmation: {e}"))?;
+        let ok = confirm::require_typed("NUKE", "\nType NUKE to wipe the above and (re)install: ")
+            .map_err(|e| format!("reading confirmation: {e}"))?;
         if !ok {
             return Err("not confirmed — aborted".to_string());
         }
@@ -228,9 +233,7 @@ fn run(args: &Args) -> Result<u8, String> {
     // LizardFS data teardown. Skipped when --keep-mesh is set (node stays
     // a valid mesh peer with local config wiped but cert intact).
     if args.keep_mesh {
-        audit.push(
-            "keep-mesh: cert revoke + LizardFS data teardown skipped".to_string(),
-        );
+        audit.push("keep-mesh: cert revoke + LizardFS data teardown skipped".to_string());
     } else {
         let local_node_id = mde_installer::peers::local_hostname();
         audit.push(wipe::revoke_own_cert(&local_node_id));
@@ -343,7 +346,10 @@ fn resolve_profile(args: &Args) -> Result<Profile, String> {
         return confirm::pick_profile_from(&mut locked, &mut out, default)
             .map_err(|e| format!("reading profile choice: {e}"));
     }
-    Err("no --profile and no TTY for the picker; pass --profile=lighthouse|headless|full".to_string())
+    Err(
+        "no --profile and no TTY for the picker; pass --profile=lighthouse|headless|full"
+            .to_string(),
+    )
 }
 
 fn desktop_rpm_present() -> bool {

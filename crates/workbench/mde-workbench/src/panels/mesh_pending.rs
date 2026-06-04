@@ -44,7 +44,10 @@ pub enum Message {
     Loaded(Vec<PendingPeer>),
     RefreshClicked,
     AcceptClicked(String),
-    RejectClicked { peer_id: String, probe_path: PathBuf },
+    RejectClicked {
+        peer_id: String,
+        probe_path: PathBuf,
+    },
     OpFinished {
         peer_id: String,
         op: String,
@@ -94,7 +97,10 @@ impl MeshPendingPanel {
                     },
                 )
             }
-            Message::RejectClicked { peer_id, probe_path } => {
+            Message::RejectClicked {
+                peer_id,
+                probe_path,
+            } => {
                 self.busy = true;
                 self.last_op = format!("rejecting {peer_id}…");
                 let id = peer_id.clone();
@@ -169,7 +175,8 @@ impl MeshPendingPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -221,9 +228,11 @@ fn peer_row<'a>(p: &'a PendingPeer, palette: Palette) -> Element<'a, crate::Mess
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(28.0))
             .height(Length::Fixed(28.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -245,15 +254,15 @@ fn peer_row<'a>(p: &'a PendingPeer, palette: Palette) -> Element<'a, crate::Mess
     .size(11)
     .color(palette.text_muted.into_iced_color());
 
-    let accept_btn = action_btn("Accept", palette, false).on_press(
-        crate::Message::MeshPending(Message::AcceptClicked(p.peer_id.clone())),
-    );
-    let reject_btn = action_btn("Reject", palette, true).on_press(
-        crate::Message::MeshPending(Message::RejectClicked {
+    let accept_btn = action_btn("Accept", palette, false).on_press(crate::Message::MeshPending(
+        Message::AcceptClicked(p.peer_id.clone()),
+    ));
+    let reject_btn = action_btn("Reject", palette, true).on_press(crate::Message::MeshPending(
+        Message::RejectClicked {
             peer_id: p.peer_id.clone(),
             probe_path: p.probe_path.clone(),
-        }),
-    );
+        },
+    ));
 
     let body = row![
         icon_widget,
@@ -270,7 +279,8 @@ fn peer_row<'a>(p: &'a PendingPeer, palette: Palette) -> Element<'a, crate::Mess
     container(body)
         .padding(Padding::from([12u16, 16u16]))
         .width(Length::Fill)
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             border: Border {
                 color: border,
@@ -290,9 +300,11 @@ fn empty_state_card<'a>(palette: Palette) -> Element<'a, crate::Message> {
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(32.0))
             .height(Length::Fixed(32.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -359,7 +371,8 @@ fn action_btn<'a>(
             };
             (bg, Color::WHITE)
         };
-        iced::widget::button::Style { snap: false,
+        iced::widget::button::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             text_color: fg,
             border: Border {

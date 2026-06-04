@@ -119,7 +119,10 @@ impl NebulaCaBackup {
 /// + node-id. Mirrors `ca::bundle::bundle_path` convention.
 #[must_use]
 pub fn backup_path_for(workgroup_root: &Path, node_id: &str) -> PathBuf {
-    workgroup_root.join(node_id).join("mackesd").join(BACKUP_FILENAME)
+    workgroup_root
+        .join(node_id)
+        .join("mackesd")
+        .join(BACKUP_FILENAME)
 }
 
 #[async_trait::async_trait]
@@ -189,10 +192,9 @@ impl NebulaCaBackup {
             .map_err(|e| BackupTickError::CaKeyMissing(format!("not UTF-8: {e}")))?;
         // Lock store + assemble bundle.
         let conn = self.store.lock().await;
-        let mut plaintext = crate::ca::backup::assemble_from_store(
-            &conn, &self.mesh_id, &ca_key_pem,
-        )
-        .map_err(|e| BackupTickError::Assemble(e.to_string()))?;
+        let mut plaintext =
+            crate::ca::backup::assemble_from_store(&conn, &self.mesh_id, &ca_key_pem)
+                .map_err(|e| BackupTickError::Assemble(e.to_string()))?;
         // Empty mesh (no CA rows) → skip rather than write an
         // empty backup. Avoids confusing operators who might
         // think an empty backup means the CA was wiped.
@@ -206,9 +208,8 @@ impl NebulaCaBackup {
         // Returns None when mfsmetadump + mfsadmin are both absent.
         // Bumps schema_version to 3 so the restore CLI knows to
         // apply the meshfs step.
-        let meshfs_snap = crate::meshfs::snapshot::collect(
-            &crate::meshfs::snapshot::SnapshotConfig::default(),
-        );
+        let meshfs_snap =
+            crate::meshfs::snapshot::collect(&crate::meshfs::snapshot::SnapshotConfig::default());
         if meshfs_snap.is_some() {
             plaintext.schema_version = 3;
             plaintext.meshfs_snapshot = meshfs_snap;
@@ -218,9 +219,8 @@ impl NebulaCaBackup {
         let armored = crate::ca::backup::armor(&sealed, plaintext.exported_at);
         let path = self.backup_path();
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                BackupTickError::Io(format!("mkdir {}: {e}", parent.display()))
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| BackupTickError::Io(format!("mkdir {}: {e}", parent.display())))?;
         }
         // Atomic write (temp + rename) so a reader mid-write
         // never sees a half-formed bundle.
@@ -228,7 +228,11 @@ impl NebulaCaBackup {
         std::fs::write(&tmp, &armored)
             .map_err(|e| BackupTickError::Io(format!("write {}: {e}", tmp.display())))?;
         std::fs::rename(&tmp, &path).map_err(|e| {
-            BackupTickError::Io(format!("rename {} → {}: {e}", tmp.display(), path.display()))
+            BackupTickError::Io(format!(
+                "rename {} → {}: {e}",
+                tmp.display(),
+                path.display()
+            ))
         })?;
         Ok(BackupStats {
             ca_certs: plaintext.ca_certs.len(),
@@ -301,8 +305,7 @@ mod tests {
         let ca_crt = tmp_dir.join("ca.crt");
         let ca_key = tmp_dir.join("ca.key");
         let conn = store.lock().await;
-        mint::mint_ca(&MockBackend, &conn, mesh_id, Some(&ca_crt), Some(&ca_key))
-            .expect("mint");
+        mint::mint_ca(&MockBackend, &conn, mesh_id, Some(&ca_crt), Some(&ca_key)).expect("mint");
         ca_key
     }
 
@@ -410,8 +413,7 @@ mod tests {
         let armored = std::fs::read_to_string(&bp).unwrap();
         assert!(armored.contains("-----BEGIN MACKES NEBULA CA EXPORT-----"));
         let sealed = crate::ca::backup::dearmor(&armored).expect("dearmor");
-        let plain =
-            crate::ca::backup::unseal("test-passphrase", &sealed).expect("unseal");
+        let plain = crate::ca::backup::unseal("test-passphrase", &sealed).expect("unseal");
         assert_eq!(plain.mesh_id, "test-mesh");
         assert_eq!(plain.ca_certs.len(), 1);
     }

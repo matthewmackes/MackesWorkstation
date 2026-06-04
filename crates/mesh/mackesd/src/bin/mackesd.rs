@@ -1085,7 +1085,13 @@ fn main() -> anyhow::Result<()> {
                 std::process::exit(1);
             }
         },
-        Cmd::ClassifyHost { mdns, port, vendor, hostname, mac } => {
+        Cmd::ClassifyHost {
+            mdns,
+            port,
+            vendor,
+            hostname,
+            mac,
+        } => {
             // Derive the vendor from the MAC's OUI when not given directly.
             let oui_vendor = if vendor.is_empty() && !mac.is_empty() {
                 mackesd_core::surrounding_hosts::load_system_oui()
@@ -1158,7 +1164,9 @@ fn main() -> anyhow::Result<()> {
                 "blocked" => TrustState::Blocked,
                 "unknown" => TrustState::Unknown,
                 other => {
-                    eprintln!("error: unknown trust state '{other}' (want trusted|blocked|unknown)");
+                    eprintln!(
+                        "error: unknown trust state '{other}' (want trusted|blocked|unknown)"
+                    );
                     std::process::exit(1);
                 }
             };
@@ -1199,7 +1207,10 @@ fn main() -> anyhow::Result<()> {
                 println!("{s}");
             }
             if servers.len() >= 2 {
-                eprintln!("ROGUE-DHCP: {} DHCP servers responding (expected 1)", servers.len());
+                eprintln!(
+                    "ROGUE-DHCP: {} DHCP servers responding (expected 1)",
+                    servers.len()
+                );
                 std::process::exit(1);
             }
         }
@@ -1224,7 +1235,9 @@ fn main() -> anyhow::Result<()> {
             let sample = sample_link_rtt(&peer);
             match sample.rtt_ms {
                 Some(ms) => {
-                    println!("voip-link-rtt: {ms} ms ({VITELITY_PROXY_HOST}:{VITELITY_PROXY_PORT})");
+                    println!(
+                        "voip-link-rtt: {ms} ms ({VITELITY_PROXY_HOST}:{VITELITY_PROXY_PORT})"
+                    );
                 }
                 None => {
                     println!(
@@ -1247,7 +1260,10 @@ fn main() -> anyhow::Result<()> {
                 println!("{ip}");
             }
             if !leaked.is_empty() {
-                eprintln!("DNS-LEAK: {} resolver(s) outside the expected mesh set", leaked.len());
+                eprintln!(
+                    "DNS-LEAK: {} resolver(s) outside the expected mesh set",
+                    leaked.len()
+                );
                 std::process::exit(1);
             }
         }
@@ -1258,7 +1274,10 @@ fn main() -> anyhow::Result<()> {
             };
             let scan = scan_wifi_bssids();
             let suspects = if let Some(data_dir) = dirs::data_dir() {
-                let path = data_dir.join("mde").join("surrounding").join("wifi-baseline.json");
+                let path = data_dir
+                    .join("mde")
+                    .join("surrounding")
+                    .join("wifi-baseline.json");
                 let mut baseline = load_wifi_baseline(&path);
                 let suspects = evil_twin_suspects(&scan, &baseline);
                 learn_wifi(&mut baseline, &scan); // detect-then-learn
@@ -1271,7 +1290,10 @@ fn main() -> anyhow::Result<()> {
                 println!("{ssid}\t{bssid}");
             }
             if !suspects.is_empty() {
-                eprintln!("EVIL-TWIN: {} known SSID(s) on unexpected BSSIDs", suspects.len());
+                eprintln!(
+                    "EVIL-TWIN: {} known SSID(s) on unexpected BSSIDs",
+                    suspects.len()
+                );
                 std::process::exit(1);
             }
         }
@@ -1327,7 +1349,12 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Cmd::Probe { action } => match action {
-            ProbeCmd::Scan { targets, deep, source, nse_dir } => {
+            ProbeCmd::Scan {
+                targets,
+                deep,
+                source,
+                nse_dir,
+            } => {
                 use mackesd_core::probe_nmap::{scan, Profile};
                 use mde_card::probe::HostSource;
                 let src = match source.as_str() {
@@ -1347,27 +1374,46 @@ fn main() -> anyhow::Result<()> {
                     println!("{}", serde_json::to_string(card)?);
                 }
             }
-            ProbeCmd::Refresh { workgroup_root, node_id, nse_dir } => {
+            ProbeCmd::Refresh {
+                workgroup_root,
+                node_id,
+                nse_dir,
+            } => {
                 // MESH-PROBE-4 manual refresh — one deep cycle that
                 // writes probe-inventory.json + announces probe/changed.
-                let workgroup_root = workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
+                let workgroup_root =
+                    workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
                 let node_id = node_id.unwrap_or_else(default_node_id);
-                let home = std::env::var_os("HOME")
-                    .map_or_else(|| PathBuf::from("/root"), PathBuf::from);
+                let home =
+                    std::env::var_os("HOME").map_or_else(|| PathBuf::from("/root"), PathBuf::from);
                 let n = mackesd_core::probe_nmap::run_probe_cycle(
-                    &workgroup_root, &node_id, &home, "nmap", &nse_dir, true,
+                    &workgroup_root,
+                    &node_id,
+                    &home,
+                    "nmap",
+                    &nse_dir,
+                    true,
                 );
                 println!("probe refresh: {n} host(s) in inventory");
             }
-            ProbeCmd::List { workgroup_root, service } => {
+            ProbeCmd::List {
+                workgroup_root,
+                service,
+            } => {
                 // MESH-PROBE-6 — read the merged mesh-wide inventory.
-                let workgroup_root = workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
+                let workgroup_root =
+                    workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
                 match service {
                     Some(kind) => {
-                        for hs in mackesd_core::probe_nmap::peers_with_service(&workgroup_root, &kind) {
+                        for hs in
+                            mackesd_core::probe_nmap::peers_with_service(&workgroup_root, &kind)
+                        {
                             println!(
                                 "{}\t{}\t{}:{}",
-                                hs.host.ip, hs.service.service_kind, hs.host.hostname, hs.service.port
+                                hs.host.ip,
+                                hs.service.service_kind,
+                                hs.host.hostname,
+                                hs.service.port
                             );
                         }
                     }
@@ -1394,10 +1440,7 @@ fn main() -> anyhow::Result<()> {
             let launch_bundle = match &tag_entry.flavor {
                 mackes_mesh_types::TagFlavor::Preset { launch_bundle } => launch_bundle.clone(),
                 other => {
-                    eprintln!(
-                        "error: tag '{tag}' is not a preset (flavor: {:?})",
-                        other
-                    );
+                    eprintln!("error: tag '{tag}' is not a preset (flavor: {:?})", other);
                     std::process::exit(1);
                 }
             };
@@ -1428,7 +1471,11 @@ fn main() -> anyhow::Result<()> {
                 std::process::exit(1);
             }
         }
-        Cmd::StateRestore { bundle, passphrase_env, recovery_dir } => {
+        Cmd::StateRestore {
+            bundle,
+            passphrase_env,
+            recovery_dir,
+        } => {
             // MESHFS-14.1 — bundle decode + CA restore + LizardFS
             // metadata extraction. We deliberately do NOT replay
             // the LizardFS volume config automatically; operator
@@ -1440,11 +1487,10 @@ fn main() -> anyhow::Result<()> {
                      export it before running state restore",
                 )
             })?;
-            let armored = std::fs::read_to_string(&bundle).with_context(|| {
-                format!("reading bundle {}", bundle.display())
-            })?;
-            let sealed = mackesd_core::ca::backup::dearmor(&armored)
-                .context("ASCII-armor decode")?;
+            let armored = std::fs::read_to_string(&bundle)
+                .with_context(|| format!("reading bundle {}", bundle.display()))?;
+            let sealed =
+                mackesd_core::ca::backup::dearmor(&armored).context("ASCII-armor decode")?;
             let plaintext = mackesd_core::ca::backup::unseal(&passphrase, &sealed)
                 .context("AEAD unseal — wrong passphrase OR tampered bundle")?;
 
@@ -1466,44 +1512,43 @@ fn main() -> anyhow::Result<()> {
                     );
                 }
                 Some(snap) => {
-                    std::fs::create_dir_all(&recovery_dir).with_context(|| {
-                        format!("mkdir {}", recovery_dir.display())
-                    })?;
+                    std::fs::create_dir_all(&recovery_dir)
+                        .with_context(|| format!("mkdir {}", recovery_dir.display()))?;
                     let mut wrote = 0usize;
                     // Write metadata dump for `mfsmaster --import-metadata`.
                     if let Some(dump) = snap.metadata_dump.as_deref() {
                         let path = recovery_dir.join("metadata.mfs.dump");
-                        std::fs::write(&path, dump).with_context(|| {
-                            format!("writing {}", path.display())
-                        })?;
+                        std::fs::write(&path, dump)
+                            .with_context(|| format!("writing {}", path.display()))?;
                         wrote += 1;
                         eprintln!(
                             "[state-restore] meshfs: wrote {} ({} bytes)",
-                            path.display(), dump.len(),
+                            path.display(),
+                            dump.len(),
                         );
                     }
                     // Write exports config for re-application.
                     if let Some(cfg) = snap.exports_config.as_deref() {
                         let path = recovery_dir.join("mfsexports.cfg");
-                        std::fs::write(&path, cfg).with_context(|| {
-                            format!("writing {}", path.display())
-                        })?;
+                        std::fs::write(&path, cfg)
+                            .with_context(|| format!("writing {}", path.display()))?;
                         wrote += 1;
                         eprintln!(
                             "[state-restore] meshfs: wrote {} ({} bytes)",
-                            path.display(), cfg.len(),
+                            path.display(),
+                            cfg.len(),
                         );
                     }
                     // Write CS list for topology reference.
                     if let Some(cs) = snap.cs_list.as_deref() {
                         let path = recovery_dir.join("cs-list.txt");
-                        std::fs::write(&path, cs).with_context(|| {
-                            format!("writing {}", path.display())
-                        })?;
+                        std::fs::write(&path, cs)
+                            .with_context(|| format!("writing {}", path.display()))?;
                         wrote += 1;
                         eprintln!(
                             "[state-restore] meshfs: wrote {} ({} bytes)",
-                            path.display(), cs.len(),
+                            path.display(),
+                            cs.len(),
                         );
                     }
                     if wrote == 0 {
@@ -1533,13 +1578,17 @@ fn main() -> anyhow::Result<()> {
             // LizardFS mesh-storage rollout. Mirrors the gluster
             // headroom CLI; operator runs this before upgrading
             // to v5.0.0 or before mesh-storage bootstrap.
-            let home_dir = home.clone().or_else(|| {
-                std::env::var_os("HOME").map(std::path::PathBuf::from)
-            }).context("no HOME env var; pass --home <dir>")?;
+            let home_dir = home
+                .clone()
+                .or_else(|| std::env::var_os("HOME").map(std::path::PathBuf::from))
+                .context("no HOME env var; pass --home <dir>")?;
             let xdg = mackesd_core::meshfs::headroom::default_xdg_dirs(&home_dir);
             let report = mackesd_core::meshfs::headroom::check(&data_dir, &xdg);
             eprintln!("{}", report.summary());
-            println!("{}", serde_json::to_string(&report).context("encode report")?);
+            println!(
+                "{}",
+                serde_json::to_string(&report).context("encode report")?
+            );
             match report.verdict {
                 mackesd_core::meshfs::headroom::Verdict::Ok => {}
                 mackesd_core::meshfs::headroom::Verdict::Warn
@@ -1559,14 +1608,17 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Cmd::MeshFsTrashList { mount_path } => {
-            let entries =
-                mackesd_core::workers::meshfs_worker::list_trash_entries(&mount_path);
+            let entries = mackesd_core::workers::meshfs_worker::list_trash_entries(&mount_path);
             println!(
                 "{}",
                 serde_json::to_string(&entries).context("encode trash list")?
             );
         }
-        Cmd::MeshFsUndelete { vip, path, admin_binary } => {
+        Cmd::MeshFsUndelete {
+            vip,
+            path,
+            admin_binary,
+        } => {
             let argv = vec![
                 admin_binary.clone(),
                 vip.clone(),
@@ -1590,8 +1642,8 @@ fn main() -> anyhow::Result<()> {
             let code = mackesd_core::passcode::generate();
             println!("{code}");
             if store {
-                let path = cred_path
-                    .unwrap_or_else(mackesd_core::passcode_creds::default_cred_path);
+                let path =
+                    cred_path.unwrap_or_else(mackesd_core::passcode_creds::default_cred_path);
                 mackesd_core::passcode_creds::store(
                     &code,
                     &path,
@@ -1636,8 +1688,8 @@ fn main() -> anyhow::Result<()> {
             let code = mackesd_core::passcode::generate();
             println!("{code}");
             if store {
-                let path = cred_path
-                    .unwrap_or_else(mackesd_core::passcode_creds::default_cred_path);
+                let path =
+                    cred_path.unwrap_or_else(mackesd_core::passcode_creds::default_cred_path);
                 mackesd_core::passcode_creds::store(
                     &code,
                     &path,
@@ -1660,13 +1712,10 @@ fn main() -> anyhow::Result<()> {
         Cmd::ShowPasscode { cred_path } => {
             // EPIC-SEC-PASSCODE-CREDS — decrypt + print the stored
             // passcode. The inverse of generate/rotate --store.
-            let path = cred_path
-                .unwrap_or_else(mackesd_core::passcode_creds::default_cred_path);
-            let code = mackesd_core::passcode_creds::load(
-                &path,
-                mackesd_core::passcode_creds::CRED_NAME,
-            )
-            .map_err(|e| anyhow::anyhow!("show-passcode: {e}"))?;
+            let path = cred_path.unwrap_or_else(mackesd_core::passcode_creds::default_cred_path);
+            let code =
+                mackesd_core::passcode_creds::load(&path, mackesd_core::passcode_creds::CRED_NAME)
+                    .map_err(|e| anyhow::anyhow!("show-passcode: {e}"))?;
             println!("{code}");
         }
         Cmd::PeersWhy { node_id } => {
@@ -1758,8 +1807,8 @@ fn main() -> anyhow::Result<()> {
                 }
                 (None, Some(tok)) => {
                     // NF-3.6.a — v2.5 Nebula join-token flow.
-                    let workgroup_root = workgroup_root
-                        .unwrap_or_else(mackesd_core::default_qnm_shared_root);
+                    let workgroup_root =
+                        workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
                     let node_id = default_node_id();
                     eprintln!(
                         "mackesd enroll: publishing CSR + waiting up to {} s \
@@ -1767,7 +1816,10 @@ fn main() -> anyhow::Result<()> {
                         mackesd_core::nebula_enroll::ENROLL_WAIT_TIMEOUT.as_secs(),
                     );
                     match mackesd_core::nebula_enroll::enroll_with_token(
-                        &workgroup_root, &node_id, &display, &tok,
+                        &workgroup_root,
+                        &node_id,
+                        &display,
+                        &tok,
                     ) {
                         Ok(outcome) => {
                             println!(
@@ -1952,7 +2004,8 @@ fn main() -> anyhow::Result<()> {
             node_id,
         } => {
             // Phase 12.5 wiring — the reconcile worker thread.
-            let workgroup_root = workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
+            let workgroup_root =
+                workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
             let node_id = node_id.unwrap_or_else(default_node_id);
 
             if once {
@@ -2013,7 +2066,10 @@ fn main() -> anyhow::Result<()> {
             }
         }
         #[cfg(feature = "async-services")]
-        Cmd::Serve { workgroup_root, node_id } => {
+        Cmd::Serve {
+            workgroup_root,
+            node_id,
+        } => {
             // v2.0.0 Phase B.12 — unified meta-daemon entry point.
             // Boots the tokio runtime, registers the worker pool +
             // the existing reconcile worker, blocks on SIGTERM.
@@ -2039,8 +2095,7 @@ fn main() -> anyhow::Result<()> {
                             println!("CA minted at epoch 0 for mesh '{mesh}'.");
                         }
                         Ok(mackesd_core::ca::mint::MintOutcome::AlreadyMinted {
-                            epoch,
-                            ..
+                            epoch, ..
                         }) => {
                             println!(
                                 "CA for mesh '{mesh}' already exists at epoch {epoch} (no-op)."
@@ -2113,9 +2168,7 @@ fn main() -> anyhow::Result<()> {
                             Some(t) => t.to_string(),
                             None => "active".to_string(),
                         };
-                        println!(
-                            "{mesh:<24} {epoch:>6} {created:>12} {retired_disp:>12}",
-                        );
+                        println!("{mesh:<24} {epoch:>6} {created:>12} {retired_disp:>12}",);
                         count += 1;
                     }
                     if count == 0 {
@@ -2129,46 +2182,51 @@ fn main() -> anyhow::Result<()> {
                             print!("{pem}");
                         }
                         Ok(None) => {
-                            return Err(anyhow::anyhow!(
-                                "no active CA for mesh '{mesh}'"
-                            ));
+                            return Err(anyhow::anyhow!("no active CA for mesh '{mesh}'"));
                         }
                         Err(e) => {
                             return Err(anyhow::anyhow!("dump-ca: {e}"));
                         }
                     }
                 }
-                CaCmd::Export { mesh_id, output, ca_key } => {
+                CaCmd::Export {
+                    mesh_id,
+                    output,
+                    ca_key,
+                } => {
                     // NF-18.1 — encrypted CA backup. Passphrase
                     // via env var so it doesn't land in shell
                     // history. CA key path defaults to the
                     // SignCsrPaths production value.
                     let mesh = mesh_id.unwrap_or(default_mesh);
-                    let passphrase = std::env::var("MDE_BACKUP_PASSPHRASE")
-                        .map_err(|_| anyhow::anyhow!(
+                    let passphrase = std::env::var("MDE_BACKUP_PASSPHRASE").map_err(|_| {
+                        anyhow::anyhow!(
                             "export: set MDE_BACKUP_PASSPHRASE before invoking \
                              (the bundle is encrypted with this passphrase)"
-                        ))?;
+                        )
+                    })?;
                     let key_path = ca_key.unwrap_or_else(|| {
                         mackesd_core::nebula_enroll::SignCsrPaths::production_defaults().ca_key
                     });
-                    let ca_key_pem = mackesd_core::ca::seal::read_sealed(&key_path)
-                        .map_err(|e| anyhow::anyhow!(
-                            "export: read CA key {}: {e}", key_path.display(),
-                        ))?;
+                    let ca_key_pem =
+                        mackesd_core::ca::seal::read_sealed(&key_path).map_err(|e| {
+                            anyhow::anyhow!("export: read CA key {}: {e}", key_path.display(),)
+                        })?;
                     let ca_key_pem_str = String::from_utf8(ca_key_pem)
                         .map_err(|e| anyhow::anyhow!("export: CA key not UTF-8: {e}"))?;
                     let plaintext = mackesd_core::ca::backup::assemble_from_store(
-                        &conn, &mesh, &ca_key_pem_str,
-                    ).map_err(|e| anyhow::anyhow!("export: assemble: {e}"))?;
+                        &conn,
+                        &mesh,
+                        &ca_key_pem_str,
+                    )
+                    .map_err(|e| anyhow::anyhow!("export: assemble: {e}"))?;
                     let sealed = mackesd_core::ca::backup::seal(&passphrase, &plaintext)
                         .map_err(|e| anyhow::anyhow!("export: seal: {e}"))?;
                     let armored = mackesd_core::ca::backup::armor(&sealed, plaintext.exported_at);
                     match output {
                         Some(path) => {
-                            std::fs::write(&path, &armored).with_context(|| {
-                                format!("write {}", path.display())
-                            })?;
+                            std::fs::write(&path, &armored)
+                                .with_context(|| format!("write {}", path.display()))?;
                             eprintln!(
                                 "exported {} CA rows + {} peer certs → {} ({} bytes armored)",
                                 plaintext.ca_certs.len(),
@@ -2184,14 +2242,12 @@ fn main() -> anyhow::Result<()> {
                 }
                 CaCmd::Import { input } => {
                     // NF-18.1 — encrypted CA bundle restore.
-                    let passphrase = std::env::var("MDE_BACKUP_PASSPHRASE")
-                        .map_err(|_| anyhow::anyhow!(
-                            "import: set MDE_BACKUP_PASSPHRASE before invoking",
-                        ))?;
+                    let passphrase = std::env::var("MDE_BACKUP_PASSPHRASE").map_err(|_| {
+                        anyhow::anyhow!("import: set MDE_BACKUP_PASSPHRASE before invoking",)
+                    })?;
                     let armored = match input {
-                        Some(path) => std::fs::read_to_string(&path).with_context(|| {
-                            format!("read {}", path.display())
-                        })?,
+                        Some(path) => std::fs::read_to_string(&path)
+                            .with_context(|| format!("read {}", path.display()))?,
                         None => {
                             use std::io::Read;
                             let mut s = String::new();
@@ -2229,8 +2285,8 @@ fn main() -> anyhow::Result<()> {
                 } => {
                     // NF-3.6.b — sign the peer's pending-enroll
                     // CSR + write the bundle back to QNM-Shared.
-                    let workgroup_root = workgroup_root
-                        .unwrap_or_else(mackesd_core::default_qnm_shared_root);
+                    let workgroup_root =
+                        workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
                     let mesh = mesh_id.unwrap_or(default_mesh);
                     let mut paths =
                         mackesd_core::nebula_enroll::SignCsrPaths::production_defaults();
@@ -2314,10 +2370,12 @@ fn main() -> anyhow::Result<()> {
                     // by 1.0 per AI_GOVERNANCE §3.3).
                     let workgroup_root =
                         workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
-                    let self_id =
-                        self_node_id.unwrap_or_else(default_node_id);
+                    let self_id = self_node_id.unwrap_or_else(default_node_id);
                     let rows = mackesd_core::ca::revoke::revoke_peer(
-                        &conn, &workgroup_root, &self_id, &node_id,
+                        &conn,
+                        &workgroup_root,
+                        &self_id,
+                        &node_id,
                     )
                     .context("ca revoke")?;
                     println!(
@@ -2325,14 +2383,19 @@ fn main() -> anyhow::Result<()> {
                          added to ban list at {self_id}'s QNM-Shared entry."
                     );
                 }
-                CaCmd::Ban { node_id, workgroup_root } => {
+                CaCmd::Ban {
+                    node_id,
+                    workgroup_root,
+                } => {
                     // EPIC-SEC-BANLIST (Q53) — add node-id to this
                     // peer's ban list. GFS replication propagates it.
                     let workgroup_root =
                         workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
                     let self_id = default_node_id();
                     match mackesd_core::ca::ban_list::add_banned(
-                        &workgroup_root, &self_id, &node_id,
+                        &workgroup_root,
+                        &self_id,
+                        &node_id,
                     ) {
                         Ok(true) => println!(
                             "banned '{node_id}' (recorded in {}'s ban list; \
@@ -2343,7 +2406,10 @@ fn main() -> anyhow::Result<()> {
                         Err(e) => return Err(anyhow::anyhow!("ca ban: {e}")),
                     }
                 }
-                CaCmd::Unban { node_id, workgroup_root } => {
+                CaCmd::Unban {
+                    node_id,
+                    workgroup_root,
+                } => {
                     // EPIC-SEC-BANLIST (Q53) — lift a ban THIS peer
                     // set. Bans set on other peers must be lifted
                     // there (the gate enforces the union).
@@ -2351,7 +2417,9 @@ fn main() -> anyhow::Result<()> {
                         workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
                     let self_id = default_node_id();
                     match mackesd_core::ca::ban_list::remove_banned(
-                        &workgroup_root, &self_id, &node_id,
+                        &workgroup_root,
+                        &self_id,
+                        &node_id,
                     ) {
                         Ok(true) => println!("unbanned '{node_id}' from {self_id}'s ban list."),
                         Ok(false) => {
@@ -2418,11 +2486,8 @@ fn main() -> anyhow::Result<()> {
                     boot_default,
                     dry_run,
                 } => {
-                    let desired = load_voice_desired(
-                        &desired_json,
-                        boot_default,
-                        &default_node_id(),
-                    )?;
+                    let desired =
+                        load_voice_desired(&desired_json, boot_default, &default_node_id())?;
                     let set = mde_voice_config::generate(&desired);
                     let kamailio_files = [
                         ("kamailio.cfg", &set.kamailio_cfg),
@@ -2432,11 +2497,19 @@ fn main() -> anyhow::Result<()> {
                     let rtpengine_files = [("rtpengine.conf", &set.rtpengine_conf)];
                     if dry_run {
                         for (name, body) in kamailio_files {
-                            println!("# ---- {} (would write under {}) ----", name, kamailio_dir.display());
+                            println!(
+                                "# ---- {} (would write under {}) ----",
+                                name,
+                                kamailio_dir.display()
+                            );
                             print!("{body}");
                         }
                         for (name, body) in rtpengine_files {
-                            println!("# ---- {} (would write under {}) ----", name, rtpengine_dir.display());
+                            println!(
+                                "# ---- {} (would write under {}) ----",
+                                name,
+                                rtpengine_dir.display()
+                            );
                             print!("{body}");
                         }
                     } else {
@@ -2453,7 +2526,12 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
-        Cmd::WakePeer { mac, broadcast, via_lighthouse, port } => {
+        Cmd::WakePeer {
+            mac,
+            broadcast,
+            via_lighthouse,
+            port,
+        } => {
             // DEAD-2.5 + NF-21.2 — wire mackesd_core::workers::wol so
             // the Rust port has a runtime entry point. Replaces the
             // retired Python `mesh_wol.wake_peer` for the MAC-already-
@@ -2465,10 +2543,8 @@ fn main() -> anyhow::Result<()> {
                 anyhow::bail!("wake-peer: could not parse MAC {mac:?}");
             };
             if let Some(lighthouse_ip) = via_lighthouse.as_deref() {
-                mackesd_core::workers::wol::wake_via_lighthouse(
-                    mac_bytes, lighthouse_ip, port,
-                )
-                .context("wake-peer: send magic packet via lighthouse")?;
+                mackesd_core::workers::wol::wake_via_lighthouse(mac_bytes, lighthouse_ip, port)
+                    .context("wake-peer: send magic packet via lighthouse")?;
                 println!(
                     "wake-peer: sent magic packet for {mac} via lighthouse \
                      {lighthouse_ip}:{port}"
@@ -3011,17 +3087,16 @@ fn run_serve(
     node_id: Option<String>,
     db_path: PathBuf,
 ) -> anyhow::Result<()> {
+    use mackesd_core::workers::{
+        clipboard::ClipboardWorker, firewall_preset::FirewallPresetWorker, fs_sync::FsSyncWorker,
+        heartbeat::HeartbeatWorker, mdns::MdnsWorker, mesh_router::MeshRouterWorker,
+        sshd_overlay_bind::SshdOverlayBindWorker, voice_config::VoiceConfigWorker, RestartPolicy,
+        Spawn, Supervisor,
+    };
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use tokio::sync::RwLock;
-    use mackesd_core::workers::{
-        clipboard::ClipboardWorker, firewall_preset::FirewallPresetWorker,
-        fs_sync::FsSyncWorker, heartbeat::HeartbeatWorker,
-        mdns::MdnsWorker, mesh_router::MeshRouterWorker,
-        sshd_overlay_bind::SshdOverlayBindWorker, voice_config::VoiceConfigWorker,
-        RestartPolicy, Spawn, Supervisor,
-    };
     let workgroup_root = workgroup_root.unwrap_or_else(mackesd_core::default_qnm_shared_root);
     let node_id = node_id.unwrap_or_else(default_node_id);
 
@@ -4472,10 +4547,7 @@ fn load_voice_desired(
     }
     match std::fs::read_to_string(desired_json) {
         Ok(body) => serde_json::from_str(&body).map_err(|e| {
-            anyhow::anyhow!(
-                "voice render-config: parse {}: {e}",
-                desired_json.display()
-            )
+            anyhow::anyhow!("voice render-config: parse {}: {e}", desired_json.display())
         }),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Ok(mde_voice_config::VoiceDesired::boot_default(node_id))
@@ -4496,17 +4568,13 @@ fn write_voice_config_files(
     out_dir: &std::path::Path,
     files: &[(&str, &String)],
 ) -> anyhow::Result<()> {
-    std::fs::create_dir_all(out_dir).map_err(|e| {
-        anyhow::anyhow!("voice render-config: mkdir {}: {e}", out_dir.display())
-    })?;
+    std::fs::create_dir_all(out_dir)
+        .map_err(|e| anyhow::anyhow!("voice render-config: mkdir {}: {e}", out_dir.display()))?;
     for (name, body) in files {
         let final_path = out_dir.join(name);
         let tmp_path = out_dir.join(format!(".{name}.tmp"));
         std::fs::write(&tmp_path, body.as_bytes()).map_err(|e| {
-            anyhow::anyhow!(
-                "voice render-config: write {}: {e}",
-                tmp_path.display()
-            )
+            anyhow::anyhow!("voice render-config: write {}: {e}", tmp_path.display())
         })?;
         std::fs::rename(&tmp_path, &final_path).map_err(|e| {
             anyhow::anyhow!(

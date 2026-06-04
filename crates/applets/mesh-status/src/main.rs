@@ -5,8 +5,7 @@ use std::process::{Command, ExitCode};
 
 use mde_applet_api::HostMessage;
 use mde_applet_mesh_status::{
-    format_chip, format_meshfs_summary, handle_host, manifest, parse_healthz,
-    parse_meshfs_status,
+    format_chip, format_meshfs_summary, handle_host, manifest, parse_healthz, parse_meshfs_status,
 };
 
 fn main() -> ExitCode {
@@ -28,7 +27,10 @@ fn main() -> ExitCode {
     } else if argv.iter().any(|a| a == "--meshfs") {
         // MESHFS-12.1 — at-a-glance mesh-storage indicator: active-
         // master state + fleet in-sync/healing + per-peer online/usage.
-        println!("{}", format_meshfs_summary(&parse_meshfs_status(&run_meshfs_status())));
+        println!(
+            "{}",
+            format_meshfs_summary(&parse_meshfs_status(&run_meshfs_status()))
+        );
         ExitCode::SUCCESS
     } else {
         run_loop()
@@ -39,7 +41,10 @@ fn main() -> ExitCode {
 /// string on any failure — the parser produces a master-down report
 /// from empty, so the indicator shows read-only rather than crashing.
 fn run_meshfs_status() -> String {
-    let Ok(output) = Command::new("mackesd").args(["meshfs-status", "--json"]).output() else {
+    let Ok(output) = Command::new("mackesd")
+        .args(["meshfs-status", "--json"])
+        .output()
+    else {
         return String::new();
     };
     if !output.status.success() {

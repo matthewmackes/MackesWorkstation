@@ -203,7 +203,11 @@ fn read_dnf_count() -> u32 {
     let cache = std::env::var("XDG_CACHE_HOME")
         .ok()
         .map(PathBuf::from)
-        .or_else(|| std::env::var("HOME").ok().map(|h| PathBuf::from(h).join(".cache")))
+        .or_else(|| {
+            std::env::var("HOME")
+                .ok()
+                .map(|h| PathBuf::from(h).join(".cache"))
+        })
         .unwrap_or_default();
     std::fs::read_to_string(cache.join("mde/dnf-updates.count"))
         .ok()
@@ -236,17 +240,31 @@ pub struct ProbeOutcome {
 
 impl ProbeOutcome {
     fn active(sub_status: Option<String>) -> Self {
-        Self { status: CapabilityStatus::Active, sub_status }
+        Self {
+            status: CapabilityStatus::Active,
+            sub_status,
+        }
     }
     fn setup_needed(sub_status: Option<String>) -> Self {
-        Self { status: CapabilityStatus::SetupNeeded, sub_status }
+        Self {
+            status: CapabilityStatus::SetupNeeded,
+            sub_status,
+        }
     }
     fn unknown() -> Self {
-        Self { status: CapabilityStatus::Unknown, sub_status: None }
+        Self {
+            status: CapabilityStatus::Unknown,
+            sub_status: None,
+        }
     }
     fn failed(detail: impl Into<String>) -> Self {
         let detail = detail.into();
-        Self { status: CapabilityStatus::Failed { detail: detail.clone() }, sub_status: Some(detail) }
+        Self {
+            status: CapabilityStatus::Failed {
+                detail: detail.clone(),
+            },
+            sub_status: Some(detail),
+        }
     }
 }
 
@@ -322,7 +340,10 @@ impl HomePanel {
                 };
                 Task::none()
             }
-            Message::CapabilitiesRefreshed { rows, mackesd_reachable } => {
+            Message::CapabilitiesRefreshed {
+                rows,
+                mackesd_reachable,
+            } => {
                 self.snapshot.capabilities = rows;
                 self.snapshot.mackesd_reachable = mackesd_reachable;
                 // Also refresh the hero mesh_peers count from
@@ -423,7 +444,8 @@ impl HomePanel {
 
         let refresh_btn = refresh_button(palette);
 
-        let capability_list: Element<'_, crate::Message> = if self.snapshot.capabilities.is_empty() {
+        let capability_list: Element<'_, crate::Message> = if self.snapshot.capabilities.is_empty()
+        {
             text("Loading capability status…")
                 .size(TypeRole::Body.size_in(sizes))
                 .color(palette.text_muted.into_iced_color())
@@ -467,17 +489,7 @@ impl HomePanel {
 /// Top-level async load. Fires every probe in parallel and
 /// builds the full capability list.
 pub async fn load_capabilities() -> (Vec<CapabilityRow>, bool) {
-    let (
-        nebula,
-        peers,
-        ssh,
-        rdp,
-        vnc,
-        services,
-        fleet,
-        notifications,
-        mackesd_ok,
-    ) = tokio::join!(
+    let (nebula, peers, ssh, rdp, vnc, services, fleet, notifications, mackesd_ok) = tokio::join!(
         probe_nebula(),
         probe_peers(),
         probe_systemd_unit("sshd.service"),
@@ -532,7 +544,10 @@ async fn probe_nebula() -> ProbeOutcome {
     if transport.is_empty() || transport == "offline" {
         ProbeOutcome::setup_needed(Some("Mesh fabric is not connected".into()))
     } else {
-        ProbeOutcome::active(Some(format!("Connected via {}", humanize_transport(&transport))))
+        ProbeOutcome::active(Some(format!(
+            "Connected via {}",
+            humanize_transport(&transport)
+        )))
     }
 }
 
@@ -561,13 +576,8 @@ async fn probe_peers() -> ProbeOutcome {
     let online = peers
         .iter()
         .filter(|p| {
-            matches!(
-                p.kind.as_str(),
-                "host" | "peer" | "lighthouse"
-            ) && p
-                .addr
-                .as_str()
-                .ne("offline")
+            matches!(p.kind.as_str(), "host" | "peer" | "lighthouse")
+                && p.addr.as_str().ne("offline")
                 && !matches!(format!("{:?}", p.status).as_str(), "Offline" | "Unknown")
         })
         .count();
@@ -576,7 +586,12 @@ async fn probe_peers() -> ProbeOutcome {
     }
     let sub = Some(format!("{online} of {total} peers online"));
     if online == 0 {
-        ProbeOutcome { status: CapabilityStatus::Failed { detail: "All peers offline".into() }, sub_status: sub }
+        ProbeOutcome {
+            status: CapabilityStatus::Failed {
+                detail: "All peers offline".into(),
+            },
+            sub_status: sub,
+        }
     } else {
         ProbeOutcome::active(sub)
     }
@@ -591,7 +606,10 @@ async fn probe_systemd_unit(unit: &str) -> ProbeOutcome {
         Some("activating") => ProbeOutcome::setup_needed(Some("Starting…".into())),
         Some("failed") => ProbeOutcome::failed(format!("{unit} failed to start")),
         Some("inactive") => ProbeOutcome::setup_needed(Some(format!("{unit} is stopped"))),
-        Some(other) => ProbeOutcome { status: CapabilityStatus::Unknown, sub_status: Some(format!("state: {other}")) },
+        Some(other) => ProbeOutcome {
+            status: CapabilityStatus::Unknown,
+            sub_status: Some(format!("state: {other}")),
+        },
         None => ProbeOutcome::unknown(),
     }
 }
@@ -618,17 +636,17 @@ async fn systemctl_active_state(unit: &str) -> Option<String> {
 async fn probe_vnc() -> ProbeOutcome {
     let x11 = systemctl_active_state("x11vnc@:0.service").await;
     let way = systemctl_active_state("wayvnc.service").await;
-    let session_type =
-        std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
+    let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
     match (x11.as_deref(), way.as_deref(), session_type.as_str()) {
         (Some("active"), _, _) => ProbeOutcome::active(Some("x11vnc serving :0".into())),
         (_, Some("active"), _) => ProbeOutcome::active(Some("wayvnc serving overlay IP".into())),
-        (Some("failed"), _, "wayland") => ProbeOutcome::failed(
-            "x11vnc does not run under Wayland — see RD-1..RD-5"
-                .to_string(),
-        ),
+        (Some("failed"), _, "wayland") => {
+            ProbeOutcome::failed("x11vnc does not run under Wayland — see RD-1..RD-5".to_string())
+        }
         (Some("failed"), _, _) => ProbeOutcome::failed("x11vnc@:0.service failed".to_string()),
-        (Some("inactive"), Some("inactive"), _) | (Some("inactive"), None, _) | (None, Some("inactive"), _) => {
+        (Some("inactive"), Some("inactive"), _)
+        | (Some("inactive"), None, _)
+        | (None, Some("inactive"), _) => {
             ProbeOutcome::setup_needed(Some("No VNC server running".into()))
         }
         (None, None, _) => ProbeOutcome::setup_needed(Some("No VNC server installed".into())),
@@ -652,7 +670,10 @@ async fn probe_mesh_services() -> ProbeOutcome {
     if active == 0 {
         ProbeOutcome::setup_needed(sub)
     } else if active < total {
-        ProbeOutcome { status: CapabilityStatus::SetupNeeded, sub_status: sub }
+        ProbeOutcome {
+            status: CapabilityStatus::SetupNeeded,
+            sub_status: sub,
+        }
     } else {
         ProbeOutcome::active(sub)
     }
@@ -676,7 +697,9 @@ async fn probe_fleet_revision() -> ProbeOutcome {
     };
     let latest = extract_first_revision_id(&raw);
     match latest {
-        Some(id) => ProbeOutcome::active(Some(format!("Last update {}", humanize_revision_age(&id)))),
+        Some(id) => {
+            ProbeOutcome::active(Some(format!("Last update {}", humanize_revision_age(&id))))
+        }
         None => ProbeOutcome::setup_needed(Some("No revisions pushed yet".into())),
     }
 }
@@ -686,7 +709,9 @@ fn extract_first_revision_id(raw: &str) -> Option<String> {
     // dbus-send output. dbus-send's text format is more
     // permissive than JSON so a quick token scan is the
     // most resilient parse.
-    for tok in raw.split(|c: char| c == '"' || c == ' ' || c == '\n' || c == ',' || c == '[' || c == ']') {
+    for tok in
+        raw.split(|c: char| c == '"' || c == ' ' || c == '\n' || c == ',' || c == '[' || c == ']')
+    {
         if tok.starts_with("r-") && tok.len() >= 12 {
             return Some(tok.to_string());
         }
@@ -1000,7 +1025,9 @@ fn icon_widget<'a>(icon: Icon, size: IconSize, color: Color) -> Element<'a, crat
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(resolved.size_px()))
             .height(Length::Fixed(resolved.size_px()))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style { color: Some(color) })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style { color: Some(color) },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -1010,8 +1037,15 @@ fn icon_widget<'a>(icon: Icon, size: IconSize, color: Color) -> Element<'a, crat
     }
 }
 
-fn capability_card<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element<'a, crate::Message> {
-    let icon = icon_widget(row_data.icon, IconSize::PanelHeader, palette.text.into_iced_color());
+fn capability_card<'a>(
+    row_data: &'a CapabilityRow,
+    palette: Palette,
+) -> Element<'a, crate::Message> {
+    let icon = icon_widget(
+        row_data.icon,
+        IconSize::PanelHeader,
+        palette.text.into_iced_color(),
+    );
     let name = text(row_data.name)
         .size(16)
         .color(palette.text.into_iced_color());
@@ -1051,7 +1085,8 @@ fn capability_card<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element
     container(column![top_row, Space::new().height(Length::Fixed(8.0)), bottom_row].spacing(0))
         .padding(Padding::from([16u16, 16u16]))
         .width(Length::Fill)
-        .style(move |_t: &Theme| iced::widget::container::Style { snap: false,
+        .style(move |_t: &Theme| iced::widget::container::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             border: Border {
                 color: border,
@@ -1087,7 +1122,8 @@ fn jump_button<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element<'a,
             b: bg.b * 1.12,
             a: bg.a,
         };
-        iced::widget::button::Style { snap: false,
+        iced::widget::button::Style {
+            snap: false,
             background: Some(Background::Color(match status {
                 iced::widget::button::Status::Hovered => hover_bg,
                 _ => bg,
@@ -1101,8 +1137,9 @@ fn jump_button<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element<'a,
             shadow: iced::Shadow::default(),
         }
     };
-    let disabled_style = move |_t: &Theme, _status: iced::widget::button::Status| {
-        iced::widget::button::Style { snap: false,
+    let disabled_style =
+        move |_t: &Theme, _status: iced::widget::button::Status| iced::widget::button::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             text_color: muted,
             border: Border {
@@ -1111,8 +1148,7 @@ fn jump_button<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element<'a,
                 radius: 6.0.into(),
             },
             shadow: iced::Shadow::default(),
-        }
-    };
+        };
 
     if let Some((group, panel)) = row_data.jump {
         button(text("Configure  ▸").size(13))
@@ -1138,7 +1174,8 @@ fn refresh_button<'a>(palette: Palette) -> Element<'a, crate::Message> {
                 b: bg.b * 1.12,
                 a: bg.a,
             };
-            iced::widget::button::Style { snap: false,
+            iced::widget::button::Style {
+                snap: false,
                 background: Some(Background::Color(match status {
                     iced::widget::button::Status::Hovered => hover_bg,
                     _ => bg,
@@ -1171,7 +1208,8 @@ fn mackesd_banner<'a>(palette: Palette) -> Element<'a, crate::Message> {
     )
     .padding(Padding::from([10u16, 14u16]))
     .width(Length::Fill)
-    .style(move |_t: &Theme| iced::widget::container::Style { snap: false,
+    .style(move |_t: &Theme| iced::widget::container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: yellow,
@@ -1195,7 +1233,11 @@ fn stat_card<'a>(
     target_panel: &'a str,
     palette: Palette,
 ) -> Element<'a, crate::Message> {
-    let icon = icon_widget(icon, IconSize::PanelHeader, palette.text_muted.into_iced_color());
+    let icon = icon_widget(
+        icon,
+        IconSize::PanelHeader,
+        palette.text_muted.into_iced_color(),
+    );
     let value_display = match value {
         Some(n) => n.to_string(),
         None => "—".into(),
@@ -1235,7 +1277,8 @@ fn stat_card<'a>(
                 b: bg.b * 1.08,
                 a: bg.a,
             };
-            iced::widget::button::Style { snap: false,
+            iced::widget::button::Style {
+                snap: false,
                 background: Some(Background::Color(match status {
                     iced::widget::button::Status::Hovered => hover_bg,
                     _ => bg,
@@ -1511,8 +1554,12 @@ async fn run_subscription(
             Err(e) => return Err(format!("message stream: {e}")),
         };
         let header = msg.header();
-        let Some(member) = header.member() else { continue };
-        let Some(iface) = header.interface() else { continue };
+        let Some(member) = header.member() else {
+            continue;
+        };
+        let Some(iface) = header.interface() else {
+            continue;
+        };
         let iface_str = iface.as_str();
         let member_str = member.as_str();
 
@@ -1520,7 +1567,9 @@ async fn run_subscription(
         if iface_str == "org.freedesktop.DBus.Properties" && member_str == "PropertiesChanged" {
             let Some(path) = header.path() else { continue };
             let path_str = path.as_str();
-            let Some(unit) = unit_name_from_path(path_str) else { continue };
+            let Some(unit) = unit_name_from_path(path_str) else {
+                continue;
+            };
             if watch.iter().any(|w| w == &unit) {
                 let _ = output
                     .send(crate::Message::Home(Message::DbusEvent(
@@ -1620,8 +1669,14 @@ mod tests {
         assert!(!s.mde_version.is_empty());
         assert!(!s.hostname.is_empty());
         assert!(!s.fedora_release.is_empty());
-        assert!(s.capabilities.is_empty(), "sync load defers capability rows");
-        assert!(s.mackesd_reachable, "default assumes reachable until probed");
+        assert!(
+            s.capabilities.is_empty(),
+            "sync load defers capability rows"
+        );
+        assert!(
+            s.mackesd_reachable,
+            "default assumes reachable until probed"
+        );
     }
 
     #[test]
@@ -1657,7 +1712,9 @@ mod tests {
 
     #[test]
     fn capability_status_failed_is_red_with_detail() {
-        let s = CapabilityStatus::Failed { detail: "x11vnc dead".into() };
+        let s = CapabilityStatus::Failed {
+            detail: "x11vnc dead".into(),
+        };
         let c = s.color();
         assert!(c.r > c.g && c.r > c.b, "failed pill must read as red");
         assert_eq!(s.label(), "Failed");
@@ -1712,25 +1769,48 @@ mod tests {
     #[test]
     fn live_rows_jump_to_documented_panels() {
         let rows = build_all_rows_with_unknown_status();
-        let lookup = |id: CapabilityId| {
-            rows.iter()
-                .find(|r| r.id == id)
-                .and_then(|r| r.jump)
-        };
-        assert_eq!(lookup(CapabilityId::Mesh), Some((Group::Network, "mesh_control")));
-        assert_eq!(lookup(CapabilityId::Peers), Some((Group::Network, "mesh_topology")));
-        assert_eq!(lookup(CapabilityId::Ssh), Some((Group::Network, "mesh_ssh")));
-        assert_eq!(lookup(CapabilityId::Rdp), Some((Group::Network, "remote_desktop")));
-        assert_eq!(lookup(CapabilityId::Vnc), Some((Group::Network, "remote_desktop")));
-        assert_eq!(lookup(CapabilityId::Services), Some((Group::Network, "mesh_services")));
-        assert_eq!(lookup(CapabilityId::Fleet), Some((Group::Fleet, "playbooks")));
-        assert_eq!(lookup(CapabilityId::Notifications), Some((Group::System, "notifications")));
+        let lookup = |id: CapabilityId| rows.iter().find(|r| r.id == id).and_then(|r| r.jump);
+        assert_eq!(
+            lookup(CapabilityId::Mesh),
+            Some((Group::Network, "mesh_control"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Peers),
+            Some((Group::Network, "mesh_topology"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Ssh),
+            Some((Group::Network, "mesh_ssh"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Rdp),
+            Some((Group::Network, "remote_desktop"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Vnc),
+            Some((Group::Network, "remote_desktop"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Services),
+            Some((Group::Network, "mesh_services"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Fleet),
+            Some((Group::Fleet, "playbooks"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Notifications),
+            Some((Group::System, "notifications"))
+        );
     }
 
     #[test]
     fn extract_first_revision_id_picks_first_token() {
         let raw = "array [\n  string \"r-2026-05-24-0042\"\n  string \"r-2026-05-23-0017\"\n]";
-        assert_eq!(extract_first_revision_id(raw), Some("r-2026-05-24-0042".into()));
+        assert_eq!(
+            extract_first_revision_id(raw),
+            Some("r-2026-05-24-0042".into())
+        );
     }
 
     #[test]
@@ -1747,7 +1827,10 @@ mod tests {
     #[test]
     fn humanize_transport_translates_known_kinds() {
         assert_eq!(humanize_transport("nebula_direct"), "direct UDP");
-        assert_eq!(humanize_transport("nebula_lighthouse_relay"), "lighthouse relay");
+        assert_eq!(
+            humanize_transport("nebula_lighthouse_relay"),
+            "lighthouse relay"
+        );
         assert_eq!(humanize_transport("nebula_https443"), "HTTPS-443 fallback");
         assert_eq!(humanize_transport("kdc_tls"), "KDC2 TLS");
         // Unknown transports fall back to a humanized form.
@@ -1804,8 +1887,15 @@ mod tests {
         panel.snapshot.mackesd_reachable = false;
         let new_snap = HomeSnapshot::load_sync();
         let _ = panel.update(Message::Refreshed(new_snap));
-        assert_eq!(panel.snapshot.capabilities.len(), 11, "refresh keeps capability rows");
-        assert!(!panel.snapshot.mackesd_reachable, "refresh keeps mackesd_reachable");
+        assert_eq!(
+            panel.snapshot.capabilities.len(),
+            11,
+            "refresh keeps capability rows"
+        );
+        assert!(
+            !panel.snapshot.mackesd_reachable,
+            "refresh keeps mackesd_reachable"
+        );
     }
 
     #[test]
@@ -1882,7 +1972,9 @@ mod tests {
             Some(DbusEvent::PeerChanged)
         ));
         assert!(matches!(
-            nebula_event_from_body(r#"{"kind":"transport-changed","active_transport":"nebula_direct"}"#),
+            nebula_event_from_body(
+                r#"{"kind":"transport-changed","active_transport":"nebula_direct"}"#
+            ),
             Some(DbusEvent::TransportChanged)
         ));
         // Unknown kind + malformed JSON yield None (ignored).

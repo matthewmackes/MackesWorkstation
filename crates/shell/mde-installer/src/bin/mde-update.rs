@@ -77,7 +77,10 @@ fn report(json: bool) -> ExitCode {
     if json {
         print_json(&peer_list, local_version.as_deref(), &local_host);
     } else {
-        println!("{:<20} {:<12} {:<12} {}", "HOSTNAME", "VERSION", "LAST SEEN", "");
+        println!(
+            "{:<20} {:<12} {:<12} {}",
+            "HOSTNAME", "VERSION", "LAST SEEN", ""
+        );
         for p in &peer_list {
             let stale = p.is_stale(STALE_THRESHOLD_MS);
             let ver = p.mde_version.clone().unwrap_or_else(|| "unknown".into());
@@ -86,14 +89,22 @@ fn report(json: bool) -> ExitCode {
             } else {
                 human_age(p.age_ms())
             };
-            println!("{:<20} {:<12} {:<12} {}", p.hostname, ver, seen, skew_of(p).marker());
+            println!(
+                "{:<20} {:<12} {:<12} {}",
+                p.hostname,
+                ver,
+                seen,
+                skew_of(p).marker()
+            );
         }
         match worst {
             Skew::Minor => println!(
                 "\n-- {} peer(s) on a different version.",
                 count_skew(&peer_list, &local_host, local_version.as_deref())
             ),
-            Skew::Major => println!("\n!! major version skew in the fleet — coordinate an upgrade."),
+            Skew::Major => {
+                println!("\n!! major version skew in the fleet — coordinate an upgrade.")
+            }
             Skew::Match | Skew::Unknown => {}
         }
     }
@@ -139,7 +150,12 @@ fn count_skew(peer_list: &[peers::PeerRecord], local_host: &str, local: Option<&
     peer_list
         .iter()
         .filter(|p| p.hostname != local_host)
-        .filter(|p| !matches!(peers::classify_skew(local, p.mde_version.as_deref()), Skew::Match))
+        .filter(|p| {
+            !matches!(
+                peers::classify_skew(local, p.mde_version.as_deref()),
+                Skew::Match
+            )
+        })
         .count()
 }
 

@@ -195,10 +195,7 @@ mod tests {
     #[test]
     fn urgent_pulse_payload_canonical_shape() {
         let body = urgent_pulse_payload("foot", 42);
-        assert_eq!(
-            body,
-            r#"{"tier":"crit","source":"foot","con_id":42}"#
-        );
+        assert_eq!(body, r#"{"tier":"crit","source":"foot","con_id":42}"#);
     }
 
     /// Empty app_id (xwayland windows that don't set one) still
@@ -206,10 +203,7 @@ mod tests {
     #[test]
     fn urgent_pulse_payload_empty_app_id() {
         let body = urgent_pulse_payload("", 7);
-        assert_eq!(
-            body,
-            r#"{"tier":"crit","source":"","con_id":7}"#
-        );
+        assert_eq!(body, r#"{"tier":"crit","source":"","con_id":7}"#);
     }
 
     /// Quotes + backslashes in app_id get JSON-escaped so the
@@ -243,10 +237,7 @@ mod tests {
     #[test]
     fn urgent_pulse_payload_handles_negative_con_id() {
         let body = urgent_pulse_payload("foot", -1);
-        assert_eq!(
-            body,
-            r#"{"tier":"crit","source":"foot","con_id":-1}"#
-        );
+        assert_eq!(body, r#"{"tier":"crit","source":"foot","con_id":-1}"#);
     }
 
     /// The payload is valid JSON (lock so downstream parsers can

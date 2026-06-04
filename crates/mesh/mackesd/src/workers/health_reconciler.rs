@@ -35,7 +35,7 @@ use std::time::Duration;
 
 use super::{ShutdownToken, Worker};
 use crate::ipc::nebula::{NebulaSignal, SignalSenderSlot};
-use crate::telemetry::{health_state_from_age, heartbeat_path, Heartbeat, HealthState};
+use crate::telemetry::{health_state_from_age, heartbeat_path, HealthState, Heartbeat};
 
 /// Default tick cadence. 5 s gives a healthy→degraded transition
 /// of ≤ 15 s after a peer's mackesd goes silent (10 s heartbeat
@@ -162,7 +162,13 @@ pub fn tick_once(
             return;
         }
     };
-    reconcile_with_conn(&conn, workgroup_root, local_node_id, now_ms_override, signal_slot);
+    reconcile_with_conn(
+        &conn,
+        workgroup_root,
+        local_node_id,
+        now_ms_override,
+        signal_slot,
+    );
 }
 
 /// Connection-injected variant — tests pass an `:memory:` store
@@ -234,9 +240,11 @@ pub fn reconcile_with_conn(
 fn mirror_peer_versions(conn: &rusqlite::Connection, workgroup_root: &std::path::Path) {
     let dir = mackes_mesh_types::peers::peers_dir(workgroup_root);
     for rec in mackes_mesh_types::peers::read_peers(&dir) {
-        if let Err(e) =
-            crate::store::set_node_mde_version_by_name(conn, &rec.hostname, rec.mde_version.as_deref())
-        {
+        if let Err(e) = crate::store::set_node_mde_version_by_name(
+            conn,
+            &rec.hostname,
+            rec.mde_version.as_deref(),
+        ) {
             tracing::warn!(error = %e, host = %rec.hostname, "health-reconciler: mde_version mirror failed");
         }
     }
@@ -346,9 +354,11 @@ mod tests {
         let slot = new_signal_sender_slot();
         reconcile_with_conn(&conn, qnm.path(), "peer:local", Some(0), &slot);
         let v: Option<String> = conn
-            .query_row("SELECT mde_version FROM nodes WHERE name = 'anvil'", [], |r| {
-                r.get(0)
-            })
+            .query_row(
+                "SELECT mde_version FROM nodes WHERE name = 'anvil'",
+                [],
+                |r| r.get(0),
+            )
             .expect("query mde_version");
         assert_eq!(v, Some("5.0.1".to_string()));
     }

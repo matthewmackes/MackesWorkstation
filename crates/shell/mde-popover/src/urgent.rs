@@ -13,9 +13,11 @@
 
 #![forbid(unsafe_code)]
 
-use iced::widget::{column, container, mouse_area, row, text, Space};
 use iced::widget::container::Style as ContainerStyle;
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::widget::{column, container, mouse_area, row, text, Space};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -23,12 +25,32 @@ use iced_layershell::to_layer_message;
 // ── Design tokens (Classic ChromeOS, mirrors lock.rs) ─────────────────────────
 
 /// Near-opaque charcoal dim — the takeover obscures the desktop.
-const BACKDROP: Color = Color { r: 0.086, g: 0.090, b: 0.102, a: 0.97 };
+const BACKDROP: Color = Color {
+    r: 0.086,
+    g: 0.090,
+    b: 0.102,
+    a: 0.97,
+};
 const FG: Color = Color::WHITE;
-const FG_DIM: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.70 };
-const FG_LABEL: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.40 };
+const FG_DIM: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.70,
+};
+const FG_LABEL: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.40,
+};
 /// Urgent red (matches the status-panel danger token).
-const URGENT_RED: Color = Color { r: 0.86, g: 0.21, b: 0.16, a: 1.0 };
+const URGENT_RED: Color = Color {
+    r: 0.86,
+    g: 0.21,
+    b: 0.16,
+    a: 1.0,
+};
 
 const ENV_TITLE: &str = "MDE_URGENT_TITLE";
 const ENV_BODY: &str = "MDE_URGENT_BODY";
@@ -136,13 +158,20 @@ fn action_button<'a>(label: &str, url: &str) -> Element<'a, Message> {
         .padding(Padding::from([8, 20]))
         .style(|_t: &Theme, status: iced::widget::button::Status| {
             let bg = match status {
-                iced::widget::button::Status::Hovered => Color { a: 0.30, ..URGENT_RED },
+                iced::widget::button::Status::Hovered => Color {
+                    a: 0.30,
+                    ..URGENT_RED
+                },
                 _ => Color { a: 0.06, ..FG },
             };
             iced::widget::button::Style {
                 background: Some(Background::Color(bg)),
                 text_color: FG,
-                border: Border { color: URGENT_RED, width: 1.5, radius: 6.0.into() },
+                border: Border {
+                    color: URGENT_RED,
+                    width: 1.5,
+                    radius: 6.0.into(),
+                },
                 shadow: Shadow::default(),
                 snap: false,
             }
@@ -227,7 +256,11 @@ pub fn run() -> iced_layershell::Result {
             let actions = read_urgent_actions();
             tracing::info!(%title, actions = actions.len(), "urgent theater open");
             play_urgent_alert();
-            App { title, body, actions }
+            App {
+                title,
+                body,
+                actions,
+            }
         },
         namespace,
         update,

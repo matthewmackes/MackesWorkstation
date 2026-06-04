@@ -362,16 +362,13 @@ pub fn view<'a>(
     // v4.0.1 WM-2.a (2026-05-23) — minimized-windows tray
     // button + badge. Renders only when ≥1 window is parked in
     // the scratchpad; click spawns `mde-popover minimized`.
-    if state.scratchpad_count > 0
-        && applet_visible(&state.visible_applets, "minimized")
-    {
+    if state.scratchpad_count > 0 && applet_visible(&state.visible_applets, "minimized") {
         if !tray_items.is_empty() {
             tray_items.push(Space::with_width(Length::Fixed(8.0)).into());
         }
         tray_items.push(minimized_tray_button(state.scratchpad_count));
     }
-    let tray = iced::widget::Row::with_children(tray_items)
-        .align_y(iced::Alignment::Center);
+    let tray = iced::widget::Row::with_children(tray_items).align_y(iced::Alignment::Center);
 
     // v4.0.1 BUG-16 — Desktop Layout cluster (replaces the
     // previously-centered window_button_cluster from BUG-6). Five
@@ -405,7 +402,10 @@ pub fn view<'a>(
         .align_x(iced::alignment::Horizontal::Right)
         .into()
     } else {
-        text(state.clock_text.clone()).size(13).color(FG_TEXT).into()
+        text(state.clock_text.clone())
+            .size(13)
+            .color(FG_TEXT)
+            .into()
     };
     let clock = button(clock_body)
         .padding(Padding {
@@ -462,9 +462,7 @@ pub fn view<'a>(
 /// panel's `Message::Tick` reducer; this function just reads the
 /// post-tick state.
 fn hero_view<'a>(hero: &'a Hero) -> Element<'a, Message> {
-    let label = hero
-        .display_title()
-        .unwrap_or_else(|| String::new());
+    let label = hero.display_title().unwrap_or_else(|| String::new());
     container(text(label).size(13).color(FG_TEXT))
         .padding(Padding {
             top: 4.0,
@@ -626,10 +624,7 @@ fn desktop_layout_cluster_view<'a>() -> Element<'a, Message> {
         Space::with_width(Length::Fixed(4.0)),
         desktop_layout_button(PanelIcon::LayoutGrid, DesktopLayout::Grid),
         Space::with_width(Length::Fixed(4.0)),
-        desktop_layout_button(
-            PanelIcon::LayoutMainSidebar,
-            DesktopLayout::MainSidebar,
-        ),
+        desktop_layout_button(PanelIcon::LayoutMainSidebar, DesktopLayout::MainSidebar,),
         Space::with_width(Length::Fixed(4.0)),
         desktop_layout_button(PanelIcon::LayoutTabbed, DesktopLayout::Tabbed),
     ]
@@ -641,10 +636,7 @@ fn desktop_layout_cluster_view<'a>() -> Element<'a, Message> {
 /// FG_MUTED at rest per BUG-16's acceptance criterion; the
 /// zone_button_style provides the hover affordance via a
 /// background tint. Fires `Message::DesktopLayoutSelected(kind)`.
-fn desktop_layout_button<'a>(
-    icon: PanelIcon,
-    kind: crate::DesktopLayout,
-) -> Element<'a, Message> {
+fn desktop_layout_button<'a>(icon: PanelIcon, kind: crate::DesktopLayout) -> Element<'a, Message> {
     let icon_widget = svg(icon.handle())
         .width(Length::Fixed(14.0))
         .height(Length::Fixed(14.0))
@@ -741,9 +733,7 @@ fn minimized_tray_button<'a>(count: u32) -> Element<'a, Message> {
         .style(|_theme: &Theme, _status: svg::Status| svg::Style {
             color: Some(FG_TEXT),
         });
-    let label = text(count.to_string())
-        .size(11)
-        .color(FG_TEXT);
+    let label = text(count.to_string()).size(11).color(FG_TEXT);
     let body = iced::widget::row![icon_widget, Space::with_width(Length::Fixed(4.0)), label]
         .align_y(iced::Alignment::Center);
     button(body)
@@ -916,8 +906,7 @@ mod tests {
     fn view_renders_without_panic() {
         let state = TopBarState::demo();
         let hero = crate::hero::Hero::new();
-        let workspaces: [Option<crate::workspaces::WorkspaceState>; 4] =
-            [None, None, None, None];
+        let workspaces: [Option<crate::workspaces::WorkspaceState>; 4] = [None, None, None, None];
         let _ = view(&state, &hero, None, &workspaces);
     }
 

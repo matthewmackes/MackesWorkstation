@@ -33,30 +33,60 @@ impl HubPanel {
         let body = text(
             "Keep MDE healthy. Capture snapshots before risky changes, \
              prune unused packages, probe system state, and reverse \
-             drift before it compounds."
+             drift before it compounds.",
         )
         .size(TypeRole::Body.size_in(sizes))
         .color(palette.text_muted.into_iced_color());
 
         let r1 = row![
-            tile("Snapshots", "Capture / restore the live config",
-                 Icon::Snapshot, "snapshots", palette),
+            tile(
+                "Snapshots",
+                "Capture / restore the live config",
+                Icon::Snapshot,
+                "snapshots",
+                palette
+            ),
             Space::new().width(Length::Fixed(12.0)),
-            tile("Debloat", "Remove apps you don't use",
-                 Icon::Delete, "debloat", palette),
+            tile(
+                "Debloat",
+                "Remove apps you don't use",
+                Icon::Delete,
+                "debloat",
+                palette
+            ),
             Space::new().width(Length::Fixed(12.0)),
-            tile("Health Check", "Probe daemons and services",
-                 Icon::StatusOk, "health_check", palette),
+            tile(
+                "Health Check",
+                "Probe daemons and services",
+                Icon::StatusOk,
+                "health_check",
+                palette
+            ),
         ];
         let r2 = row![
-            tile("Repair", "Reset broken settings",
-                 Icon::Repair, "repair", palette),
+            tile(
+                "Repair",
+                "Reset broken settings",
+                Icon::Repair,
+                "repair",
+                palette
+            ),
             Space::new().width(Length::Fixed(12.0)),
-            tile("Drift", "Find config divergence",
-                 Icon::History, "drift", palette),
+            tile(
+                "Drift",
+                "Find config divergence",
+                Icon::History,
+                "drift",
+                palette
+            ),
             Space::new().width(Length::Fixed(12.0)),
-            tile("Logs", "Recent daemon + worker output",
-                 Icon::Logs, "logs", palette),
+            tile(
+                "Logs",
+                "Recent daemon + worker output",
+                Icon::Logs,
+                "logs",
+                palette
+            ),
         ];
 
         container(
@@ -91,9 +121,9 @@ fn tile<'a>(
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(resolved.size_px()))
             .height(Length::Fixed(resolved.size_px()))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(muted),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style { color: Some(muted) },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -101,7 +131,9 @@ fn tile<'a>(
             .color(palette.text_muted.into_iced_color())
             .into()
     };
-    let name_text = text(name.to_string()).size(16).color(palette.text.into_iced_color());
+    let name_text = text(name.to_string())
+        .size(16)
+        .color(palette.text.into_iced_color());
     let desc_text = text(description.to_string())
         .size(11)
         .color(palette.text_muted.into_iced_color());
@@ -126,7 +158,8 @@ fn tile<'a>(
                 b: bg.b * 1.08,
                 a: bg.a,
             };
-            iced::widget::button::Style { snap: false,
+            iced::widget::button::Style {
+                snap: false,
                 background: Some(Background::Color(match status {
                     iced::widget::button::Status::Hovered => hover_bg,
                     _ => bg,

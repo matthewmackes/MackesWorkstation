@@ -299,8 +299,7 @@ impl Persist {
                     let audit_topic = format!("{AUDIT_TOPIC_PREFIX}{pid}");
                     // Recursive write — the guard above stops it from
                     // re-auditing itself. Always `min` priority.
-                    if let Err(e) =
-                        self.write(&audit_topic, Priority::Min, None, Some(&audit_body))
+                    if let Err(e) = self.write(&audit_topic, Priority::Min, None, Some(&audit_body))
                     {
                         tracing::warn!(
                             target: "mde_bus::persist",
@@ -506,17 +505,23 @@ fn validate_topic(topic: &str) -> Result<(), PersistError> {
         return Err(PersistError::BadTopic("empty".to_string()));
     }
     if topic.starts_with('/') || topic.ends_with('/') {
-        return Err(PersistError::BadTopic(format!("leading/trailing slash: {topic}")));
+        return Err(PersistError::BadTopic(format!(
+            "leading/trailing slash: {topic}"
+        )));
     }
     if topic.contains("..") {
-        return Err(PersistError::BadTopic(format!("path-escape attempt: {topic}")));
+        return Err(PersistError::BadTopic(format!(
+            "path-escape attempt: {topic}"
+        )));
     }
     if topic.contains("//") {
         return Err(PersistError::BadTopic(format!("double slash: {topic}")));
     }
     // Wildcard chars are publish-illegal (they're query-only).
     if topic.contains('+') || topic.contains('#') {
-        return Err(PersistError::BadTopic(format!("wildcards in publish topic: {topic}")));
+        return Err(PersistError::BadTopic(format!(
+            "wildcards in publish topic: {topic}"
+        )));
     }
     Ok(())
 }
@@ -550,8 +555,7 @@ fn walk_json_files(
     let entries = std::fs::read_dir(dir)
         .map_err(|e| PersistError::Io(format!("readdir {}: {e}", dir.display())))?;
     for entry in entries {
-        let entry =
-            entry.map_err(|e| PersistError::Io(format!("readdir entry: {e}")))?;
+        let entry = entry.map_err(|e| PersistError::Io(format!("readdir entry: {e}")))?;
         let path = entry.path();
         let name = entry.file_name().to_string_lossy().to_string();
         // Skip the index DB itself + tmp files.
@@ -639,12 +643,7 @@ mod tests {
         let mut ulids = Vec::new();
         for i in 0..5 {
             let m = p
-                .write(
-                    "t/x",
-                    Priority::Default,
-                    None,
-                    Some(&format!("msg {i}")),
-                )
+                .write("t/x", Priority::Default, None, Some(&format!("msg {i}")))
                 .unwrap();
             ulids.push(m.ulid);
             // Tiny sleep to ensure timestamp progression — ULIDs
@@ -737,7 +736,9 @@ mod tests {
         let raw = std::fs::read_to_string(p.bus_root().join(&reply.file_path)).unwrap();
         let parsed: StoredMessage = serde_json::from_str(&raw).unwrap();
         assert_eq!(parsed.reply_to.as_deref(), Some("01PARENTULID"));
-        let top = p.write("t/x", Priority::Default, None, Some("top")).unwrap();
+        let top = p
+            .write("t/x", Priority::Default, None, Some("top"))
+            .unwrap();
         assert_eq!(top.reply_to, None, "the plain wrapper sets no reply_to");
     }
 
@@ -796,13 +797,8 @@ mod tests {
     fn ten_thousand_message_replay() {
         let (_tmp, p) = open_tmp();
         for i in 0..10_000 {
-            p.write(
-                "load/test",
-                Priority::Default,
-                None,
-                Some(&i.to_string()),
-            )
-            .unwrap();
+            p.write("load/test", Priority::Default, None, Some(&i.to_string()))
+                .unwrap();
         }
         // 20_000 = 10k load/test messages + 10k audit/<peer> records
         // (one per publish). The per-topic count is unaffected — audit

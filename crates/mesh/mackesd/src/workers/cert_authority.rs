@@ -372,8 +372,8 @@ fn handle_request(worker: &CertAuthorityWorker, body: &str) -> Result<String, St
     let req = parse_sign_request(body)?;
     validate_common_name(&req.common_name)?;
     let cert_pem = sign_with_nebula_cert(&req, &worker.ca_key_path, &worker.ca_cert_path)?;
-    let ca_pem = std::fs::read_to_string(&worker.ca_cert_path)
-        .map_err(|e| format!("read ca cert: {e}"))?;
+    let ca_pem =
+        std::fs::read_to_string(&worker.ca_cert_path).map_err(|e| format!("read ca cert: {e}"))?;
     Ok(build_success_reply(cert_pem, ca_pem))
 }
 
@@ -481,8 +481,8 @@ mod tests {
 
     #[test]
     fn parse_request_groups_optional() {
-        let req = parse_sign_request(r#"{"common_name":"vm-02","ip":"10.42.128.2/17"}"#)
-            .expect("parse");
+        let req =
+            parse_sign_request(r#"{"common_name":"vm-02","ip":"10.42.128.2/17"}"#).expect("parse");
         assert!(req.groups.is_empty());
     }
 
@@ -557,7 +557,13 @@ mod tests {
         assert_eq!(
             args,
             vec![
-                "sign", "-name", "vm-01", "-ip", "10.42.128.1/17", "-groups", "mde-vms,ops",
+                "sign",
+                "-name",
+                "vm-01",
+                "-ip",
+                "10.42.128.1/17",
+                "-groups",
+                "mde-vms,ops",
             ]
         );
     }
@@ -623,8 +629,8 @@ mod tests {
 
     #[test]
     fn parse_request_public_key_defaults_none_for_legacy_clients() {
-        let req = parse_sign_request(r#"{"common_name":"vm-04","ip":"10.42.129.2/17"}"#)
-            .expect("parse");
+        let req =
+            parse_sign_request(r#"{"common_name":"vm-04","ip":"10.42.129.2/17"}"#).expect("parse");
         assert!(req.public_key_pem.is_none());
     }
 

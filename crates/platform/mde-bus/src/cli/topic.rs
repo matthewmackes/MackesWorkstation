@@ -80,7 +80,9 @@ pub fn run(op: TopicOp) -> Result<()> {
         }
         TopicOp::Count { pattern, json } => {
             let n = if let Some(p) = pattern.as_deref() {
-                reg.iter().filter(|t| crate::wildcard::matches(p, &t.name)).count()
+                reg.iter()
+                    .filter(|t| crate::wildcard::matches(p, &t.name))
+                    .count()
             } else {
                 reg.iter().count()
             };

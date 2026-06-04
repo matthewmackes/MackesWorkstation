@@ -110,7 +110,8 @@ pub fn view<'a, Msg: 'a + Clone>(
 
     container(column![header, body].width(Length::Fill))
         .width(Length::Fill)
-        .style(move |_theme| container::Style { snap: false,
+        .style(move |_theme| container::Style {
+            snap: false,
             background: None,
             border: Border {
                 color: rgba_to_color(palette.border),

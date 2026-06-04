@@ -272,8 +272,8 @@ impl Dispatch<ZwlrDataControlOfferV1, ()> for AppState {
 /// `clipboard/sync` bus topic (BUS-5.2). The mded `clipd_supervisor` worker
 /// restarts this process on exit.
 pub fn run(conn: &Connection, config: &Config) -> anyhow::Result<()> {
-    let (globals, mut queue) = registry_queue_init::<AppState>(conn)
-        .context("failed to initialise Wayland registry")?;
+    let (globals, mut queue) =
+        registry_queue_init::<AppState>(conn).context("failed to initialise Wayland registry")?;
     let qh = queue.handle();
     let mut state = AppState::new();
 
@@ -281,9 +281,9 @@ pub fn run(conn: &Connection, config: &Config) -> anyhow::Result<()> {
         .bind(&qh, 1..=9, ())
         .context("compositor does not advertise wl_seat — is a seat attached?")?;
 
-    let mgr: ZwlrDataControlManagerV1 = globals
-        .bind(&qh, 1..=2, ())
-        .context("compositor does not support zwlr_data_control_manager_v1 (sway ≥ 1.2 required)")?;
+    let mgr: ZwlrDataControlManagerV1 = globals.bind(&qh, 1..=2, ()).context(
+        "compositor does not support zwlr_data_control_manager_v1 (sway ≥ 1.2 required)",
+    )?;
 
     // Subscribe to all clipboard events for this seat.
     let _device = mgr.get_data_device(&seat, &qh, ());

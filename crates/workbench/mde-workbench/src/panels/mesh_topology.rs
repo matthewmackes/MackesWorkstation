@@ -23,10 +23,10 @@ use std::time::SystemTime;
 
 use iced::widget::canvas::{self, Canvas, Frame, Path, Stroke, Text};
 use iced::widget::{button, column, container, row, scrollable, stack, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Point, Rectangle, Renderer, Task, Theme};
-use mde_theme::{
-    mde_icon, FontSize, Icon, IconSize, ObjectCard, Palette, TypeRole, CARD_GRID_GAP,
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Point, Rectangle, Renderer, Task, Theme,
 };
+use mde_theme::{mde_icon, FontSize, Icon, IconSize, ObjectCard, Palette, TypeRole, CARD_GRID_GAP};
 
 use crate::panel_chrome::object_card;
 
@@ -198,7 +198,8 @@ impl MeshTopologyPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -212,14 +213,12 @@ impl MeshTopologyPanel {
         })
         .on_press(crate::Message::MeshTopology(Message::RefreshClicked));
 
-        let table_btn = layout_toggle_btn("Table", self.layout == Layout::Table, palette)
-            .on_press(crate::Message::MeshTopology(Message::SetLayout(
-                Layout::Table,
-            )));
-        let graph_btn = layout_toggle_btn("Graph", self.layout == Layout::Graph, palette)
-            .on_press(crate::Message::MeshTopology(Message::SetLayout(
-                Layout::Graph,
-            )));
+        let table_btn = layout_toggle_btn("Table", self.layout == Layout::Table, palette).on_press(
+            crate::Message::MeshTopology(Message::SetLayout(Layout::Table)),
+        );
+        let graph_btn = layout_toggle_btn("Graph", self.layout == Layout::Graph, palette).on_press(
+            crate::Message::MeshTopology(Message::SetLayout(Layout::Graph)),
+        );
 
         let header = row![
             column![title, subtitle].spacing(2),
@@ -324,14 +323,18 @@ fn layout_toggle_btn<'a>(
                 _ => Color::TRANSPARENT,
             }
         };
-        iced::widget::button::Style { snap: false,
+        iced::widget::button::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             text_color: if selected { Color::WHITE } else { text_main },
             border: Border {
                 color: if selected {
                     Color::TRANSPARENT
                 } else {
-                    Color { a: 0.20, ..Color::WHITE }
+                    Color {
+                        a: 0.20,
+                        ..Color::WHITE
+                    }
                 },
                 width: if selected { 0.0 } else { 1.0 },
                 radius: 4.0.into(),
@@ -545,8 +548,9 @@ fn peer_object_card<'a>(p: &'a PeerRow, palette: Palette) -> Element<'a, crate::
             p.name.clone(),
         )))
         .padding(Padding::from(0u16))
-        .style(|_t: &Theme, _s: iced::widget::button::Status| {
-            iced::widget::button::Style { snap: false,
+        .style(
+            |_t: &Theme, _s: iced::widget::button::Status| iced::widget::button::Style {
+                snap: false,
                 background: None,
                 text_color: Color::TRANSPARENT,
                 border: Border {
@@ -555,8 +559,8 @@ fn peer_object_card<'a>(p: &'a PeerRow, palette: Palette) -> Element<'a, crate::
                     radius: 0.0.into(),
                 },
                 shadow: iced::Shadow::default(),
-            }
-        })
+            },
+        )
         .into()
 }
 
@@ -570,12 +574,14 @@ fn peer_modal_overlay<'a>(p: &'a PeerRow, palette: Palette) -> Element<'a, crate
         .padding(Padding::from([2u16, 8u16]))
         .style(|_t: &Theme, status: iced::widget::button::Status| {
             let bg = match status {
-                iced::widget::button::Status::Hovered => {
-                    Some(Background::Color(Color { a: 0.10, ..Color::WHITE }))
-                }
+                iced::widget::button::Status::Hovered => Some(Background::Color(Color {
+                    a: 0.10,
+                    ..Color::WHITE
+                })),
                 _ => None,
             };
-            iced::widget::button::Style { snap: false,
+            iced::widget::button::Style {
+                snap: false,
                 background: bg,
                 text_color: Color::TRANSPARENT,
                 border: Border {
@@ -608,7 +614,8 @@ fn peer_modal_overlay<'a>(p: &'a PeerRow, palette: Palette) -> Element<'a, crate
     )
     .padding(Padding::from([24u16, 28u16]))
     .width(Length::Fixed(320.0))
-    .style(move |_t: &Theme| container::Style { snap: false,
+    .style(move |_t: &Theme| container::Style {
+        snap: false,
         background: Some(Background::Color(palette.surface.into_iced_color())),
         border: Border {
             color: palette.border.into_iced_color(),
@@ -625,10 +632,9 @@ fn peer_modal_overlay<'a>(p: &'a PeerRow, palette: Palette) -> Element<'a, crate
     )
     .width(Length::Fill)
     .height(Length::Fill)
-    .style(|_t: &Theme| container::Style { snap: false,
-        background: Some(Background::Color(Color::from_rgba(
-            0.0, 0.0, 0.0, 0.45,
-        ))),
+    .style(|_t: &Theme| container::Style {
+        snap: false,
+        background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.45))),
         ..container::Style::default()
     })
     .into()
@@ -651,31 +657,34 @@ fn peer_detail_row<'a>(
 }
 
 fn empty_state_card<'a>(palette: Palette, error: Option<&'a str>) -> Element<'a, crate::Message> {
-    let (icon_kind, icon_color, heading, body): (Icon, Color, String, String) =
-        if let Some(err) = error {
-            (
-                Icon::StatusError,
-                Color::from_rgb(0.92, 0.32, 0.30),
-                "Couldn't load peers".to_string(),
-                err.to_string(),
-            )
-        } else {
-            (
+    let (icon_kind, icon_color, heading, body): (Icon, Color, String, String) = if let Some(err) =
+        error
+    {
+        (
+            Icon::StatusError,
+            Color::from_rgb(0.92, 0.32, 0.30),
+            "Couldn't load peers".to_string(),
+            err.to_string(),
+        )
+    } else {
+        (
                 Icon::Fleet,
                 palette.accent.into_iced_color(),
                 "No peers enrolled".to_string(),
                 "Enroll peers via mackes/birthright or mackesd's pair-request flow; rows appear here as mackesd's nodes table grows.".to_string(),
             )
-        };
+    };
     let resolved = mde_icon(icon_kind, IconSize::PanelHeader);
     let icon_widget: Element<'a, crate::Message> = if let Some(svg_bytes) = resolved.svg_bytes() {
         use iced::widget::svg as widget_svg;
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(32.0))
             .height(Length::Fixed(32.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(icon_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(icon_color),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -687,9 +696,7 @@ fn empty_state_card<'a>(palette: Palette, error: Option<&'a str>) -> Element<'a,
         column![
             icon_widget,
             Space::new().height(Length::Fixed(8.0)),
-            text(heading)
-                .size(14)
-                .color(palette.text.into_iced_color()),
+            text(heading).size(14).color(palette.text.into_iced_color()),
             text(body)
                 .size(11)
                 .color(palette.text_muted.into_iced_color()),
@@ -716,9 +723,7 @@ pub fn fetch_peers() -> Result<Vec<PeerRow>, String> {
         .map_err(|e| format!("mackesd nodes list failed to spawn: {e}"))?;
     if !out.status.success() {
         let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
-        return Err(format!(
-            "mackesd nodes list exited non-zero: {stderr}"
-        ));
+        return Err(format!("mackesd nodes list exited non-zero: {stderr}"));
     }
     let raw = String::from_utf8_lossy(&out.stdout);
     Ok(parse_nodes(&raw))
@@ -734,22 +739,13 @@ pub fn parse_nodes(raw: &str) -> Vec<PeerRow> {
     };
     let mut out = Vec::new();
     for entry in top {
-        let node_id = entry
-            .get("node_id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
+        let node_id = entry.get("node_id").and_then(|v| v.as_str()).unwrap_or("");
         let name = entry
             .get("name")
             .and_then(|v| v.as_str())
             .unwrap_or(node_id);
-        let region = entry
-            .get("region")
-            .and_then(|v| v.as_str())
-            .unwrap_or("—");
-        let role = entry
-            .get("role")
-            .and_then(|v| v.as_str())
-            .unwrap_or("peer");
+        let region = entry.get("region").and_then(|v| v.as_str()).unwrap_or("—");
+        let role = entry.get("role").and_then(|v| v.as_str()).unwrap_or("peer");
         let health = entry
             .get("health")
             .and_then(|v| v.as_str())
@@ -795,13 +791,25 @@ mod tests {
         let offline = PeerStatus::Offline.color();
         let unknown = PeerStatus::Unknown.color();
         // Online is greenish.
-        assert!(online.g > online.r && online.g > online.b, "online should be green-dominant");
+        assert!(
+            online.g > online.r && online.g > online.b,
+            "online should be green-dominant"
+        );
         // Idle is yellowish (high R + G, low B).
-        assert!(idle.r > idle.b && idle.g > idle.b, "idle should be yellow-dominant");
+        assert!(
+            idle.r > idle.b && idle.g > idle.b,
+            "idle should be yellow-dominant"
+        );
         // Offline is reddish.
-        assert!(offline.r > offline.g && offline.r > offline.b, "offline should be red-dominant");
+        assert!(
+            offline.r > offline.g && offline.r > offline.b,
+            "offline should be red-dominant"
+        );
         // Unknown is grey (equal-ish channels).
-        assert!((unknown.r - unknown.g).abs() < 0.05, "unknown should be grey");
+        assert!(
+            (unknown.r - unknown.g).abs() < 0.05,
+            "unknown should be grey"
+        );
         // All four are distinct from each other.
         assert_ne!(online, idle);
         assert_ne!(online, offline);

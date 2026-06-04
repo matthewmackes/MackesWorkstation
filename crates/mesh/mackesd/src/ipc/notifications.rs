@@ -149,9 +149,7 @@ impl NotificationsService {
         // on our publish. Pre-enrollment peers (no mde-bus
         // binary) log + continue; the FDO delivery path is
         // unaffected either way.
-        crate::ipc::bus_bridge::publish_to_bus_async(
-            app_name, summary, body, urgency,
-        );
+        crate::ipc::bus_bridge::publish_to_bus_async(app_name, summary, body, urgency);
         u32::try_from(id).unwrap_or(1)
     }
 

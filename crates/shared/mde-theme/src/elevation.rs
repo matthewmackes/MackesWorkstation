@@ -86,18 +86,9 @@ mod tests {
 
     #[test]
     fn shadow_blur_increases_with_elevation() {
-        assert!(
-            Elevation::Inline.shadow().blur
-                < Elevation::PopoverMenu.shadow().blur
-        );
-        assert!(
-            Elevation::PopoverMenu.shadow().blur
-                < Elevation::Floating.shadow().blur
-        );
-        assert!(
-            Elevation::Floating.shadow().blur
-                < Elevation::Modal.shadow().blur
-        );
+        assert!(Elevation::Inline.shadow().blur < Elevation::PopoverMenu.shadow().blur);
+        assert!(Elevation::PopoverMenu.shadow().blur < Elevation::Floating.shadow().blur);
+        assert!(Elevation::Floating.shadow().blur < Elevation::Modal.shadow().blur);
     }
 
     #[test]

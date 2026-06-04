@@ -262,8 +262,28 @@ mod tests {
     #[test]
     fn read_all_peer_states_collects_and_sorts_snapshots() {
         let dir = tempfile::TempDir::new().unwrap();
-        write_state(dir.path(), &MusicState { peer: "forge".into(), playing: false, song_id: String::new(), position_ms: 0, updated_ms: 1000 }).unwrap();
-        write_state(dir.path(), &MusicState { peer: "anvil".into(), playing: true, song_id: "s1".into(), position_ms: 0, updated_ms: 1000 }).unwrap();
+        write_state(
+            dir.path(),
+            &MusicState {
+                peer: "forge".into(),
+                playing: false,
+                song_id: String::new(),
+                position_ms: 0,
+                updated_ms: 1000,
+            },
+        )
+        .unwrap();
+        write_state(
+            dir.path(),
+            &MusicState {
+                peer: "anvil".into(),
+                playing: true,
+                song_id: "s1".into(),
+                position_ms: 0,
+                updated_ms: 1000,
+            },
+        )
+        .unwrap();
         let all = read_all_peer_states(dir.path());
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].peer, "anvil");
@@ -294,18 +314,31 @@ mod tests {
     #[test]
     fn claimed_by_other_when_fresh_playing_elsewhere() {
         let s = state("anvil", true, 1000);
-        assert_eq!(is_claimed_by_other(Some(&s), "forge", 2000), Some("anvil".into()));
+        assert_eq!(
+            is_claimed_by_other(Some(&s), "forge", 2000),
+            Some("anvil".into())
+        );
     }
 
     #[test]
     fn not_claimed_when_ours_idle_or_stale() {
         // Owned by us.
-        assert_eq!(is_claimed_by_other(Some(&state("forge", true, 1000)), "forge", 2000), None);
+        assert_eq!(
+            is_claimed_by_other(Some(&state("forge", true, 1000)), "forge", 2000),
+            None
+        );
         // Not playing.
-        assert_eq!(is_claimed_by_other(Some(&state("anvil", false, 1000)), "forge", 2000), None);
+        assert_eq!(
+            is_claimed_by_other(Some(&state("anvil", false, 1000)), "forge", 2000),
+            None
+        );
         // Stale (owner went away).
         assert_eq!(
-            is_claimed_by_other(Some(&state("anvil", true, 1000)), "forge", 1000 + STATE_STALE_MS + 1),
+            is_claimed_by_other(
+                Some(&state("anvil", true, 1000)),
+                "forge",
+                1000 + STATE_STALE_MS + 1
+            ),
             None
         );
         // No state at all.

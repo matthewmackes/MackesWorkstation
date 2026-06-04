@@ -174,10 +174,7 @@ pub enum Message {
 fn federation_data_root() -> Option<PathBuf> {
     std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
-        .or_else(|| {
-            std::env::var_os("HOME")
-                .map(|h| PathBuf::from(h).join(".local").join("share"))
-        })
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local").join("share")))
         .map(|d| d.join("mde").join("bus"))
 }
 
@@ -225,7 +222,9 @@ async fn revoke_mint(ulid: String) -> Result<(), String> {
 async fn accept_passcode(passcode: String) -> Result<AcceptResult, String> {
     let word_count = passcode.split_whitespace().count();
     if word_count != 6 {
-        return Err(format!("Enter exactly 6 BIP-39 words ({word_count} entered)."));
+        return Err(format!(
+            "Enter exactly 6 BIP-39 words ({word_count} entered)."
+        ));
     }
     let out = tokio::process::Command::new("mde-bus")
         .args(["federation", "accept", &passcode, "--json"])
@@ -384,7 +383,6 @@ impl MeshFederationPanel {
             }
 
             // ─── Mint ───────────────────────────────────────────────────────
-
             Message::MintClicked => {
                 self.mint.loading = true;
                 self.mint.error = None;
@@ -433,7 +431,6 @@ impl MeshFederationPanel {
             }
 
             // ─── Accept ─────────────────────────────────────────────────────
-
             Message::AcceptInputChanged(s) => {
                 self.accept.input = s;
                 Task::none()
@@ -472,7 +469,6 @@ impl MeshFederationPanel {
             }
 
             // ─── Grant ──────────────────────────────────────────────────────
-
             Message::GrantNewSubscribeChanged(s) => {
                 self.grant.new_subscribe = s;
                 Task::none()
@@ -531,7 +527,6 @@ impl MeshFederationPanel {
             }
 
             // ─── Pairs ──────────────────────────────────────────────────────
-
             Message::PairsLoaded(result) => {
                 self.pairs.loading = false;
                 self.pairs.loaded = true;
@@ -648,7 +643,8 @@ impl MeshFederationPanel {
                             },
                             _ => bg,
                         };
-                        button::Style { snap: false,
+                        button::Style {
+                            snap: false,
                             background: Some(Background::Color(fill)),
                             text_color: fg,
                             border: Border {
@@ -669,7 +665,8 @@ impl MeshFederationPanel {
         let tab_separator = {
             use iced::widget::container;
             container(Space::new().width(Length::Fill).height(Length::Fixed(1.0)))
-                .style(move |_t: &iced::Theme| iced::widget::container::Style { snap: false,
+                .style(move |_t: &iced::Theme| iced::widget::container::Style {
+                    snap: false,
                     background: Some(Background::Color(raised)),
                     ..Default::default()
                 })
@@ -729,12 +726,17 @@ impl MeshFederationPanel {
         };
 
         let mint_btn: Element<'_, crate::Message> = button(
-            text(if self.mint.loading { "Minting…" } else { mint_label })
-                .size(TypeRole::Body.size_in(sizes))
-                .color(Color::WHITE),
+            text(if self.mint.loading {
+                "Minting…"
+            } else {
+                mint_label
+            })
+            .size(TypeRole::Body.size_in(sizes))
+            .color(Color::WHITE),
         )
         .padding([8u16, 20u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(accent)),
             text_color: Color::WHITE,
             border: Border {
@@ -774,17 +776,22 @@ impl MeshFederationPanel {
             }
             items.push(Space::new().height(12).into());
             let revoke_btn: Element<'_, crate::Message> = button(
-                text(if self.mint.revoking { "Revoking…" } else { "Revoke" })
-                    .size(TypeRole::Body.size_in(sizes))
-                    .color(Color {
-                        r: 0.9,
-                        g: 0.2,
-                        b: 0.2,
-                        a: 1.0,
-                    }),
+                text(if self.mint.revoking {
+                    "Revoking…"
+                } else {
+                    "Revoke"
+                })
+                .size(TypeRole::Body.size_in(sizes))
+                .color(Color {
+                    r: 0.9,
+                    g: 0.2,
+                    b: 0.2,
+                    a: 1.0,
+                }),
             )
             .padding([6u16, 14u16])
-            .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+            .style(move |_t, _s: ButtonStatus| button::Style {
+                snap: false,
                 background: Some(Background::Color(Color {
                     r: 0.8,
                     g: 0.1,
@@ -842,10 +849,9 @@ impl MeshFederationPanel {
             .size(TypeRole::Subheading.size_in(sizes))
             .color(text_color);
 
-        let hint =
-            text("Enter the 6 BIP-39 words given by the remote operator, space-separated.")
-                .size(TypeRole::Caption.size_in(sizes))
-                .color(text_muted);
+        let hint = text("Enter the 6 BIP-39 words given by the remote operator, space-separated.")
+            .size(TypeRole::Caption.size_in(sizes))
+            .color(text_muted);
 
         let word_count = self.accept.input.split_whitespace().count();
         let word_hint = if word_count > 0 {
@@ -871,7 +877,8 @@ impl MeshFederationPanel {
             .color(Color::WHITE),
         )
         .padding([8u16, 20u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(accent)),
             text_color: Color::WHITE,
             border: Border {
@@ -974,38 +981,46 @@ impl MeshFederationPanel {
             .size(TypeRole::Body.size_in(sizes))
             .color(text_color);
 
-        let sub_hint = text(
-            "Topic patterns this peer can receive from the remote mesh. Default: # (all).",
-        )
-        .size(TypeRole::Caption.size_in(sizes))
-        .color(text_muted);
+        let sub_hint =
+            text("Topic patterns this peer can receive from the remote mesh. Default: # (all).")
+                .size(TypeRole::Caption.size_in(sizes))
+                .color(text_muted);
 
-        let sub_rows: Vec<Element<'_, crate::Message>> =
-            if self.grant.subscribe_topics.is_empty() {
-                vec![text("No patterns — peer receives nothing.")
-                    .size(TypeRole::Caption.size_in(sizes))
-                    .color(text_muted)
-                    .into()]
-            } else {
-                self.grant
-                    .subscribe_topics
-                    .iter()
-                    .map(|t| {
-                        let t2 = t.clone();
-                        let rm_btn: Element<'_, crate::Message> = button(
-                            text("Remove")
-                                .size(TypeRole::Caption.size_in(sizes))
-                                .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 }),
-                        )
+        let sub_rows: Vec<Element<'_, crate::Message>> = if self.grant.subscribe_topics.is_empty() {
+            vec![text("No patterns — peer receives nothing.")
+                .size(TypeRole::Caption.size_in(sizes))
+                .color(text_muted)
+                .into()]
+        } else {
+            self.grant
+                .subscribe_topics
+                .iter()
+                .map(|t| {
+                    let t2 = t.clone();
+                    let rm_btn: Element<'_, crate::Message> =
+                        button(text("Remove").size(TypeRole::Caption.size_in(sizes)).color(
+                            Color {
+                                r: 0.9,
+                                g: 0.2,
+                                b: 0.2,
+                                a: 1.0,
+                            },
+                        ))
                         .padding([2u16, 8u16])
-                        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+                        .style(move |_t, _s: ButtonStatus| button::Style {
+                            snap: false,
                             background: Some(Background::Color(Color {
                                 r: 0.8,
                                 g: 0.1,
                                 b: 0.1,
                                 a: 0.12,
                             })),
-                            text_color: Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 },
+                            text_color: Color {
+                                r: 0.9,
+                                g: 0.2,
+                                b: 0.2,
+                                a: 1.0,
+                            },
                             border: Border {
                                 color: Color::TRANSPARENT,
                                 width: 0.0,
@@ -1017,25 +1032,27 @@ impl MeshFederationPanel {
                             Message::GrantRemoveSubscribe(t2),
                         ))
                         .into();
-                        row![
-                            text(t.as_str())
-                                .size(TypeRole::Body.size_in(sizes))
-                                .color(text_color),
-                            Space::new().width(Length::Fill),
-                            rm_btn,
-                        ]
-                        .align_y(iced::Alignment::Center)
-                        .into()
-                    })
-                    .collect()
-            };
+                    row![
+                        text(t.as_str())
+                            .size(TypeRole::Body.size_in(sizes))
+                            .color(text_color),
+                        Space::new().width(Length::Fill),
+                        rm_btn,
+                    ]
+                    .align_y(iced::Alignment::Center)
+                    .into()
+                })
+                .collect()
+        };
 
         let sub_list: Element<'_, crate::Message> = column(sub_rows).spacing(4).into();
 
         let sub_input: Element<'_, crate::Message> =
             text_input("#, fleet/#, mon/+/alerts", &self.grant.new_subscribe)
                 .on_input(|s| crate::Message::MeshFederation(Message::GrantNewSubscribeChanged(s)))
-                .on_submit(crate::Message::MeshFederation(Message::GrantAddSubscribeClicked))
+                .on_submit(crate::Message::MeshFederation(
+                    Message::GrantAddSubscribeClicked,
+                ))
                 .width(Length::Fixed(260.0))
                 .into();
 
@@ -1045,7 +1062,8 @@ impl MeshFederationPanel {
                 .color(text_color),
         )
         .padding([6u16, 14u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(raised)),
             text_color,
             border: Border {
@@ -1055,7 +1073,9 @@ impl MeshFederationPanel {
             },
             shadow: iced::Shadow::default(),
         })
-        .on_press(crate::Message::MeshFederation(Message::GrantAddSubscribeClicked))
+        .on_press(crate::Message::MeshFederation(
+            Message::GrantAddSubscribeClicked,
+        ))
         .into();
 
         let sub_add_row: Element<'_, crate::Message> =
@@ -1075,38 +1095,46 @@ impl MeshFederationPanel {
             .size(TypeRole::Body.size_in(sizes))
             .color(text_color);
 
-        let pub_hint = text(
-            "Topic patterns the remote mesh can write into this mesh. Default: empty.",
-        )
-        .size(TypeRole::Caption.size_in(sizes))
-        .color(text_muted);
+        let pub_hint =
+            text("Topic patterns the remote mesh can write into this mesh. Default: empty.")
+                .size(TypeRole::Caption.size_in(sizes))
+                .color(text_muted);
 
-        let pub_rows: Vec<Element<'_, crate::Message>> =
-            if self.grant.publish_topics.is_empty() {
-                vec![text("No patterns — remote mesh can publish nothing.")
-                    .size(TypeRole::Caption.size_in(sizes))
-                    .color(text_muted)
-                    .into()]
-            } else {
-                self.grant
-                    .publish_topics
-                    .iter()
-                    .map(|t| {
-                        let t2 = t.clone();
-                        let rm_btn: Element<'_, crate::Message> = button(
-                            text("Remove")
-                                .size(TypeRole::Caption.size_in(sizes))
-                                .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 }),
-                        )
+        let pub_rows: Vec<Element<'_, crate::Message>> = if self.grant.publish_topics.is_empty() {
+            vec![text("No patterns — remote mesh can publish nothing.")
+                .size(TypeRole::Caption.size_in(sizes))
+                .color(text_muted)
+                .into()]
+        } else {
+            self.grant
+                .publish_topics
+                .iter()
+                .map(|t| {
+                    let t2 = t.clone();
+                    let rm_btn: Element<'_, crate::Message> =
+                        button(text("Remove").size(TypeRole::Caption.size_in(sizes)).color(
+                            Color {
+                                r: 0.9,
+                                g: 0.2,
+                                b: 0.2,
+                                a: 1.0,
+                            },
+                        ))
                         .padding([2u16, 8u16])
-                        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+                        .style(move |_t, _s: ButtonStatus| button::Style {
+                            snap: false,
                             background: Some(Background::Color(Color {
                                 r: 0.8,
                                 g: 0.1,
                                 b: 0.1,
                                 a: 0.12,
                             })),
-                            text_color: Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 },
+                            text_color: Color {
+                                r: 0.9,
+                                g: 0.2,
+                                b: 0.2,
+                                a: 1.0,
+                            },
                             border: Border {
                                 color: Color::TRANSPARENT,
                                 width: 0.0,
@@ -1114,29 +1142,31 @@ impl MeshFederationPanel {
                             },
                             shadow: iced::Shadow::default(),
                         })
-                        .on_press(crate::Message::MeshFederation(
-                            Message::GrantRemovePublish(t2),
-                        ))
+                        .on_press(crate::Message::MeshFederation(Message::GrantRemovePublish(
+                            t2,
+                        )))
                         .into();
-                        row![
-                            text(t.as_str())
-                                .size(TypeRole::Body.size_in(sizes))
-                                .color(text_color),
-                            Space::new().width(Length::Fill),
-                            rm_btn,
-                        ]
-                        .align_y(iced::Alignment::Center)
-                        .into()
-                    })
-                    .collect()
-            };
+                    row![
+                        text(t.as_str())
+                            .size(TypeRole::Body.size_in(sizes))
+                            .color(text_color),
+                        Space::new().width(Length::Fill),
+                        rm_btn,
+                    ]
+                    .align_y(iced::Alignment::Center)
+                    .into()
+                })
+                .collect()
+        };
 
         let pub_list: Element<'_, crate::Message> = column(pub_rows).spacing(4).into();
 
         let pub_input: Element<'_, crate::Message> =
             text_input("portal/peer-presence/*", &self.grant.new_publish)
                 .on_input(|s| crate::Message::MeshFederation(Message::GrantNewPublishChanged(s)))
-                .on_submit(crate::Message::MeshFederation(Message::GrantAddPublishClicked))
+                .on_submit(crate::Message::MeshFederation(
+                    Message::GrantAddPublishClicked,
+                ))
                 .width(Length::Fixed(260.0))
                 .into();
 
@@ -1146,7 +1176,8 @@ impl MeshFederationPanel {
                 .color(text_color),
         )
         .padding([6u16, 14u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(raised)),
             text_color,
             border: Border {
@@ -1156,7 +1187,9 @@ impl MeshFederationPanel {
             },
             shadow: iced::Shadow::default(),
         })
-        .on_press(crate::Message::MeshFederation(Message::GrantAddPublishClicked))
+        .on_press(crate::Message::MeshFederation(
+            Message::GrantAddPublishClicked,
+        ))
         .into();
 
         let pub_add_row: Element<'_, crate::Message> =
@@ -1167,12 +1200,17 @@ impl MeshFederationPanel {
         // ─ Save ───────────────────────────────────────────────────────────
 
         let save_btn: Element<'_, crate::Message> = button(
-            text(if self.grant.saving { "Applying…" } else { "Apply grants" })
-                .size(TypeRole::Body.size_in(sizes))
-                .color(Color::WHITE),
+            text(if self.grant.saving {
+                "Applying…"
+            } else {
+                "Apply grants"
+            })
+            .size(TypeRole::Body.size_in(sizes))
+            .color(Color::WHITE),
         )
         .padding([8u16, 20u16])
-        .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+        .style(move |_t, _s: ButtonStatus| button::Style {
+            snap: false,
             background: Some(Background::Color(accent)),
             text_color: Color::WHITE,
             border: Border {
@@ -1277,10 +1315,8 @@ impl MeshFederationPanel {
                 pair.publish_topics.join(", ")
             };
 
-            let is_revoking =
-                self.pairs.revoking.as_deref() == Some(pair.peer_mesh_id.as_str());
-            let is_rotating =
-                self.pairs.rotating.as_deref() == Some(pair.peer_mesh_id.as_str());
+            let is_revoking = self.pairs.revoking.as_deref() == Some(pair.peer_mesh_id.as_str());
+            let is_rotating = self.pairs.rotating.as_deref() == Some(pair.peer_mesh_id.as_str());
 
             let peer_id_rev = pair.peer_mesh_id.clone();
             let peer_id_rot = pair.peer_mesh_id.clone();
@@ -1288,17 +1324,28 @@ impl MeshFederationPanel {
             let revoke_btn: Element<'_, crate::Message> = button(
                 text(if is_revoking { "Revoking…" } else { "Revoke" })
                     .size(TypeRole::Caption.size_in(sizes))
-                    .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 }),
+                    .color(Color {
+                        r: 0.9,
+                        g: 0.2,
+                        b: 0.2,
+                        a: 1.0,
+                    }),
             )
             .padding([4u16, 10u16])
-            .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+            .style(move |_t, _s: ButtonStatus| button::Style {
+                snap: false,
                 background: Some(Background::Color(Color {
                     r: 0.8,
                     g: 0.1,
                     b: 0.1,
                     a: 0.12,
                 })),
-                text_color: Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 },
+                text_color: Color {
+                    r: 0.9,
+                    g: 0.2,
+                    b: 0.2,
+                    a: 1.0,
+                },
                 border: Border {
                     color: Color::TRANSPARENT,
                     width: 0.0,
@@ -1317,7 +1364,8 @@ impl MeshFederationPanel {
                     .color(text_color),
             )
             .padding([4u16, 10u16])
-            .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+            .style(move |_t, _s: ButtonStatus| button::Style {
+                snap: false,
                 background: Some(Background::Color(raised)),
                 text_color,
                 border: Border {
@@ -1338,7 +1386,8 @@ impl MeshFederationPanel {
                     .color(accent),
             )
             .padding([4u16, 10u16])
-            .style(move |_t, _s: ButtonStatus| button::Style { snap: false,
+            .style(move |_t, _s: ButtonStatus| button::Style {
+                snap: false,
                 background: None,
                 text_color: accent,
                 border: Border {
@@ -1399,7 +1448,12 @@ impl MeshFederationPanel {
             items.push(
                 text(format!("Error: {e}"))
                     .size(TypeRole::Caption.size_in(sizes))
-                    .color(Color { r: 0.9, g: 0.2, b: 0.2, a: 1.0 })
+                    .color(Color {
+                        r: 0.9,
+                        g: 0.2,
+                        b: 0.2,
+                        a: 1.0,
+                    })
                     .into(),
             );
         }
@@ -1580,7 +1634,10 @@ mod tests {
         let mut panel = MeshFederationPanel::new();
         panel.grant.new_subscribe = "fleet/#".to_string();
         let _ = panel.update(Message::GrantAddSubscribeClicked);
-        assert!(panel.grant.subscribe_topics.contains(&"fleet/#".to_string()));
+        assert!(panel
+            .grant
+            .subscribe_topics
+            .contains(&"fleet/#".to_string()));
         assert!(panel.grant.new_subscribe.is_empty());
     }
 
@@ -1606,12 +1663,10 @@ mod tests {
         let mut panel = MeshFederationPanel::new();
         panel.grant.new_publish = "portal/peer-presence/*".to_string();
         let _ = panel.update(Message::GrantAddPublishClicked);
-        assert!(
-            panel
-                .grant
-                .publish_topics
-                .contains(&"portal/peer-presence/*".to_string())
-        );
+        assert!(panel
+            .grant
+            .publish_topics
+            .contains(&"portal/peer-presence/*".to_string()));
         assert!(panel.grant.new_publish.is_empty());
     }
 
@@ -1750,7 +1805,10 @@ mod tests {
             .as_millis() as i64
             + 6 * 3600 * 1000; // 6 hours from now
         let result = format_expiry(future_ms);
-        assert!(result.contains('h'), "expected 'Xh Ym remaining', got {result}");
+        assert!(
+            result.contains('h'),
+            "expected 'Xh Ym remaining', got {result}"
+        );
     }
 
     #[test]

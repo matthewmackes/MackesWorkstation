@@ -58,7 +58,11 @@ pub fn parse_items(reply_json: &str) -> Vec<LibraryItem> {
             .iter()
             .filter_map(|g| {
                 let value = g.get("value").and_then(serde_json::Value::as_str)?;
-                Some(LibraryItem { id: value.to_string(), label: value.to_string(), art_id: None })
+                Some(LibraryItem {
+                    id: value.to_string(),
+                    label: value.to_string(),
+                    art_id: None,
+                })
             })
             .collect();
     }
@@ -84,7 +88,11 @@ pub fn parse_items(reply_json: &str) -> Vec<LibraryItem> {
                         .get("coverArt")
                         .and_then(serde_json::Value::as_str)
                         .map(str::to_string);
-                    Some(LibraryItem { id: id.to_string(), label: label.to_string(), art_id })
+                    Some(LibraryItem {
+                        id: id.to_string(),
+                        label: label.to_string(),
+                        art_id,
+                    })
                 })
                 .collect();
         }
@@ -215,7 +223,14 @@ mod tests {
     #[test]
     fn parse_artists_section() {
         let reply = r#"{"ok":true,"result":{"artists":[{"id":"2","name":"Air"}]}}"#;
-        assert_eq!(parse_items(reply), vec![LibraryItem { id: "2".into(), label: "Air".into(), art_id: None }]);
+        assert_eq!(
+            parse_items(reply),
+            vec![LibraryItem {
+                id: "2".into(),
+                label: "Air".into(),
+                art_id: None
+            }]
+        );
     }
 
     #[test]
@@ -240,8 +255,16 @@ mod tests {
 
     #[test]
     fn parse_podcasts_and_episodes_sections() {
-        let pods = parse_items(r#"{"ok":true,"result":{"podcasts":[{"id":"c1","title":"Rust Talks"}]}}"#);
-        assert_eq!(pods, vec![LibraryItem { id: "c1".into(), label: "Rust Talks".into(), art_id: None }]);
+        let pods =
+            parse_items(r#"{"ok":true,"result":{"podcasts":[{"id":"c1","title":"Rust Talks"}]}}"#);
+        assert_eq!(
+            pods,
+            vec![LibraryItem {
+                id: "c1".into(),
+                label: "Rust Talks".into(),
+                art_id: None
+            }]
+        );
         let eps = parse_items(r#"{"ok":true,"result":{"episodes":[{"id":"s1","title":"Ep 1"}]}}"#);
         assert_eq!(eps[0].label, "Ep 1");
     }
@@ -254,7 +277,14 @@ mod tests {
         ]}}"#;
         let items = parse_items(reply);
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0], LibraryItem { id: "Jazz".into(), label: "Jazz".into(), art_id: None });
+        assert_eq!(
+            items[0],
+            LibraryItem {
+                id: "Jazz".into(),
+                label: "Jazz".into(),
+                art_id: None
+            }
+        );
         assert_eq!(items[1].label, "Rock");
     }
 
@@ -272,7 +302,14 @@ mod tests {
         ]}}"#;
         let items = parse_items(reply);
         assert_eq!(items.len(), 2);
-        assert_eq!(items[0], LibraryItem { id: "pl1".into(), label: "Roadtrip".into(), art_id: None });
+        assert_eq!(
+            items[0],
+            LibraryItem {
+                id: "pl1".into(),
+                label: "Roadtrip".into(),
+                art_id: None
+            }
+        );
         assert_eq!(items[1].label, "Focus");
     }
 

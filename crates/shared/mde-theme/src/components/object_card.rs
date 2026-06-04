@@ -166,11 +166,7 @@ impl ObjectCard {
     /// Build a Medium card with top icon + title + subtitle.
     /// The mde-files grid-view shape.
     #[must_use]
-    pub fn medium(
-        icon: Icon,
-        title: impl Into<String>,
-        subtitle: impl Into<String>,
-    ) -> Self {
+    pub fn medium(icon: Icon, title: impl Into<String>, subtitle: impl Into<String>) -> Self {
         Self {
             icon: Some(icon),
             title: title.into(),
@@ -185,11 +181,7 @@ impl ObjectCard {
     /// Build a Large card with top icon + title + subtitle.
     /// The Start menu grid shape.
     #[must_use]
-    pub fn large(
-        icon: Icon,
-        title: impl Into<String>,
-        subtitle: impl Into<String>,
-    ) -> Self {
+    pub fn large(icon: Icon, title: impl Into<String>, subtitle: impl Into<String>) -> Self {
         Self {
             icon: Some(icon),
             title: title.into(),

@@ -35,7 +35,10 @@ impl HeartbeatWorker {
     /// and stable node id.
     #[must_use]
     pub fn new(workgroup_root: PathBuf, node_id: String) -> Self {
-        Self { workgroup_root, node_id }
+        Self {
+            workgroup_root,
+            node_id,
+        }
     }
 }
 

@@ -426,7 +426,9 @@ mod tests {
     #[test]
     fn is_nebula_event_matches_substring() {
         assert!(is_nebula_event("kind=nebula_ca_rotated mesh=m1"));
-        assert!(is_nebula_event(r#"{"kind":"nebula_lighthouse_promoted","node":"peer:lh1"}"#));
+        assert!(is_nebula_event(
+            r#"{"kind":"nebula_lighthouse_promoted","node":"peer:lh1"}"#
+        ));
         assert!(!is_nebula_event("kind=heartbeat node=peer:alpha"));
         assert!(!is_nebula_event(""));
     }

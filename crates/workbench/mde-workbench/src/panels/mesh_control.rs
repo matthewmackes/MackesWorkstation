@@ -71,7 +71,11 @@ pub enum Message {
     /// NF-11.3 — Operator clicked the "Rotate CA" button. Fires
     /// `Nebula.Status.RegenCerts` via dbus-send and refreshes.
     RotateCaClicked,
-    OpFinished { op: String, success: bool, output: String },
+    OpFinished {
+        op: String,
+        success: bool,
+        output: String,
+    },
 }
 
 impl MeshControlPanel {
@@ -143,7 +147,11 @@ impl MeshControlPanel {
                     },
                 )
             }
-            Message::OpFinished { op, success, output } => {
+            Message::OpFinished {
+                op,
+                success,
+                output,
+            } => {
                 self.last_op = if success {
                     format!("{op}: ok")
                 } else {
@@ -197,7 +205,8 @@ impl MeshControlPanel {
                     },
                     _ => accent,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: Color::WHITE,
                     border: Border {
@@ -234,7 +243,8 @@ impl MeshControlPanel {
                     },
                     _ => Color::TRANSPARENT,
                 };
-                iced::widget::button::Style { snap: false,
+                iced::widget::button::Style {
+                    snap: false,
                     background: Some(Background::Color(bg)),
                     text_color: text_main,
                     border: Border {
@@ -247,10 +257,14 @@ impl MeshControlPanel {
             }
         };
 
-        let force_btn = button(text("Force takeover").size(12).color(palette.text.into_iced_color()))
-            .padding(Padding::from([5u16, 14u16]))
-            .style(ghost_btn_style)
-            .on_press(crate::Message::MeshControl(Message::ForceTakeoverClicked));
+        let force_btn = button(
+            text("Force takeover")
+                .size(12)
+                .color(palette.text.into_iced_color()),
+        )
+        .padding(Padding::from([5u16, 14u16]))
+        .style(ghost_btn_style)
+        .on_press(crate::Message::MeshControl(Message::ForceTakeoverClicked));
 
         // NF-11.3 — Rotate CA button. Disabled when there's no
         // active CA epoch (mesh hasn't been minted yet) so the
@@ -266,12 +280,13 @@ impl MeshControlPanel {
             .padding(Padding::from([5u16, 14u16]))
             .style(ghost_btn_style);
         if self.snapshot.nebula_ca_epoch.is_some() {
-            rotate_btn = rotate_btn
-                .on_press(crate::Message::MeshControl(Message::RotateCaClicked));
+            rotate_btn = rotate_btn.on_press(crate::Message::MeshControl(Message::RotateCaClicked));
         }
 
         let action_row = row![
-            text("Actions:").size(11).color(palette.text_muted.into_iced_color()),
+            text("Actions:")
+                .size(11)
+                .color(palette.text_muted.into_iced_color()),
             force_btn,
             rotate_btn,
         ]
@@ -283,8 +298,12 @@ impl MeshControlPanel {
                 header,
                 Space::new().height(Length::Fixed(20.0)),
                 scrollable(
-                    column![leader_card, Space::new().height(Length::Fixed(12.0)), healthz_card]
-                        .spacing(2),
+                    column![
+                        leader_card,
+                        Space::new().height(Length::Fixed(12.0)),
+                        healthz_card
+                    ]
+                    .spacing(2),
                 )
                 .height(Length::FillPortion(1)),
                 Space::new().height(Length::Fixed(12.0)),
@@ -299,7 +318,10 @@ impl MeshControlPanel {
     }
 }
 
-fn leader_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Element<'a, crate::Message> {
+fn leader_card_view<'a>(
+    snap: &'a MeshControlSnapshot,
+    palette: Palette,
+) -> Element<'a, crate::Message> {
     let (status_icon, status_color, status_label, summary) = match &snap.lease {
         Some(lease) if snap.self_is_leader => (
             Icon::StatusOk,
@@ -326,50 +348,45 @@ fn leader_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Elem
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(28.0))
             .height(Length::Fixed(28.0))
-            .style(move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(status_color),
-            })
+            .style(
+                move |_t: &Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(status_color),
+                },
+            )
             .into()
     } else {
-        text(resolved.fallback_glyph).size(28.0).color(status_color).into()
+        text(resolved.fallback_glyph)
+            .size(28.0)
+            .color(status_color)
+            .into()
     };
-    let mut details_col = column![
-        row![
-            icon_widget,
-            column![
-                row![
-                    text("Leader status").size(13).color(palette.text.into_iced_color()),
-                    text(status_label).size(11).color(status_color),
-                ]
-                .spacing(10)
-                .align_y(iced::alignment::Vertical::Center),
-                text(summary).size(12).color(palette.text_muted.into_iced_color()),
+    let mut details_col = column![row![
+        icon_widget,
+        column![
+            row![
+                text("Leader status")
+                    .size(13)
+                    .color(palette.text.into_iced_color()),
+                text(status_label).size(11).color(status_color),
             ]
-            .spacing(4),
+            .spacing(10)
+            .align_y(iced::alignment::Vertical::Center),
+            text(summary)
+                .size(12)
+                .color(palette.text_muted.into_iced_color()),
         ]
-        .spacing(12)
-        .align_y(iced::alignment::Vertical::Center),
+        .spacing(4),
     ]
+    .spacing(12)
+    .align_y(iced::alignment::Vertical::Center),]
     .spacing(8);
     if let Some(lease) = &snap.lease {
         details_col = details_col.push(
             row![
-                kv_pill(
-                    "renewed",
-                    fmt_unix_age(lease.renewed_at_s),
-                    palette,
-                ),
+                kv_pill("renewed", fmt_unix_age(lease.renewed_at_s), palette,),
                 kv_pill("epoch", lease.epoch.to_string(), palette),
-                kv_pill(
-                    "owner",
-                    lease.node_id.clone(),
-                    palette,
-                ),
-                kv_pill(
-                    "your id",
-                    snap.self_node_id.clone(),
-                    palette,
-                ),
+                kv_pill("owner", lease.node_id.clone(), palette,),
+                kv_pill("your id", snap.self_node_id.clone(), palette,),
             ]
             .spacing(6),
         );
@@ -398,7 +415,8 @@ fn leader_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Elem
     container(details_col)
         .padding(Padding::from([14u16, 18u16]))
         .width(Length::Fill)
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             border: Border {
                 color: border,
@@ -410,9 +428,14 @@ fn leader_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Elem
         .into()
 }
 
-fn healthz_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Element<'a, crate::Message> {
+fn healthz_card_view<'a>(
+    snap: &'a MeshControlSnapshot,
+    palette: Palette,
+) -> Element<'a, crate::Message> {
     let header = row![
-        text("mackesd healthz").size(13).color(palette.text.into_iced_color()),
+        text("mackesd healthz")
+            .size(13)
+            .color(palette.text.into_iced_color()),
         Space::new().width(Length::Fill),
         text(snap.healthz_summary.clone())
             .size(11)
@@ -444,7 +467,8 @@ fn healthz_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Ele
             )
             .padding(Padding::from([10u16, 14u16]))
             .width(Length::Fill)
-            .style(move |_| container::Style { snap: false,
+            .style(move |_| container::Style {
+                snap: false,
                 background: Some(Background::Color(raw_box_bg)),
                 border: Border {
                     color: border,
@@ -458,7 +482,8 @@ fn healthz_card_view<'a>(snap: &'a MeshControlSnapshot, palette: Palette) -> Ele
     )
     .padding(Padding::from([14u16, 18u16]))
     .width(Length::Fill)
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: border,
@@ -479,13 +504,16 @@ fn kv_pill<'a>(key: &'a str, value: String, palette: Palette) -> Element<'a, cra
     };
     container(
         row![
-            text(key).size(10).color(palette.text_muted.into_iced_color()),
+            text(key)
+                .size(10)
+                .color(palette.text_muted.into_iced_color()),
             text(value).size(11).color(palette.text.into_iced_color()),
         ]
         .spacing(6),
     )
     .padding(Padding::from([3u16, 8u16]))
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(bg)),
         border: Border {
             color: palette.border.into_iced_color(),
@@ -714,7 +742,10 @@ pub async fn run_rotate_ca() -> (bool, String) {
 pub fn parse_regen_reply(body: &str) -> (bool, String) {
     match serde_json::from_str::<serde_json::Value>(body) {
         Ok(v) => {
-            let ok = v.get("ok").and_then(serde_json::Value::as_bool).unwrap_or(false);
+            let ok = v
+                .get("ok")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
             let message = v
                 .get("message")
                 .and_then(serde_json::Value::as_str)

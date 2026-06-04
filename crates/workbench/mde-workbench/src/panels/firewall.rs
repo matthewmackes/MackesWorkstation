@@ -284,12 +284,11 @@ impl FirewallPanel {
             });
 
             let peer_counts = per_peer_counts(&self.activity_events);
-            let peer_rows =
-                peer_counts
-                    .iter()
-                    .fold(column![].spacing(2), |col, (host, count)| {
-                        col.push(text(format!("{host}: {count}")).size(12))
-                    });
+            let peer_rows = peer_counts
+                .iter()
+                .fold(column![].spacing(2), |col, (host, count)| {
+                    col.push(text(format!("{host}: {count}")).size(12))
+                });
 
             column![
                 text(format!(
@@ -540,10 +539,7 @@ mod tests {
 "#,
         )
         .unwrap();
-        let events = read_activity_jsonl(
-            tmp.path().to_str().unwrap(),
-            "firewall",
-        );
+        let events = read_activity_jsonl(tmp.path().to_str().unwrap(), "firewall");
         assert_eq!(events.len(), 2);
         // newest first
         assert_eq!(events[0].ts_ms, 2000);

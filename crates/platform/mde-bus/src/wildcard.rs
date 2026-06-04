@@ -142,7 +142,11 @@ mod tests {
             ("fleet/sec", "", false),
         ];
         for (p, t, want) in cases {
-            assert_eq!(matches(p, t), *want, "matches({p:?}, {t:?}) expected {want}");
+            assert_eq!(
+                matches(p, t),
+                *want,
+                "matches({p:?}, {t:?}) expected {want}"
+            );
         }
     }
 

@@ -7,7 +7,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use iced::widget::{column, container, mouse_area, row, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -110,7 +112,11 @@ fn view(state: &App) -> Element<'_, Message> {
                         .height(Length::Fixed(28.0))
                         .center_x(Length::Fixed(32.0))
                         .center_y(Length::Fixed(28.0))
-                        .style(if is_today { today_cell_style } else { empty_cell_style })
+                        .style(if is_today {
+                            today_cell_style
+                        } else {
+                            empty_cell_style
+                        })
                         .into()
                 }
                 None => container(text(" "))
@@ -155,9 +161,16 @@ fn view(state: &App) -> Element<'_, Message> {
         Space::new().height(Length::Fixed(4.0)),
         weather_col,
         Space::new().height(Length::Fill),
-        text("Esc closes · click × to dismiss").size(10).color(FG_MUTED),
+        text("Esc closes · click × to dismiss")
+            .size(10)
+            .color(FG_MUTED),
     ]
-    .padding(Padding { top: 16.0, right: 18.0, bottom: 10.0, left: 18.0 });
+    .padding(Padding {
+        top: 16.0,
+        right: 18.0,
+        bottom: 10.0,
+        left: 18.0,
+    });
 
     let card: Element<'_, Message> = container(body)
         .width(Length::Fixed(WIDTH as f32))
@@ -235,7 +248,13 @@ pub fn run() -> iced_layershell::Result {
             let month_grid = build_month_grid(today.0, today.1);
             tracing::info!(date = ?today, "clock popover open");
             crate::weather::spawn_poll_thread();
-            App { today, month_grid, month_name, weekday_today, hms }
+            App {
+                today,
+                month_grid,
+                month_name,
+                weekday_today,
+                hms,
+            }
         },
         namespace,
         update,
@@ -262,8 +281,18 @@ pub fn run() -> iced_layershell::Result {
 }
 
 const MONTH_NAMES: &[&str] = &[
-    "January", "February", "March", "April", "May", "June", "July", "August", "September",
-    "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ];
 
 const WEEKDAY_INITIALS: &[&str] = &["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

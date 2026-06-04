@@ -161,7 +161,10 @@ mod tests {
         let cfg = std::path::Path::new("/tmp/fake-cfg");
         let targets = build_targets(cfg);
         assert_eq!(targets.len(), 3);
-        let paths: Vec<_> = targets.iter().map(|(p, _)| p.to_string_lossy().to_string()).collect();
+        let paths: Vec<_> = targets
+            .iter()
+            .map(|(p, _)| p.to_string_lossy().to_string())
+            .collect();
         assert!(paths.iter().any(|p| p.ends_with("gtk-3.0/settings.ini")));
         assert!(paths.iter().any(|p| p.ends_with("gtk-4.0/settings.ini")));
         assert!(paths.iter().any(|p| p.ends_with("qt6ct/qt6ct.conf")));

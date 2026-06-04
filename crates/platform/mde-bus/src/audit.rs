@@ -71,9 +71,7 @@ pub enum AuditError {
 ///
 /// # Errors
 /// [`AuditError::Io`] when the index can't be opened or queried.
-pub fn read_entries_from_bus(
-    bus_root: &std::path::Path,
-) -> Result<Vec<AuditEntry>, AuditError> {
+pub fn read_entries_from_bus(bus_root: &std::path::Path) -> Result<Vec<AuditEntry>, AuditError> {
     let persist = crate::persist::Persist::open(bus_root.to_path_buf())
         .map_err(|e| AuditError::Io(format!("open index: {e}")))?;
     let topics = persist
@@ -139,8 +137,10 @@ mod tests {
         let p = Persist::open(tmp.path().to_path_buf()).unwrap();
         // A regular publish auto-emits an audit record to audit/<peer>
         // (the persist write-path does this). Publish two messages.
-        p.write("mesh/alpha", Priority::Default, None, Some("a")).unwrap();
-        p.write("mon/beta", Priority::High, None, Some("b")).unwrap();
+        p.write("mesh/alpha", Priority::Default, None, Some("a"))
+            .unwrap();
+        p.write("mon/beta", Priority::High, None, Some("b"))
+            .unwrap();
         // The audit trail now has two records (one per publish),
         // readable back as AuditEntry with the ORIGINAL topics.
         let entries = read_entries_from_bus(tmp.path()).unwrap();

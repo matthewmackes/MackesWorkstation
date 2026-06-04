@@ -160,7 +160,10 @@ impl Registry {
                 },
             );
         }
-        Ok(self.topics.get(name).expect("just inserted or already present"))
+        Ok(self
+            .topics
+            .get(name)
+            .expect("just inserted or already present"))
     }
 
     /// Look up a topic by exact name.
@@ -296,13 +299,25 @@ mod tests {
             r.ensure(name).unwrap();
         }
         // `+` matches exactly one level.
-        let m: Vec<_> = r.match_pattern("peer/+/alerts").iter().map(|t| t.name.as_str()).collect();
+        let m: Vec<_> = r
+            .match_pattern("peer/+/alerts")
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
         assert_eq!(m, vec!["peer/kitchen/alerts", "peer/laptop/alerts"]);
         // `#` matches all descendants.
-        let m: Vec<_> = r.match_pattern("fleet/#").iter().map(|t| t.name.as_str()).collect();
+        let m: Vec<_> = r
+            .match_pattern("fleet/#")
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
         assert_eq!(m, vec!["fleet/info", "fleet/sec"]);
         // Exact match still works.
-        let m: Vec<_> = r.match_pattern("mon/cpu").iter().map(|t| t.name.as_str()).collect();
+        let m: Vec<_> = r
+            .match_pattern("mon/cpu")
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect();
         assert_eq!(m, vec!["mon/cpu"]);
     }
 

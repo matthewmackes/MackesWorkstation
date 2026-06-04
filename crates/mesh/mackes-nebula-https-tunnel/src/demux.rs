@@ -260,7 +260,10 @@ mod tests {
     #[test]
     fn demux_error_carries_framing_oversized() {
         let e: DemuxError = FrameError::Oversized(2000).into();
-        assert!(matches!(e, DemuxError::Framing(FrameError::Oversized(2000))));
+        assert!(matches!(
+            e,
+            DemuxError::Framing(FrameError::Oversized(2000))
+        ));
     }
 
     #[test]

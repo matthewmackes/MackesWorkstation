@@ -77,10 +77,7 @@ pub fn parse_active(raw: &str) -> Option<ActiveConnection> {
 pub const fn is_real_iface_kind(kind: &str) -> bool {
     matches!(
         kind.as_bytes(),
-        b"wifi"
-            | b"802-11-wireless"
-            | b"802-3-ethernet"
-            | b"ethernet"
+        b"wifi" | b"802-11-wireless" | b"802-3-ethernet" | b"ethernet"
     )
 }
 

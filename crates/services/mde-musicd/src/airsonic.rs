@@ -578,7 +578,11 @@ pub fn parse_lyrics(inner: &Value) -> Vec<String> {
             }
         }
     }
-    if let Some(val) = inner.get("lyrics").and_then(|l| l.get("value")).and_then(Value::as_str) {
+    if let Some(val) = inner
+        .get("lyrics")
+        .and_then(|l| l.get("value"))
+        .and_then(Value::as_str)
+    {
         return val.lines().map(str::to_string).collect();
     }
     Vec::new()
@@ -674,7 +678,10 @@ pub fn parse_podcast_channels(inner: &Value) -> Vec<PodcastChannel> {
                 .filter_map(|c| {
                     let id = c.get("id").and_then(Value::as_str)?;
                     let title = c.get("title").and_then(Value::as_str).unwrap_or(id);
-                    Some(PodcastChannel { id: id.to_string(), title: title.to_string() })
+                    Some(PodcastChannel {
+                        id: id.to_string(),
+                        title: title.to_string(),
+                    })
                 })
                 .collect()
         })
@@ -701,7 +708,10 @@ pub fn parse_podcast_episodes(inner: &Value) -> Vec<PodcastEpisode> {
                         .or_else(|| e.get("id"))
                         .and_then(Value::as_str)?;
                     let title = e.get("title").and_then(Value::as_str).unwrap_or(id);
-                    Some(PodcastEpisode { id: id.to_string(), title: title.to_string() })
+                    Some(PodcastEpisode {
+                        id: id.to_string(),
+                        title: title.to_string(),
+                    })
                 })
                 .collect()
         })
@@ -734,9 +744,15 @@ mod tests {
         let structured = json!({"lyricsList":{"structuredLyrics":[{"line":[
             {"value":"line one"},{"value":"line two"}
         ]}]}});
-        assert_eq!(parse_lyrics(&structured), vec!["line one".to_string(), "line two".to_string()]);
+        assert_eq!(
+            parse_lyrics(&structured),
+            vec!["line one".to_string(), "line two".to_string()]
+        );
         let classic = json!({"lyrics":{"value":"a\nb\nc"}});
-        assert_eq!(parse_lyrics(&classic), vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+        assert_eq!(
+            parse_lyrics(&classic),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
         assert!(parse_lyrics(&json!({"nope":1})).is_empty());
     }
     use serde_json::json;
@@ -871,11 +887,17 @@ mod tests {
             "error": {"code": 40, "message": "Wrong username or password"}}});
         assert_eq!(
             unwrap_envelope(&failed),
-            Err(AirsonicError::Api { code: 40, message: "Wrong username or password".into() })
+            Err(AirsonicError::Api {
+                code: 40,
+                message: "Wrong username or password".into()
+            })
         );
 
         let malformed = json!({"nope": true});
-        assert!(matches!(unwrap_envelope(&malformed), Err(AirsonicError::Parse(_))));
+        assert!(matches!(
+            unwrap_envelope(&malformed),
+            Err(AirsonicError::Parse(_))
+        ));
     }
 
     #[test]

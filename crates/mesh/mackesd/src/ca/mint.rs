@@ -9,9 +9,7 @@ use std::path::Path;
 
 use rusqlite::Connection;
 
-use super::{
-    seal, CaError, NebulaCertBackend, DEFAULT_CA_CERT_PATH, DEFAULT_CA_KEY_PATH,
-};
+use super::{seal, CaError, NebulaCertBackend, DEFAULT_CA_CERT_PATH, DEFAULT_CA_KEY_PATH};
 
 /// Outcome of [`mint_ca`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,10 +87,7 @@ pub fn mint_ca<B: NebulaCertBackend>(
 
 /// Return the active (non-retired) CA row for `mesh_id` if
 /// any. Pure read — no IO outside SQLite.
-pub fn current_ca(
-    conn: &Connection,
-    mesh_id: &str,
-) -> Result<Option<(i64, String)>, CaError> {
+pub fn current_ca(conn: &Connection, mesh_id: &str) -> Result<Option<(i64, String)>, CaError> {
     let mut stmt = conn
         .prepare(
             "SELECT epoch, ca_cert_pem FROM nebula_ca \
@@ -124,8 +119,7 @@ mod tests {
         let key = tmp.path().join("ca.key");
         let conn = fresh_conn();
         let backend = MockBackend;
-        let outcome = mint_ca(&backend, &conn, "test-mesh", Some(&crt), Some(&key))
-            .expect("mint");
+        let outcome = mint_ca(&backend, &conn, "test-mesh", Some(&crt), Some(&key)).expect("mint");
         match outcome {
             MintOutcome::Created { cert_pem } => {
                 assert!(cert_pem.contains("BEGIN NEBULA CA"));
@@ -150,9 +144,11 @@ mod tests {
         // Mutate the on-disk crt to verify the second call
         // does NOT overwrite it.
         std::fs::write(&crt, "tampered").expect("tamper");
-        let outcome = mint_ca(&backend, &conn, "m1", Some(&crt), Some(&key))
-            .expect("mint 2");
-        assert!(matches!(outcome, MintOutcome::AlreadyMinted { epoch: 0, .. }));
+        let outcome = mint_ca(&backend, &conn, "m1", Some(&crt), Some(&key)).expect("mint 2");
+        assert!(matches!(
+            outcome,
+            MintOutcome::AlreadyMinted { epoch: 0, .. }
+        ));
         assert_eq!(std::fs::read_to_string(&crt).unwrap(), "tampered");
     }
 

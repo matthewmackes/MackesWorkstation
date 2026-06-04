@@ -265,7 +265,10 @@ pub fn command_for_rule(rule: &WindowRule) -> Option<String> {
         return None;
     }
     let criterion = criterion_for_match(&rule.match_app_id);
-    Some(format!("for_window {criterion} {action}", action = actions.join(", ")))
+    Some(format!(
+        "for_window {criterion} {action}",
+        action = actions.join(", ")
+    ))
 }
 
 /// Build the `[app_id="<match>"]` criterion string for a rule.

@@ -130,9 +130,7 @@ impl SshdOverlayBindWorker {
         // Look for a forward mtime jump vs the last-seen one.
         match std::fs::metadata(&self.overlay_ip_path).and_then(|m| m.modified()) {
             Ok(now) => {
-                let advanced = self
-                    .last_overlay_mtime
-                    .is_none_or(|last| now > last);
+                let advanced = self.last_overlay_mtime.is_none_or(|last| now > last);
                 self.last_overlay_mtime = Some(now);
                 if !advanced {
                     return TickOutcome::Idle;

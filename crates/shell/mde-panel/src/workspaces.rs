@@ -160,8 +160,16 @@ mod tests {
     #[test]
     fn fixed_four_slots_indexes_by_num() {
         let workspaces = vec![
-            WorkspaceState { num: 1, focused: true, has_windows: true },
-            WorkspaceState { num: 3, focused: false, has_windows: false },
+            WorkspaceState {
+                num: 1,
+                focused: true,
+                has_windows: true,
+            },
+            WorkspaceState {
+                num: 3,
+                focused: false,
+                has_windows: false,
+            },
         ];
         let slots = fixed_four_slots(&workspaces);
         assert!(slots[0].is_some()); // ws 1
@@ -175,8 +183,16 @@ mod tests {
     #[test]
     fn fixed_four_slots_drops_out_of_range() {
         let workspaces = vec![
-            WorkspaceState { num: 7, focused: false, has_windows: false },
-            WorkspaceState { num: 2, focused: true, has_windows: true },
+            WorkspaceState {
+                num: 7,
+                focused: false,
+                has_windows: false,
+            },
+            WorkspaceState {
+                num: 2,
+                focused: true,
+                has_windows: true,
+            },
         ];
         let slots = fixed_four_slots(&workspaces);
         assert!(slots[0].is_none());

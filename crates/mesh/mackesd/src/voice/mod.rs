@@ -139,10 +139,7 @@ pub fn pick_relay(target_node_id: &str, candidates: &[Candidate]) -> String {
         // (loss_pct < 100).
         .filter(|c| c.loss_pct < 100.0)
         .min_by(|a, b| score(a).total_cmp(&score(b)))
-        .map_or_else(
-            || target_node_id.to_owned(),
-            |c| c.via.clone(),
-        )
+        .map_or_else(|| target_node_id.to_owned(), |c| c.via.clone())
 }
 
 /// VV-4 quality score — lower is better.
@@ -170,13 +167,23 @@ mod tests {
     #[test]
     fn direct_wins_when_within_caps() {
         let path = best_path("peer:bob", &[c("peer:bob", 12.0, 0.0)]);
-        assert_eq!(path, Path::Direct { via: "peer:bob".into() });
+        assert_eq!(
+            path,
+            Path::Direct {
+                via: "peer:bob".into()
+            }
+        );
     }
 
     #[test]
     fn rtt_just_under_cap_is_direct() {
         let path = best_path("peer:bob", &[c("peer:bob", 79.9, 0.0)]);
-        assert_eq!(path, Path::Direct { via: "peer:bob".into() });
+        assert_eq!(
+            path,
+            Path::Direct {
+                via: "peer:bob".into()
+            }
+        );
     }
 
     #[test]
@@ -187,7 +194,12 @@ mod tests {
             "peer:bob",
             &[c("peer:bob", 80.0, 0.0), c("peer:relay", 30.0, 0.0)],
         );
-        assert_eq!(path, Path::Transit { via: "peer:relay".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:relay".into()
+            }
+        );
     }
 
     #[test]
@@ -196,7 +208,12 @@ mod tests {
             "peer:bob",
             &[c("peer:bob", 12.0, 5.0), c("peer:relay", 30.0, 0.0)],
         );
-        assert_eq!(path, Path::Transit { via: "peer:relay".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:relay".into()
+            }
+        );
     }
 
     #[test]
@@ -205,7 +222,12 @@ mod tests {
             "peer:bob",
             &[c("peer:bob", 5.0, 50.0), c("peer:relay", 25.0, 0.0)],
         );
-        assert_eq!(path, Path::Transit { via: "peer:relay".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:relay".into()
+            }
+        );
     }
 
     #[test]
@@ -217,7 +239,12 @@ mod tests {
             "peer:bob",
             &[c("peer:bob", 0.0, 100.0), c("peer:relay", 25.0, 0.0)],
         );
-        assert_eq!(path, Path::Transit { via: "peer:relay".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:relay".into()
+            }
+        );
     }
 
     #[test]
@@ -229,7 +256,12 @@ mod tests {
             "peer:bob",
             &[c("peer:bob", 40.0, 2.0), c("peer:bob", 12.0, 0.5)],
         );
-        assert_eq!(path, Path::Direct { via: "peer:bob".into() });
+        assert_eq!(
+            path,
+            Path::Direct {
+                via: "peer:bob".into()
+            }
+        );
         // The picked one should be the (12.0, 0.5) candidate:
         // score 17.0 vs 60.0.
     }
@@ -244,7 +276,12 @@ mod tests {
                 c("peer:relay-slow", 70.0, 1.0), // direct route to slow relay
             ],
         );
-        assert_eq!(path, Path::Transit { via: "peer:relay-fast".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:relay-fast".into()
+            }
+        );
     }
 
     #[test]
@@ -260,7 +297,12 @@ mod tests {
             "peer:bob",
             &[c("peer:bob", 0.0, 100.0), c("peer:relay", 90.0, 0.0)],
         );
-        assert_eq!(path, Path::Transit { via: "peer:relay".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:relay".into()
+            }
+        );
     }
 
     #[test]
@@ -269,7 +311,12 @@ mod tests {
         // the target itself; the eventual Kamailio call will
         // 503 with a clear "no transit available" reply.
         let path = best_path("peer:bob", &[]);
-        assert_eq!(path, Path::Transit { via: "peer:bob".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:bob".into()
+            }
+        );
     }
 
     #[test]
@@ -279,7 +326,12 @@ mod tests {
             // Only a 100% loss direct candidate, no relays.
             &[c("peer:bob", 0.0, 100.0)],
         );
-        assert_eq!(path, Path::Transit { via: "peer:bob".into() });
+        assert_eq!(
+            path,
+            Path::Transit {
+                via: "peer:bob".into()
+            }
+        );
     }
 
     #[test]
@@ -330,8 +382,12 @@ mod tests {
 
     #[test]
     fn path_json_round_trips_both_variants() {
-        let d = Path::Direct { via: "peer:bob".into() };
-        let t = Path::Transit { via: "peer:relay".into() };
+        let d = Path::Direct {
+            via: "peer:bob".into(),
+        };
+        let t = Path::Transit {
+            via: "peer:relay".into(),
+        };
         for p in [d, t] {
             let json = serde_json::to_string(&p).unwrap();
             let back: Path = serde_json::from_str(&json).unwrap();

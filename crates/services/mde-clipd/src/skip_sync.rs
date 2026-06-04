@@ -197,7 +197,10 @@ mod tests {
         let path = flag_path();
         let content = std::fs::read_to_string(&path).unwrap();
         let ts: u64 = content.trim().parse().unwrap();
-        assert!(ts >= before && ts <= after, "timestamp should be within write window");
+        assert!(
+            ts >= before && ts <= after,
+            "timestamp should be within write window"
+        );
 
         // Cleanup.
         let _ = std::env::remove_var("XDG_RUNTIME_DIR");

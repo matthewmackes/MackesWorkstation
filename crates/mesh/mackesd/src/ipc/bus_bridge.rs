@@ -161,8 +161,14 @@ mod tests {
     fn sanitize_lowercases_and_hyphenates() {
         assert_eq!(sanitize_app_name("Slack"), "slack");
         assert_eq!(sanitize_app_name("Firefox"), "firefox");
-        assert_eq!(sanitize_app_name("Org.Gnome.Calendar"), "org-gnome-calendar");
-        assert_eq!(sanitize_app_name("Visual Studio Code"), "visual-studio-code");
+        assert_eq!(
+            sanitize_app_name("Org.Gnome.Calendar"),
+            "org-gnome-calendar"
+        );
+        assert_eq!(
+            sanitize_app_name("Visual Studio Code"),
+            "visual-studio-code"
+        );
     }
 
     #[test]
@@ -189,7 +195,10 @@ mod tests {
     #[test]
     fn topic_for_app_prefixes_fdo() {
         assert_eq!(topic_for_app("Slack"), "fdo/slack");
-        assert_eq!(topic_for_app("Org.Gnome.Calendar"), "fdo/org-gnome-calendar");
+        assert_eq!(
+            topic_for_app("Org.Gnome.Calendar"),
+            "fdo/org-gnome-calendar"
+        );
         assert_eq!(topic_for_app(""), "fdo/unknown");
     }
 

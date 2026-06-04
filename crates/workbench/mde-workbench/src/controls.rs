@@ -89,8 +89,8 @@ pub fn variant_button<'a, Message: Clone + 'a>(
         let mut fg = text_color_for_variant(variant, palette);
         let mut border = border_for_variant(variant, accent, palette);
         match status {
-            ButtonStatus::Hovered => bg = brighten(bg, 1.08),  // +8% luminance
-            ButtonStatus::Pressed => bg = brighten(bg, 0.92),  // -8% luminance
+            ButtonStatus::Hovered => bg = brighten(bg, 1.08), // +8% luminance
+            ButtonStatus::Pressed => bg = brighten(bg, 0.92), // -8% luminance
             ButtonStatus::Disabled => {
                 fg = with_alpha(fg, DISABLED_OPACITY);
                 bg = with_alpha(bg, DISABLED_OPACITY * bg.a.max(0.1));
@@ -98,7 +98,8 @@ pub fn variant_button<'a, Message: Clone + 'a>(
             }
             ButtonStatus::Active => {}
         }
-        button::Style { snap: false,
+        button::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             text_color: fg,
             border,
@@ -233,7 +234,8 @@ pub fn toggle<'a, Message: Clone + 'a>(
     )
     .width(Length::Fixed(TOGGLE_KNOB_DIAMETER))
     .height(Length::Fixed(TOGGLE_KNOB_DIAMETER))
-    .style(move |_| container::Style { snap: false,
+    .style(move |_| container::Style {
+        snap: false,
         background: Some(Background::Color(knob_color)),
         border: Border {
             color: Color::TRANSPARENT,
@@ -257,7 +259,8 @@ pub fn toggle<'a, Message: Clone + 'a>(
             if matches!(status, ButtonStatus::Hovered) {
                 bg = brighten(bg, 1.05);
             }
-            button::Style { snap: false,
+            button::Style {
+                snap: false,
                 background: Some(Background::Color(bg)),
                 text_color: Color::TRANSPARENT,
                 border: Border {
@@ -274,9 +277,7 @@ pub fn toggle<'a, Message: Clone + 'a>(
 /// CR-9 — checkbox style closure for `iced::widget::checkbox::style()`.
 /// 16 px sharp square (set via `.size(16)` on the widget), accent fill
 /// when checked, white checkmark icon.
-pub fn checkbox_style(
-    palette: Palette,
-) -> impl Fn(&iced::Theme, CheckboxStatus) -> CheckboxStyle {
+pub fn checkbox_style(palette: Palette) -> impl Fn(&iced::Theme, CheckboxStatus) -> CheckboxStyle {
     let accent = palette.accent.into_iced_color();
     let divider = palette.border.into_iced_color();
     move |_theme, status| {
@@ -298,7 +299,11 @@ pub fn checkbox_style(
                 CheckboxStatus::Disabled { .. } => with_alpha(divider, DISABLED_OPACITY),
                 _ => divider,
             };
-            (Background::Color(Color::TRANSPARENT), Color::TRANSPARENT, border)
+            (
+                Background::Color(Color::TRANSPARENT),
+                Color::TRANSPARENT,
+                border,
+            )
         };
         CheckboxStyle {
             background: bg,
@@ -316,9 +321,7 @@ pub fn checkbox_style(
 /// CR-9 — radio style closure for `iced::widget::radio::style()`.
 /// 16 px circle (set via `.size(16)` on the widget), transparent bg,
 /// accent dot when selected, palette.border ring when idle.
-pub fn radio_style(
-    palette: Palette,
-) -> impl Fn(&iced::Theme, RadioStatus) -> RadioStyle {
+pub fn radio_style(palette: Palette) -> impl Fn(&iced::Theme, RadioStatus) -> RadioStyle {
     let accent = palette.accent.into_iced_color();
     let divider = palette.border.into_iced_color();
     move |_theme, status| {
@@ -354,9 +357,7 @@ pub fn radio_style(
 /// Colors: palette.surface track, palette.border thumb, slight brightening
 /// on hover/drag. Rail width is caller-controlled via
 /// `scrollable::Scrollbar::new().width(SCROLLBAR_WIDTH)`.
-pub fn scrollbar_style(
-    palette: Palette,
-) -> impl Fn(&iced::Theme, ScrollStatus) -> ScrollStyle {
+pub fn scrollbar_style(palette: Palette) -> impl Fn(&iced::Theme, ScrollStatus) -> ScrollStyle {
     let track_bg = palette.surface.into_iced_color();
     let thumb_default = palette.border.into_iced_color();
     move |_theme, status| {
@@ -417,19 +418,24 @@ pub fn skeleton<'a, Message: 'a>(
 ) -> Element<'a, Message> {
     let radii = Radii::defaults();
     let bg = with_alpha(palette.raised.into_iced_color(), 0.6);
-    container(Space::new().width(Length::Fixed(width)).height(Length::Fixed(height)))
-        .width(Length::Fixed(width))
-        .height(Length::Fixed(height))
-        .style(move |_| container::Style { snap: false,
-            background: Some(Background::Color(bg)),
-            border: Border {
-                color: Color::TRANSPARENT,
-                width: 0.0,
-                radius: f32::from(radii.sm).into(),
-            },
-            ..container::Style::default()
-        })
-        .into()
+    container(
+        Space::new()
+            .width(Length::Fixed(width))
+            .height(Length::Fixed(height)),
+    )
+    .width(Length::Fixed(width))
+    .height(Length::Fixed(height))
+    .style(move |_| container::Style {
+        snap: false,
+        background: Some(Background::Color(bg)),
+        border: Border {
+            color: Color::TRANSPARENT,
+            width: 0.0,
+            radius: f32::from(radii.sm).into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
 }
 
 /// UX-7 (d) — spinner placeholder. Static accent circle; animation
@@ -437,19 +443,24 @@ pub fn skeleton<'a, Message: 'a>(
 pub fn spinner<'a, Message: 'a>(palette: Palette) -> Element<'a, Message> {
     let radii = Radii::defaults();
     let accent = palette.accent.into_iced_color();
-    container(Space::new().width(Length::Fixed(16.0)).height(Length::Fixed(16.0)))
-        .width(Length::Fixed(16.0))
-        .height(Length::Fixed(16.0))
-        .style(move |_| container::Style { snap: false,
-            background: Some(Background::Color(with_alpha(accent, 0.6))),
-            border: Border {
-                color: accent,
-                width: 1.0,
-                radius: f32::from(radii.full).into(),
-            },
-            ..container::Style::default()
-        })
-        .into()
+    container(
+        Space::new()
+            .width(Length::Fixed(16.0))
+            .height(Length::Fixed(16.0)),
+    )
+    .width(Length::Fixed(16.0))
+    .height(Length::Fixed(16.0))
+    .style(move |_| container::Style {
+        snap: false,
+        background: Some(Background::Color(with_alpha(accent, 0.6))),
+        border: Border {
+            color: accent,
+            width: 1.0,
+            radius: f32::from(radii.full).into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
 }
 
 fn brighten(c: Color, factor: f32) -> Color {

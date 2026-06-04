@@ -25,7 +25,9 @@
 use std::process::Command;
 
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
-use iced::{Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
+use iced::{
+    Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
@@ -178,14 +180,12 @@ fn view(state: &App) -> Element<'_, Message> {
             .color(FG_MUTED),
     );
 
-    let card: Element<'_, Message> = container(
-        body_col.padding(Padding {
-            top: 14.0,
-            right: 14.0,
-            bottom: 10.0,
-            left: 14.0,
-        }),
-    )
+    let card: Element<'_, Message> = container(body_col.padding(Padding {
+        top: 14.0,
+        right: 14.0,
+        bottom: 10.0,
+        left: 14.0,
+    }))
     .width(Length::Fixed(WIDTH as f32))
     .height(Length::Fixed(HEIGHT as f32))
     .style(popover_surface)
@@ -380,8 +380,9 @@ pub fn inline_fallback_resolve(app_id_lc: &str) -> String {
         "firefox" | "google-chrome" | "chromium" | "brave-browser" => "globe",
         "foot" | "terminator" | "kitty" | "alacritty" | "xterm" => "terminal",
         "code" | "code-oss" | "vscodium" | "vim" | "nvim" | "gvim" => "code",
-        "thunar" | "nautilus" | "dolphin" | "yazi" | "ranger" | "mde-files"
-        | "cosmic-files" => "folder",
+        "thunar" | "nautilus" | "dolphin" | "yazi" | "ranger" | "mde-files" | "cosmic-files" => {
+            "folder"
+        }
         "vlc" | "mpv" | "celluloid" => "play",
         "rhythmbox" | "spotify" | "sublime-music" | "delfin" => "music",
         "thunderbird" | "evolution" | "geary" => "mail",
@@ -390,8 +391,9 @@ pub fn inline_fallback_resolve(app_id_lc: &str) -> String {
         "libreoffice-impress" => "presentation",
         "slack" | "discord" | "element" | "telegram-desktop" => "chat",
         "zoom" => "video",
-        "mde" | "mde-workbench" | "mackes-shell" | "system-settings"
-        | "preferences-system" => "settings",
+        "mde" | "mde-workbench" | "mackes-shell" | "system-settings" | "preferences-system" => {
+            "settings"
+        }
         "mde-panel" => "panel",
         _ => "application",
     };

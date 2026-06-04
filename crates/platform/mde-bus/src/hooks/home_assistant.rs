@@ -87,7 +87,10 @@ mod tests {
             fields.get("automation_name").map(String::as_str),
             Some("Front door open")
         );
-        assert_eq!(fields.get("entity").map(String::as_str), Some("binary_sensor.front_door"));
+        assert_eq!(
+            fields.get("entity").map(String::as_str),
+            Some("binary_sensor.front_door")
+        );
         assert_eq!(fields.get("state").map(String::as_str), Some("on"));
         assert_eq!(fields.get("area").map(String::as_str), Some("Foyer"));
     }
@@ -99,20 +102,26 @@ mod tests {
             "automation": "Smoke detected",
             "severity": "critical",
         });
-        let (_, fields) = HomeAssistantAdapter.extract(&BTreeMap::new(), &body).unwrap();
+        let (_, fields) = HomeAssistantAdapter
+            .extract(&BTreeMap::new(), &body)
+            .unwrap();
         assert_eq!(fields.get("severity").map(String::as_str), Some("critical"));
     }
 
     #[test]
     fn missing_event_returns_none() {
         let body = json!({"automation": "x"});
-        assert!(HomeAssistantAdapter.extract(&BTreeMap::new(), &body).is_none());
+        assert!(HomeAssistantAdapter
+            .extract(&BTreeMap::new(), &body)
+            .is_none());
     }
 
     #[test]
     fn missing_optional_fields_yields_partial_map() {
         let body = json!({"event": "ping"});
-        let (event, fields) = HomeAssistantAdapter.extract(&BTreeMap::new(), &body).unwrap();
+        let (event, fields) = HomeAssistantAdapter
+            .extract(&BTreeMap::new(), &body)
+            .unwrap();
         assert_eq!(event, "ping");
         assert!(fields.is_empty());
     }

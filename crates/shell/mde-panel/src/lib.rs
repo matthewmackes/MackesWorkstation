@@ -432,8 +432,7 @@ impl iced_layershell::Application for App {
                             }
                         })
                         .unwrap_or_default();
-                    self.top_bar.scratchpad_count =
-                        crate::top_bar::count_scratchpad(&tree_raw);
+                    self.top_bar.scratchpad_count = crate::top_bar::count_scratchpad(&tree_raw);
                 }
             }
             Message::AppletText(kind, text) => {
@@ -485,10 +484,7 @@ impl iced_layershell::Application for App {
                 // read from `self.toplevels` on their next view().
                 let changed = self.toplevels.apply(ev);
                 if changed {
-                    tracing::debug!(
-                        live_count = self.toplevels.len(),
-                        "toplevels model updated"
-                    );
+                    tracing::debug!(live_count = self.toplevels.len(), "toplevels model updated");
                     // v3.0.3 Phase E.4.2 wiring — push the new
                     // focused window's title + app_id into the
                     // hero. `set_focused` is idempotent on the same
@@ -553,9 +549,7 @@ impl iced_layershell::Application for App {
                     }
                     DesktopLayout::Vsplit => "splith",
                     DesktopLayout::Grid => "splith; focus next; splitv",
-                    DesktopLayout::MainSidebar => {
-                        "splith; resize set width 60ppt"
-                    }
+                    DesktopLayout::MainSidebar => "splith; resize set width 60ppt",
                     DesktopLayout::Tabbed => "layout tabbed",
                 };
                 tracing::info!(layout = ?kind, cmd, "desktop layout selected");
@@ -710,9 +704,7 @@ fn load_fallback_fonts() -> Vec<std::borrow::Cow<'static, [u8]>> {
         }
     }
     if out.is_empty() {
-        tracing::warn!(
-            "no fallback fonts found — emoji / symbol glyphs will render as tofu boxes"
-        );
+        tracing::warn!("no fallback fonts found — emoji / symbol glyphs will render as tofu boxes");
     }
     out
 }

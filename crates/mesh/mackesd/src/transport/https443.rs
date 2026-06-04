@@ -173,9 +173,7 @@ pub fn build_system_client_config() -> Result<rustls::ClientConfig, TransportErr
     let builder = rustls::ClientConfig::builder_with_provider(provider)
         .with_safe_default_protocol_versions()
         .expect("rustls default protocol versions installed");
-    Ok(builder
-        .with_root_certificates(roots)
-        .with_no_client_auth())
+    Ok(builder.with_root_certificates(roots).with_no_client_auth())
 }
 
 /// Concrete `Transport` impl for the HTTPS-tunneled fallback.
@@ -327,9 +325,12 @@ impl Transport for NebulaHttps443Transport {
         let config = self.config.as_ref().ok_or(TransportError::Misconfigured {
             code: "no_fallback_host",
         })?;
-        let tls_config = self.tls_config.clone().ok_or(TransportError::Misconfigured {
-            code: "no_trust_store",
-        })?;
+        let tls_config = self
+            .tls_config
+            .clone()
+            .ok_or(TransportError::Misconfigured {
+                code: "no_trust_store",
+            })?;
         let sni = config.sni().ok_or(TransportError::Misconfigured {
             code: "bad_fallback_host",
         })?;
@@ -490,15 +491,11 @@ mod tests {
             rcgen::Ia5String::try_from(host.to_string()).expect("valid DNS name"),
         )];
         let cert = params.self_signed(&key_pair).expect("self-sign");
-        (
-            cert.der().to_vec(),
-            key_pair.serialize_der(),
-        )
+        (cert.der().to_vec(), key_pair.serialize_der())
     }
 
     fn spawn_loopback_https(cert_der: Vec<u8>, key_der: Vec<u8>) -> SocketAddr {
-        let std_listener =
-            std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+        let std_listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
         let addr = std_listener.local_addr().expect("local addr");
         let cert_for_thread = cert_der;
         let key_for_thread = key_der;
@@ -615,7 +612,9 @@ mod tests {
                 // fallback host.
                 assert_eq!(code, "bad_fallback_host");
             }
-            other => panic!("expected HandshakeFailed or Misconfigured(bad_fallback_host), got {other:?}"),
+            other => panic!(
+                "expected HandshakeFailed or Misconfigured(bad_fallback_host), got {other:?}"
+            ),
         }
     }
 }

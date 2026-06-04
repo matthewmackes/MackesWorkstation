@@ -171,7 +171,8 @@ impl PeerCard {
         container(inner)
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(move |_theme| container::Style { snap: false,
+            .style(move |_theme| container::Style {
+                snap: false,
                 background: Some(Background::Color(rgba_to_color(palette.surface))),
                 border: iced::Border {
                     color: rgba_to_color(palette.border),

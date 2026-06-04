@@ -292,7 +292,9 @@ impl UpgradeIntentWatcher {
         let (all_peers, unreachable, peer_count) = self.roster();
 
         for path in pending_intents(&dir) {
-            let Ok(intent) = read_value(&path) else { continue };
+            let Ok(intent) = read_value(&path) else {
+                continue;
+            };
 
             // INST-11 — upgrade half.
             if should_act(&intent, &self.hostname) {
@@ -303,15 +305,16 @@ impl UpgradeIntentWatcher {
                     }
                     Err(err) => {
                         let host = self.hostname.clone();
-                        let _ =
-                            locked_update(&path, |v| mark_ready_failed(v, &host, &err, now_s));
+                        let _ = locked_update(&path, |v| mark_ready_failed(v, &host, &err, now_s));
                     }
                 }
                 continue; // re-evaluate the barrier on the next tick.
             }
 
             // INST-12 — barrier half (re-read so a sibling's mark is seen).
-            let Ok(fresh) = read_value(&path) else { continue };
+            let Ok(fresh) = read_value(&path) else {
+                continue;
+            };
             if barrier_should_fire(&fresh, peer_count, now_s, &self.hostname) {
                 if self.run_mde_install().is_ok() {
                     let host = self.hostname.clone();
@@ -388,8 +391,7 @@ impl Worker for UpgradeIntentWatcher {
 
 fn read_value(path: &Path) -> std::io::Result<Value> {
     let s = std::fs::read_to_string(path)?;
-    serde_json::from_str(&s)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
+    serde_json::from_str(&s).map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
 }
 
 /// Exclusive-locked read-modify-write of an intent file: lock, read the
@@ -400,7 +402,10 @@ fn locked_update<F>(path: &Path, f: F) -> std::io::Result<()>
 where
     F: FnOnce(&Value) -> Value,
 {
-    let mut file = std::fs::OpenOptions::new().read(true).write(true).open(path)?;
+    let mut file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)?;
     file.lock_exclusive()?;
     let result = (|| {
         let mut s = String::new();

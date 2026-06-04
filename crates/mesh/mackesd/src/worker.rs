@@ -825,8 +825,12 @@ mod tests {
         let db_path = dir.path().join("mackesd.db");
         let _ = crate::store::open(&db_path).unwrap();
         let shutdown = Arc::new(AtomicBool::new(false));
-        let handle =
-            spawn_reconcile_worker(workgroup_root, "peer:test".into(), db_path, Arc::clone(&shutdown));
+        let handle = spawn_reconcile_worker(
+            workgroup_root,
+            "peer:test".into(),
+            db_path,
+            Arc::clone(&shutdown),
+        );
         // Let one tick complete before we flip.
         std::thread::sleep(Duration::from_millis(200));
         shutdown.store(true, Ordering::Relaxed);

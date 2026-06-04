@@ -196,9 +196,7 @@ pub fn threshold_tripped(
     let count = events
         .iter()
         .filter(|e| {
-            e.src_ip == src_ip
-                && e.ts_ms <= now_ms
-                && (now_ms - e.ts_ms) as u64 <= window_ms
+            e.src_ip == src_ip && e.ts_ms <= now_ms && (now_ms - e.ts_ms) as u64 <= window_ms
         })
         .count();
     count >= threshold
@@ -364,9 +362,8 @@ fn now_epoch_ms() -> i64 {
 
 fn publish_firewall_alert(host: &str, src_ip: &str, count: usize) {
     let topic = format!("event/firewall/{host}");
-    let body = format!(
-        r#"{{"host":"{host}","src_ip":"{src_ip}","denial_count":{count},"alert":true}}"#
-    );
+    let body =
+        format!(r#"{{"host":"{host}","src_ip":"{src_ip}","denial_count":{count},"alert":true}}"#);
     let _ = Command::new("mde-bus")
         .args(["publish", &topic, "--body-flag", &body])
         .spawn();
@@ -411,7 +408,8 @@ mod tests {
 
     #[test]
     fn parse_udp_line() {
-        let line = "kernel: DENIED IN=nebula1 SRC=5.6.7.8 DST=10.42.0.1 PROTO=UDP SPT=9999 DPT=4242";
+        let line =
+            "kernel: DENIED IN=nebula1 SRC=5.6.7.8 DST=10.42.0.1 PROTO=UDP SPT=9999 DPT=4242";
         let e = parse_denied_line(line, "peer", 0).expect("parse udp");
         assert_eq!(e.proto, "UDP");
         assert_eq!(e.dport, 4242);
@@ -473,12 +471,20 @@ mod tests {
 
     #[test]
     fn filter_drops_established() {
-        assert!(is_overlay_or_established(&make_event("TCP", 22, "ESTABLISHED")));
+        assert!(is_overlay_or_established(&make_event(
+            "TCP",
+            22,
+            "ESTABLISHED"
+        )));
     }
 
     #[test]
     fn filter_drops_related() {
-        assert!(is_overlay_or_established(&make_event("TCP", 22, "RELATED,ESTABLISHED")));
+        assert!(is_overlay_or_established(&make_event(
+            "TCP",
+            22,
+            "RELATED,ESTABLISHED"
+        )));
     }
 
     #[test]

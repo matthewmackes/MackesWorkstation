@@ -339,7 +339,10 @@ mod tests {
     fn find_in_matches_canonical_values_only() {
         assert_eq!(find_in(MODES, "dark"), Some("dark"));
         assert_eq!(find_in(MODES, "ghost"), None);
-        assert_eq!(find_in(PRESETS, "chromeos-classic-dark"), Some("chromeos-classic-dark"));
+        assert_eq!(
+            find_in(PRESETS, "chromeos-classic-dark"),
+            Some("chromeos-classic-dark")
+        );
         assert_eq!(find_in(PRESETS, "hashbang"), None);
         assert_eq!(find_in(DENSITIES, "compact"), Some("compact"));
         assert_eq!(find_in(DENSITIES, "enormous"), None);
@@ -476,12 +479,30 @@ mod tests {
         panel.preset = "chromeos-classic-dark".into();
         panel.density = "comfortable".into();
 
-        backend.set(KEY_NAME, &quote_json(&panel.name)).await.unwrap();
-        backend.set(KEY_ICON_SET, &quote_json(&panel.icon_set)).await.unwrap();
-        backend.set(KEY_ACCENT, &quote_json(&panel.accent)).await.unwrap();
-        backend.set(KEY_MODE, &quote_json(&panel.mode)).await.unwrap();
-        backend.set(KEY_PRESET, &quote_json(&panel.preset)).await.unwrap();
-        backend.set(KEY_DENSITY, &quote_json(&panel.density)).await.unwrap();
+        backend
+            .set(KEY_NAME, &quote_json(&panel.name))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_ICON_SET, &quote_json(&panel.icon_set))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_ACCENT, &quote_json(&panel.accent))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_MODE, &quote_json(&panel.mode))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_PRESET, &quote_json(&panel.preset))
+            .await
+            .unwrap();
+        backend
+            .set(KEY_DENSITY, &quote_json(&panel.density))
+            .await
+            .unwrap();
 
         assert_eq!(backend.get(KEY_NAME).await.unwrap(), "\"Adwaita-dark\"");
         assert_eq!(backend.get(KEY_MODE).await.unwrap(), "\"dark\"");

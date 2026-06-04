@@ -58,7 +58,9 @@ mod tests {
     fn id_is_16_lowercase_hex_chars() {
         let id = stable_id_for(&CardKind::App, "Firefox");
         assert_eq!(id.len(), 16, "got {id}");
-        assert!(id.chars().all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()));
+        assert!(id
+            .chars()
+            .all(|c| c.is_ascii_hexdigit() && !c.is_uppercase()));
     }
 
     #[test]

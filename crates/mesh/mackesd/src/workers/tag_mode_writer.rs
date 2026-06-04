@@ -132,7 +132,12 @@ impl Worker for TagModeWriterWorker {
 #[must_use]
 pub fn default_conf_path() -> Option<PathBuf> {
     let config_home = dirs::config_dir()?;
-    Some(config_home.join("sway").join("config.d").join(CONF_FILENAME))
+    Some(
+        config_home
+            .join("sway")
+            .join("config.d")
+            .join(CONF_FILENAME),
+    )
 }
 
 /// Generate the content of `mde-tag-modes.conf` for all tags in
@@ -170,7 +175,11 @@ pub fn generate_tag_modes_conf(store: &TagStore) -> String {
 
         // Sequential bindings 1..=min(9, len) → workspace numbers.
         for (idx, ws_num) in ws_nums.iter().take(9).enumerate() {
-            out.push_str(&format!("    bindsym {} workspace number {}\n", idx + 1, ws_num));
+            out.push_str(&format!(
+                "    bindsym {} workspace number {}\n",
+                idx + 1,
+                ws_num
+            ));
         }
 
         // Escape always returns to default.
@@ -202,7 +211,10 @@ mod tests {
     use mackes_mesh_types::{Tag, TagFlavor, TagMember, TagStore};
 
     fn make_store(tags: Vec<Tag>) -> TagStore {
-        TagStore { tags, schema_version: 1 }
+        TagStore {
+            tags,
+            schema_version: 1,
+        }
     }
 
     fn make_tag(name: &str, ws_nums: &[i32]) -> Tag {
@@ -273,7 +285,10 @@ mod tests {
         let store = make_store(vec![tag]);
         let out = generate_tag_modes_conf(&store);
         // Exactly 9 bindsym lines (plus the Escape line).
-        let count = out.lines().filter(|l| l.contains("workspace number")).count();
+        let count = out
+            .lines()
+            .filter(|l| l.contains("workspace number"))
+            .count();
         assert_eq!(count, 9);
         // Binding 10 must not appear.
         assert!(!out.contains("bindsym 10 "));
@@ -314,10 +329,7 @@ mod tests {
     /// Multiple tags each produce their own mode block.
     #[test]
     fn multiple_tags_produce_multiple_blocks() {
-        let store = make_store(vec![
-            make_tag("Dev", &[1, 2]),
-            make_tag("Media", &[5]),
-        ]);
+        let store = make_store(vec![make_tag("Dev", &[1, 2]), make_tag("Media", &[5])]);
         let out = generate_tag_modes_conf(&store);
         assert!(out.contains("mode \"Dev\" {"));
         assert!(out.contains("mode \"Media\" {"));

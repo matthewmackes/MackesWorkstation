@@ -46,38 +46,28 @@ use crate::persist::Persist;
 // 24 h single-use token. Indexes are 0–255 so each random byte maps directly.
 
 const WORDS: &[&str; 256] = &[
-    "able", "acid", "aged", "also", "apex", "arch", "area", "army",
-    "arts", "atom", "aunt", "away", "axis", "baby", "back", "ball",
-    "band", "bank", "bare", "base", "bath", "bean", "bear", "beat",
-    "beef", "bell", "belt", "bind", "bird", "bite", "blue", "body",
-    "bold", "bolt", "bone", "book", "boom", "born", "boss", "bowl",
-    "burn", "busy", "call", "calm", "card", "care", "cart", "case",
-    "cash", "cave", "cell", "chat", "chip", "city", "clay", "clip",
-    "club", "coal", "code", "cold", "coil", "corn", "cove", "crab",
-    "crew", "crop", "cube", "curl", "dark", "dart", "data", "date",
-    "dawn", "deal", "deck", "deep", "desk", "dome", "door", "dose",
-    "draw", "drop", "drum", "dual", "dump", "dusk", "dust", "earl",
-    "earn", "ease", "edge", "edit", "epic", "even", "evil", "exit",
-    "face", "fact", "fair", "fall", "fame", "farm", "fast", "fate",
-    "fear", "feed", "feel", "fern", "file", "fill", "film", "find",
-    "fine", "fire", "fish", "fist", "flag", "flat", "flip", "flow",
-    "foam", "fold", "folk", "fond", "food", "foot", "fork", "form",
-    "free", "frog", "fuel", "full", "fuse", "gain", "gale", "game",
-    "gang", "gear", "gift", "girl", "glad", "glow", "glue", "goat",
-    "gold", "golf", "gone", "grab", "grin", "grip", "grow", "gulf",
-    "gust", "guts", "hand", "hang", "harm", "harp", "haze", "head",
-    "heat", "heel", "herb", "hide", "high", "hill", "hint", "hold",
-    "hole", "home", "hood", "hook", "hope", "horn", "host", "hour",
-    "hull", "hunt", "jade", "jazz", "join", "joke", "jump", "just",
-    "keen", "keep", "kind", "king", "knot", "lack", "lake", "lamp",
-    "land", "lane", "last", "leaf", "lean", "left", "lift", "lime",
-    "line", "link", "lion", "list", "live", "load", "lock", "loft",
-    "lone", "long", "loop", "lord", "lost", "loud", "love", "luck",
-    "mace", "main", "male", "mall", "mane", "mark", "mast", "maze",
-    "meal", "meat", "melt", "memo", "mesh", "mill", "mind", "mine",
-    "mint", "mist", "mode", "mole", "moon", "moor", "more", "moss",
-    "most", "move", "mule", "muse", "must", "myth", "nail", "navy",
-    "need", "nest", "news", "next", "nice", "node", "none", "norm",
+    "able", "acid", "aged", "also", "apex", "arch", "area", "army", "arts", "atom", "aunt", "away",
+    "axis", "baby", "back", "ball", "band", "bank", "bare", "base", "bath", "bean", "bear", "beat",
+    "beef", "bell", "belt", "bind", "bird", "bite", "blue", "body", "bold", "bolt", "bone", "book",
+    "boom", "born", "boss", "bowl", "burn", "busy", "call", "calm", "card", "care", "cart", "case",
+    "cash", "cave", "cell", "chat", "chip", "city", "clay", "clip", "club", "coal", "code", "cold",
+    "coil", "corn", "cove", "crab", "crew", "crop", "cube", "curl", "dark", "dart", "data", "date",
+    "dawn", "deal", "deck", "deep", "desk", "dome", "door", "dose", "draw", "drop", "drum", "dual",
+    "dump", "dusk", "dust", "earl", "earn", "ease", "edge", "edit", "epic", "even", "evil", "exit",
+    "face", "fact", "fair", "fall", "fame", "farm", "fast", "fate", "fear", "feed", "feel", "fern",
+    "file", "fill", "film", "find", "fine", "fire", "fish", "fist", "flag", "flat", "flip", "flow",
+    "foam", "fold", "folk", "fond", "food", "foot", "fork", "form", "free", "frog", "fuel", "full",
+    "fuse", "gain", "gale", "game", "gang", "gear", "gift", "girl", "glad", "glow", "glue", "goat",
+    "gold", "golf", "gone", "grab", "grin", "grip", "grow", "gulf", "gust", "guts", "hand", "hang",
+    "harm", "harp", "haze", "head", "heat", "heel", "herb", "hide", "high", "hill", "hint", "hold",
+    "hole", "home", "hood", "hook", "hope", "horn", "host", "hour", "hull", "hunt", "jade", "jazz",
+    "join", "joke", "jump", "just", "keen", "keep", "kind", "king", "knot", "lack", "lake", "lamp",
+    "land", "lane", "last", "leaf", "lean", "left", "lift", "lime", "line", "link", "lion", "list",
+    "live", "load", "lock", "loft", "lone", "long", "loop", "lord", "lost", "loud", "love", "luck",
+    "mace", "main", "male", "mall", "mane", "mark", "mast", "maze", "meal", "meat", "melt", "memo",
+    "mesh", "mill", "mind", "mine", "mint", "mist", "mode", "mole", "moon", "moor", "more", "moss",
+    "most", "move", "mule", "muse", "must", "myth", "nail", "navy", "need", "nest", "news", "next",
+    "nice", "node", "none", "norm",
 ];
 
 // ── Envelope (pending mint) ───────────────────────────────────────────────────
@@ -228,10 +218,9 @@ fn read_federation_yaml(bus_root: &Path) -> Result<FederationYaml> {
     if !path.exists() {
         return Ok(FederationYaml::default());
     }
-    let text = std::fs::read_to_string(&path)
-        .with_context(|| format!("read {}", path.display()))?;
-    serde_yaml::from_str(&text)
-        .with_context(|| format!("parse {}", path.display()))
+    let text =
+        std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+    serde_yaml::from_str(&text).with_context(|| format!("parse {}", path.display()))
 }
 
 fn write_federation_yaml(bus_root: &Path, yaml: &FederationYaml) -> Result<()> {
@@ -239,15 +228,16 @@ fn write_federation_yaml(bus_root: &Path, yaml: &FederationYaml) -> Result<()> {
     let text = serde_yaml::to_string(yaml).context("serialize federation.yaml")?;
     // Atomic write via temp + rename.
     let tmp = path.with_extension("yaml.tmp");
-    std::fs::write(&tmp, &text)
-        .with_context(|| format!("write {}", tmp.display()))?;
+    std::fs::write(&tmp, &text).with_context(|| format!("write {}", tmp.display()))?;
     std::fs::rename(&tmp, &path)
         .with_context(|| format!("rename {} → {}", tmp.display(), path.display()))?;
     Ok(())
 }
 
 fn publish_audit_event(bus_root: &Path, topic: &str, payload: &serde_json::Value) {
-    let Ok(persist) = Persist::open(bus_root.to_path_buf()) else { return };
+    let Ok(persist) = Persist::open(bus_root.to_path_buf()) else {
+        return;
+    };
     let body = serde_json::to_string(payload).unwrap_or_default();
     let _ = persist.write(topic, Priority::Min, None, Some(&body));
 }
@@ -261,8 +251,7 @@ fn cmd_mint_passcode(json: bool, bus_root: &Path) -> Result<()> {
 
     // Write envelope at mode 0600 — contains plaintext mnemonic.
     let dir = mints_dir(bus_root);
-    std::fs::create_dir_all(&dir)
-        .with_context(|| format!("create {}", dir.display()))?;
+    std::fs::create_dir_all(&dir).with_context(|| format!("create {}", dir.display()))?;
     let _ = std::fs::set_permissions(&dir, std::os::unix::fs::PermissionsExt::from_mode(0o700));
     let path = mint_path(bus_root, &ulid);
     let envelope = MintEnvelope {
@@ -271,8 +260,8 @@ fn cmd_mint_passcode(json: bool, bus_root: &Path) -> Result<()> {
         expires_at_unix_ms,
         used: false,
     };
-    let envelope_json = serde_json::to_string_pretty(&envelope)
-        .context("serialize mint envelope")?;
+    let envelope_json =
+        serde_json::to_string_pretty(&envelope).context("serialize mint envelope")?;
     std::fs::OpenOptions::new()
         .write(true)
         .create(true)
@@ -318,8 +307,7 @@ fn cmd_revoke_mint(ulid: &str, bus_root: &Path) -> Result<()> {
     if !path.exists() {
         bail!("no mint envelope found for ULID {ulid}");
     }
-    std::fs::remove_file(&path)
-        .with_context(|| format!("remove {}", path.display()))?;
+    std::fs::remove_file(&path).with_context(|| format!("remove {}", path.display()))?;
 
     publish_audit_event(
         bus_root,
@@ -427,9 +415,7 @@ fn cmd_revoke(peer_mesh_id: &str, bus_root: &Path) -> Result<()> {
     write_federation_yaml(bus_root, &fed)?;
 
     // Best-effort cert deletion.
-    let cert_path = PathBuf::from(format!(
-        "/etc/nebula/federation-trusts/{peer_mesh_id}.crt"
-    ));
+    let cert_path = PathBuf::from(format!("/etc/nebula/federation-trusts/{peer_mesh_id}.crt"));
     if cert_path.exists() {
         if let Err(e) = std::fs::remove_file(&cert_path) {
             tracing::warn!(
@@ -492,12 +478,15 @@ pub fn run(op: FederationOp) -> Result<()> {
     match op {
         FederationOp::MintPasscode { json } => cmd_mint_passcode(json, &bus_root),
         FederationOp::RevokeMint { ulid } => cmd_revoke_mint(&ulid, &bus_root),
-        FederationOp::Accept { passcode, label, json } => {
-            cmd_accept(&passcode, &label, json, &bus_root)
-        }
-        FederationOp::GrantPublish { peer_mesh_id, topic_pattern } => {
-            cmd_grant_publish(&peer_mesh_id, &topic_pattern, &bus_root)
-        }
+        FederationOp::Accept {
+            passcode,
+            label,
+            json,
+        } => cmd_accept(&passcode, &label, json, &bus_root),
+        FederationOp::GrantPublish {
+            peer_mesh_id,
+            topic_pattern,
+        } => cmd_grant_publish(&peer_mesh_id, &topic_pattern, &bus_root),
         FederationOp::Revoke { peer_mesh_id } => cmd_revoke(&peer_mesh_id, &bus_root),
         FederationOp::Rotate { peer_mesh_id } => cmd_rotate(&peer_mesh_id, &bus_root),
     }
@@ -569,7 +558,13 @@ mod tests {
     #[test]
     fn default_excluded_topics_contains_required_exclusions() {
         let excl = default_excluded_topics();
-        for required in &["passcode/*", "federation/*", "clipboard/*", "voip/presence/*", "input/*"] {
+        for required in &[
+            "passcode/*",
+            "federation/*",
+            "clipboard/*",
+            "voip/presence/*",
+            "input/*",
+        ] {
             assert!(excl.contains(&required.to_string()), "missing: {required}");
         }
     }
@@ -580,9 +575,7 @@ mod tests {
     fn mint_passcode_writes_envelope_to_mints_dir() {
         let dir = tmp();
         cmd_mint_passcode(false, dir.path()).unwrap();
-        let entries: Vec<_> = std::fs::read_dir(mints_dir(dir.path()))
-            .unwrap()
-            .collect();
+        let entries: Vec<_> = std::fs::read_dir(mints_dir(dir.path())).unwrap().collect();
         assert_eq!(entries.len(), 1);
     }
 
@@ -652,7 +645,13 @@ mod tests {
     #[test]
     fn accept_writes_pair_to_federation_yaml() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let fed = read_federation_yaml(dir.path()).unwrap();
         assert_eq!(fed.pairs.len(), 1);
         assert_eq!(fed.pairs[0].peer_mesh_label, "TestMesh");
@@ -661,7 +660,13 @@ mod tests {
     #[test]
     fn accept_pair_has_default_subscribe_all() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let fed = read_federation_yaml(dir.path()).unwrap();
         assert_eq!(fed.pairs[0].subscribe_topics, vec!["#"]);
         assert!(fed.pairs[0].publish_topics.is_empty());
@@ -670,14 +675,24 @@ mod tests {
     #[test]
     fn accept_pair_has_default_exclusions() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let fed = read_federation_yaml(dir.path()).unwrap();
         assert!(
-            fed.pairs[0].excluded_topics.contains(&"federation/*".to_string()),
+            fed.pairs[0]
+                .excluded_topics
+                .contains(&"federation/*".to_string()),
             "missing federation/* exclusion"
         );
         assert!(
-            fed.pairs[0].excluded_topics.contains(&"passcode/*".to_string()),
+            fed.pairs[0]
+                .excluded_topics
+                .contains(&"passcode/*".to_string()),
             "missing passcode/* exclusion"
         );
     }
@@ -687,7 +702,12 @@ mod tests {
         let dir = tmp();
         let r = cmd_accept("only five words here now", "TestMesh", false, dir.path());
         assert!(r.is_err());
-        let r2 = cmd_accept("seven words is too many for this test now", "TestMesh", false, dir.path());
+        let r2 = cmd_accept(
+            "seven words is too many for this test now",
+            "TestMesh",
+            false,
+            dir.path(),
+        );
         assert!(r2.is_err());
     }
 
@@ -696,14 +716,22 @@ mod tests {
     #[test]
     fn grant_publish_adds_topic_to_pair() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let peer_id = {
             let fed = read_federation_yaml(dir.path()).unwrap();
             fed.pairs[0].peer_mesh_id.clone()
         };
         cmd_grant_publish(&peer_id, "portal/peer-presence/*", dir.path()).unwrap();
         let fed = read_federation_yaml(dir.path()).unwrap();
-        assert!(fed.pairs[0].publish_topics.contains(&"portal/peer-presence/*".to_string()));
+        assert!(fed.pairs[0]
+            .publish_topics
+            .contains(&"portal/peer-presence/*".to_string()));
     }
 
     #[test]
@@ -716,7 +744,13 @@ mod tests {
     #[test]
     fn grant_publish_errors_on_duplicate_topic() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let peer_id = {
             let fed = read_federation_yaml(dir.path()).unwrap();
             fed.pairs[0].peer_mesh_id.clone()
@@ -731,7 +765,13 @@ mod tests {
     #[test]
     fn revoke_removes_pair_from_yaml() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let peer_id = {
             let fed = read_federation_yaml(dir.path()).unwrap();
             fed.pairs[0].peer_mesh_id.clone()
@@ -753,7 +793,13 @@ mod tests {
     #[test]
     fn rotate_updates_established_timestamp() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let peer_id = {
             let fed = read_federation_yaml(dir.path()).unwrap();
             fed.pairs[0].peer_mesh_id.clone()
@@ -786,11 +832,29 @@ mod tests {
     #[test]
     fn federation_yaml_uses_kebab_case_keys() {
         let dir = tmp();
-        cmd_accept("able acid aged also apex arch", "TestMesh", false, dir.path()).unwrap();
+        cmd_accept(
+            "able acid aged also apex arch",
+            "TestMesh",
+            false,
+            dir.path(),
+        )
+        .unwrap();
         let raw = std::fs::read_to_string(federation_yaml_path(dir.path())).unwrap();
-        assert!(raw.contains("peer-mesh-id:"), "missing kebab-case peer-mesh-id in YAML");
-        assert!(raw.contains("peer-mesh-label:"), "missing kebab-case peer-mesh-label in YAML");
-        assert!(raw.contains("subscribe-topics:"), "missing kebab-case subscribe-topics");
-        assert!(raw.contains("excluded-topics:"), "missing kebab-case excluded-topics");
+        assert!(
+            raw.contains("peer-mesh-id:"),
+            "missing kebab-case peer-mesh-id in YAML"
+        );
+        assert!(
+            raw.contains("peer-mesh-label:"),
+            "missing kebab-case peer-mesh-label in YAML"
+        );
+        assert!(
+            raw.contains("subscribe-topics:"),
+            "missing kebab-case subscribe-topics"
+        );
+        assert!(
+            raw.contains("excluded-topics:"),
+            "missing kebab-case excluded-topics"
+        );
     }
 }

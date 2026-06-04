@@ -285,9 +285,16 @@ mod tests {
         )
         .unwrap();
         // A responder posts its answer to reply/<ulid>.
-        p.write(&reply_topic(&ulid), Priority::Default, None, Some("tag:dev,elev:2"))
+        p.write(
+            &reply_topic(&ulid),
+            Priority::Default,
+            None,
+            Some("tag:dev,elev:2"),
+        )
+        .unwrap();
+        let reply = await_reply(&p, &ulid, Duration::from_secs(5))
+            .await
             .unwrap();
-        let reply = await_reply(&p, &ulid, Duration::from_secs(5)).await.unwrap();
         assert_eq!(reply.topic, reply_topic(&ulid));
         assert_eq!(reply.body.as_deref(), Some("tag:dev,elev:2"));
     }
@@ -295,12 +302,13 @@ mod tests {
     #[tokio::test]
     async fn await_reply_times_out_without_a_reply() {
         let (_tmp, p) = persist();
-        let ulid = publish_request(&p, "action/marks/list", Priority::Default, None, None)
-            .unwrap();
+        let ulid = publish_request(&p, "action/marks/list", Priority::Default, None, None).unwrap();
         // No responder writes a reply → timeout (short, for the test).
         let r = await_reply(&p, &ulid, Duration::from_millis(300)).await;
         match r {
-            Err(RpcError::Timeout { reply_topic: rt, .. }) => {
+            Err(RpcError::Timeout {
+                reply_topic: rt, ..
+            }) => {
                 assert_eq!(rt, reply_topic(&ulid));
             }
             other => panic!("expected Timeout, got {other:?}"),
@@ -323,9 +331,16 @@ mod tests {
         )
         .unwrap();
         // Simulate the responder: reply to reply/<ulid>.
-        p.write(&reply_topic(&ulid), Priority::Default, None, Some("healthy"))
+        p.write(
+            &reply_topic(&ulid),
+            Priority::Default,
+            None,
+            Some("healthy"),
+        )
+        .unwrap();
+        let reply = await_reply(&p, &ulid, Duration::from_secs(5))
+            .await
             .unwrap();
-        let reply = await_reply(&p, &ulid, Duration::from_secs(5)).await.unwrap();
         assert_eq!(reply.body.as_deref(), Some("healthy"));
     }
 
@@ -360,18 +375,20 @@ mod tests {
         // An interactive caller using the 40 ms cadence sees a reply
         // that lands shortly after the request well inside its timeout.
         let (_tmp, p) = persist();
-        let ulid = publish_request(&p, "action/shell/goto", Priority::Default, None, Some("control"))
-            .unwrap();
+        let ulid = publish_request(
+            &p,
+            "action/shell/goto",
+            Priority::Default,
+            None,
+            Some("control"),
+        )
+        .unwrap();
         p.write(&reply_topic(&ulid), Priority::Default, None, Some("ok"))
             .unwrap();
-        let reply = await_reply_with_interval(
-            &p,
-            &ulid,
-            Duration::from_secs(2),
-            INTERACTIVE_POLL_INTERVAL,
-        )
-        .await
-        .unwrap();
+        let reply =
+            await_reply_with_interval(&p, &ulid, Duration::from_secs(2), INTERACTIVE_POLL_INTERVAL)
+                .await
+                .unwrap();
         assert_eq!(reply.body.as_deref(), Some("ok"));
     }
 
@@ -386,16 +403,17 @@ mod tests {
             Some("network"),
         )
         .unwrap();
-        p.write(&reply_topic(&ulid), Priority::Default, None, Some("focused"))
-            .unwrap();
-        let reply = await_reply_with_interval(
-            &p,
-            &ulid,
-            Duration::from_secs(2),
-            INTERACTIVE_POLL_INTERVAL,
+        p.write(
+            &reply_topic(&ulid),
+            Priority::Default,
+            None,
+            Some("focused"),
         )
-        .await
         .unwrap();
+        let reply =
+            await_reply_with_interval(&p, &ulid, Duration::from_secs(2), INTERACTIVE_POLL_INTERVAL)
+                .await
+                .unwrap();
         assert_eq!(reply.body.as_deref(), Some("focused"));
     }
 }

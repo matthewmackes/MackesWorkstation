@@ -11,10 +11,10 @@ use iced::widget::{
 };
 use iced::{Element, Length, Size, Subscription, Task};
 
-use mde_music::hub::HubCard;
-use mde_music::library::{self, LibraryItem};
 use mde_music::album::{self, AlbumView};
 use mde_music::color;
+use mde_music::hub::HubCard;
+use mde_music::library::{self, LibraryItem};
 use mde_music::nav::{NavState, Route};
 use mde_music::nowplaying::{self, NowState};
 use mde_music::prefs::{self, SortKey};
@@ -285,7 +285,10 @@ impl State {
                     it.art_id.clone().map(|aid| {
                         let id = it.id.clone();
                         Task::perform(color::fetch_cover_art(aid), move |r| {
-                            Message::ArtLoaded(id.clone(), r.ok().map(|b| image::Handle::from_bytes(b)))
+                            Message::ArtLoaded(
+                                id.clone(),
+                                r.ok().map(|b| image::Handle::from_bytes(b)),
+                            )
                         })
                     })
                 }));
@@ -401,9 +404,8 @@ impl State {
                             Err(e) => f.error = Some(format!("Couldn't save: {e}")),
                         }
                     } else {
-                        f.error = Some(
-                            "Enter an http(s):// server URL and a username.".to_string(),
-                        );
+                        f.error =
+                            Some("Enter an http(s):// server URL and a username.".to_string());
                     }
                 }
                 Task::none()
@@ -725,8 +727,7 @@ impl State {
             Space::with_height(Length::Fixed(8.0)),
             text("Point MDE Music at your Airsonic / Navidrome server.").size(13),
             Space::with_height(Length::Fixed(16.0)),
-            text_input("https://music.your-mesh:4040", &f.url)
-                .on_input(Message::UrlChanged),
+            text_input("https://music.your-mesh:4040", &f.url).on_input(Message::UrlChanged),
             text_input("username", &f.user).on_input(Message::UserChanged),
             text_input("password", &f.pass)
                 .secure(true)
@@ -772,8 +773,8 @@ impl State {
             Route::Hub => {
                 let mut cards = column![].spacing(8);
                 for card in HubCard::all() {
-                    cards = cards
-                        .push(button(text(card.label())).on_press(Message::OpenCard(card)));
+                    cards =
+                        cards.push(button(text(card.label())).on_press(Message::OpenCard(card)));
                 }
                 cards.into()
             }
@@ -955,7 +956,11 @@ impl State {
         };
 
         // Header: title / artist / (year ·) N tracks · duration + actions.
-        let mut meta = format!("{} track(s) · {}", a.tracks.len(), album::fmt_duration(a.total_secs()));
+        let mut meta = format!(
+            "{} track(s) · {}",
+            a.tracks.len(),
+            album::fmt_duration(a.total_secs())
+        );
         if let Some(y) = a.year {
             meta = format!("{y} · {meta}");
         }
@@ -977,11 +982,15 @@ impl State {
         // Numbered track rows with per-track Play-Next / Add-to-Queue.
         let mut list = column![].spacing(4);
         for (i, t) in a.tracks.iter().enumerate() {
-            let no = t.track_no.unwrap_or_else(|| u32::try_from(i + 1).unwrap_or(0));
+            let no = t
+                .track_no
+                .unwrap_or_else(|| u32::try_from(i + 1).unwrap_or(0));
             let track_row = row![
                 text(format!("{no}.")).size(13).width(Length::Fixed(32.0)),
                 text(t.title.clone()).size(13).width(Length::Fill),
-                text(album::fmt_duration(t.duration)).size(12).width(Length::Fixed(56.0)),
+                text(album::fmt_duration(t.duration))
+                    .size(12)
+                    .width(Length::Fixed(56.0)),
                 button(text("Play Next").size(11)).on_press(Message::PlayTrackNext(t.id.clone())),
                 button(text("+ Queue").size(11)).on_press(Message::AddTrackToQueue(t.id.clone())),
             ]
@@ -1042,7 +1051,11 @@ impl State {
         } else {
             format!("{title} — {}", self.now_artist)
         };
-        let play_pause = if self.now_state.playing { "Pause" } else { "Play" };
+        let play_pause = if self.now_state.playing {
+            "Pause"
+        } else {
+            "Play"
+        };
         let status = if self.now_state.playing {
             "Playing"
         } else if self.now_state.active {
@@ -1075,7 +1088,11 @@ impl State {
         } else {
             self.now_title.clone()
         };
-        let play_pause = if self.now_state.playing { "Pause" } else { "Play" };
+        let play_pause = if self.now_state.playing {
+            "Pause"
+        } else {
+            "Play"
+        };
         let art: Element<'_, Message> = match &self.now_art {
             Some(h) => image(h.clone())
                 .width(Length::Fixed(240.0))
@@ -1083,8 +1100,7 @@ impl State {
                 .into(),
             None => Space::with_height(Length::Fixed(0.0)).into(),
         };
-        let ratio = (self.now_state.position_ms as f32
-            / self.now_duration_ms.max(1) as f32)
+        let ratio = (self.now_state.position_ms as f32 / self.now_duration_ms.max(1) as f32)
             .clamp(0.0, 1.0);
         let scrub: Element<'_, Message> = column![
             iced::widget::progress_bar(0.0..=1.0, ratio).height(Length::Fixed(6.0)),
@@ -1133,14 +1149,23 @@ impl State {
                 .filter(|t| !t.is_empty())
                 .cloned()
                 .unwrap_or_else(|| sid.clone());
-            let marker = if i == self.queue_current { "▶ " } else { "   " };
+            let marker = if i == self.queue_current {
+                "▶ "
+            } else {
+                "   "
+            };
             queue = queue.push(text(format!("{marker}{label}")).size(13));
         }
 
         let lyrics: Element<'_, Message> = if self.maxi_lyrics.is_empty() {
             text("No lyrics for this track")
                 .size(13)
-                .color(iced::Color { r: 1.0, g: 1.0, b: 1.0, a: 0.6 })
+                .color(iced::Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.6,
+                })
                 .into()
         } else {
             let mut col = column![].spacing(2);
@@ -1152,7 +1177,12 @@ impl State {
         let peers: Element<'_, Message> = if self.maxi_peers.is_empty() {
             text("No peers on the mesh")
                 .size(13)
-                .color(iced::Color { r: 1.0, g: 1.0, b: 1.0, a: 0.6 })
+                .color(iced::Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.6,
+                })
                 .into()
         } else {
             let mut col = column![].spacing(6);
@@ -1161,10 +1191,14 @@ impl State {
                 col = col.push(
                     row![
                         text(p.host.clone()).size(14).width(Length::Fixed(150.0)),
-                        text(status)
-                            .size(12)
-                            .color(iced::Color { r: 1.0, g: 1.0, b: 1.0, a: 0.6 }),
-                        button(text("Take over").size(12)).on_press(Message::TakeOver(p.host.clone())),
+                        text(status).size(12).color(iced::Color {
+                            r: 1.0,
+                            g: 1.0,
+                            b: 1.0,
+                            a: 0.6
+                        }),
+                        button(text("Take over").size(12))
+                            .on_press(Message::TakeOver(p.host.clone())),
                     ]
                     .spacing(12),
                 );
@@ -1173,9 +1207,19 @@ impl State {
         };
         let tab = |label: &'static str, t: MaxiTab| {
             let color = if self.maxi_tab == t {
-                iced::Color { r: 0.36, g: 0.42, b: 0.96, a: 1.0 }
+                iced::Color {
+                    r: 0.36,
+                    g: 0.42,
+                    b: 0.96,
+                    a: 1.0,
+                }
             } else {
-                iced::Color { r: 1.0, g: 1.0, b: 1.0, a: 0.6 }
+                iced::Color {
+                    r: 1.0,
+                    g: 1.0,
+                    b: 1.0,
+                    a: 0.6,
+                }
             };
             button(text(label).size(13).color(color)).on_press(Message::MaxiTabSelected(t))
         };
@@ -1195,7 +1239,10 @@ impl State {
             .padding(24)
             .width(Length::Fill)
             .height(Length::Fill);
-        container(page).width(Length::Fill).height(Length::Fill).into()
+        container(page)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 }
 

@@ -10,25 +10,78 @@
 //! binding the operator prefers). Spawned by mde-portal on the Super+Tab
 //! gesture once Portal-34 ships; for now, plain sway keybind.
 
-use iced::widget::{button, column, container, row, text, Space};
-use iced::{Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme};
 use iced::widget::container::Style as ContainerStyle;
+use iced::widget::{button, column, container, row, text, Space};
+use iced::{
+    Alignment, Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task,
+    Theme,
+};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
-const SURFACE_BG: Color = Color { r: 0.0, g: 0.0, b: 0.0, a: 0.82 };
-const CARD_BG: Color = Color { r: 0.125, g: 0.129, b: 0.141, a: 1.0 };
-const CARD_FOCUSED_BG: Color = Color { r: 0.11, g: 0.13, b: 0.28, a: 1.0 };
-const CARD_BORDER: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.10 };
-const CARD_FOCUSED_BORDER: Color = Color { r: 0.357, g: 0.416, b: 0.961, a: 0.85 };
-const FG: Color = Color { r: 0.957, g: 0.957, b: 0.957, a: 1.0 };
-const FG_DIM: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.55 };
-const FG_LABEL: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.35 };
-const ACCENT: Color = Color { r: 0.357, g: 0.416, b: 0.961, a: 1.0 };
-const PILL_BG: Color = Color { r: 1.0, g: 1.0, b: 1.0, a: 0.08 };
+const SURFACE_BG: Color = Color {
+    r: 0.0,
+    g: 0.0,
+    b: 0.0,
+    a: 0.82,
+};
+const CARD_BG: Color = Color {
+    r: 0.125,
+    g: 0.129,
+    b: 0.141,
+    a: 1.0,
+};
+const CARD_FOCUSED_BG: Color = Color {
+    r: 0.11,
+    g: 0.13,
+    b: 0.28,
+    a: 1.0,
+};
+const CARD_BORDER: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.10,
+};
+const CARD_FOCUSED_BORDER: Color = Color {
+    r: 0.357,
+    g: 0.416,
+    b: 0.961,
+    a: 0.85,
+};
+const FG: Color = Color {
+    r: 0.957,
+    g: 0.957,
+    b: 0.957,
+    a: 1.0,
+};
+const FG_DIM: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.55,
+};
+const FG_LABEL: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.35,
+};
+const ACCENT: Color = Color {
+    r: 0.357,
+    g: 0.416,
+    b: 0.961,
+    a: 1.0,
+};
+const PILL_BG: Color = Color {
+    r: 1.0,
+    g: 1.0,
+    b: 1.0,
+    a: 0.08,
+};
 
 /// Maximum app pills shown per workspace card.
 const MAX_PILLS: usize = 5;
@@ -74,11 +127,13 @@ fn load_workspace_cards() -> Vec<WorkspaceCard> {
                     if num == 0 || name.is_empty() {
                         return None;
                     }
-                    let focused = ws
-                        .get("focused")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    Some(WorkspaceCard { num, name, focused, apps: Vec::new() })
+                    let focused = ws.get("focused").and_then(|v| v.as_bool()).unwrap_or(false);
+                    Some(WorkspaceCard {
+                        num,
+                        name,
+                        focused,
+                        apps: Vec::new(),
+                    })
                 })
                 .collect()
         })
@@ -125,11 +180,7 @@ fn load_tree_json() -> Option<serde_json::Value> {
 
 /// Walk the sway tree looking for workspace nodes whose name matches
 /// `ws_name`; collect up to MAX_PILLS distinct app_ids from their leaves.
-fn collect_apps_for_workspace(
-    node: &serde_json::Value,
-    ws_name: &str,
-    apps: &mut Vec<String>,
-) {
+fn collect_apps_for_workspace(node: &serde_json::Value, ws_name: &str, apps: &mut Vec<String>) {
     let node_type = node.get("type").and_then(|v| v.as_str()).unwrap_or("");
     if node_type == "workspace" {
         let name = node.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -261,13 +312,9 @@ fn view(state: &App) -> Element<'_, Message> {
 
     let body = column![
         Space::new().height(Length::Fixed(48.0)),
-        container(
-            text("Workspaces").size(14).color(FG_DIM),
-        )
-        .center_x(Length::Fill),
+        container(text("Workspaces").size(14).color(FG_DIM),).center_x(Length::Fill),
         Space::new().height(Length::Fixed(20.0)),
-        container(grid)
-            .center_x(Length::Fill),
+        container(grid).center_x(Length::Fill),
         Space::new().height(Length::Fixed(24.0)),
         container(footer).center_x(Length::Fill),
         Space::new().height(Length::Fixed(48.0)),
@@ -311,35 +358,34 @@ fn subscription(_state: &App) -> Subscription<Message> {
 
 /// Build a single workspace card element.
 fn workspace_card_view(ws: &WorkspaceCard) -> Element<'_, Message> {
-    let name_row = container(
-        text(ws.name.clone())
-            .size(13)
-            .color(if ws.focused { ACCENT } else { FG }),
-    )
-    .padding(Padding {
-        top: 0.0,
-        right: 0.0,
-        bottom: 8.0,
-        left: 0.0,
-    });
+    let name_row =
+        container(
+            text(ws.name.clone())
+                .size(13)
+                .color(if ws.focused { ACCENT } else { FG }),
+        )
+        .padding(Padding {
+            top: 0.0,
+            right: 0.0,
+            bottom: 8.0,
+            left: 0.0,
+        });
 
     let pills_col: Element<'_, Message> = if ws.apps.is_empty() {
         text("Empty").size(11).color(FG_LABEL).into()
     } else {
         let mut col = column![].spacing(4);
         for app in &ws.apps {
-            let chip = container(
-                text(shorten_app_id(app)).size(11).color(FG_DIM),
-            )
-            .padding(Padding::from([2u16, 6u16]))
-            .style(|_: &Theme| ContainerStyle {
-                background: Some(Background::Color(PILL_BG)),
-                border: Border {
-                    radius: 3.0.into(),
+            let chip = container(text(shorten_app_id(app)).size(11).color(FG_DIM))
+                .padding(Padding::from([2u16, 6u16]))
+                .style(|_: &Theme| ContainerStyle {
+                    background: Some(Background::Color(PILL_BG)),
+                    border: Border {
+                        radius: 3.0.into(),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
-            });
+                });
             col = col.push(chip);
         }
         if ws.apps.len() == MAX_PILLS {
@@ -348,11 +394,14 @@ fn workspace_card_view(ws: &WorkspaceCard) -> Element<'_, Message> {
         col.into()
     };
 
-    let inner = column![name_row, pills_col]
-        .padding(Padding::from([10u16, 12u16]));
+    let inner = column![name_row, pills_col].padding(Padding::from([10u16, 12u16]));
 
     let bg = if ws.focused { CARD_FOCUSED_BG } else { CARD_BG };
-    let border_color = if ws.focused { CARD_FOCUSED_BORDER } else { CARD_BORDER };
+    let border_color = if ws.focused {
+        CARD_FOCUSED_BORDER
+    } else {
+        CARD_BORDER
+    };
     let border_width = if ws.focused { 1.5_f32 } else { 1.0_f32 };
 
     button(inner)
@@ -442,7 +491,10 @@ mod tests {
 
     #[test]
     fn collect_leaf_apps_basic() {
-        let tree = make_ws("1", vec![make_window(100, "firefox"), make_window(101, "foot")]);
+        let tree = make_ws(
+            "1",
+            vec![make_window(100, "firefox"), make_window(101, "foot")],
+        );
         let mut apps = Vec::new();
         collect_leaf_apps(&tree, &mut apps);
         assert_eq!(apps, vec!["firefox", "foot"]);
@@ -450,7 +502,10 @@ mod tests {
 
     #[test]
     fn collect_leaf_apps_deduplicates() {
-        let tree = make_ws("1", vec![make_window(100, "foot"), make_window(101, "foot")]);
+        let tree = make_ws(
+            "1",
+            vec![make_window(100, "foot"), make_window(101, "foot")],
+        );
         let mut apps = Vec::new();
         collect_leaf_apps(&tree, &mut apps);
         assert_eq!(apps, vec!["foot"]);
@@ -469,10 +524,13 @@ mod tests {
 
     #[test]
     fn collect_leaf_apps_skips_empty_app_id() {
-        let tree = make_ws("1", vec![
-            serde_json::json!({ "pid": 100, "app_id": "", "nodes": [], "floating_nodes": [] }),
-            make_window(101, "firefox"),
-        ]);
+        let tree = make_ws(
+            "1",
+            vec![
+                serde_json::json!({ "pid": 100, "app_id": "", "nodes": [], "floating_nodes": [] }),
+                make_window(101, "firefox"),
+            ],
+        );
         let mut apps = Vec::new();
         collect_leaf_apps(&tree, &mut apps);
         assert_eq!(apps, vec!["firefox"]);

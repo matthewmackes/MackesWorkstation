@@ -187,8 +187,7 @@ pub fn load_all(dir: &Path) -> Result<Vec<TagManifest>, LoadError> {
 /// startup uses `load_all`.
 pub fn parse_file(path: &Path) -> Result<TagManifest, String> {
     let raw = std::fs::read_to_string(path).map_err(|e| format!("read: {e}"))?;
-    let mut manifest: TagManifest =
-        toml::from_str(&raw).map_err(|e| format!("parse: {e}"))?;
+    let mut manifest: TagManifest = toml::from_str(&raw).map_err(|e| format!("parse: {e}"))?;
     // Default name to file stem when the TOML didn't set one.
     if manifest.name.is_empty() {
         if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
@@ -249,11 +248,7 @@ autostart = true
     #[test]
     fn parse_explicit_name_overrides_stem() {
         let tmp = tempfile::tempdir().unwrap();
-        let path = write_manifest(
-            tmp.path(),
-            "stem-name",
-            r#"name = "Display Name""#,
-        );
+        let path = write_manifest(tmp.path(), "stem-name", r#"name = "Display Name""#);
         let m = parse_file(&path).unwrap();
         // Explicit name wins over file stem.
         assert_eq!(m.name, "Display Name");
@@ -297,11 +292,7 @@ autostart = true
         let tmp = tempfile::tempdir().unwrap();
         write_manifest(tmp.path(), "good", r#"apps = ["one"]"#);
         // Deliberately broken TOML — invalid syntax.
-        std::fs::write(
-            tmp.path().join("broken.toml"),
-            "apps = not a value =\n",
-        )
-        .unwrap();
+        std::fs::write(tmp.path().join("broken.toml"), "apps = not a value =\n").unwrap();
         // The loader should still return Ok with just the
         // parseable manifest, skipping `broken.toml`.
         let r = load_all(tmp.path()).unwrap();

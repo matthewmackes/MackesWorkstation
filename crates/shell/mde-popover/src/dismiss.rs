@@ -89,7 +89,8 @@ fn close_button_style(_theme: &Theme, status: button::Status) -> button::Style {
         ),
         _ => (None, FG_MUTED),
     };
-    button::Style { snap: false,
+    button::Style {
+        snap: false,
         background: bg,
         text_color: fg,
         border: Border {

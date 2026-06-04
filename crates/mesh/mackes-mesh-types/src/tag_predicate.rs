@@ -458,7 +458,9 @@ mod tests {
     #[test]
     fn unknown_namespace_rejected_at_parse_time() {
         let err = parse("unknown:firefox").unwrap_err();
-        assert!(matches!(err, ParseError::UnknownNamespace { ref namespace } if namespace == "unknown"));
+        assert!(
+            matches!(err, ParseError::UnknownNamespace { ref namespace } if namespace == "unknown")
+        );
     }
 
     #[test]
@@ -490,7 +492,10 @@ mod tests {
     #[test]
     fn empty_input_rejected() {
         assert!(matches!(parse("").unwrap_err(), ParseError::UnexpectedEof));
-        assert!(matches!(parse("   ").unwrap_err(), ParseError::UnexpectedEof));
+        assert!(matches!(
+            parse("   ").unwrap_err(),
+            ParseError::UnexpectedEof
+        ));
     }
 
     #[test]

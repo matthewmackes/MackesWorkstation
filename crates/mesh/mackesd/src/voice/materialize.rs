@@ -166,23 +166,20 @@ where
     // taking the first preserves deterministic behavior + lets
     // the operator see the duplicate in the Pending Changes
     // inbox.
-    out.vitelity = snapshot
-        .voice_policies
-        .iter()
-        .find_map(|p| match p {
-            Policy::VoicePublic {
-                peer_node_id,
-                vitelity_username,
-                vitelity_password,
-                outbound_cid,
-                ..
-            } if peer_node_id == node_id => Some(VitelityAccount {
-                username: vitelity_username.clone(),
-                password: vitelity_password.clone(),
-                outbound_cid: outbound_cid.clone(),
-            }),
-            _ => None,
-        });
+    out.vitelity = snapshot.voice_policies.iter().find_map(|p| match p {
+        Policy::VoicePublic {
+            peer_node_id,
+            vitelity_username,
+            vitelity_password,
+            outbound_cid,
+            ..
+        } if peer_node_id == node_id => Some(VitelityAccount {
+            username: vitelity_username.clone(),
+            password: vitelity_password.clone(),
+            outbound_cid: outbound_cid.clone(),
+        }),
+        _ => None,
+    });
 
     out
 }
@@ -393,8 +390,11 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let qnm = tmp.path().join("qnm");
         std::fs::create_dir_all(&qnm).expect("qnm root");
-        write_bundle(&bundle_path(&qnm, "peer:self"), &fixture_bundle("10.42.0.5"))
-            .expect("self bundle");
+        write_bundle(
+            &bundle_path(&qnm, "peer:self"),
+            &fixture_bundle("10.42.0.5"),
+        )
+        .expect("self bundle");
         write_bundle(
             &bundle_path(&qnm, "peer:alice"),
             &fixture_bundle("10.42.0.7"),
@@ -413,8 +413,7 @@ mod tests {
             }],
         };
         let path = tmp.path().join("voice-desired.json");
-        let out =
-            materialize_voice_desired(&snap, "peer:self", &qnm, &path).expect("materialize");
+        let out = materialize_voice_desired(&snap, "peer:self", &qnm, &path).expect("materialize");
         assert_eq!(out, MaterializeOutcome::Wrote);
         let body = std::fs::read_to_string(&path).expect("file");
         let back: VoiceDesired = serde_json::from_str(&body).expect("parse");
@@ -439,11 +438,9 @@ mod tests {
             }],
         };
         let path = tmp.path().join("voice-desired.json");
-        let first =
-            materialize_voice_desired(&snap, "peer:self", &qnm, &path).expect("first");
+        let first = materialize_voice_desired(&snap, "peer:self", &qnm, &path).expect("first");
         assert_eq!(first, MaterializeOutcome::Wrote);
-        let second =
-            materialize_voice_desired(&snap, "peer:self", &qnm, &path).expect("second");
+        let second = materialize_voice_desired(&snap, "peer:self", &qnm, &path).expect("second");
         assert_eq!(second, MaterializeOutcome::Unchanged);
     }
 
@@ -520,6 +517,9 @@ mod tests {
 
     #[test]
     fn default_desired_path_matches_worker_constant() {
-        assert_eq!(default_desired_json_path(), PathBuf::from(DEFAULT_DESIRED_JSON));
+        assert_eq!(
+            default_desired_json_path(),
+            PathBuf::from(DEFAULT_DESIRED_JSON)
+        );
     }
 }

@@ -35,17 +35,11 @@ pub enum Resolved {
     /// 4-digit mesh extension, peer NOT in roster.
     MeshUnknown,
     /// 1-3 digits starting with `1`.
-    MeshPartial {
-        remaining: usize,
-    },
+    MeshPartial { remaining: usize },
     /// `9` + 11 digits (PSTN E.164 with country prefix).
-    Pstn {
-        formatted: String,
-    },
+    Pstn { formatted: String },
     /// `9` + 1-10 digits.
-    PstnPartial {
-        remaining: usize,
-    },
+    PstnPartial { remaining: usize },
     /// Doesn't match any prefix.
     Invalid,
 }
@@ -60,10 +54,7 @@ impl Resolved {
     /// Whether this resolution will dial out over Vitelity (vs mesh).
     #[must_use]
     pub const fn is_pstn(&self) -> bool {
-        matches!(
-            self,
-            Resolved::Pstn { .. } | Resolved::PstnPartial { .. }
-        )
+        matches!(self, Resolved::Pstn { .. } | Resolved::PstnPartial { .. })
     }
 }
 
@@ -89,10 +80,7 @@ pub fn resolve_target(raw: &str, roster: &[Peer]) -> Resolved {
     }
 
     // PSTN: `9` + 11 digits (1 + 10-digit NANP E.164).
-    if raw.len() == 12
-        && raw.starts_with('9')
-        && raw.chars().all(|c| c.is_ascii_digit())
-    {
+    if raw.len() == 12 && raw.starts_with('9') && raw.chars().all(|c| c.is_ascii_digit()) {
         return Resolved::Pstn {
             formatted: format_e164(&raw[1..]),
         };
@@ -106,10 +94,7 @@ pub fn resolve_target(raw: &str, roster: &[Peer]) -> Resolved {
     }
 
     // PSTN partial: `9` + 1-10 digits.
-    if raw.len() <= 11
-        && raw.starts_with('9')
-        && raw.chars().all(|c| c.is_ascii_digit())
-    {
+    if raw.len() <= 11 && raw.starts_with('9') && raw.chars().all(|c| c.is_ascii_digit()) {
         return Resolved::PstnPartial {
             remaining: 12 - raw.len(),
         };
@@ -122,12 +107,7 @@ pub fn resolve_target(raw: &str, roster: &[Peer]) -> Resolved {
 /// Falls back to `+<digits>` for non-NANP shapes.
 fn format_e164(digits: &str) -> String {
     if digits.len() == 11 && digits.starts_with('1') {
-        format!(
-            "+1 ({}) {}-{}",
-            &digits[1..4],
-            &digits[4..7],
-            &digits[7..]
-        )
+        format!("+1 ({}) {}-{}", &digits[1..4], &digits[4..7], &digits[7..])
     } else {
         format!("+{digits}")
     }
@@ -212,14 +192,8 @@ mod tests {
 
     #[test]
     fn other_prefixes_are_invalid() {
-        assert_eq!(
-            resolve_target("5", &fixture_roster()),
-            Resolved::Invalid
-        );
-        assert_eq!(
-            resolve_target("0123", &fixture_roster()),
-            Resolved::Invalid
-        );
+        assert_eq!(resolve_target("5", &fixture_roster()), Resolved::Invalid);
+        assert_eq!(resolve_target("0123", &fixture_roster()), Resolved::Invalid);
     }
 
     #[test]

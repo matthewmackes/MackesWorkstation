@@ -182,9 +182,10 @@ impl Worker for KdcHostWorker {
             // store so we can hand it to DbusServer::start. The
             // open_or_init call is idempotent + cheap when the
             // identity.pem already exists.
-            Arc::new(PairingStore::open_or_init(&self.config_dir).map_err(|e| {
-                anyhow::anyhow!("re-open pairing store: {e}")
-            })?)
+            Arc::new(
+                PairingStore::open_or_init(&self.config_dir)
+                    .map_err(|e| anyhow::anyhow!("re-open pairing store: {e}"))?,
+            )
         };
         // KDC2-3.3 — register the operator-facing D-Bus host.
         // Graceful-degrade: a session bus that's unreachable

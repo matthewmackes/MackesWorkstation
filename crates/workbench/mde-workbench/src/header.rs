@@ -103,29 +103,27 @@ pub fn view<'a, Message: Clone + 'a>(
     // pinned-tile row shows for the Workbench shortcut so the
     // brand reads the same across chrome surfaces.
     let brand_icon_resolved = mde_icon(Icon::Workbench, IconSize::Inline);
-    let brand_icon: Element<'a, Message> =
-        if let Some(svg_bytes) = brand_icon_resolved.svg_bytes() {
-            let icon_tint = palette.text.into_iced_color();
-            widget_svg(widget_svg::Handle::from_memory(svg_bytes))
-                .width(Length::Fixed(BRAND_ICON_SIZE))
-                .height(Length::Fixed(BRAND_ICON_SIZE))
-                .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+    let brand_icon: Element<'a, Message> = if let Some(svg_bytes) = brand_icon_resolved.svg_bytes()
+    {
+        let icon_tint = palette.text.into_iced_color();
+        widget_svg(widget_svg::Handle::from_memory(svg_bytes))
+            .width(Length::Fixed(BRAND_ICON_SIZE))
+            .height(Length::Fixed(BRAND_ICON_SIZE))
+            .style(
+                move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
                     color: Some(icon_tint),
-                })
-                .into()
-        } else {
-            text(brand_icon_resolved.fallback_glyph)
-                .size(BRAND_ICON_SIZE)
-                .color(palette.text.into_iced_color())
-                .into()
-        };
+                },
+            )
+            .into()
+    } else {
+        text(brand_icon_resolved.fallback_glyph)
+            .size(BRAND_ICON_SIZE)
+            .color(palette.text.into_iced_color())
+            .into()
+    };
 
-    let brand_strip = row![
-        brand_icon,
-        Space::new().width(Length::Fixed(8.0)),
-        wordmark,
-    ]
-    .align_y(alignment::Vertical::Center);
+    let brand_strip = row![brand_icon, Space::new().width(Length::Fixed(8.0)), wordmark,]
+        .align_y(alignment::Vertical::Center);
 
     let close_action = on_action(HeaderAction::Close);
     let max_action = on_action(HeaderAction::ToggleMaximize);
@@ -159,7 +157,8 @@ pub fn view<'a, Message: Clone + 'a>(
     container(bar)
         .width(Length::Fill)
         .height(Length::Fixed(HEADER_HEIGHT))
-        .style(move |_| container::Style { snap: false,
+        .style(move |_| container::Style {
+            snap: false,
             background: Some(Background::Color(palette.surface.into_iced_color())),
             border: Border {
                 color: palette.border.into_iced_color(),
@@ -189,9 +188,11 @@ fn control_button<'a, Message: Clone + 'a>(
         widget_svg(widget_svg::Handle::from_memory(svg_bytes))
             .width(Length::Fixed(16.0))
             .height(Length::Fixed(16.0))
-            .style(move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
-                color: Some(muted),
-            })
+            .style(
+                move |_t: &iced::Theme, _s: widget_svg::Status| widget_svg::Style {
+                    color: Some(muted),
+                },
+            )
             .into()
     } else {
         text(resolved.fallback_glyph)
@@ -224,7 +225,8 @@ fn control_button<'a, Message: Clone + 'a>(
             (ButtonStatus::Hovered, false) => palette.accent.into_iced_color(),
             _ => palette.text_muted.into_iced_color(),
         };
-        button::Style { snap: false,
+        button::Style {
+            snap: false,
             background: Some(Background::Color(bg)),
             text_color,
             border: Border {

@@ -245,10 +245,7 @@ mod tests {
 
     #[test]
     fn count_cap_peers_excludes_decommissioned() {
-        let nodes = vec![
-            make_node("decommissioned"),
-            make_node("peer"),
-        ];
+        let nodes = vec![make_node("decommissioned"), make_node("peer")];
         assert_eq!(count_cap_peers(&nodes), 1);
     }
 

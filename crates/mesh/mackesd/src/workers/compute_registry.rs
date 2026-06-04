@@ -206,7 +206,11 @@ pub fn parse_virsh_domstats_vcpu_time(stdout: &str) -> Option<u64> {
             any = true;
         }
     }
-    if any { Some(total) } else { None }
+    if any {
+        Some(total)
+    } else {
+        None
+    }
 }
 
 /// Compute CPU percent from two cumulative VCPU-time samples.
@@ -714,17 +718,29 @@ mod tests {
 
     #[test]
     fn classify_transition_detects_crashed() {
-        assert_eq!(classify_transition(Some("running"), "crashed"), Some("crashed"));
+        assert_eq!(
+            classify_transition(Some("running"), "crashed"),
+            Some("crashed")
+        );
         // Already crashed ⇒ no repeat event.
         assert_eq!(classify_transition(Some("crashed"), "crashed"), None);
     }
 
     #[test]
     fn classify_transition_started_and_stopped() {
-        assert_eq!(classify_transition(Some("shut off"), "running"), Some("started"));
-        assert_eq!(classify_transition(Some("running"), "shut off"), Some("stopped"));
+        assert_eq!(
+            classify_transition(Some("shut off"), "running"),
+            Some("started")
+        );
+        assert_eq!(
+            classify_transition(Some("running"), "shut off"),
+            Some("stopped")
+        );
         // paused → running counts as started; running → paused isn't notable.
-        assert_eq!(classify_transition(Some("paused"), "running"), Some("started"));
+        assert_eq!(
+            classify_transition(Some("paused"), "running"),
+            Some("started")
+        );
         assert_eq!(classify_transition(Some("running"), "paused"), None);
     }
 
@@ -954,7 +970,13 @@ mod tests {
 
     #[test]
     fn scenario_one_vm_running() {
-        let inv = build_inventory("10.42.0.1", "alice", vec![vm("dev", "running")], vec![], true);
+        let inv = build_inventory(
+            "10.42.0.1",
+            "alice",
+            vec![vm("dev", "running")],
+            vec![],
+            true,
+        );
         assert_eq!(inv.vms.len(), 1);
         assert_eq!(inv.vms[0].state, "running");
         assert!(inv.vms[0].meshfs_available);

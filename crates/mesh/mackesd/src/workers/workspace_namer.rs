@@ -174,11 +174,8 @@ async fn rename_pass(conn: &mut Connection) {
     // relative to the swayipc tree+workspaces fetches above.
     let manifests = crate::config::default_manifests_dir()
         .and_then(|d| crate::config::load_tag_manifests(&d).ok());
-    let desired = derive_workspace_name_with_manifests(
-        focused.num,
-        app_id.as_deref(),
-        manifests.as_deref(),
-    );
+    let desired =
+        derive_workspace_name_with_manifests(focused.num, app_id.as_deref(), manifests.as_deref());
     if !is_auto_derived(focused.num, &focused.name) {
         return;
     }
@@ -187,8 +184,12 @@ async fn rename_pass(conn: &mut Connection) {
     }
     let cmd = rename_command(focused.num, &desired);
     match conn.run_command(&cmd).await {
-        Ok(_) => tracing::debug!(workspace = focused.num, %desired, "workspace_namer renamed workspace"),
-        Err(e) => tracing::warn!(workspace = focused.num, %desired, error = %e, "workspace_namer rename failed"),
+        Ok(_) => {
+            tracing::debug!(workspace = focused.num, %desired, "workspace_namer renamed workspace")
+        }
+        Err(e) => {
+            tracing::warn!(workspace = focused.num, %desired, error = %e, "workspace_namer rename failed")
+        }
     }
 }
 

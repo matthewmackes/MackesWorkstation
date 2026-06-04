@@ -117,8 +117,7 @@ pub fn expand_pattern(pattern: &str, all_topics: &[String]) -> Vec<String> {
 
 /// Resolve the default bus root from the env (XDG fallback).
 fn default_bus_root() -> Result<PathBuf> {
-    crate::default_data_dir()
-        .ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
+    crate::default_data_dir().ok_or_else(|| anyhow!("no $HOME / $XDG_DATA_HOME — pass --bus-root"))
 }
 
 /// Discover every topic the index has seen so far. Used to

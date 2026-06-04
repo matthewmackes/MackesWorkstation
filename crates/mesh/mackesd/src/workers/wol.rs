@@ -103,11 +103,7 @@ pub fn wake(mac: Mac, broadcast: &str, port: u16) -> std::io::Result<()> {
 /// # Errors
 /// Returns `std::io::Error` when the socket bind, address parse, or
 /// `send_to` call fails.
-pub fn wake_via_lighthouse(
-    mac: Mac,
-    lighthouse_ip: &str,
-    port: u16,
-) -> std::io::Result<()> {
+pub fn wake_via_lighthouse(mac: Mac, lighthouse_ip: &str, port: u16) -> std::io::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0")?;
     // No set_broadcast: this is a unicast send to the lighthouse's
     // overlay IP. The lighthouse re-broadcasts on the target LAN.
