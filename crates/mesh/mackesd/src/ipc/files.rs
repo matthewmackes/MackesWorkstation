@@ -1,190 +1,205 @@
+//! File-transfer surfaces — migrated from the
 //! `dev.mackes.MDE.Shell.{Inbox,Outbox,Downloads,FileOperations}` +
-//! `dev.mackes.MDE.Fleet.Files` — file-transfer surfaces served by
-//! mackesd that the MDE-Files panel (Phase 2.3 DBusBackend) calls
-//! over zbus.
+//! `dev.mackes.MDE.Fleet.Files` D-Bus interfaces onto the mesh **Bus**
+//! (E0.3.2). Each surface answers `action/<prefix>/<verb>`; verb
+//! arguments (where a verb takes any) travel in the request body, and
+//! every reply is a JSON value or an `{"error":…}` envelope.
 //!
-//! v2.0.0 Phase 2.4 (locked 2026-05-19) — Phase A ships the schemas;
-//! handler bodies return `Err(zbus::fdo::Error::Failed("…not
-//! implemented…"))` until Phase G wires them to the live transfer
-//! engine.
+//! Per the operator's "migrate all to the Bus" disposition: the four
+//! `Shell.*` surfaces were never registered on D-Bus and have no live
+//! consumer yet, so they ship as Bus responders returning their honest
+//! empty / "transport not configured" states — a future epic fills the
+//! real transfer engine (the `mackesd::orchestrator` Send-To state
+//! machine) and wires consumers. **Fleet.Files is the live one**:
+//! mde-files's mesh-browse reads its peer roster from the SQLite
+//! `nodes` table.
+//!
+//! Responders are synchronous (no tokio runtime) and run on dedicated
+//! OS threads spawned by mackesd `run_serve` — `Persist`/rusqlite
+//! isn't `Send`. Fleet.Files locks its shared store via
+//! `tokio::sync::Mutex::blocking_lock`, which is correct on a
+//! non-async thread (it would panic inside a runtime).
 
 #![cfg(feature = "async-services")]
 
-use zbus::interface;
+use std::collections::HashMap;
 
-// ---- dev.mackes.MDE.Shell.Inbox -----------------------------------
+use mde_bus::hooks::config::Priority;
+use mde_bus::persist::Persist;
+use mde_bus::rpc::reply_topic;
+use serde_json::json;
 
-/// Object exposed at `/dev/mackes/MDE/Shell/Inbox`.
-#[derive(Debug, Default, Clone)]
-pub struct InboxService;
+/// Responder poll interval (shared across the file surfaces).
+pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
 
-/// Stable D-Bus interface name.
-pub const INBOX_INTERFACE: &str = "dev.mackes.MDE.Shell.Inbox";
-/// Object path.
-pub const INBOX_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Inbox";
-
-#[interface(name = "dev.mackes.MDE.Shell.Inbox")]
-impl InboxService {
-    /// JSON array of inbox `FileRow`s (newest first).
-    ///
-    /// v4.0.1 (2026-05-23): returns `"[]"` — the honest empty
-    /// state. Mesh inbox is the destination for `send_to`
-    /// arrivals; AF-5 wires the producer side. Until then
-    /// the inbox is always empty.
-    async fn list(&self) -> zbus::fdo::Result<String> {
-        Ok("[]".to_string())
-    }
-
-    /// Mark one inbox entry as opened.
-    async fn mark_opened(&self, _id: &str) -> zbus::fdo::Result<()> {
-        Err(zbus::fdo::Error::Failed(
-            "no inbox entries to mark — AF-5 wires the producer side".into(),
-        ))
-    }
-
-    /// Signal: a new inbox row landed (id, peer, label).
-    #[zbus(signal)]
-    pub async fn item_arrived(
-        emitter: &zbus::object_server::SignalEmitter<'_>,
-        id: &str,
-        peer: &str,
-        label: &str,
-    ) -> zbus::Result<()>;
+/// JSON `{"error": <msg>}` envelope — the Bus equivalent of the old
+/// `zbus::fdo::Error::Failed`. Callers parse-and-surface rather than
+/// time out.
+fn err(m: impl Into<String>) -> String {
+    json!({ "error": m.into() }).to_string()
 }
 
-// ---- dev.mackes.MDE.Shell.Outbox ----------------------------------
+/// A boxed reply builder: `(verb, body) -> reply-json`. `Send` so it
+/// can ride into the responder thread.
+pub type ReplyFn = Box<dyn Fn(&str, Option<&str>) -> String + Send>;
 
-/// Object exposed at `/dev/mackes/MDE/Shell/Outbox`.
-#[derive(Debug, Default, Clone)]
-pub struct OutboxService;
+/// One file surface registered on the combined responder: its
+/// action-topic prefix, its verbs, and its reply builder.
+pub struct Surface {
+    /// Action-topic prefix, e.g. `fleet-files` (topics are
+    /// `action/<prefix>/<verb>`).
+    pub prefix: &'static str,
+    /// Verbs served under `prefix`.
+    pub verbs: &'static [&'static str],
+    /// Builds the reply body for `(verb, request-body)`.
+    pub reply: ReplyFn,
+}
 
-pub const OUTBOX_INTERFACE: &str = "dev.mackes.MDE.Shell.Outbox";
-pub const OUTBOX_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Outbox";
-
-#[interface(name = "dev.mackes.MDE.Shell.Outbox")]
-impl OutboxService {
-    /// JSON array of outbox `FileRow`s.
-    ///
-    /// v4.0.1 (2026-05-23): returns `"[]"` — honest empty.
-    /// Outbox tracks in-flight uploads; AF-5 populates it when
-    /// the transport layer ships.
-    async fn list(&self) -> zbus::fdo::Result<String> {
-        Ok("[]".to_string())
-    }
-
-    /// Cancel an in-flight upload by op_id.
-    async fn cancel(&self, _op_id: u64) -> zbus::fdo::Result<()> {
-        Err(zbus::fdo::Error::Failed(
-            "no in-flight uploads to cancel — AF-5 wires the producer side".into(),
-        ))
+/// Drive ALL the file surfaces from one thread + one `Persist` (cheaper
+/// than a thread per surface, and `Persist`/rusqlite isn't `Send` so it
+/// can't be shared across threads anyway). Each tick polls every
+/// surface's verbs for new requests and writes their replies, until
+/// `should_stop()`. mackesd `run_serve` spawns this on a dedicated OS
+/// thread.
+pub fn serve_all(persist: &Persist, surfaces: &[Surface], should_stop: impl Fn() -> bool) {
+    let mut cursors: HashMap<String, String> = HashMap::new();
+    while !should_stop() {
+        for s in surfaces {
+            poll_once(persist, s.prefix, s.verbs, &s.reply, &mut cursors);
+        }
+        std::thread::sleep(POLL_INTERVAL);
     }
 }
 
-// ---- dev.mackes.MDE.Shell.Downloads -------------------------------
-
-/// Object exposed at `/dev/mackes/MDE/Shell/Downloads`.
-#[derive(Debug, Default, Clone)]
-pub struct DownloadsService;
-
-pub const DOWNLOADS_INTERFACE: &str = "dev.mackes.MDE.Shell.Downloads";
-pub const DOWNLOADS_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Downloads";
-
-#[interface(name = "dev.mackes.MDE.Shell.Downloads")]
-impl DownloadsService {
-    /// JSON array of completed downloads (newest first).
-    ///
-    /// v4.0.1 (2026-05-23): returns `"[]"` — honest empty.
-    /// Mesh-completed downloads land here; AF-5 populates the
-    /// list when transport ships. Local `~/Downloads` content
-    /// is served by mde-files's `LocalFsBackend`, not this
-    /// dbus surface.
-    async fn list(&self) -> zbus::fdo::Result<String> {
-        Ok("[]".to_string())
-    }
-
-    /// Reveal one download in the file manager.
-    async fn reveal(&self, _id: &str) -> zbus::fdo::Result<()> {
-        Err(zbus::fdo::Error::Failed(
-            "no mesh downloads recorded — AF-5 wires the producer side".into(),
-        ))
+/// One poll sweep across `verbs` (split out so a test can drive it
+/// without the sleep loop).
+fn poll_once<F>(
+    persist: &Persist,
+    prefix: &str,
+    verbs: &[&str],
+    reply: &F,
+    cursors: &mut HashMap<String, String>,
+) where
+    F: Fn(&str, Option<&str>) -> String,
+{
+    for &verb in verbs {
+        let topic = format!("action/{prefix}/{verb}");
+        let since = cursors.get(&topic).map(String::as_str);
+        let msgs = match persist.list_since(&topic, since) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::debug!(topic = %topic, error = %e, "files responder: list_since failed");
+                continue;
+            }
+        };
+        for msg in msgs {
+            cursors.insert(topic.clone(), msg.ulid.clone());
+            let body = reply(verb, msg.body.as_deref());
+            if let Err(e) = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&body),
+            ) {
+                tracing::warn!(ulid = %msg.ulid, error = %e, "files responder: reply write failed");
+            }
+        }
     }
 }
 
-// ---- dev.mackes.MDE.Shell.FileOperations --------------------------
+// ---- Inbox — action/files-inbox/<verb> ----------------------------
 
-/// Object exposed at `/dev/mackes/MDE/Shell/FileOperations`.
-#[derive(Debug, Default, Clone)]
-pub struct FileOperationsService;
+/// Action-topic prefix for the inbox surface.
+pub const INBOX_PREFIX: &str = "files-inbox";
+/// Verbs served on `action/files-inbox/<verb>`.
+pub const INBOX_VERBS: [&str; 2] = ["list", "mark-opened"];
 
-pub const FILE_OPERATIONS_INTERFACE: &str = "dev.mackes.MDE.Shell.FileOperations";
-pub const FILE_OPERATIONS_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/FileOperations";
+/// Reply builder for the inbox surface. `list` is the honest empty
+/// state (mesh inbox is the `send_to` destination; AF-5 wires the
+/// producer); `mark-opened` has nothing to mark yet.
+#[must_use]
+pub fn inbox_reply(verb: &str, _body: Option<&str>) -> String {
+    match verb {
+        "list" => "[]".to_string(),
+        "mark-opened" => err("no inbox entries to mark — AF-5 wires the producer side"),
+        other => err(format!("unknown inbox verb: {other}")),
+    }
+}
 
-/// User-facing error surfaced by mde-files when the operator
-/// tries to send to a mesh destination but no transport is
-/// configured. v4.0.1 (2026-05-23) — replaces the "Phase G"
-/// internal-jargon stub messages.
+// ---- Outbox — action/files-outbox/<verb> --------------------------
+
+/// Action-topic prefix for the outbox surface.
+pub const OUTBOX_PREFIX: &str = "files-outbox";
+/// Verbs served on `action/files-outbox/<verb>`.
+pub const OUTBOX_VERBS: [&str; 2] = ["list", "cancel"];
+
+/// Reply builder for the outbox surface. `list` is honest empty;
+/// `cancel` (body = op id) has no in-flight upload to cancel yet.
+#[must_use]
+pub fn outbox_reply(verb: &str, _body: Option<&str>) -> String {
+    match verb {
+        "list" => "[]".to_string(),
+        "cancel" => err("no in-flight uploads to cancel — AF-5 wires the producer side"),
+        other => err(format!("unknown outbox verb: {other}")),
+    }
+}
+
+// ---- Downloads — action/files-downloads/<verb> --------------------
+
+/// Action-topic prefix for the downloads surface.
+pub const DOWNLOADS_PREFIX: &str = "files-downloads";
+/// Verbs served on `action/files-downloads/<verb>`.
+pub const DOWNLOADS_VERBS: [&str; 2] = ["list", "reveal"];
+
+/// Reply builder for the downloads surface. `list` is honest empty
+/// (local `~/Downloads` is served by mde-files's `LocalFsBackend`, not
+/// this surface); `reveal` (body = id) has no mesh download recorded.
+#[must_use]
+pub fn downloads_reply(verb: &str, _body: Option<&str>) -> String {
+    match verb {
+        "list" => "[]".to_string(),
+        "reveal" => err("no mesh downloads recorded — AF-5 wires the producer side"),
+        other => err(format!("unknown downloads verb: {other}")),
+    }
+}
+
+// ---- FileOperations — action/file-ops/<verb> ----------------------
+
+/// Action-topic prefix for the file-operations surface.
+pub const FILE_OPS_PREFIX: &str = "file-ops";
+/// Verbs served on `action/file-ops/<verb>`.
+pub const FILE_OPS_VERBS: [&str; 3] = ["send-to", "rollback", "audit-log"];
+
+/// User-facing message when the operator tries a mesh send but no
+/// transport is wired. A future epic dispatches `send-to` through the
+/// `orchestrator` Send-To engine.
 const SEND_TO_NOT_CONFIGURED: &str =
     "mesh send not configured — no transport (rsync / scp / qnm-share) is wired yet";
 
-#[interface(name = "dev.mackes.MDE.Shell.FileOperations")]
-impl FileOperationsService {
-    /// Send the given sources to one or more destinations. The
-    /// `selector` is the same destination-grammar mde-files
-    /// renders (peer:, group:, role:, site:). Returns the new
-    /// op_id.
-    ///
-    /// v4.0.1 (2026-05-23): replaced the "Phase G" stub with an
-    /// honest "no transport configured" response. mackesd
-    /// doesn't yet ship a per-peer file-transport (rsync-over-
-    /// mesh / scp / qnm-share layer); when one lands, AF-5
-    /// dispatches to it from here. Until then the operator
-    /// gets a clear toast instead of a "Phase G" leak.
-    async fn send_to(
-        &self,
-        _sources_json: &str,
-        _selector: &str,
-        _mode: &str,
-        _conflict: &str,
-    ) -> zbus::fdo::Result<u64> {
-        Err(zbus::fdo::Error::Failed(SEND_TO_NOT_CONFIGURED.into()))
+/// Reply builder for the file-operations surface. `send-to` (body =
+/// `{sources,selector,mode,conflict}`) and `rollback` (body = op id)
+/// honestly report no transport; `audit-log` is the honest empty log.
+#[must_use]
+pub fn file_ops_reply(verb: &str, _body: Option<&str>) -> String {
+    match verb {
+        "send-to" | "rollback" => err(SEND_TO_NOT_CONFIGURED),
+        "audit-log" => "[]".to_string(),
+        other => err(format!("unknown file-ops verb: {other}")),
     }
-
-    /// Roll back a completed op by op_id.
-    async fn rollback(&self, _op_id: u64) -> zbus::fdo::Result<u64> {
-        Err(zbus::fdo::Error::Failed(SEND_TO_NOT_CONFIGURED.into()))
-    }
-
-    /// JSON-encoded audit log (newest first, capped at `limit`).
-    ///
-    /// v4.0.1 (2026-05-23): returns an empty JSON array
-    /// (`"[]"`) when no transport has logged anything yet.
-    /// This is the honest empty-state — equivalent to "no
-    /// sends have been recorded," which is the literal truth
-    /// until AF-5 wires the transport layer.
-    async fn audit_log(&self, _limit: u32) -> zbus::fdo::Result<String> {
-        Ok("[]".to_string())
-    }
-
-    /// Signal: an op state changed (id, kind, ok).
-    #[zbus(signal)]
-    pub async fn op_completed(
-        emitter: &zbus::object_server::SignalEmitter<'_>,
-        op_id: u64,
-        kind: &str,
-        ok: bool,
-    ) -> zbus::Result<()>;
 }
 
-// ---- dev.mackes.MDE.Fleet.Files -----------------------------------
+// ---- Fleet.Files — action/fleet-files/<verb> ----------------------
 
-/// Object exposed at `/dev/mackes/MDE/Fleet/Files`.
-///
-/// v4.0.1 AF-* (2026-05-23) — Phase G impl. The previous shape
-/// was `pub struct FleetFilesService;` with three stub methods
-/// returning `Err("wired in Phase G")`. This impl now reads from
-/// the mackesd SQLite store (`nodes` table via
-/// `mackesd_core::store::list_nodes`) so mde-files's DBusBackend
-/// gets a real peer roster.
+/// Action-topic prefix for the Fleet.Files surface.
+pub const FLEET_FILES_PREFIX: &str = "fleet-files";
+/// Verbs served on `action/fleet-files/<verb>`.
+pub const FLEET_FILES_VERBS: [&str; 3] = ["peers", "self-node", "list-peer"];
+
+/// The live mesh-roster surface. Reads from the mackesd SQLite store
+/// (`nodes` table via `crate::store::list_nodes`) so mde-files's
+/// mesh-browse gets a real peer roster. Holds the same `Arc`-shared
+/// connection the reconcile worker upserts into, plus the host's own
+/// identity.
 #[derive(Debug, Clone)]
 pub struct FleetFilesService {
     store: std::sync::Arc<tokio::sync::Mutex<rusqlite::Connection>>,
@@ -192,16 +207,9 @@ pub struct FleetFilesService {
     node_id: String,
 }
 
-pub const FLEET_FILES_INTERFACE: &str = "dev.mackes.MDE.Fleet.Files";
-pub const FLEET_FILES_OBJECT_PATH: &str = "/dev/mackes/MDE/Fleet/Files";
-
-/// Well-known bus name mackesd owns on the session bus.
-pub const FLEET_FILES_BUS_NAME: &str = "org.mackes.mackesd";
-
 impl FleetFilesService {
-    /// Build a service rooted at a live SQLite connection (the
-    /// same `nodes` table the reconcile worker upserts into) and
-    /// the host's own identity.
+    /// Build a service rooted at a live SQLite connection and the
+    /// host's own identity.
     #[must_use]
     pub fn new(
         store: std::sync::Arc<tokio::sync::Mutex<rusqlite::Connection>>,
@@ -212,6 +220,61 @@ impl FleetFilesService {
             store,
             host: host.into(),
             node_id: node_id.into(),
+        }
+    }
+
+    /// Sync reply builder for the Fleet.Files Bus verbs. Locks the
+    /// shared store via `blocking_lock` — correct because the
+    /// responder runs on a dedicated non-async thread (it would panic
+    /// inside a tokio runtime).
+    #[must_use]
+    pub fn reply(&self, verb: &str, _body: Option<&str>) -> String {
+        match verb {
+            // JSON array of `WirePeer` rows from the live mesh roster,
+            // excluding the local host (it surfaces via `self-node`).
+            "peers" => {
+                let nodes = {
+                    let conn = self.store.blocking_lock();
+                    match crate::store::list_nodes(&conn) {
+                        Ok(n) => n,
+                        Err(e) => return err(format!("list_nodes: {e}")),
+                    }
+                };
+                let wires: Vec<WirePeer<'_>> = nodes
+                    .iter()
+                    .filter(|n| n.node_id != self.node_id)
+                    .map(|n| WirePeer {
+                        name: &n.name,
+                        addr: n.region.as_deref().unwrap_or("—"),
+                        kind: match n.role.as_str() {
+                            "host" => "server",
+                            "observer" => "ci",
+                            _ => "desktop",
+                        },
+                        status: match n.health.as_str() {
+                            "healthy" => "online",
+                            "degraded" => "idle",
+                            _ => "offline",
+                        },
+                    })
+                    .collect();
+                serde_json::to_string(&wires).unwrap_or_else(|e| err(format!("encode peers: {e}")))
+            }
+            // JSON-encoded `WireSelfNode` for the local host.
+            "self-node" => {
+                let wire = WireSelfNode {
+                    host: &self.host,
+                    role: "host",
+                    region: "local",
+                };
+                serde_json::to_string(&wire)
+                    .unwrap_or_else(|e| err(format!("encode self_node: {e}")))
+            }
+            // Per-peer file index isn't built yet (it lands with the
+            // mesh file-sync subsystem); `[]` is the correct empty
+            // state, not a stub — the client renders "no shared files".
+            "list-peer" => "[]".to_string(),
+            other => err(format!("unknown fleet-files verb: {other}")),
         }
     }
 }
@@ -231,197 +294,95 @@ struct WireSelfNode<'a> {
     region: &'a str,
 }
 
-#[interface(name = "dev.mackes.MDE.Fleet.Files")]
-impl FleetFilesService {
-    /// JSON array of `Peer` rows from the live mesh roster.
-    ///
-    /// Reads from the mackesd `nodes` table. Excludes the local
-    /// host (it surfaces via `self_node`). Each row maps to a
-    /// `WirePeer` shape mde-files's `WirePeer::into_model`
-    /// turns into a UI `Peer`.
-    async fn peers(&self) -> zbus::fdo::Result<String> {
-        let store = self.store.clone();
-        let local_node_id = self.node_id.clone();
-        let nodes = {
-            let conn = store.lock().await;
-            crate::store::list_nodes(&conn)
-                .map_err(|e| zbus::fdo::Error::Failed(format!("list_nodes: {e}")))?
-        };
-        let wires: Vec<WirePeer<'_>> = nodes
-            .iter()
-            .filter(|n| n.node_id != local_node_id)
-            .map(|n| WirePeer {
-                name: &n.name,
-                addr: n.region.as_deref().unwrap_or("—"),
-                kind: match n.role.as_str() {
-                    "host" => "server",
-                    "observer" => "ci",
-                    _ => "desktop",
-                },
-                status: match n.health.as_str() {
-                    "healthy" => "online",
-                    "degraded" => "idle",
-                    _ => "offline",
-                },
-            })
-            .collect();
-        serde_json::to_string(&wires)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("encode peers: {e}")))
-    }
-
-    /// JSON-encoded `SelfNode` for the local host.
-    async fn self_node(&self) -> zbus::fdo::Result<String> {
-        let wire = WireSelfNode {
-            host: &self.host,
-            role: "host",
-            region: "local",
-        };
-        serde_json::to_string(&wire)
-            .map_err(|e| zbus::fdo::Error::Failed(format!("encode self_node: {e}")))
-    }
-
-    /// JSON array of `FileRow` entries visible under `peer:<name>`.
-    ///
-    /// Returns `[]` today — mackesd doesn't yet maintain a
-    /// per-peer file index (that lands with the mesh file-sync
-    /// subsystem). An empty array is the *correct* answer
-    /// ("no file inventory yet"), not a stub: the client treats
-    /// it as a real empty state and renders the "no shared
-    /// files" message rather than erroring.
-    async fn list_peer(&self, _peer: &str) -> zbus::fdo::Result<String> {
-        Ok("[]".to_string())
-    }
-}
-
-/// Register the FleetFilesService on the session bus at the
-/// canonical well-known name + object path. The returned
-/// `Connection` must stay alive for the daemon's lifetime — drop
-/// it and the dbus surface goes away.
-///
-/// # Errors
-///
-/// Returns whatever zbus reports.
-pub async fn register_fleet_files(state: FleetFilesService) -> zbus::Result<zbus::Connection> {
-    zbus::connection::Builder::session()?
-        .name(FLEET_FILES_BUS_NAME)?
-        .serve_at(FLEET_FILES_OBJECT_PATH, state)?
-        .build()
-        .await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn shell_inbox_interface_lock() {
-        assert_eq!(INBOX_INTERFACE, "dev.mackes.MDE.Shell.Inbox");
-        assert_eq!(INBOX_OBJECT_PATH, "/dev/mackes/MDE/Shell/Inbox");
+    fn topic_prefixes_and_verbs_lock() {
+        assert_eq!(INBOX_PREFIX, "files-inbox");
+        assert_eq!(OUTBOX_PREFIX, "files-outbox");
+        assert_eq!(DOWNLOADS_PREFIX, "files-downloads");
+        assert_eq!(FILE_OPS_PREFIX, "file-ops");
+        assert_eq!(FLEET_FILES_PREFIX, "fleet-files");
+        assert_eq!(FLEET_FILES_VERBS, ["peers", "self-node", "list-peer"]);
+    }
+
+    // The four stub surfaces keep their honest empty /
+    // transport-not-configured shape — a regression to a "Phase G"
+    // jargon leak is caught here.
+    #[test]
+    fn inbox_list_is_honest_empty() {
+        assert_eq!(inbox_reply("list", None), "[]");
     }
 
     #[test]
-    fn shell_outbox_interface_lock() {
-        assert_eq!(OUTBOX_INTERFACE, "dev.mackes.MDE.Shell.Outbox");
-        assert_eq!(OUTBOX_OBJECT_PATH, "/dev/mackes/MDE/Shell/Outbox");
+    fn outbox_list_is_honest_empty() {
+        assert_eq!(outbox_reply("list", None), "[]");
     }
 
     #[test]
-    fn shell_downloads_interface_lock() {
-        assert_eq!(DOWNLOADS_INTERFACE, "dev.mackes.MDE.Shell.Downloads");
-        assert_eq!(DOWNLOADS_OBJECT_PATH, "/dev/mackes/MDE/Shell/Downloads");
+    fn downloads_list_is_honest_empty() {
+        assert_eq!(downloads_reply("list", None), "[]");
     }
 
     #[test]
-    fn shell_file_operations_interface_lock() {
-        assert_eq!(
-            FILE_OPERATIONS_INTERFACE,
-            "dev.mackes.MDE.Shell.FileOperations"
-        );
-        assert_eq!(
-            FILE_OPERATIONS_OBJECT_PATH,
-            "/dev/mackes/MDE/Shell/FileOperations"
-        );
-    }
-
-    #[test]
-    fn fleet_files_interface_lock() {
-        assert_eq!(FLEET_FILES_INTERFACE, "dev.mackes.MDE.Fleet.Files");
-        assert_eq!(FLEET_FILES_OBJECT_PATH, "/dev/mackes/MDE/Fleet/Files");
-    }
-
-    // v4.0.1 (2026-05-23) — the four Phase-G stubs got replaced
-    // with honest empty/transport-not-configured responses
-    // instead of internal-jargon Err leaks. Tests now lock the
-    // honest-empty shape so a regression to "Phase G" surfaces
-    // is caught.
-    #[tokio::test]
-    async fn inbox_list_is_honest_empty() {
-        let s = InboxService;
-        assert_eq!(s.list().await.expect("ok"), "[]");
-    }
-
-    #[tokio::test]
-    async fn outbox_list_is_honest_empty() {
-        let s = OutboxService;
-        assert_eq!(s.list().await.expect("ok"), "[]");
-    }
-
-    #[tokio::test]
-    async fn downloads_list_is_honest_empty() {
-        let s = DownloadsService;
-        assert_eq!(s.list().await.expect("ok"), "[]");
-    }
-
-    #[tokio::test]
-    async fn file_ops_send_to_returns_transport_not_configured() {
-        let s = FileOperationsService;
-        let err = s.send_to("[]", "all", "copy", "ask").await.unwrap_err();
-        let msg = format!("{err}");
+    fn file_ops_send_to_returns_transport_not_configured() {
+        let msg = file_ops_reply("send-to", Some(r#"{"sources":[]}"#));
         assert!(
             msg.contains("transport") && msg.contains("not configured"),
-            "expected human-readable 'transport not configured' \
-             message, got: {msg}"
+            "expected human-readable 'transport not configured' message, got: {msg}"
         );
-        // Negative: must not leak the Phase G jargon.
+        // Negative: must not leak the old "Phase G" jargon.
         assert!(!msg.contains("Phase G"), "Phase G jargon leaked: {msg}");
     }
 
-    #[tokio::test]
-    async fn file_ops_audit_log_is_honest_empty() {
-        let s = FileOperationsService;
-        assert_eq!(s.audit_log(100).await.expect("ok"), "[]");
+    #[test]
+    fn file_ops_audit_log_is_honest_empty() {
+        assert_eq!(file_ops_reply("audit-log", Some("100")), "[]");
     }
 
-    #[tokio::test]
-    async fn fleet_files_peers_returns_empty_when_db_is_empty() {
-        // Construct an in-memory connection with the nodes table
-        // migrated but no rows. Phase G impl should return `[]`
-        // — an empty roster, not an error.
+    #[test]
+    fn unknown_verb_yields_error_envelope() {
+        assert!(inbox_reply("bogus", None).contains("unknown inbox verb"));
+        assert!(file_ops_reply("bogus", None).contains("unknown file-ops verb"));
+    }
+
+    #[test]
+    fn fleet_files_peers_returns_empty_when_db_is_empty() {
+        // In-memory connection with the nodes table migrated but no
+        // rows → an empty roster, not an error.
         let conn = crate::store::open_in_memory().expect("open in-memory");
         let store = std::sync::Arc::new(tokio::sync::Mutex::new(conn));
         let s = FleetFilesService::new(store, "test-host", "peer:test");
-        let json = s.peers().await.expect("peers ok");
-        assert_eq!(json, "[]");
+        assert_eq!(s.reply("peers", None), "[]");
     }
 
-    #[tokio::test]
-    async fn fleet_files_self_node_encodes_hostname() {
+    #[test]
+    fn fleet_files_self_node_encodes_hostname() {
         let conn = crate::store::open_in_memory().expect("open in-memory");
         let store = std::sync::Arc::new(tokio::sync::Mutex::new(conn));
         let s = FleetFilesService::new(store, "anvil", "peer:anvil");
-        let json = s.self_node().await.expect("self_node ok");
+        let json = s.reply("self-node", None);
         assert!(json.contains("\"host\":\"anvil\""));
         assert!(json.contains("\"role\":"));
     }
 
-    #[tokio::test]
-    async fn fleet_files_list_peer_returns_empty_array() {
-        // The per-peer file index isn't built yet; the service
-        // returns `[]` as the correct empty-state response.
+    #[test]
+    fn fleet_files_list_peer_returns_empty_array() {
+        // The per-peer file index isn't built yet; `[]` is the correct
+        // empty-state response.
         let conn = crate::store::open_in_memory().expect("open in-memory");
         let store = std::sync::Arc::new(tokio::sync::Mutex::new(conn));
         let s = FleetFilesService::new(store, "test-host", "peer:test");
-        let json = s.list_peer("birch").await.expect("list_peer ok");
-        assert_eq!(json, "[]");
+        assert_eq!(s.reply("list-peer", Some("birch")), "[]");
+    }
+
+    #[test]
+    fn fleet_files_unknown_verb_yields_error_envelope() {
+        let conn = crate::store::open_in_memory().expect("open in-memory");
+        let store = std::sync::Arc::new(tokio::sync::Mutex::new(conn));
+        let s = FleetFilesService::new(store, "test-host", "peer:test");
+        assert!(s.reply("bogus", None).contains("unknown fleet-files verb"));
     }
 }

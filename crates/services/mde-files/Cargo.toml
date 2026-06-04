@@ -25,27 +25,29 @@ serde_json = "1"
 # v2.0.0 Phase 2.x — Backend trait + DemoBackend audit-log
 # timestamps (chrono UTC millis).
 chrono     = "0.4"
-# Phase 2.3 — DBusBackend opt-in deps. Behind the `dbus` feature so
-# the headless crate (DemoBackend only) keeps a minimal dep graph.
+# mackesd-IPC opt-in deps. Behind the `dbus` feature so the headless
+# crate (DemoBackend only) keeps a minimal dep graph. zbus was dropped
+# at E0.3.2 when the last D-Bus client (Fleet.Files) moved to the Bus.
 tokio      = { version = "1", features = ["rt-multi-thread", "macros", "sync"], optional = true }
-zbus       = { version = "5", default-features = false, features = ["tokio"], optional = true }
 # E0.3.1.a (2026-06-03) — the mesh backend reads Nebula status over the
-# mesh Bus (action/nebula/*) rather than the (dual-served, retiring)
-# Nebula.Status D-Bus reads. Optional + folded into `dbus` so the
-# headless DemoBackend graph stays minimal.
+# mesh Bus (action/nebula/*); E0.3.2 (2026-06-04) — the Fleet.Files
+# client (bus_backend.rs) reads the peer roster over action/fleet-files/*.
+# Optional + folded into `dbus` so the headless DemoBackend graph stays
+# minimal.
 mde-bus    = { path = "../../platform/mde-bus", optional = true }
 
 [features]
 # `wayland` (default): enables smithay-client-toolkit portal calls
 # once that dep lands. `x11`: stubs those calls; plain std::fs reads.
-# `dbus` is in default since v4.0.1 AF-* (2026-05-23) so the
-# production binary talks to mackesd's Fleet.Files surface for
-# real mesh content — without dbus the Artifact Manager would
-# only ever show local files + empty peers list.
+# `dbus` (legacy name — the transport is the mesh Bus now, not D-Bus;
+# rename deferred to the E0.3.7 sweep) is in default since v4.0.1 so the
+# production binary talks to mackesd's Fleet.Files + Nebula surfaces over
+# the Bus (action/*) for real mesh content — without it the Artifact
+# Manager would only ever show local files + an empty peers list.
 default = ["wayland", "dbus"]
 wayland = []
 x11     = []
-dbus    = ["dep:tokio", "dep:zbus", "dep:mde-bus"]
+dbus    = ["dep:tokio", "dep:mde-bus"]
 
 [lints.rust]
 unsafe_code     = "forbid"

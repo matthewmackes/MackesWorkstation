@@ -10,7 +10,7 @@
 //!     methods return empty / "this node" placeholders so the
 //!     manager still opens cleanly when `mackesd` isn't running.
 //!   * [`RealBackend`] — composes `LocalFsBackend` for the local
-//!     surface with a `DBusBackend` for the mesh surface; falls
+//!     surface with a `BusBackend` for the mesh surface; falls
 //!     back gracefully when `mackesd` is unreachable.
 //!
 //! The trait is sync + non-blocking — Iced calls each method
@@ -22,7 +22,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use crate::dbus_backend::DBusBackend;
+use crate::bus_backend::BusBackend;
 #[cfg(feature = "dbus")]
 use crate::mesh_backend::{MeshBackend, MeshPeer, NebulaStatus};
 use crate::model::{
@@ -613,11 +613,11 @@ impl Backend for LocalFsBackend {
 /// that reads from `dev.mackes.MDE.Nebula.Status`. When
 /// `MeshBackend` is connectable, the cached peer list comes from
 /// the live Nebula roster instead of the older Fleet.Files reads.
-/// The Fleet.Files `DBusBackend` is retained for the
+/// The Fleet.Files `BusBackend` is retained for the
 /// audit/transfer/list_peer surface that still ships from there.
 pub struct RealBackend {
     local: LocalFsBackend,
-    dbus: Option<DBusBackend>,
+    bus: Option<BusBackend>,
     mesh: Option<MeshBackend>,
     cached_self_node: SelfNode,
     cached_peers: Vec<Peer>,
@@ -628,7 +628,7 @@ impl RealBackend {
     #[must_use]
     pub fn new() -> Self {
         let local = LocalFsBackend::new();
-        let dbus = DBusBackend::connect_with_timeout(Duration::from_millis(800)).ok();
+        let bus = BusBackend::connect_with_timeout(Duration::from_millis(800)).ok();
         let mesh = MeshBackend::connect_with_timeout(Duration::from_millis(800)).ok();
 
         let cached_self_node = match mesh.as_ref().and_then(|m| m.nebula_self_node().ok()) {
@@ -640,7 +640,7 @@ impl RealBackend {
                 files: 0,
                 shared: 0,
             },
-            None => match dbus.as_ref().and_then(|d| d.self_node().ok()) {
+            None => match bus.as_ref().and_then(|d| d.self_node().ok()) {
                 Some(s) => s,
                 None => local.self_node(),
             },
@@ -650,7 +650,7 @@ impl RealBackend {
         // to Fleet.Files-cached peers, then to an empty list.
         let cached_peers = match mesh.as_ref().and_then(|m| m.mesh_peers().ok()) {
             Some(rows) => rows.into_iter().map(mesh_peer_to_peer).collect(),
-            None => dbus
+            None => bus
                 .as_ref()
                 .and_then(|d| d.peers().ok())
                 .unwrap_or_default(),
@@ -663,7 +663,7 @@ impl RealBackend {
 
         Self {
             local,
-            dbus,
+            bus,
             mesh,
             cached_self_node,
             cached_peers,
@@ -673,7 +673,7 @@ impl RealBackend {
 
     #[must_use]
     pub fn has_mesh(&self) -> bool {
-        self.mesh.is_some() || self.dbus.is_some()
+        self.mesh.is_some() || self.bus.is_some()
     }
 }
 
@@ -695,7 +695,7 @@ impl Backend for RealBackend {
     fn list(&self, path: &str) -> Vec<FileRow> {
         if let Some(peer) = path.strip_prefix("peer:") {
             return self
-                .dbus
+                .bus
                 .as_ref()
                 .and_then(|d| d.list_peer(peer).ok())
                 .unwrap_or_default();

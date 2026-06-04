@@ -84,7 +84,10 @@ pub fn build_reply(_svc: &SettingsService, verb: &str, req_body: Option<&str>) -
                 Ok(v) => v,
                 Err(e) => return err(format!("set: bad request json: {e}")),
             };
-            let key_str = req.get("key").and_then(serde_json::Value::as_str).unwrap_or("");
+            let key_str = req
+                .get("key")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
             let value_json = req
                 .get("value_json")
                 .and_then(serde_json::Value::as_str)
@@ -171,9 +174,12 @@ pub fn poll_once(persist: &Persist, svc: &SettingsService, cursors: &mut HashMap
         for msg in msgs {
             cursors.insert(topic.clone(), msg.ulid.clone());
             let reply = build_reply(svc, verb, msg.body.as_deref());
-            if let Err(e) =
-                persist.write(&reply_topic(&msg.ulid), Priority::Default, None, Some(&reply))
-            {
+            if let Err(e) = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&reply),
+            ) {
                 tracing::warn!(ulid = %msg.ulid, error = %e, "settings responder: reply write failed");
             }
         }
@@ -186,7 +192,10 @@ mod tests {
 
     #[test]
     fn action_verbs_and_topic_lock() {
-        assert_eq!(ACTION_VERBS, ["get", "set", "list-keys", "snapshot", "restore"]);
+        assert_eq!(
+            ACTION_VERBS,
+            ["get", "set", "list-keys", "snapshot", "restore"]
+        );
         assert_eq!(action_topic("get"), "action/settings/get");
     }
 

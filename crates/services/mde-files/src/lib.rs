@@ -7,7 +7,7 @@ pub mod a11y_labels;
 pub mod app;
 pub mod backend;
 #[cfg(feature = "dbus")]
-pub mod dbus_backend;
+pub mod bus_backend;
 pub mod demo_data;
 pub mod grid;
 pub mod icons;

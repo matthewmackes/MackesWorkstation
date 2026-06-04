@@ -4071,63 +4071,108 @@ fn run_serve(
                 );
             }
         }
-        match mackesd_core::store::open(&db_path) {
-            Ok(conn) => {
-                let store = Arc::new(tokio::sync::Mutex::new(conn));
-                let svc = mackesd_core::ipc::files::FleetFilesService::new(
-                    Arc::clone(&store),
-                    host.clone(),
-                    node_id.clone(),
-                );
-                match mackesd_core::ipc::files::register_fleet_files(svc).await {
+        // E0.3.1.b — the Nebula signal dispatcher drains worker
+        // NebulaSignal events onto the Bus event topic
+        // (event/nebula/signals) + fills nebula_signal_slot so the
+        // health_reconciler + nebula_csr_watcher workers pick up the
+        // sender on their next tick. Relocated out of the retired
+        // Fleet.Files D-Bus arm — it never depended on that connection.
+        let _nebula_sender =
+            mackesd_core::ipc::nebula::spawn_signal_dispatcher(&nebula_signal_slot);
+        tracing::info!(
+            "Nebula signal dispatcher spawned (Bus event topic {}); \
+             health_reconciler + nebula_csr_watcher will emit on next \
+             state transition",
+            mackesd_core::ipc::nebula::NEBULA_EVENT_TOPIC,
+        );
+
+        // E0.3.2 — the five file-transfer surfaces moved off D-Bus onto
+        // the mesh Bus: Fleet.Files (the live, store-backed mesh roster)
+        // + the four Shell.* stubs (Inbox/Outbox/Downloads/
+        // FileOperations — honest empty / transport-not-configured until
+        // a future epic fills the transfer engine). One dedicated
+        // responder thread serves all five over its own Persist
+        // (rusqlite isn't Send); Fleet.Files locks the shared store via
+        // blocking_lock on this non-async thread. Replaces
+        // register_fleet_files + the session D-Bus connection (Shell +
+        // Nebula already moved off it, so no D-Bus interface registers
+        // anywhere now).
+        match mde_bus::default_data_dir()
+            .ok_or_else(|| "no XDG data dir for bus".to_string())
+            .and_then(|d| mde_bus::persist::Persist::open(d).map_err(|e| e.to_string()))
+        {
+            Ok(persist) => {
+                use mackesd_core::ipc::files;
+                let mut surfaces = vec![
+                    files::Surface {
+                        prefix: files::INBOX_PREFIX,
+                        verbs: &files::INBOX_VERBS,
+                        reply: Box::new(files::inbox_reply),
+                    },
+                    files::Surface {
+                        prefix: files::OUTBOX_PREFIX,
+                        verbs: &files::OUTBOX_VERBS,
+                        reply: Box::new(files::outbox_reply),
+                    },
+                    files::Surface {
+                        prefix: files::DOWNLOADS_PREFIX,
+                        verbs: &files::DOWNLOADS_VERBS,
+                        reply: Box::new(files::downloads_reply),
+                    },
+                    files::Surface {
+                        prefix: files::FILE_OPS_PREFIX,
+                        verbs: &files::FILE_OPS_VERBS,
+                        reply: Box::new(files::file_ops_reply),
+                    },
+                ];
+                // Fleet.Files joins only when sqlite opens; its stub
+                // siblings serve regardless.
+                match mackesd_core::store::open(&db_path) {
                     Ok(conn) => {
-                        tracing::info!(
-                            "Fleet.Files dbus surface registered at {}",
-                            mackesd_core::ipc::files::FLEET_FILES_OBJECT_PATH
-                        );
-                        // E0.3.1.b — the Nebula status surface is
-                        // fully on the mesh Bus: reads + the RegenCerts
-                        // write answer on action/nebula/* (served by the
-                        // responder thread spawned in run_serve), and the
-                        // three signals fan out on the event/nebula/signals
-                        // topic. No D-Bus interface is registered. Spawn
-                        // the signal dispatcher (drains worker NebulaSignal
-                        // events → the Bus event topic) + fill
-                        // nebula_signal_slot so the health_reconciler +
-                        // nebula_csr_watcher workers (already spawned above)
-                        // pick up the sender on their next tick.
-                        let _nebula_sender = mackesd_core::ipc::nebula::spawn_signal_dispatcher(
-                            &nebula_signal_slot,
-                        );
-                        tracing::info!(
-                            "Nebula signal dispatcher spawned (Bus event topic {}); \
-                             health_reconciler + nebula_csr_watcher will emit on \
-                             next state transition",
-                            mackesd_core::ipc::nebula::NEBULA_EVENT_TOPIC,
-                        );
-                        // E0.3.5 — the Shell control surface
-                        // (version/healthz/workers) moved off this
-                        // D-Bus connection onto the mesh Bus
-                        // (action/shell/*), served by the
-                        // shell-bus-responder thread spawned earlier in
-                        // run_serve. Nothing Shell-related registers on
-                        // `conn` anymore.
-                        Box::leak(Box::new(conn));
+                        let store = Arc::new(tokio::sync::Mutex::new(conn));
+                        let svc =
+                            files::FleetFilesService::new(store, host.clone(), node_id.clone());
+                        surfaces.push(files::Surface {
+                            prefix: files::FLEET_FILES_PREFIX,
+                            verbs: &files::FLEET_FILES_VERBS,
+                            reply: Box::new(move |verb, body| svc.reply(verb, body)),
+                        });
                     }
                     Err(e) => {
                         tracing::warn!(
                             error = %e,
-                            "Fleet.Files dbus registration failed; \
-                             mde-files's DBusBackend will fall back to LocalFsBackend"
+                            db_path = %db_path.display(),
+                            "Fleet.Files: sqlite open failed; mesh-roster surface \
+                             omitted (the four stub surfaces still serve)"
                         );
                     }
                 }
+                let resp_shutdown = Arc::clone(&shutdown);
+                std::thread::Builder::new()
+                    .name("files-bus-responder".into())
+                    .spawn(move || {
+                        files::serve_all(&persist, &surfaces, || {
+                            resp_shutdown.load(Ordering::Relaxed)
+                        });
+                    })
+                    .map(|_handle| {
+                        tracing::info!(
+                            "Files Bus responder spawned; serving action/{{files-inbox,\
+                             files-outbox,files-downloads,file-ops,fleet-files}}/*"
+                        );
+                    })
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(error = %e, "Files Bus responder thread spawn failed");
+                    });
+                worker_names
+                    .lock()
+                    .expect("worker_names mutex")
+                    .push("files_bus_responder".into());
             }
             Err(e) => {
                 tracing::warn!(
                     error = %e,
-                    db_path = %db_path.display(),
-                    "Fleet.Files dbus: sqlite open failed; service skipped"
+                    "Files Bus responder: bus persist open failed; responder skipped"
                 );
             }
         }

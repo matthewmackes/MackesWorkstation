@@ -1,57 +1,40 @@
-//! `DBusBackend` — wire-level zbus client for mded's
-//! `dev.mackes.MDE.Shell.*` + `dev.mackes.MDE.Fleet.Files`
-//! surfaces (Phase 2.4 schemas).
+//! `BusBackend` — mesh-**Bus** client for mackesd's Fleet.Files
+//! surface (E0.3.2). Migrated off the `dev.mackes.MDE.Fleet.Files`
+//! D-Bus proxy onto the Bus action/reply pattern: the mesh peer
+//! roster reads over `action/fleet-files/{self-node,peers,list-peer}`
+//! (the `list-peer` verb carries its peer name in the request body),
+//! mirroring the [`crate::mesh_backend::MeshBackend`] Nebula client
+//! that E0.3.1.a already moved to the Bus.
 //!
-//! v2.0.0 Phase 2.3 — gated behind the `dbus` cargo feature so the
-//! headless DemoBackend smoke build (panel-boot-in-200 ms gate)
-//! doesn't pull tokio + zbus.
+//! Gated behind the `dbus` cargo feature (the mackesd-IPC dep group —
+//! tokio + mde-bus) so the headless DemoBackend smoke build keeps a
+//! minimal dep graph. (The feature name is a pre-E0.3 artifact; the
+//! transport is the Bus now, not D-Bus.)
 //!
-//! Phase-2.3 scope: wire types + parsers + the runtime-backed
-//! `Connection` wrapper. The full `impl Backend for DBusBackend`
-//! waits on Phase G:
-//!
-//! 1. mded's handlers in `crates/mackesd/src/ipc/files.rs` today
-//!    return `Err(Failed("Phase G"))` — no live data lands yet.
-//! 2. `crate::model::{Peer, SelfNode, FileRow}` use `&'static str`
-//!    fields (the demo-data scaffold contract). The trait impl
-//!    needs the model to migrate to owned `String` or leak strings
-//!    permanently; deferred until the model swap lands in Phase G.
-//!
-//! Meanwhile this module ships the testable bits: the wire types,
-//! the parsers (covered by 10 unit tests), the connect path
-//! (compile-checked behind `--features dbus`), and the selector +
-//! mode + conflict-policy enum bridges so Phase G can drop straight
-//! into place.
+//! Like `MeshBackend`, a tokio runtime + the resolved Bus data dir are
+//! held; each call opens a fresh `Persist` inside `rt.block_on` (it
+//! isn't `Send`) and blocks the caller until mackesd's responder
+//! replies, bounded by a per-call timeout so the GUI thread never
+//! freezes. The wire types + parsers + model bridges + selector
+//! grammar are transport-agnostic and unchanged from the Phase-2.3
+//! scaffold.
 
 #![cfg(feature = "dbus")]
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::Deserialize;
 use tokio::runtime::Runtime;
-use zbus::{Connection, Proxy};
 
 use crate::backend::{BackendError, ConflictPolicy, Destination, SendMode};
 use crate::model::{FileRow, Mime, Peer, PeerKind, PeerStatus, SelfNode};
 
-/// D-Bus destination — well-known bus name registered by mackesd.
-pub const BUS_NAME: &str = "org.mackes.mackesd";
+/// Action-topic prefix for mackesd's Fleet.Files Bus surface — must
+/// equal `mackesd_core::ipc::files::FLEET_FILES_PREFIX`.
+pub const FLEET_FILES_PREFIX: &str = "fleet-files";
 
-/// Phase 2.4 object paths (mirror of
-/// `crates/mackesd/src/ipc/files.rs` constants).
-pub const FLEET_FILES_OBJECT_PATH: &str = "/dev/mackes/MDE/Fleet/Files";
-pub const SHELL_INBOX_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Inbox";
-pub const SHELL_OUTBOX_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Outbox";
-pub const SHELL_DOWNLOADS_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/Downloads";
-pub const SHELL_FILE_OPERATIONS_OBJECT_PATH: &str = "/dev/mackes/MDE/Shell/FileOperations";
-
-pub const FLEET_FILES_INTERFACE: &str = "dev.mackes.MDE.Fleet.Files";
-pub const SHELL_INBOX_INTERFACE: &str = "dev.mackes.MDE.Shell.Inbox";
-pub const SHELL_OUTBOX_INTERFACE: &str = "dev.mackes.MDE.Shell.Outbox";
-pub const SHELL_DOWNLOADS_INTERFACE: &str = "dev.mackes.MDE.Shell.Downloads";
-pub const SHELL_FILE_OPERATIONS_INTERFACE: &str = "dev.mackes.MDE.Shell.FileOperations";
-
-/// Wire-format `SelfNode` as mded encodes it.
+/// Wire-format `SelfNode` as mackesd encodes it.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct WireSelfNode {
     pub host: String,
@@ -91,83 +74,92 @@ pub struct WireAudit {
     pub ok: bool,
 }
 
-/// Tokio-runtime-backed bridge wrapping a zbus connection. Phase
-/// 2.3 ships the connect + per-call dispatch; the
-/// `impl Backend for DBusBackend` lands in Phase G when the model
-/// owns its strings.
-pub struct DBusBackend {
+/// Cheap-to-construct Fleet.Files Bus client. A tokio runtime + the
+/// resolved Bus data dir are held; each call opens a fresh `Persist`
+/// inside `rt.block_on` and blocks until mackesd's responder replies.
+pub struct BusBackend {
     rt: Runtime,
-    connection: Connection,
+    /// Bus data dir. A fresh `Persist` is opened from it per call
+    /// rather than held here, because `Persist` (rusqlite) is not
+    /// `Send` and `BusBackend` lives inside the UI backend.
+    bus_dir: PathBuf,
+    /// Per-call timeout — keeps the GUI thread snappy when mackesd is
+    /// busy.
+    call_timeout: Duration,
 }
 
-impl DBusBackend {
-    /// Connect to the session bus + open a `Connection` reused by
-    /// every Backend call.
+impl BusBackend {
+    /// Default connect-probe timeout.
+    pub const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_millis(800);
+    /// Default per-method call timeout.
+    pub const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_millis(750);
+
+    /// Connect with the default timeout.
     ///
     /// # Errors
     ///
-    /// Returns `BackendError::Rejected` if the runtime fails to
-    /// build or the connection cannot be opened.
+    /// Returns `BackendError::Rejected` when the runtime can't build,
+    /// no Bus data dir resolves, or the liveness probe times out.
     pub fn connect() -> Result<Self, BackendError> {
-        Self::connect_with_timeout(Duration::from_secs(2))
+        Self::connect_with_timeout(Self::DEFAULT_CONNECT_TIMEOUT)
     }
 
-    /// Connect to the session bus + verify mackesd is actually
-    /// reachable (NameHasOwner check on the well-known bus name)
-    /// within `timeout`. Returns `BackendError::Rejected` quickly
-    /// when mackesd isn't running so the App can fall back to a
-    /// local-only backend without freezing the UI thread for
-    /// dbus-defaults timeouts.
+    /// Resolve the Bus data dir + verify mackesd's Fleet.Files
+    /// responder is live with a single `action/fleet-files/self-node`
+    /// round-trip. Preserves the old fast-fail contract callers
+    /// expect (`Err` => the backend falls back to local) but over the
+    /// Bus rather than a D-Bus `NameHasOwner` check.
+    ///
+    /// # Errors
+    ///
+    /// Returns `BackendError::Rejected` when the runtime fails to
+    /// build, no Bus data dir resolves, the persist can't open, or the
+    /// probe times out (no responder).
     pub fn connect_with_timeout(timeout: Duration) -> Result<Self, BackendError> {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
             .enable_all()
             .build()
             .map_err(|e| BackendError::Rejected(format!("tokio runtime: {e}")))?;
-        let connection = rt.block_on(async {
-            tokio::time::timeout(timeout, Connection::session())
-                .await
-                .map_err(|_| BackendError::Rejected("session bus: timeout".into()))?
-                .map_err(|e| BackendError::Rejected(format!("session bus: {e}")))
-        })?;
-        // Probe: NameHasOwner(BUS_NAME). If false, mackesd isn't
-        // running and we should fall back rather than wait for
-        // the first real call to time out.
-        let alive: bool = rt.block_on(async {
-            let dbus_proxy = Proxy::new(
-                &connection,
-                "org.freedesktop.DBus",
-                "/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
+        let bus_dir = mde_bus::default_data_dir()
+            .ok_or_else(|| BackendError::Rejected("no Bus data dir".into()))?;
+        rt.block_on(async {
+            let persist = mde_bus::persist::Persist::open(bus_dir.clone())
+                .map_err(|e| BackendError::Rejected(format!("bus persist: {e}")))?;
+            mde_bus::rpc::request(
+                &persist,
+                "action/fleet-files/self-node",
+                mde_bus::hooks::config::Priority::Default,
+                None,
+                None,
+                timeout,
             )
             .await
-            .map_err(|e| BackendError::Rejected(format!("dbus proxy: {e}")))?;
-            let res: zbus::Result<bool> = tokio::time::timeout(timeout, async {
-                dbus_proxy
-                    .call_method("NameHasOwner", &(BUS_NAME,))
-                    .await?
-                    .body()
-                    .deserialize::<bool>()
-            })
-            .await
-            .map_err(|_| zbus::Error::Failure("NameHasOwner timeout".into()))
-            .and_then(|x| x);
-            res.map_err(|e| BackendError::Rejected(format!("NameHasOwner: {e}")))
+            .map(|_| ())
+            .map_err(|e| BackendError::Rejected(format!("fleet-files probe: {e}")))
         })?;
-        if !alive {
-            return Err(BackendError::Rejected(format!(
-                "{BUS_NAME} not on the session bus"
-            )));
-        }
-        Ok(Self { rt, connection })
+        Ok(Self {
+            rt,
+            bus_dir,
+            call_timeout: Self::DEFAULT_CALL_TIMEOUT,
+        })
     }
 
-    /// Fetch the JSON-encoded SelfNode from mackesd and decode into
-    /// the UI's [`SelfNode`] model. Returns `BackendError::Rejected`
-    /// if the call fails or the body fails to decode.
+    /// Override the per-call timeout. Tests use this to stay fast.
+    #[must_use]
+    pub fn with_call_timeout(mut self, t: Duration) -> Self {
+        self.call_timeout = t;
+        self
+    }
+
+    /// Fetch the JSON-encoded `SelfNode` and decode into the UI model.
+    ///
+    /// # Errors
+    ///
+    /// `BackendError::Rejected` when the Bus call fails or the body
+    /// fails to decode.
     pub fn self_node(&self) -> Result<SelfNode, BackendError> {
-        let raw =
-            self.call_string_method(FLEET_FILES_OBJECT_PATH, FLEET_FILES_INTERFACE, "SelfNode")?;
+        let raw = self.bus_request("self-node", None)?;
         let w = parse_self_node(&raw)
             .ok_or_else(|| BackendError::Rejected(format!("self_node decode failed: {raw}")))?;
         Ok(SelfNode {
@@ -180,66 +172,61 @@ impl DBusBackend {
         })
     }
 
-    /// Fetch the JSON-encoded peers array and decode into the UI's
-    /// [`Peer`] model.
+    /// Fetch the JSON-encoded peers array and decode into UI [`Peer`]s.
+    ///
+    /// # Errors
+    ///
+    /// `BackendError::Rejected` when the Bus call fails or the body
+    /// fails to decode.
     pub fn peers(&self) -> Result<Vec<Peer>, BackendError> {
-        let raw =
-            self.call_string_method(FLEET_FILES_OBJECT_PATH, FLEET_FILES_INTERFACE, "Peers")?;
+        let raw = self.bus_request("peers", None)?;
         let wires = parse_peers(&raw)
             .ok_or_else(|| BackendError::Rejected(format!("peers decode failed: {raw}")))?;
         Ok(wires.into_iter().map(WirePeer::into_model).collect())
     }
 
-    /// Fetch the JSON-encoded list of files visible under a peer.
+    /// Fetch the JSON-encoded list of files visible under a peer (the
+    /// peer name travels in the request body).
+    ///
+    /// # Errors
+    ///
+    /// `BackendError::Rejected` when the Bus call fails or the body
+    /// fails to decode.
     pub fn list_peer(&self, peer: &str) -> Result<Vec<FileRow>, BackendError> {
-        let raw = self.rt.block_on(async {
-            let proxy = Proxy::new(
-                &self.connection,
-                BUS_NAME,
-                FLEET_FILES_OBJECT_PATH,
-                FLEET_FILES_INTERFACE,
-            )
-            .await
-            .map_err(|e| BackendError::Rejected(format!("proxy: {e}")))?;
-            proxy
-                .call_method("ListPeer", &(peer,))
-                .await
-                .map_err(|e| BackendError::Rejected(format!("ListPeer({peer}): {e}")))?
-                .body()
-                .deserialize::<String>()
-                .map_err(|e| BackendError::Rejected(format!("decode ListPeer: {e}")))
-        })?;
+        let raw = self.bus_request("list-peer", Some(peer))?;
         let wires = parse_files(&raw)
             .ok_or_else(|| BackendError::Rejected(format!("list_peer decode failed: {raw}")))?;
         Ok(wires.into_iter().map(WireFileRow::into_model).collect())
     }
 
-    /// Call a method that returns a JSON string body. Surfaces
-    /// errors as `BackendError::Rejected` with a human-readable
-    /// reason for the audit log.
-    ///
-    /// # Errors
-    ///
-    /// Returns `BackendError::Rejected` if the proxy can't be
-    /// constructed, the method call fails, or the body fails to
-    /// decode.
-    pub fn call_string_method(
-        &self,
-        path: &str,
-        iface: &str,
-        method: &str,
-    ) -> Result<String, BackendError> {
+    /// Publish one `action/fleet-files/<verb>` request on the Bus
+    /// (carrying `body` for arg-bearing verbs) + block for the reply
+    /// body. A fresh `Persist` is opened per call (it isn't `Send`);
+    /// `call_timeout` bounds the wait. `Err` on timeout / no-responder
+    /// / empty reply — callers map that to their fallback path, exactly
+    /// as the old D-Bus errors did. An `{"error":…}` reply envelope is
+    /// not a JSON array/object the parsers accept, so it surfaces as a
+    /// decode `Rejected` upstream.
+    fn bus_request(&self, verb: &str, body: Option<&str>) -> Result<String, BackendError> {
+        let topic = format!("action/{FLEET_FILES_PREFIX}/{verb}");
         self.rt.block_on(async {
-            let proxy = Proxy::new(&self.connection, BUS_NAME, path, iface)
-                .await
-                .map_err(|e| BackendError::Rejected(format!("proxy {iface}: {e}")))?;
-            proxy
-                .call_method(method, &())
-                .await
-                .map_err(|e| BackendError::Rejected(format!("{iface}.{method}: {e}")))?
-                .body()
-                .deserialize::<String>()
-                .map_err(|e| BackendError::Rejected(format!("decode {iface}.{method}: {e}")))
+            let persist = mde_bus::persist::Persist::open(self.bus_dir.clone())
+                .map_err(|e| BackendError::Rejected(format!("bus persist: {e}")))?;
+            match mde_bus::rpc::request(
+                &persist,
+                &topic,
+                mde_bus::hooks::config::Priority::Default,
+                None,
+                body,
+                self.call_timeout,
+            )
+            .await
+            {
+                Ok(reply) => reply
+                    .body
+                    .ok_or_else(|| BackendError::Rejected(format!("{topic}: empty reply"))),
+                Err(e) => Err(BackendError::Rejected(format!("{topic}: {e}"))),
+            }
         })
     }
 }
@@ -248,9 +235,8 @@ impl DBusBackend {
 
 impl WirePeer {
     /// Translate the JSON-wire peer into the UI's [`Peer`] type.
-    /// Unknown `kind`/`status` strings fall back to sensible
-    /// defaults so an unrecognised peer still renders rather
-    /// than disappearing from the roster.
+    /// Unknown `kind`/`status` strings fall back to sensible defaults
+    /// so an unrecognised peer still renders rather than disappearing.
     #[must_use]
     pub fn into_model(self) -> Peer {
         let kind = match self.kind.as_str() {
@@ -282,9 +268,8 @@ impl WirePeer {
 
 impl WireFileRow {
     /// Translate the JSON-wire file row into the UI's [`FileRow`]
-    /// type. Sizes get formatted via the shared `fmt_bytes`
-    /// helper (mirrors `backend::fmt_bytes`); modified-ms turns
-    /// into a relative-age string ("4 min", "1 h").
+    /// type. Sizes get formatted via the shared `fmt_bytes` helper;
+    /// modified-ms turns into a relative-age string ("4 min", "1 h").
     #[must_use]
     pub fn into_model(self) -> FileRow {
         let mime = match self.mime.as_str() {
@@ -343,7 +328,7 @@ fn fmt_age_ms(modified_ms: i64) -> String {
 
 // ---- pure parsers (testable, no I/O) -----------------------------
 
-/// Parse the JSON-encoded SelfNode mded returns.
+/// Parse the JSON-encoded SelfNode mackesd returns.
 #[must_use]
 pub fn parse_self_node(raw: &str) -> Option<WireSelfNode> {
     serde_json::from_str(raw).ok()
@@ -367,7 +352,7 @@ pub fn parse_audit(raw: &str) -> Option<Vec<WireAudit>> {
     serde_json::from_str(raw).ok()
 }
 
-/// Encode a `Destination` into the mded selector grammar.
+/// Encode a `Destination` into the mackesd selector grammar.
 #[must_use]
 pub fn destination_to_selector(d: &Destination) -> String {
     match d {
@@ -378,7 +363,7 @@ pub fn destination_to_selector(d: &Destination) -> String {
     }
 }
 
-/// Inverse: parse the mded selector grammar.
+/// Inverse: parse the mackesd selector grammar.
 #[must_use]
 pub fn parse_destination(raw: &str) -> Destination {
     if let Some(rest) = raw.strip_prefix("peer:") {
@@ -442,6 +427,13 @@ mod tests {
     #[test]
     fn parse_self_node_returns_none_on_garbage() {
         assert!(parse_self_node("not json").is_none());
+    }
+
+    #[test]
+    fn parse_self_node_rejects_error_envelope() {
+        // An `{"error":…}` reply from the responder is not a SelfNode;
+        // the parser returns None so the caller surfaces a decode err.
+        assert!(parse_self_node(r#"{"error":"list_nodes: boom"}"#).is_none());
     }
 
     #[test]
@@ -524,32 +516,8 @@ mod tests {
     }
 
     #[test]
-    fn interface_constants_match_mded_phase_2_4() {
-        // Cross-check: these must equal the constants in
-        // crates/mackesd/src/ipc/files.rs.
-        assert_eq!(FLEET_FILES_INTERFACE, "dev.mackes.MDE.Fleet.Files");
-        assert_eq!(SHELL_INBOX_INTERFACE, "dev.mackes.MDE.Shell.Inbox");
-        assert_eq!(SHELL_OUTBOX_INTERFACE, "dev.mackes.MDE.Shell.Outbox");
-        assert_eq!(SHELL_DOWNLOADS_INTERFACE, "dev.mackes.MDE.Shell.Downloads");
-        assert_eq!(
-            SHELL_FILE_OPERATIONS_INTERFACE,
-            "dev.mackes.MDE.Shell.FileOperations"
-        );
-        assert_eq!(FLEET_FILES_OBJECT_PATH, "/dev/mackes/MDE/Fleet/Files");
-        assert_eq!(SHELL_INBOX_OBJECT_PATH, "/dev/mackes/MDE/Shell/Inbox");
-        assert_eq!(SHELL_OUTBOX_OBJECT_PATH, "/dev/mackes/MDE/Shell/Outbox");
-        assert_eq!(
-            SHELL_DOWNLOADS_OBJECT_PATH,
-            "/dev/mackes/MDE/Shell/Downloads"
-        );
-        assert_eq!(
-            SHELL_FILE_OPERATIONS_OBJECT_PATH,
-            "/dev/mackes/MDE/Shell/FileOperations"
-        );
+    fn topic_prefix_matches_mackesd() {
+        // Cross-check: must equal mackesd_core::ipc::files::FLEET_FILES_PREFIX.
+        assert_eq!(FLEET_FILES_PREFIX, "fleet-files");
     }
 }
-
-// When the `dbus` feature isn't enabled, the entire module is
-// gated off by the file-level `#![cfg(feature = "dbus")]`. To keep
-// the lib's surface non-empty in both modes, the lib.rs only
-// `pub mod dbus_backend`s under the same gate.
