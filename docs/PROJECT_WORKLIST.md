@@ -138,13 +138,14 @@ _Depends: none_
     - [ ] The shell still launches and the portal/drawer/virtual entry points are not reachable from any `mde <subcommand>` (their roles are deferred to E4/E5/E8 surfaces).
   **Done (2026-06-03):** `git mv` mde-portal/mde-drawer/mde-virtual → `crates/legacy/`, removed from `members`. Severed the one real dependent: mde-peer-card re-exported `DRAWER_WIDTH_PX`/`SLIDE_DURATION_MS` from mde-drawer → now defined locally (fold into Action Center at E5.6). Full `cargo check --workspace` green; mde-peer-card tests (44) pass.
 
-- [ ] **E0.8: E0 — Port the accuracy/preview harness (preview.sh + tests/accuracy/) from provenance to the repo root**
+- [✓] **E0.8: E0 — Port the accuracy/preview harness (preview.sh + tests/accuracy/) from provenance to the repo root**
   **As** a shell developer, **I want** the `preview.sh` + `tests/accuracy/` harness ported to the repo root, **so that** visual renders can be screenshotted and verified instead of trusting a green `cargo test`.
   *Reuse:* mde-retro/rust/preview.sh + tests/accuracy (§9 as-is, MDE-Retro harness). *Deps:* E0.2, E0.4.
   **Acceptance** (runtime-observable):
     - [ ] `./preview.sh` at the repo root builds `mde` and produces a screenshot/gallery of at least one surface (Carbon dark default renders, not a blank frame).
     - [ ] `cargo test --test accuracy` (or the harness's test entry) runs against the in-repo `mde` binary and reports per-surface results.
     - [ ] The harness renders a Win10-gated surface only under `Theme::Windows10` and the Carbon default otherwise (era gating observable in the captured output).
+  **Done (2026-06-03):** ported `preview.sh` + `tests/accuracy/` (capture/gallery/nav-sweep/nested-sway + checklist.toml + refs/) from `provenance/mde-retro/rust/` to the repo root. The harness path logic (`$here/../..`) resolves to the repo root unchanged; rebranded MDE-Retro→Mackes Workstation. **Verified end-to-end**: `./preview.sh gallery` produced 52 PNGs across carbon/win2000/windows10 eras + a contact sheet (read it — real shell renders, not blank). sway/grim/swaymsg present. Generated `captures/` gitignored; preview + ship skills doc-synced (dropped the "pending port" caveat).
 
 - [>] **E0.9: E0 — GitHub Actions CI: cargo check/test/clippy/fmt on push/PR, with gtk3-devel + alsa-lib-devel so the full workspace builds**
   **As** a maintainer, **I want** CI running check/test/clippy/fmt on push and PR with the system dev libs installed, **so that** every change is gated on a full-workspace green build.

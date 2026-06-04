@@ -10,3 +10,6 @@
 # Claude Code runtime artifacts (session-local; not source)
 .claude/scheduled_tasks.lock
 .claude/scheduled_tasks.json
+
+# Accuracy/preview harness output (generated screenshots; tests/accuracy/refs/ is committed)
+tests/accuracy/captures/

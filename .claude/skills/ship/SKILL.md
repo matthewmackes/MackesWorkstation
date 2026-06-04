@@ -52,12 +52,10 @@ For each open `[ ]` task, highest priority first:
    - `cargo test` (and `cargo test -p mde-ui` for palette/metric changes —
      `mde-ui` = `crates/shell/mde-ui`)
    - `cargo clippy --all-targets` · `cargo fmt --all`
-   - **Visual tasks:** confirm the render, don't trust a green `cargo test`. The
-     MDE-Retro `./preview.sh gallery`/`verify` accuracy harness is the intended tool
-     but is **pending port** (E-level work — it still lives under
-     `provenance/mde-retro/` and is not yet staged at the repo root). Until staged,
-     fall back to building + launching `timeout 3 ./target/debug/mde <sub>` and
-     inspecting.
+   - **Visual tasks:** confirm the render, don't trust a green `cargo test`. Run
+     `./preview.sh gallery` (the accuracy harness, ported to the repo root in E0.8;
+     needs sway + grim) and **Read** the PNGs in `tests/accuracy/captures/gallery/`.
+     For a quick single-surface check, `timeout 3 ./target/debug/mde <sub>`.
    - Note: a full build needs the system dev libs (`sudo dnf install -y gtk3-devel
      alsa-lib-devel`) — the audio chain links ALSA. Since E0.2 no crates are excluded;
      `.cargo/config.toml` sets `CMAKE_POLICY_VERSION_MINIMUM=3.5` for the vendored Opus.
