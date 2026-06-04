@@ -1,34 +1,28 @@
-//! Mesh-first backend — talks to mackesd's live `dev.mackes.MDE.
-//! Nebula.Status` D-Bus surface and exposes a mesh-flavoured API
-//! the UI binds against (peer roster, overlay status).
+//! Mesh-first backend — reads mackesd's live Nebula status over
+//! the mesh **Bus** (`action/nebula/{status,self-node,list-peers}`)
+//! and exposes a mesh-flavoured API the UI binds against (peer
+//! roster, overlay status).
 //!
-//! Why this exists. The previous `DBusBackend` talked to
+//! Why this exists. The `DBusBackend` companion talks to
 //! `dev.mackes.MDE.Fleet.Files`, which returns `[]` for
 //! `ListPeer(_)` because mackesd doesn't maintain a per-peer file
 //! index. For a mesh-first manager the right source of truth is
-//! Nebula.Status — peer reachability + overlay IPs + handshake
-//! age. Live as of NF-Bundle-0 (v2.5).
+//! the Nebula status surface — peer reachability + overlay IPs +
+//! handshake age. Live as of NF-Bundle-0 (v2.5).
 //!
-//! No new D-Bus surface is added — everything here is a thin
-//! client over what mackesd already serves.
+//! E0.3.1.a (2026-06-03): migrated off the `dev.mackes.MDE.Nebula.
+//! Status` D-Bus reads onto mackesd's Bus responder — the same
+//! request/reply round-trip the wizard preview page uses. No new
+//! surface is added; the reply bodies are byte-identical to the
+//! old D-Bus replies, so the pure parsers below are unchanged.
 
 #![cfg(feature = "dbus")]
 
+use std::path::PathBuf;
 use std::time::Duration;
 
 use serde::Deserialize;
 use tokio::runtime::Runtime;
-use zbus::{Connection, Proxy};
-
-/// Well-known bus name mackesd registers.
-pub const BUS_NAME: &str = "org.mackes.mackesd";
-
-/// Object path for `dev.mackes.MDE.Nebula.Status` (mirror of
-/// `mackesd_core::ipc::nebula::NEBULA_STATUS_OBJECT_PATH`).
-pub const NEBULA_STATUS_OBJECT_PATH: &str = "/dev/mackes/MDE/Nebula/Status";
-
-/// Interface name for `dev.mackes.MDE.Nebula.Status`.
-pub const NEBULA_STATUS_INTERFACE: &str = "dev.mackes.MDE.Nebula.Status";
 
 /// Errors a mesh-backend call can surface. `Unavailable` is the
 /// common case (mackesd not running); `Decode` only fires when
@@ -110,13 +104,17 @@ pub struct MeshPeer {
 
 // ----- backend client ------------------------------------------
 
-/// Cheap-to-construct mesh-backend client. Connection + tokio
-/// runtime are opened once at start-up; each call blocks the
-/// caller until the daemon replies (with a per-call timeout so
-/// the UI thread never freezes for the dbus-defaults 25 s).
+/// Cheap-to-construct mesh-backend client. A tokio runtime + the
+/// resolved Bus data dir are held; each call opens a fresh
+/// `Persist` inside `rt.block_on` and blocks the caller until
+/// mackesd's responder replies (with a per-call timeout so the UI
+/// thread never freezes).
 pub struct MeshBackend {
     rt: Runtime,
-    connection: Connection,
+    /// Bus data dir. A fresh `Persist` is opened from it per call
+    /// rather than held here, because `Persist` (rusqlite) is not
+    /// `Send` and `MeshBackend` lives inside the UI backend.
+    bus_dir: PathBuf,
     /// Per-call timeout — keeps the GUI thread snappy when
     /// mackesd is busy.
     call_timeout: Duration,
@@ -128,50 +126,40 @@ impl MeshBackend {
     /// Default per-method call timeout.
     pub const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_millis(750);
 
-    /// Connect to the session bus + verify mackesd is reachable.
-    /// Identical handshake to `DBusBackend::connect_with_timeout`
-    /// so the failure mode matches what existing callers expect.
+    /// Resolve the Bus data dir + verify mackesd's Nebula responder
+    /// is live with a single round-trip probe. Preserves the old
+    /// fast-fail contract callers expect (`Err` => `mesh = None` =>
+    /// the backend falls back to Fleet.Files / local), but over the
+    /// Bus rather than a D-Bus `NameHasOwner` check.
     pub fn connect_with_timeout(timeout: Duration) -> Result<Self, MeshError> {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
             .enable_all()
             .build()
             .map_err(|e| MeshError::Unavailable(format!("tokio runtime: {e}")))?;
-        let connection = rt.block_on(async {
-            tokio::time::timeout(timeout, Connection::session())
-                .await
-                .map_err(|_| MeshError::Unavailable("session bus: timeout".into()))?
-                .map_err(|e| MeshError::Unavailable(format!("session bus: {e}")))
-        })?;
-        let alive: bool = rt.block_on(async {
-            let dbus_proxy = Proxy::new(
-                &connection,
-                "org.freedesktop.DBus",
-                "/org/freedesktop/DBus",
-                "org.freedesktop.DBus",
+        let bus_dir = mde_bus::default_data_dir()
+            .ok_or_else(|| MeshError::Unavailable("no Bus data dir".into()))?;
+        // Liveness probe — one `action/nebula/status` round-trip. If
+        // mackesd's responder isn't up it times out, mirroring the
+        // old NameHasOwner fast-fail so callers get `mesh = None`.
+        rt.block_on(async {
+            let persist = mde_bus::persist::Persist::open(bus_dir.clone())
+                .map_err(|e| MeshError::Unavailable(format!("bus persist: {e}")))?;
+            mde_bus::rpc::request(
+                &persist,
+                "action/nebula/status",
+                mde_bus::hooks::config::Priority::Default,
+                None,
+                None,
+                timeout,
             )
             .await
-            .map_err(|e| MeshError::Unavailable(format!("dbus proxy: {e}")))?;
-            let res: zbus::Result<bool> = tokio::time::timeout(timeout, async {
-                dbus_proxy
-                    .call_method("NameHasOwner", &(BUS_NAME,))
-                    .await?
-                    .body()
-                    .deserialize::<bool>()
-            })
-            .await
-            .map_err(|_| zbus::Error::Failure("NameHasOwner timeout".into()))
-            .and_then(|x| x);
-            res.map_err(|e| MeshError::Unavailable(format!("NameHasOwner: {e}")))
+            .map(|_| ())
+            .map_err(|e| MeshError::Unavailable(format!("nebula probe: {e}")))
         })?;
-        if !alive {
-            return Err(MeshError::Unavailable(format!(
-                "{BUS_NAME} not on the session bus"
-            )));
-        }
         Ok(Self {
             rt,
-            connection,
+            bus_dir,
             call_timeout: Self::DEFAULT_CALL_TIMEOUT,
         })
     }
@@ -191,33 +179,19 @@ impl MeshBackend {
 
     /// Live Nebula overlay status.
     pub fn nebula_status(&self) -> Result<NebulaStatus, MeshError> {
-        let raw = self.call_string(
-            NEBULA_STATUS_OBJECT_PATH,
-            NEBULA_STATUS_INTERFACE,
-            "Status",
-        )?;
-        parse_nebula_status(&raw)
-            .ok_or_else(|| MeshError::Decode(format!("nebula_status: {raw}")))
+        let raw = self.bus_request("status")?;
+        parse_nebula_status(&raw).ok_or_else(|| MeshError::Decode(format!("nebula_status: {raw}")))
     }
 
     /// Live Nebula peer roster.
     pub fn nebula_peers(&self) -> Result<Vec<NebulaPeer>, MeshError> {
-        let raw = self.call_string(
-            NEBULA_STATUS_OBJECT_PATH,
-            NEBULA_STATUS_INTERFACE,
-            "ListPeers",
-        )?;
-        parse_nebula_peers(&raw)
-            .ok_or_else(|| MeshError::Decode(format!("nebula_peers: {raw}")))
+        let raw = self.bus_request("list-peers")?;
+        parse_nebula_peers(&raw).ok_or_else(|| MeshError::Decode(format!("nebula_peers: {raw}")))
     }
 
     /// Live Nebula self-node snapshot.
     pub fn nebula_self_node(&self) -> Result<NebulaSelfNode, MeshError> {
-        let raw = self.call_string(
-            NEBULA_STATUS_OBJECT_PATH,
-            NEBULA_STATUS_INTERFACE,
-            "SelfNode",
-        )?;
+        let raw = self.bus_request("self-node")?;
         parse_nebula_self_node(&raw)
             .ok_or_else(|| MeshError::Decode(format!("nebula_self_node: {raw}")))
     }
@@ -228,27 +202,31 @@ impl MeshBackend {
         Ok(peers.into_iter().map(nebula_peer_to_mesh_peer).collect())
     }
 
-    fn call_string(
-        &self,
-        path: &str,
-        iface: &str,
-        method: &str,
-    ) -> Result<String, MeshError> {
+    /// Publish one `action/nebula/<verb>` request on the Bus + block
+    /// for the reply body. A fresh `Persist` is opened per call (it
+    /// isn't `Send`); `call_timeout` bounds the wait. `Err` on
+    /// timeout / no-responder / empty reply — callers map that to
+    /// their fallback path, exactly as the old D-Bus errors did.
+    fn bus_request(&self, verb: &str) -> Result<String, MeshError> {
+        let topic = format!("action/nebula/{verb}");
         self.rt.block_on(async {
-            let proxy = Proxy::new(&self.connection, BUS_NAME, path, iface)
-                .await
-                .map_err(|e| MeshError::Unavailable(format!("proxy {iface}: {e}")))?;
-            let res: zbus::Result<String> = tokio::time::timeout(self.call_timeout, async {
-                proxy
-                    .call_method(method, &())
-                    .await?
-                    .body()
-                    .deserialize::<String>()
-            })
+            let persist = mde_bus::persist::Persist::open(self.bus_dir.clone())
+                .map_err(|e| MeshError::Unavailable(format!("bus persist: {e}")))?;
+            match mde_bus::rpc::request(
+                &persist,
+                &topic,
+                mde_bus::hooks::config::Priority::Default,
+                None,
+                None,
+                self.call_timeout,
+            )
             .await
-            .map_err(|_| zbus::Error::Failure(format!("{iface}.{method} timeout")))
-            .and_then(|x| x);
-            res.map_err(|e| MeshError::Unavailable(format!("{iface}.{method}: {e}")))
+            {
+                Ok(reply) => reply
+                    .body
+                    .ok_or_else(|| MeshError::Unavailable(format!("{topic}: empty reply"))),
+                Err(e) => Err(MeshError::Unavailable(format!("{topic}: {e}"))),
+            }
         })
     }
 }
@@ -359,12 +337,5 @@ mod tests {
         assert!(format!("{e}").contains("session bus closed"));
         let e = MeshError::Decode("bad JSON".into());
         assert!(format!("{e}").contains("bad JSON"));
-    }
-
-    #[test]
-    fn const_paths_mirror_mackesd() {
-        assert_eq!(NEBULA_STATUS_INTERFACE, "dev.mackes.MDE.Nebula.Status");
-        assert_eq!(NEBULA_STATUS_OBJECT_PATH, "/dev/mackes/MDE/Nebula/Status");
-        assert_eq!(BUS_NAME, "org.mackes.mackesd");
     }
 }

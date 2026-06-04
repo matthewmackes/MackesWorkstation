@@ -4686,6 +4686,7 @@ dependencies = [
  "chrono",
  "iced 0.14.0",
  "mackes-theme",
+ "mde-bus",
  "mde-iced-components",
  "mde-theme",
  "serde",

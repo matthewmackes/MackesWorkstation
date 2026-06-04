@@ -29,6 +29,11 @@ chrono     = "0.4"
 # the headless crate (DemoBackend only) keeps a minimal dep graph.
 tokio      = { version = "1", features = ["rt-multi-thread", "macros", "sync"], optional = true }
 zbus       = { version = "5", default-features = false, features = ["tokio"], optional = true }
+# E0.3.1.a (2026-06-03) — the mesh backend reads Nebula status over the
+# mesh Bus (action/nebula/*) rather than the (dual-served, retiring)
+# Nebula.Status D-Bus reads. Optional + folded into `dbus` so the
+# headless DemoBackend graph stays minimal.
+mde-bus    = { path = "../../platform/mde-bus", optional = true }
 
 [features]
 # `wayland` (default): enables smithay-client-toolkit portal calls
@@ -40,7 +45,7 @@ zbus       = { version = "5", default-features = false, features = ["tokio"], op
 default = ["wayland", "dbus"]
 wayland = []
 x11     = []
-dbus    = ["dep:tokio", "dep:zbus"]
+dbus    = ["dep:tokio", "dep:zbus", "dep:mde-bus"]
 
 [lints.rust]
 unsafe_code     = "forbid"
