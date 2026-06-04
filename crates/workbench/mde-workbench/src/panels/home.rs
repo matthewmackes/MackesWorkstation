@@ -733,14 +733,17 @@ async fn probe_notifications() -> ProbeOutcome {
 // --- mackesd health --------------------------------------------------------
 
 async fn probe_mackesd_alive() -> bool {
-    dbus_call(
-        "org.mackes.mackesd",
-        "/dev/mackes/MDE/Shell",
-        "dev.mackes.MDE.Shell",
-        "Healthz",
-    )
+    // E0.3.5 — mackesd liveness = its Shell Bus responder answers
+    // action/shell/healthz (replacing the retired dev.mackes.MDE.Shell
+    // D-Bus Healthz probe). spawn_blocking: the Bus client spins its
+    // own current-thread runtime (Persist isn't Send).
+    tokio::task::spawn_blocking(|| {
+        crate::dbus::action_request("action/shell/healthz", std::time::Duration::from_secs(2))
+    })
     .await
-    .is_ok()
+    .ok()
+    .flatten()
+    .is_some()
 }
 
 // --- D-Bus shell-out -------------------------------------------------------

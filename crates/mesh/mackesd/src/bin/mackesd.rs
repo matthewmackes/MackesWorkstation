@@ -3861,6 +3861,57 @@ fn run_serve(
                 );
             }
         }
+        // E0.3.5 — Shell control surface (version/healthz/workers) on
+        // the mesh Bus at action/shell/<verb>, replacing the retired
+        // dev.mackes.MDE.Shell D-Bus interface. Own OS thread
+        // (Persist/rusqlite isn't Send); no tokio runtime needed since
+        // the Shell builders are synchronous. Graceful-degrade: a
+        // missing data-dir / failed Persist open logs + skips (the
+        // Overview's mackesd-alive probe then reads offline).
+        match mde_bus::default_data_dir()
+            .ok_or_else(|| "no XDG data dir for bus".to_string())
+            .and_then(|d| mde_bus::persist::Persist::open(d).map_err(|e| e.to_string()))
+        {
+            Ok(persist) => {
+                let shell_svc = mackesd_core::ipc::shell::ShellService::new(
+                    mackesd_core::ipc::shell::ShellState {
+                        db_path: db_path.clone(),
+                        worker_names: Arc::clone(&worker_names),
+                    },
+                );
+                let resp_shutdown = Arc::clone(&shutdown);
+                std::thread::Builder::new()
+                    .name("shell-bus-responder".into())
+                    .spawn(move || {
+                        mackesd_core::ipc::shell::serve_bus(&persist, &shell_svc, || {
+                            resp_shutdown.load(Ordering::Relaxed)
+                        });
+                    })
+                    .map(|_handle| {
+                        tracing::info!(
+                            "Shell Bus responder spawned; serving \
+                             action/shell/{{version,healthz,workers}}"
+                        );
+                    })
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(
+                            error = %e,
+                            "Shell Bus responder thread spawn failed; \
+                             Overview mackesd-alive probe will read offline"
+                        );
+                    });
+                worker_names
+                    .lock()
+                    .expect("worker_names mutex")
+                    .push("shell_bus_responder".into());
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "Shell Bus responder: bus persist open failed; responder skipped"
+                );
+            }
+        }
         match mackesd_core::store::open(&db_path) {
             Ok(conn) => {
                 let store = Arc::new(tokio::sync::Mutex::new(conn));
@@ -3895,35 +3946,13 @@ fn run_serve(
                              next state transition",
                             mackesd_core::ipc::nebula::NEBULA_EVENT_TOPIC,
                         );
-                        // v4.1 (2026-05-24) — Shell.{Healthz,Workers}
-                        // surface on the same shared connection.
-                        // Workers list is the shared Arc<Mutex<>>
-                        // so post-IPC spawns (KDC + reconcile)
-                        // still appear in the roster.
-                        let shell_state = mackesd_core::ipc::shell::ShellState {
-                            db_path: db_path.clone(),
-                            worker_names: Arc::clone(&worker_names),
-                        };
-                        match mackesd_core::ipc::shell::register_shell_on(
-                            &conn, shell_state,
-                        )
-                        .await
-                        {
-                            Ok(()) => {
-                                tracing::info!(
-                                    "Shell dbus surface registered at {}",
-                                    mackesd_core::ipc::shell::OBJECT_PATH
-                                );
-                            }
-                            Err(e) => {
-                                tracing::warn!(
-                                    error = %e,
-                                    "Shell dbus registration failed; \
-                                     mackes-panel status cluster will fall back \
-                                     to subprocess invocation of `mackesd healthz`"
-                                );
-                            }
-                        }
+                        // E0.3.5 — the Shell control surface
+                        // (version/healthz/workers) moved off this
+                        // D-Bus connection onto the mesh Bus
+                        // (action/shell/*), served by the
+                        // shell-bus-responder thread spawned earlier in
+                        // run_serve. Nothing Shell-related registers on
+                        // `conn` anymore.
                         Box::leak(Box::new(conn));
                     }
                     Err(e) => {

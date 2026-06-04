@@ -48,7 +48,7 @@ const NEBULA_PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 /// that to their daemon-down rendering.
 #[must_use]
 pub fn nebula_request(verb: &str) -> Option<String> {
-    nebula_request_with_timeout(verb, NEBULA_PROBE_TIMEOUT)
+    action_request(&format!("action/nebula/{verb}"), NEBULA_PROBE_TIMEOUT)
 }
 
 /// As [`nebula_request`] but with an explicit timeout. WRITE verbs
@@ -56,15 +56,28 @@ pub fn nebula_request(verb: &str) -> Option<String> {
 /// for seconds, so they need more headroom than the 2 s read budget.
 #[must_use]
 pub fn nebula_request_with_timeout(verb: &str, timeout: Duration) -> Option<String> {
+    action_request(&format!("action/nebula/{verb}"), timeout)
+}
+
+/// E0.3.x — synchronous Bus action/reply client: publish one request
+/// to `topic` + block for the reply body on a private current-thread
+/// runtime (`Persist`/rusqlite isn't `Send`, so it can't ride a
+/// shared multi-thread executor). Generalizes the per-service
+/// helpers (e.g. [`nebula_request`], the Shell liveness probe).
+///
+/// MUST be called OUTSIDE an async runtime — callers on the iced
+/// executor wrap it in `tokio::task::spawn_blocking`. Returns `None`
+/// on no Bus data-dir / persist error / timeout / no-responder.
+#[must_use]
+pub fn action_request(topic: &str, timeout: Duration) -> Option<String> {
     let bus_dir = mde_bus::default_data_dir()?;
-    let topic = format!("action/nebula/{verb}");
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .ok()?;
     rt.block_on(async {
         let persist = Persist::open(bus_dir).ok()?;
-        match request(&persist, &topic, Priority::Default, None, None, timeout).await {
+        match request(&persist, topic, Priority::Default, None, None, timeout).await {
             Ok(reply) => reply.body,
             Err(_) => None,
         }

@@ -1,29 +1,31 @@
-//! `dev.mackes.MDE.Shell` — top-level shell control (health, version,
-//! worker pool status).
+//! Shell control (health, version, worker pool status).
 //!
-//! v2.0.0 Phase 0.4 rebrand — interface name moved from
-//! `org.mackes.Shell` to `dev.mackes.MDE.Shell`. Backward-compat
-//! alias .service file ships under the old name for one release; see
-//! `data/dbus-1/services/`.
+//! E0.3.5 (EPIC-RETIRE-DBUS, 2026-06-04): served on the mesh **Bus**
+//! at `action/shell/{version,healthz,workers}` via [`serve_bus`] /
+//! [`build_reply`], replacing the retired `dev.mackes.MDE.Shell`
+//! D-Bus `#[interface]` (mirrors the Nebula migration, E0.3.1). The
+//! responder runs on its own OS thread (`Persist`/rusqlite isn't
+//! `Send`) — but unlike Nebula's it needs no tokio runtime, since
+//! the builders are synchronous (version is a const, healthz builds
+//! `HealthReport::empty()`, workers is a lock-and-clone).
 //!
-//! v4.1 (2026-05-24) — Healthz + Workers wired up. `register_shell_on`
-//! attaches the service to the existing daemon D-Bus connection
-//! alongside Fleet.Files and Nebula.Status. The service carries a
-//! `ShellState` with the daemon's db_path + an Arc<Vec<String>> of
-//! live worker names that `run_serve` populates as it spawns each
-//! supervisor child. Healthz returns the same `HealthReport`
-//! envelope as the `mackesd healthz` CLI so panel reads stay in
-//! parity with the command-line surface; the live-probe
-//! enhancement (read store + heartbeat files) is a follow-up to
-//! the existing `mackesd healthz` improvement, NOT a Shell-only
-//! concern.
+//! The service carries a `ShellState` with the daemon's db_path + a
+//! shared `Vec<String>` of live worker names that `run_serve`
+//! populates as it spawns each supervisor child. `healthz` returns
+//! the same `HealthReport` envelope as the `mackesd healthz` CLI so
+//! reads stay in parity; the only live consumer today is the
+//! Workbench Overview's `probe_mackesd_alive` liveness check.
 
 #![cfg(feature = "async-services")]
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use zbus::interface;
+use mde_bus::hooks::config::Priority;
+use mde_bus::persist::Persist;
+use mde_bus::rpc::reply_topic;
+use serde_json::json;
 
 /// Object exposed at `/dev/mackes/MDE/Shell`.
 #[derive(Debug, Clone)]
@@ -76,111 +78,151 @@ impl ShellService {
     }
 }
 
-/// Stable D-Bus name used by Phase 0.4-onward callers. The legacy
-/// `org.mackes.Shell` alias ships through one v2.x line for
-/// backward-compat.
-pub const SERVICE_NAME: &str = "dev.mackes.MDE.Shell";
+/// Action verbs served on `action/shell/<verb>` (E0.3.5).
+pub const ACTION_VERBS: [&str; 3] = ["version", "healthz", "workers"];
 
-/// Object-path under [`SERVICE_NAME`]. Matches the
-/// reverse-slash convention zbus picks by default.
-pub const OBJECT_PATH: &str = "/dev/mackes/MDE/Shell";
+/// Responder poll interval.
+pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
 
-#[interface(name = "dev.mackes.MDE.Shell")]
 impl ShellService {
     /// Compiled crate version (`CARGO_PKG_VERSION`).
-    async fn version(&self) -> &'static str {
+    #[must_use]
+    pub fn build_version(&self) -> &'static str {
         env!("CARGO_PKG_VERSION")
     }
 
-    /// JSON-encoded [`crate::health::HealthReport`]. v4.1 — returns
-    /// the same `HealthReport::empty()` shape the `mackesd healthz`
-    /// CLI subcommand emits today. When the CLI's healthz grows a
-    /// live-probe path (read store + heartbeat files), both
-    /// surfaces inherit the improvement automatically.
-    async fn healthz(&self) -> zbus::fdo::Result<String> {
-        let report = crate::health::HealthReport::empty();
-        report
+    /// JSON-encoded [`crate::health::HealthReport`] — the same
+    /// `HealthReport::empty()` shape the `mackesd healthz` CLI emits,
+    /// so panel reads stay in parity. When the CLI's healthz grows a
+    /// live-probe path both surfaces inherit it.
+    ///
+    /// # Errors
+    /// Returns the encode error string if the report won't serialize.
+    pub fn build_healthz(&self) -> Result<String, String> {
+        crate::health::HealthReport::empty()
             .to_json_line()
-            .map_err(|e| zbus::fdo::Error::Failed(format!("healthz encode: {e}")))
+            .map_err(|e| format!("healthz encode: {e}"))
     }
 
-    /// List currently-spawned worker names. v4.1 — sourced from
-    /// the `ShellState::worker_names` shared roster the daemon
-    /// pushes to during each `sup.spawn()` call. Stable order
-    /// matches the supervisor's spawn sequence in `run_serve`.
-    /// The lock acquisition is brief (clone-then-drop) so it
-    /// can't deadlock with the tokio scheduler.
-    async fn workers(&self) -> zbus::fdo::Result<Vec<String>> {
-        let guard = self
-            .state
+    /// Currently-spawned worker names, in spawn order — sourced from
+    /// the `ShellState::worker_names` shared roster the daemon pushes
+    /// to at each `sup.spawn()`. Brief lock (clone-then-drop).
+    ///
+    /// # Errors
+    /// Returns the lock-poison error string if the mutex is poisoned.
+    pub fn build_workers(&self) -> Result<Vec<String>, String> {
+        self.state
             .worker_names
             .lock()
-            .map_err(|e| zbus::fdo::Error::Failed(format!("worker_names lock: {e}")))?;
-        Ok(guard.clone())
+            .map(|g| g.clone())
+            .map_err(|e| format!("worker_names lock: {e}"))
     }
 }
 
-/// v4.1 — register the ShellService on an EXISTING zbus
-/// `Connection`. Matches the pattern in `ipc/nebula.rs`'s
-/// `register_nebula_status_on`: the daemon shares one bus name
-/// (`org.mackes.mackesd`) across every IPC surface so callers
-/// don't have to discover a separate connection per object.
-///
-/// # Errors
-///
-/// Returns whatever zbus reports — usually an object-path
-/// collision when the same daemon process registers twice.
-pub async fn register_shell_on(
-    conn: &zbus::Connection,
-    state: ShellState,
-) -> zbus::Result<()> {
-    conn.object_server()
-        .at(OBJECT_PATH, ShellService::new(state))
-        .await?;
-    Ok(())
+/// Action topic for verb `verb`: `action/shell/<verb>`.
+#[must_use]
+pub fn action_topic(verb: &str) -> String {
+    format!("action/shell/{verb}")
+}
+
+/// Build the reply body for one `action/shell/<verb>` request.
+/// `version` → the raw version string; `healthz` → the
+/// `HealthReport` JSON line; `workers` → a JSON `Vec<String>`. On a
+/// builder error or unknown verb the body is `{"error": "..."}` so
+/// the caller surfaces a diagnostic rather than timing out.
+#[must_use]
+pub fn build_reply(svc: &ShellService, verb: &str) -> String {
+    match verb {
+        "version" => svc.build_version().to_string(),
+        "healthz" => match svc.build_healthz() {
+            Ok(json_line) => json_line,
+            Err(e) => json!({ "error": e }).to_string(),
+        },
+        "workers" => match svc.build_workers() {
+            Ok(names) => serde_json::to_string(&names)
+                .unwrap_or_else(|e| json!({ "error": format!("encode: {e}") }).to_string()),
+            Err(e) => json!({ "error": e }).to_string(),
+        },
+        other => json!({ "error": format!("unknown shell verb: {other}") }).to_string(),
+    }
+}
+
+/// Run the Shell Bus responder loop on the current thread until
+/// `should_stop()`. Unlike the Nebula responder this needs no tokio
+/// runtime — the builders are synchronous; `Persist` ops are sync
+/// too. `mackesd` `run_serve` spawns this on a dedicated OS thread
+/// (`Persist`/rusqlite isn't `Send`).
+pub fn serve_bus<F: Fn() -> bool>(persist: &Persist, svc: &ShellService, should_stop: F) {
+    let mut cursors: HashMap<String, String> = HashMap::new();
+    while !should_stop() {
+        poll_once(persist, svc, &mut cursors);
+        std::thread::sleep(POLL_INTERVAL);
+    }
+}
+
+/// One poll sweep across the action verbs (split out so a test can
+/// drive it without the sleep loop). For each new request on
+/// `action/shell/<verb>`, writes [`build_reply`] to `reply/<ulid>`.
+pub fn poll_once(persist: &Persist, svc: &ShellService, cursors: &mut HashMap<String, String>) {
+    for verb in ACTION_VERBS {
+        let topic = action_topic(verb);
+        let since = cursors.get(&topic).map(String::as_str);
+        let msgs = match persist.list_since(&topic, since) {
+            Ok(m) => m,
+            Err(e) => {
+                tracing::debug!(topic = %topic, error = %e, "shell responder: list_since failed");
+                continue;
+            }
+        };
+        for msg in msgs {
+            cursors.insert(topic.clone(), msg.ulid.clone());
+            let reply = build_reply(svc, verb);
+            if let Err(e) = persist.write(
+                &reply_topic(&msg.ulid),
+                Priority::Default,
+                None,
+                Some(&reply),
+            ) {
+                tracing::warn!(ulid = %msg.ulid, error = %e, "shell responder: reply write failed");
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn version_matches_crate() {
+    #[test]
+    fn version_matches_crate() {
         let svc = ShellService::default();
-        assert_eq!(svc.version().await, env!("CARGO_PKG_VERSION"));
+        assert_eq!(svc.build_version(), env!("CARGO_PKG_VERSION"));
     }
 
     #[test]
-    fn service_name_carries_mde_namespace() {
-        assert_eq!(SERVICE_NAME, "dev.mackes.MDE.Shell");
-        assert!(SERVICE_NAME.starts_with("dev.mackes.MDE."));
+    fn action_verbs_and_topic_lock() {
+        assert_eq!(ACTION_VERBS, ["version", "healthz", "workers"]);
+        assert_eq!(action_topic("healthz"), "action/shell/healthz");
     }
 
     #[test]
-    fn object_path_mirrors_service_name_segments() {
-        assert_eq!(OBJECT_PATH, "/dev/mackes/MDE/Shell");
-    }
-
-    #[tokio::test]
-    async fn healthz_returns_health_report_json() {
+    fn healthz_returns_health_report_json() {
         let svc = ShellService::default();
-        let json = svc.healthz().await.expect("healthz");
+        let json = svc.build_healthz().expect("healthz");
         // Round-trips to HealthReport with the current schema.
-        let parsed: crate::health::HealthReport =
-            serde_json::from_str(&json).expect("decode");
+        let parsed: crate::health::HealthReport = serde_json::from_str(&json).expect("decode");
         assert_eq!(parsed.schema, crate::health::HealthReport::CURRENT_SCHEMA);
         assert_eq!(parsed.version, env!("CARGO_PKG_VERSION"));
     }
 
-    #[tokio::test]
-    async fn workers_returns_empty_for_default_state() {
+    #[test]
+    fn workers_returns_empty_for_default_state() {
         let svc = ShellService::default();
-        let names = svc.workers().await.expect("workers");
-        assert!(names.is_empty());
+        assert!(svc.build_workers().expect("workers").is_empty());
     }
 
-    #[tokio::test]
-    async fn workers_reflects_state_snapshot_in_spawn_order() {
+    #[test]
+    fn workers_reflects_state_snapshot_in_spawn_order() {
         let names_shared = Arc::new(std::sync::Mutex::new(vec![
             "clipboard".to_string(),
             "mdns".into(),
@@ -193,9 +235,8 @@ mod tests {
             worker_names: Arc::clone(&names_shared),
         };
         let svc = ShellService::new(state);
-        let names = svc.workers().await.expect("workers");
         assert_eq!(
-            names,
+            svc.build_workers().expect("workers"),
             vec![
                 "clipboard".to_string(),
                 "mdns".into(),
@@ -206,21 +247,36 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn workers_reflects_post_registration_appends() {
-        // The daemon registers ShellService BEFORE spawning every
-        // worker (KDC + reconcile spawn after IPC registration).
-        // The shared Mutex must pick up post-registration pushes.
+    #[test]
+    fn workers_reflects_post_registration_appends() {
+        // The daemon binds ShellState BEFORE spawning every worker
+        // (KDC + reconcile spawn after IPC bootstrap). The shared
+        // Mutex must pick up post-bind pushes.
         let names_shared = Arc::new(std::sync::Mutex::new(vec!["clipboard".to_string()]));
         let state = ShellState {
             db_path: PathBuf::new(),
             worker_names: Arc::clone(&names_shared),
         };
         let svc = ShellService::new(state);
-        // After registration: another push lands.
         names_shared.lock().unwrap().push("kdc_host".into());
-        let names = svc.workers().await.expect("workers");
-        assert_eq!(names, vec!["clipboard".to_string(), "kdc_host".into()]);
+        assert_eq!(
+            svc.build_workers().expect("workers"),
+            vec!["clipboard".to_string(), "kdc_host".into()]
+        );
+    }
+
+    #[test]
+    fn build_reply_covers_each_verb_and_unknown() {
+        // E0.3.5 — the Bus responder's per-verb reply bodies.
+        let svc = ShellService::default();
+        assert_eq!(build_reply(&svc, "version"), env!("CARGO_PKG_VERSION"));
+        let h: crate::health::HealthReport =
+            serde_json::from_str(&build_reply(&svc, "healthz")).expect("healthz json");
+        assert_eq!(h.schema, crate::health::HealthReport::CURRENT_SCHEMA);
+        let w: Vec<String> =
+            serde_json::from_str(&build_reply(&svc, "workers")).expect("workers json");
+        assert!(w.is_empty());
+        assert!(build_reply(&svc, "bogus").contains("unknown shell verb"));
     }
 
     #[test]
