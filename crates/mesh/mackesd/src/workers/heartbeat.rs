@@ -28,17 +28,29 @@ use super::{ShutdownToken, Worker};
 pub struct HeartbeatWorker {
     workgroup_root: PathBuf,
     node_id: String,
+    interval: Duration,
 }
 
 impl HeartbeatWorker {
     /// Construct a new worker pinned to the given QNM-Shared root
-    /// and stable node id.
+    /// and stable node id, writing at the locked default cadence
+    /// ([`crate::telemetry::HEARTBEAT_INTERVAL_S`]). Use
+    /// [`Self::with_interval`] to apply the operator-tuned cadence.
     #[must_use]
     pub fn new(workgroup_root: PathBuf, node_id: String) -> Self {
         Self {
             workgroup_root,
             node_id,
+            interval: Duration::from_secs(crate::telemetry::HEARTBEAT_INTERVAL_S),
         }
+    }
+
+    /// Override the heartbeat write cadence (E1.3 #3 —
+    /// `/etc/mackesd/mackesd.toml`'s `heartbeat_interval_secs`).
+    #[must_use]
+    pub fn with_interval(mut self, interval: Duration) -> Self {
+        self.interval = interval;
+        self
     }
 }
 
@@ -56,6 +68,7 @@ impl Worker for HeartbeatWorker {
         let handle = crate::telemetry::spawn_heartbeat_worker(
             self.workgroup_root.clone(),
             self.node_id.clone(),
+            self.interval,
             Arc::clone(&flag),
         );
         // Wait for either shutdown OR the inner thread to die.
@@ -93,6 +106,19 @@ mod tests {
     async fn heartbeat_worker_name_matches_phase_b_lock() {
         let w = HeartbeatWorker::new(PathBuf::from("/tmp/heartbeat-test"), "peer:test".to_owned());
         assert_eq!(w.name(), "heartbeat");
+    }
+
+    #[tokio::test]
+    async fn new_defaults_to_the_locked_cadence_and_with_interval_overrides() {
+        // E1.3 #3 — the default is the 12.3.3 lock; the operator-tuned
+        // cadence from /etc/mackesd/mackesd.toml is applied via with_interval.
+        let w = HeartbeatWorker::new(PathBuf::from("/tmp/hb"), "peer:test".to_owned());
+        assert_eq!(
+            w.interval,
+            Duration::from_secs(crate::telemetry::HEARTBEAT_INTERVAL_S)
+        );
+        let tuned = w.with_interval(Duration::from_secs(45));
+        assert_eq!(tuned.interval, Duration::from_secs(45));
     }
 
     #[tokio::test]

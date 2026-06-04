@@ -1,0 +1,21 @@
+# mackesd — system daemon config (E1.3 #3).
+#
+# Shipped by the `mde-core` RPM and read once when mackesd's worker
+# section starts. Edit a value below and `systemctl restart mackesd`
+# to apply it — no rebuild. A missing or malformed file falls back to
+# the locked defaults shown here, so mackesd always boots.
+#
+# Every value is OPTIONAL: omit a key to keep its default. A value of 0
+# (or any sub-second value) is clamped up to 1 s so no knob can spin a
+# worker into a busy-loop.
+
+# How often the heartbeat worker writes this peer's liveness row to the
+# mesh-FS. Lower = fresher peer-health state across the fleet at a higher
+# write cost. Default 10 (the 12.3.3 cadence lock). A Lighthouse relay or
+# a low-churn Server can comfortably raise this.
+# heartbeat_interval_secs = 10
+
+# How often the mesh-latency worker pings every peer and refreshes the
+# link-sample cache the topology canvas + panel mesh-status badge read.
+# Default 30.
+# mesh_latency_sweep_secs = 30

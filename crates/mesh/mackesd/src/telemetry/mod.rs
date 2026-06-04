@@ -118,8 +118,12 @@ pub fn build_heartbeat(node_id: &str, applied_revision: Option<&str>) -> Heartbe
 }
 
 /// Spawn a background thread that writes one heartbeat every
-/// `HEARTBEAT_INTERVAL_S` seconds until `shutdown` flips true.
-/// Returns the join handle so the caller can wait on shutdown.
+/// `interval` until `shutdown` flips true. Returns the join handle
+/// so the caller can wait on shutdown.
+///
+/// `interval` is the operator-tunable cadence (E1.3 #3, sourced from
+/// `/etc/mackesd/mackesd.toml`); pass
+/// `Duration::from_secs(HEARTBEAT_INTERVAL_S)` for the locked default.
 ///
 /// Used by the `mackesd` reconcile loop's bootstrap to keep the
 /// peer's heartbeat fresh even while the rest of the reconciler is
@@ -127,11 +131,11 @@ pub fn build_heartbeat(node_id: &str, applied_revision: Option<&str>) -> Heartbe
 pub fn spawn_heartbeat_worker(
     workgroup_root: PathBuf,
     node_id: String,
+    interval: std::time::Duration,
     shutdown: std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> std::thread::JoinHandle<()> {
     std::thread::spawn(move || {
         use std::sync::atomic::Ordering;
-        let interval = std::time::Duration::from_secs(HEARTBEAT_INTERVAL_S);
         // PEERVER-2 — publish this peer's convergence record to the GFS
         // peers/ dir (read by mde-update / mde-install; mirrored into
         // nodes by PEERVER-4). Detect the mde-core RPM version once;
@@ -344,6 +348,7 @@ mod tests {
         let h = spawn_heartbeat_worker(
             dir.path().to_path_buf(),
             "peer:test".into(),
+            std::time::Duration::from_secs(HEARTBEAT_INTERVAL_S),
             std::sync::Arc::clone(&shutdown),
         );
         // Let it tick once.

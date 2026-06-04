@@ -3257,6 +3257,17 @@ fn run_serve(
             role_rank,
             "E1.2: spawning the role-permitted worker subset"
         );
+        // E1.3 #3 — read the operator-tunable daemon config from
+        // /etc/mackesd/mackesd.toml (fail-open to the locked defaults on a
+        // missing/malformed file). Its cadence knobs feed the heartbeat +
+        // mesh-latency worker spawns below, so an edit + `systemctl restart
+        // mackesd` changes the live write cadence with no rebuild.
+        let daemon_cfg = mackesd_core::config::daemon::load();
+        tracing::info!(
+            heartbeat_interval_secs = daemon_cfg.heartbeat_interval_secs,
+            mesh_latency_sweep_secs = daemon_cfg.mesh_latency_sweep_secs,
+            "E1.3: loaded /etc/mackesd/mackesd.toml daemon config",
+        );
         if mackesd_core::worker_role::runs("clipboard", role_rank) {
             sup.spawn(Spawn::new(ClipboardWorker::new(), RestartPolicy::OnFailure));
             worker_names.lock().expect("worker_names mutex").push("clipboard".into());
@@ -3271,7 +3282,8 @@ fn run_serve(
         }
         if mackesd_core::worker_role::runs("heartbeat", role_rank) {
             sup.spawn(Spawn::new(
-                HeartbeatWorker::new(workgroup_root.clone(), node_id.clone()),
+                HeartbeatWorker::new(workgroup_root.clone(), node_id.clone())
+                    .with_interval(daemon_cfg.heartbeat_interval()),
                 RestartPolicy::OnFailure,
             ));
             worker_names.lock().expect("worker_names mutex").push("heartbeat".into());
@@ -3889,7 +3901,8 @@ fn run_serve(
                         lat_store,
                         node_id.clone(),
                         cache,
-                    ),
+                    )
+                    .with_interval(daemon_cfg.mesh_latency_sweep()),
                     RestartPolicy::OnFailure,
                 ));
                 worker_names.lock().expect("worker_names mutex").push("mesh_latency".into());

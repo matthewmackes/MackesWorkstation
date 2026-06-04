@@ -21,7 +21,7 @@
 
 crates/mesh/mackesd/src/nebula_enroll.rs:885
 crates/mesh/mackesd/src/stun.rs:593
-crates/mesh/mackesd/src/telemetry/mod.rs:155
+crates/mesh/mackesd/src/telemetry/mod.rs:159
 crates/mesh/mackesd/src/workers/compute_provision.rs:1217
 crates/mesh/mackesd/src/workers/subprocess_tick.rs:220
 crates/mesh/mackesd/src/workers/workspace_namer.rs:33
