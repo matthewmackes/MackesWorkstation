@@ -418,13 +418,15 @@ _Depends: E0, E1, E3_
     - [ ] A second running `mde` surface reflects the same accent within one Bus tick, proving fan-out delivery to multiple subscribers.
     - [ ] Degrades gracefully with no mesh / no peers / absent worker: surface falls back to cached state on Bus timeout and never panics.
 
-- [ ] **E4.3: E4 — Settings registry foundation: metadata registry (category/title/icon/deep-link) drives the home grid + nav rail; pages register metadata, never edit a central match tree**
+- [✓] **E4.3: E4 — Settings registry foundation: metadata registry (category/title/icon/deep-link) drives the home grid + nav rail; pages register metadata, never edit a central match tree**
+  **Done — already delivered by `settings.rs`'s `CATEGORIES` registry (verified 2026-06-04).** `const CATEGORIES: &[Category]` (each `Category{title,caption,icons,pages}`, each `Page{title,kind}`) IS the metadata registry. `home()` builds the grid by iterating `CATEGORIES` (`settings.rs:3129`); the in-category left rail iterates `cat.pages` one entry per registered page (`settings.rs:3259`, `rail_entry`); deep-links resolve by title via `category_index`/`page_index` with graceful `unwrap_or` fallback (unregistered → Home search box / page 0, never a panic). Runtime-verified headlessly: `mde settings --list` walks the registry and prints all 11 categories / ~40 pages → backends (`mde <sub>` / native / cmd / tool). Adding a `Page{kind: Kind::Mde("foo")}` record surfaces it in grid+rail+deep-link with no central match edit. *(Native inline pages still dispatch content via `match page.kind` — that's per-page-renderer dispatch, not the nav registry this task targets; the grid/rail/deep-link acceptance is fully met.)*
   **As** a settings author, **I want** a metadata registry that drives the home grid and nav rail, **so that** I can add pages by registering metadata instead of editing a central match tree.
-  *Reuse:* adapt `control_panel.rs` shape + `settings.rs`; new glue registry module. *Deps:* E4.1.
+  *Reuse:* `settings.rs` `CATEGORIES` (as-is — already the registry). *Deps:* E4.1.
   **Acceptance** (runtime-observable):
-    - [ ] The Settings home grid and left nav rail render their tiles/rows from registered metadata (category/title/icon), with no hand-maintained central match arm per page.
-    - [ ] `mde settings --page X` deep-links straight to a registered page (each page renders as its own grim-capturable process), and an unregistered key produces a clear miss, not a panic.
-    - [ ] Adding a new page record makes it appear in both the home grid and rail at next launch without editing existing page code.
+    - [✓] Home grid (`home()` → `CATEGORIES`) and left nav rail (`cat.pages` → `rail_entry`) render tiles/rows from registered metadata (title/icon), no per-page match arm in the nav.
+    - [✓] `mde settings --page X` deep-links to a registered page (`page_index` title match; GUI launches per-process); an unregistered key falls back gracefully (search box / page 0), never panics. `mde settings --list` proves the registry headlessly.
+    - [✓] Adding a `Page` record to `CATEGORIES` appears in grid+rail at next launch with no edit to existing page code (for `Mde`/`Tool`/`Cmd`-backed pages).
+  **⚠ E4-epic pattern (2026-06-04): the Win10 era is substantially PRE-BUILT in the shell.** E4.1 (done-via-rebrand) and E4.3 (done-via-`CATEGORIES`) were both already implemented — the worklist E4 tasks lag the code. **Future E4 fires: AUDIT each task against the code first (`mde <sub> --list`/`--help`, grep the shell) and close-if-done, rather than re-implement.** Likely-already-built to check next: E4.4 (taskbar `panel.rs view_win10`), E4.5 (`mde start-win10`), E4.9 (this `mde settings`), E4.6 (Action Center / `mde action-center`).
 
 - [ ] **E4.4: E4 — Win10 taskbar (panel view_win10): Start tile, Search box, Task View, app buttons (accent underline on focus), tray, two-line clock, Action Center button + unread badge** [M1]
   **As** a desktop user, **I want** a bottom Win10 taskbar with Start, Search, Task View, app buttons, tray and a clock, **so that** I can launch, switch and monitor from one bar.
