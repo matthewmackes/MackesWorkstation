@@ -4446,6 +4446,7 @@ dependencies = [
  "mde-disclaimer",
  "mde-kdc-host",
  "mde-kdc-proto",
+ "mde-role",
  "mde-ui",
  "png 0.17.16",
  "ratatui",
@@ -4885,6 +4886,10 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
 ]
+
+[[package]]
+name = "mde-role"
+version = "10.0.0"
 
 [[package]]
 name = "mde-session"

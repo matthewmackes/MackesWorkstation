@@ -113,7 +113,7 @@ COMMANDS:
     project          Win+P projection pane (PC only · Duplicate · Extend · 2nd only)
     snip [rect|full]   Region/full screenshot → ~/Pictures/Screenshots + clipboard
     taskbar-properties   Taskbar and Start Menu Properties
-    setup [--tui|--gui|--dry-run]   Install/configure Mackes Workstation
+    setup [--profile=R|--show|--tui|--gui|--dry-run]   Pin deployment role (R=lighthouse|server|workstation; upgrade-only) / --show rank / install
     install [--assets]   Fetch Chicago95 + Win2k assets (first run)
     logoff           Log Off / Win10 account flyout (Lock · Sign out)
     shutdown         Shut Down / Win10 power flyout (Sleep · Shut down · Restart)

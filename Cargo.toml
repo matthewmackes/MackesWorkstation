@@ -32,6 +32,7 @@ members = [
     "crates/mesh/mackes-transport",
     "crates/mesh/mackesd",
     "crates/platform/mde-bus",
+    "crates/platform/mde-role",
     "crates/services/mde-clipd",
     "crates/services/mde-files",
     "crates/services/mde-music",

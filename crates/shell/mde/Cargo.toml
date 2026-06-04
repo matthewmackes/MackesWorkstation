@@ -25,6 +25,9 @@ anyhow.workspace = true
 # (action/connect/devices), replacing the org.mde.Connect1 D-Bus
 # interface. The org.mde.Connect *name* is kept (single-instance guard).
 mde-bus = { path = "../../platform/mde-bus" }
+# E1.1 — `mde setup --profile=<role>` pins the deployment role to
+# /var/lib/mde/role.toml (upgrade-only); `--show` prints the rank.
+mde-role = { path = "../../platform/mde-role" }
 ratatui = "0.29"
 crossterm = "0.28"
 # System tray: be the StatusNotifierWatcher + Host so SNI apps (nm-applet, etc.)

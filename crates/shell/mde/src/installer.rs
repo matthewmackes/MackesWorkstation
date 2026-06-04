@@ -47,6 +47,16 @@ enum Msg {
 ///   in-session       launch that same real TUI installer, privileged, in a
 ///                    Win2000-styled terminal.
 pub fn dispatch(args: &[String]) -> ExitCode {
+    // E1.1 — the scriptable deployment-role chooser, handled before the
+    // component installer. `--show` prints the pinned rank; `--profile=<role>`
+    // pins it to /var/lib/mde/role.toml (upgrade-only — a lower rank is refused
+    // and the file is left untouched).
+    if args.iter().any(|a| a == "--show") {
+        return show_role();
+    }
+    if let Some(profile) = args.iter().find_map(|a| a.strip_prefix("--profile=")) {
+        return pin_role(profile);
+    }
     // The Windows 10 first-run OOBE (E11) is an additive branch — the classic
     // Win2000 component-picker Setup below is unchanged. `mde setup --era=win10`.
     if args.iter().any(|a| a == "--era=win10") {
@@ -74,6 +84,51 @@ pub fn dispatch(args: &[String]) -> ExitCode {
         crate::tui_setup::run(dry, packages)
     } else {
         launch_tui_terminal(dry, packages)
+    }
+}
+
+/// `mde setup --profile=<role>` (E1.1) — pin the deployment role to
+/// `/var/lib/mde/role.toml`. Exit 0 on a first pin / same-rank / upgrade
+/// (printing the resulting role + rank); non-zero on a blocked downgrade, an
+/// unknown role, a malformed existing file, or an I/O error — every refusal
+/// path leaves `role.toml` byte-for-byte unchanged.
+fn pin_role(profile: &str) -> ExitCode {
+    let role: mde_role::Role = match profile.parse() {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("mde setup: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    match mde_role::pin(role) {
+        Ok(outcome) => {
+            // outcome's Display names the new rank (the acceptance: "printing
+            // the new rank").
+            println!("{outcome}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            // PinError::Downgrade's Display carries the "downgrade blocked"
+            // message the acceptance requires.
+            eprintln!("mde setup: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `mde setup --show` (E1.1) — print the pinned role's rank (`0`/`1`/`2`) and
+/// name, read back from `role.toml`. Fails closed (non-zero, prints nothing to
+/// stdout) when no valid role is pinned — never assumes a default.
+fn show_role() -> ExitCode {
+    match mde_role::load() {
+        Ok(role) => {
+            println!("{} {}", role.rank(), role);
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("mde setup --show: {e}");
+            ExitCode::FAILURE
+        }
     }
 }
 
