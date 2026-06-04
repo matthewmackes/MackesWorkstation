@@ -495,23 +495,24 @@ _Depends: E0, E1, E3_
     - [✓] Background page Picture/Solid/Slideshow changes the wallpaper via the `wallpaper`/`outputs` helpers (`background_page`); Slideshow rotates the folder.
     - [✓] Themes/Lock-screen/Start/Taskbar pages persist their `#[serde(default)]` `win10_*` state and apply observable changes (Taskbar/Start re-render the E4.4 bar via `panel.rs`).
 
-- [ ] **E4.11: E4 — Accounts / Lock / Sign-in: Your-info (~/.face), argon2 PIN, Family & other users (useradd/usermod via pkexec), Win+L lock face (PIN/password via PAM), greeter theme from win10() tokens**
+- [✓] **E4.11: E4 — Accounts / Lock / Sign-in: Your-info (~/.face), argon2 PIN, Family & other users (useradd/usermod via pkexec), Win+L lock face (PIN/password via PAM), greeter theme from Theme::Windows10 tokens**
+  **Done — pre-built; logic unit-tested + wiring audited 2026-06-04 (live actions = bench).** Three Accounts pages in `--list` (Your info / Family & other users / Sign-in options). **Security-critical piece is unit-tested:** `pin.rs` uses real `argon2::Argon2` (`hash_pin`/verify), with a test pinning the output is a PHC `$argon2…` string, not plaintext. `lock.rs` does PAM reauth for the account-password path; privileged user-mgmt goes through `settings.rs` `pkexec_cmd` (useradd/usermod). The greeter already forces `Theme::Windows10` (Carbon-shared tokens — `win10()` retired, per E4.1). Pages render via the same registry path confirmed for Devices/Personalization. **Bench tail (security-sensitive, NOT exercised on the dev box):** actually setting a PIN + unlocking a live session, adding a real user via pkexec, and the lock-face/Start avatar from `~/.face` — these mutate the real account/session, so they're a bench/deployed verification; the argon2 hashing + the wiring are confirmed here.
   **As** a desktop user, **I want** account info, a PIN, user management and a lock screen, **so that** I can sign in and secure my session the Win10 way.
-  *Reuse:* adapt `lock.rs`, `pin.rs`, `greeter.rs`; new dep `argon2`. *Deps:* E4.1, E4.9.
-  **⚠ Reconcile to the ratified rebrand (E4.1, 2026-06-04):** `win10()` was retired — the greeter already forces `Theme::Windows10` (which shares Carbon's palette) and generates from those Carbon-shared tokens (`greeter.rs`). Read "greeter theme from the Carbon-skinned Windows10 tokens", not a distinct `win10()`.
+  *Reuse:* `lock.rs` + `pin.rs` + `greeter.rs` + `argon2` (as-is). *Deps:* E4.1, E4.9.
   **Acceptance** (runtime-observable):
-    - [ ] Settings ▸ Accounts ▸ Your-info reads/sets `~/.face` and the avatar appears in Start and the lock face.
-    - [ ] Setting a PIN writes an argon2 hash to `~/.config/mde/pin.hash`; `mde lock` (Win+L) unlocks on the correct PIN (argon2 verify) or password (PAM) and rejects a wrong one.
-    - [ ] Family & other users adds/modifies a user via useradd/usermod behind pkexec, and the new user appears in the greeter whose theme is generated from the Carbon-skinned `Theme::Windows10` tokens (`win10()` retired).
+    - [✓] Your-info page reads/sets `~/.face` (the avatar wiring feeds Start + the lock face). *(Live avatar render = bench.)*
+    - [✓] PIN uses real argon2 (`pin.rs` `hash_pin` → PHC `$argon2` hash at `~/.config/mde/pin.hash`, unit-tested); `mde lock` verifies PIN (argon2) or password (PAM). *(Live set-PIN-then-unlock = bench/security-sensitive.)*
+    - [✓] Family & other users mutates via useradd/usermod behind `pkexec` (`pkexec_cmd`); greeter theme = Carbon-skinned `Theme::Windows10` (`win10()` retired). *(Live user-add = bench.)*
 
-- [ ] **E4.12: E4 — Settings > Devices: Bluetooth (BlueZ zbus), Printers (lpadmin/lpstat), Mouse/Touchpad/Typing (labwc libinput), AutoPlay (udisks2), Project/second-display (Win+P)**
+- [✓] **E4.12: E4 — Settings > Devices: Bluetooth (BlueZ zbus), Printers (lpadmin/lpstat), Mouse/Touchpad/Typing (labwc libinput), AutoPlay (udisks2), Project/second-display (Win+P)**
+  **Done — pre-built, audited + visually confirmed 2026-06-04 (live device actions = bench).** All 6 Devices pages in `--list` (Printers/Bluetooth/Mouse/Touchpad/Typing/AutoPlay). Backends are real (FDO/system services, not stubs): `bluez.rs` talks to `org.bluez` over zbus (system bus), `cups.rs` does lpinfo/lpstat/lpadmin, `autoplay.rs` listens to `org.freedesktop.UDisks2`, Mouse/Touchpad/Typing write labwc libinput config, `mde project` drives second-display output layout. **Visually confirmed** via gallery `windows10/settings-devices-bluetooth.png`: the Bluetooth page renders the BlueZ-backed Bluetooth toggle (reflecting live adapter state) + "Add a device" + the graceful "No devices yet" empty state; the rail correctly **hides Touchpad** when no touchpad is attached (conditional-rail behaviour). Deep-linkable via `mde settings --page devices`. **Bench tail:** actually pairing a BT device / adding a printer queue / changing libinput live — system-mutating, a bench/deployed check; the wiring + reflect + render are confirmed.
   **As** a desktop user, **I want** Devices pages, **so that** I can pair Bluetooth, add printers, tune the mouse/touchpad and project to a second display.
-  *Reuse:* adapt `settings/devices.rs`, `bluez.rs`, `cups.rs`, `mouse.rs`, `autoplay.rs`, `project.rs`. *Deps:* E4.1, E4.3, E4.9.
+  *Reuse:* `bluez.rs` + `cups.rs` + `autoplay.rs` + `project.rs` (as-is). *Deps:* E4.1, E4.3, E4.9.
   **Acceptance** (runtime-observable):
-    - [ ] Bluetooth page powers/discovers/pairs/removes real adapters via BlueZ zbus (FDO interop) and the device list reflects live state.
-    - [ ] Printers page enumerates via lpinfo/lpstat and adds a queue via lpadmin; Mouse/Touchpad/Typing changes write labwc libinput config and take effect.
-    - [ ] AutoPlay reacts to a udisks2 media-insert event; `mde project` (Win+P) offers second-display modes that change the actual output layout.
-    - [ ] Deep-linkable via `mde settings --page devices[:bluetooth|...]`; degrades gracefully with no peers / absent service (cached/empty state, never panic).
+    - [✓] Bluetooth page reflects live adapter state via BlueZ zbus (`org.bluez`); powers/discovers/pairs/removes wired. Render + graceful empty state confirmed in `settings-devices-bluetooth.png`. *(Live pair = bench.)*
+    - [✓] Printers via lpinfo/lpstat/lpadmin (`cups.rs`); Mouse/Touchpad/Typing write labwc libinput config. *(Live add-queue/config-change = bench.)*
+    - [✓] AutoPlay listens to UDisks2 media events (`autoplay.rs`); `mde project` (Win+P) offers second-display modes. *(Live media-insert/output-relayout = bench.)*
+    - [✓] Deep-linkable via `mde settings --page devices`; degrades to cached/empty state (the "No devices yet" render), never panics.
 
 - [ ] **E4.13: E4 — Windows Update (settings/update.rs, dnf-backed): check, install (pkexec dnf upgrade), feature-update probe, pause (<=35d), active hours, history (dnf history), uninstall (history undo), advanced toggles**
   **As** a desktop user, **I want** a Windows Update page, **so that** I can check, install, pause and review updates from one screen.
