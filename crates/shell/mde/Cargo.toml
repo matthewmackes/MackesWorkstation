@@ -14,6 +14,7 @@ path = "src/main.rs"
 
 [dependencies]
 mde-ui.workspace = true
+mde-disclaimer = { path = "../../shared/mde-disclaimer" }
 iced.workspace = true
 iced_layershell.workspace = true
 serde.workspace = true

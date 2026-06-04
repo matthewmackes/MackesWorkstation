@@ -119,13 +119,14 @@ _Depends: none_
     - [ ] For every installed `mde-<cmd>` symlink, invoking it dispatches to the same handler as `mde <cmd>` (argv0 basename routing), and an unknown subcommand prints USAGE and exits non-zero.
     - [ ] `mde help` enumerates the full subcommand set and each listed subcommand is reachable (no "not implemented" path at runtime).
 
-- [ ] **E0.6: E0 — Single-source disclaimer embedding (disclaimer.rs include_str! wired into every surface)**
+- [✓] **E0.6: E0 — Single-source disclaimer embedding (disclaimer.rs include_str! wired into every surface)**
   **As** a compliance reviewer, **I want** every About/Info/Help surface to render the disclaimer from `disclaimer.rs include_str!`, **so that** the GUI text and `DISCLAIMER.md` can never drift from a single source.
   *Reuse:* mde/src/disclaimer.rs (§9 as-is) wired into about.rs / system_properties.rs and all info surfaces. *Deps:* none.
   **Acceptance** (runtime-observable):
     - [ ] Every About/Info/Help surface pulls `DISCLAIMER.md` via `disclaimer.rs include_str!` (single source, never copy-paste); `lint-visual-citation.sh` finds no inline-duplicated disclaimer text.
     - [ ] Editing `DISCLAIMER.md` and rebuilding changes the rendered text on the About dialog and System Properties at runtime (one edit, every surface updates).
     - [ ] `mde about` (and System Properties) renders the embedded title + body, including the "as is" / "at your own risk" warranty waivers (not an empty/placeholder string).
+  **Done (2026-06-03):** the canonical text was already single-sourced in the shell (`disclaimer.rs` `include_str!` of repo-root `DISCLAIMER.md`, build-verified, rendered by about.rs + system_properties.rs, no copy-paste). Extracted the toolkit-free text+split+is_present into a shared `crates/shared/mde-disclaimer` crate so the installer (E1/E7) + daemon banner can single-source it WITHOUT a GUI dep; the shell `view()` now consumes it. Tests moved + pass; `cargo check --workspace` green.
 
 - [✓] **E0.7: E0 — Move retire-absorb crates (mde-portal, mde-drawer, mde-virtual) to crates/legacy (out of default build)**
   **As** a workspace maintainer, **I want** the three retire-absorb crates relocated to `crates/legacy` and removed from the default build, **so that** their functions can reappear in Win10/Workbench surfaces without the old crates compiling by default.

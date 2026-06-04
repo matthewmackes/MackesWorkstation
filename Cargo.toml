@@ -40,6 +40,7 @@ members = [
     "crates/services/mde-voice-hud",
     "crates/shared/mackes-theme",
     "crates/shared/mde-card",
+    "crates/shared/mde-disclaimer",
     "crates/shared/mde-iced-components",
     "crates/shared/mde-theme",
     "crates/shell/mde",

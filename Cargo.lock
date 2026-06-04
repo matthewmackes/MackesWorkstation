@@ -4442,6 +4442,7 @@ dependencies = [
  "crossterm",
  "iced 0.13.1",
  "iced_layershell 0.13.7",
+ "mde-disclaimer",
  "mde-kdc-host",
  "mde-kdc-proto",
  "mde-ui",
@@ -4673,6 +4674,10 @@ dependencies = [
  "wayland-client",
  "wayland-protocols-wlr",
 ]
+
+[[package]]
+name = "mde-disclaimer"
+version = "10.0.0"
 
 [[package]]
 name = "mde-files"
