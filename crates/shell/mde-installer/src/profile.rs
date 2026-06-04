@@ -31,6 +31,20 @@ impl Profile {
         }
     }
 
+    /// The canonical deployment [`mde_role::Role`] this install profile maps to
+    /// (E1.4): lighthouse→Lighthouse, headless→Server, full→Workstation. The
+    /// installer pins this to `/var/lib/mde/role.toml` (E1.1's source of truth)
+    /// so the runtime role-gating (E1.2 workers, E1.3 units) reads one canonical
+    /// role rather than this installer-internal profile marker.
+    #[must_use]
+    pub const fn to_role(self) -> mde_role::Role {
+        match self {
+            Self::Lighthouse => mde_role::Role::Lighthouse,
+            Self::Headless => mde_role::Role::Server,
+            Self::Full => mde_role::Role::Workstation,
+        }
+    }
+
     /// One-line description for the interactive picker.
     #[must_use]
     pub const fn describe(self) -> &'static str {
@@ -162,5 +176,17 @@ mod tests {
         for p in Profile::all() {
             assert!(!is_lossy_downgrade(p, p));
         }
+    }
+
+    #[test]
+    fn to_role_maps_each_profile_to_the_canonical_rank() {
+        assert_eq!(Profile::Lighthouse.to_role(), mde_role::Role::Lighthouse);
+        assert_eq!(Profile::Headless.to_role(), mde_role::Role::Server);
+        assert_eq!(Profile::Full.to_role(), mde_role::Role::Workstation);
+        // The profile rank and the role rank agree (0 < 1 < 2), so the pinned
+        // role.toml carries the same rank `mde setup --profile=` would write.
+        assert_eq!(Profile::Lighthouse.to_role().rank(), 0);
+        assert_eq!(Profile::Headless.to_role().rank(), 1);
+        assert_eq!(Profile::Full.to_role().rank(), 2);
     }
 }

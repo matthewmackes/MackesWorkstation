@@ -4711,6 +4711,7 @@ version = "10.0.0"
 dependencies = [
  "clap",
  "mackes-mesh-types",
+ "mde-role",
  "serde",
  "serde_json",
  "tempfile",

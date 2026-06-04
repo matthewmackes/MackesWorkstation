@@ -34,6 +34,10 @@ ulid        = "1"
 # The shared types crate, NOT mackesd_core, so the installer reads
 # peer-data without the heavy control-plane dep.
 mackes-mesh-types = { path = "../../mesh/mackes-mesh-types" }
+# E1.4 — pin the canonical deployment role to /var/lib/mde/role.toml (E1.1's
+# source of truth) at install commit, so the role-gated runtime (E1.2 workers,
+# E1.3 units) is live with no manual `mde setup --profile` step.
+mde-role = { path = "../../platform/mde-role" }
 
 [dev-dependencies]
 tempfile = "3"
