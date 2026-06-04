@@ -145,6 +145,18 @@ enum Cmd {
         role: Option<String>,
     },
 
+    /// E1.3 — systemd `ExecCondition` role gate. Exits 0 when the box's pinned
+    /// deployment rank is at least `--min-rank`, else exits non-zero (systemd
+    /// then *skips* the unit rather than failing it) after logging the conflict
+    /// to the journal. The role-gated units use it so a forbidden service
+    /// refuses to start: `mde-session`/`greetd` require rank 2 (Workstation),
+    /// `lizardfs`/`ansible-pull.timer` require rank 1 (Server+).
+    RoleGate {
+        /// Minimum deployment rank the calling unit requires (0/1/2).
+        #[arg(long = "min-rank", value_name = "RANK")]
+        min_rank: u8,
+    },
+
     /// MESH-A-6.5 (v5.0.0) — detect a DNS leak (R8-Q41): a configured
     /// /etc/resolv.conf resolver not in `--expected` (the mesh resolver
     /// set). Prints leaked resolvers + exits 1 when any.
@@ -1284,6 +1296,20 @@ fn main() -> anyhow::Result<()> {
                     }
                 }
             }
+        }
+        Cmd::RoleGate { min_rank } => {
+            let rank = mackesd_core::worker_role::resolve_rank();
+            if rank < min_rank {
+                let role = mde_role::load()
+                    .map(|r| r.to_string())
+                    .unwrap_or_else(|_| "unpinned".to_string());
+                eprintln!(
+                    "mackesd role-gate: role conflict — this {role} box (rank {rank}) does not \
+                     satisfy the unit's required min-rank {min_rank}; refusing to start the service"
+                );
+                std::process::exit(1);
+            }
+            // rank >= min_rank: the gate is satisfied; the unit may start (exit 0).
         }
         Cmd::DnsLeakCheck { expected } => {
             use mackesd_core::surrounding_hosts::{dns_leak, parse_resolv_nameservers};

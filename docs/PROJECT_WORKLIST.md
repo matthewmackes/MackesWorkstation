@@ -290,7 +290,9 @@ _Depends: E0_
     - [ ] On Workstation all of the above desktop subcommands launch their surface.
     - [ ] Degrades gracefully with no mesh / no peers (cached state, Bus timeouts, never panic) — worker-gating still resolves and CLI surfaces still answer when the mesh is unreachable.
 
-- [ ] **E1.3: E1 — Role-aware systemd units + /etc/mackesd/ templates**
+- [>] **E1.3: E1 — Role-aware systemd units + /etc/mackesd/ templates** *(session=ship-2026-06-04)*
+  **Mechanism done (acceptance #4): the `mackesd role-gate --min-rank <N>` systemd `ExecCondition` checker.** Exits 0 when the box's resolved deployment rank ≥ N, else non-zero (systemd *skips* the unit, doesn't fail it) after journaling the role conflict. Reuses `worker_role::resolve_rank` (unpinned→Workstation; malformed→Lighthouse). Runtime-verified both paths: `--min-rank 0|2` → exit 0 on the unpinned dev box (rank 2); `--min-rank 3` → exit 1 + "role conflict … refusing to start". The role-gated units wire it (mde-session/greetd `ExecCondition=… --min-rank 2`; lizardfs/ansible-pull.timer `--min-rank 1`).
+  **Remaining (bench-gated packaging):** add the `ExecCondition` lines to the unit files in `data/systemd*/` (+ the headless units), ensure mackesd.service + mde-bus.service are role-agnostic, and acceptance #3 (mackesd reads `/etc/mackesd/` templates → edit+restart changes runtime behavior). Acceptance #1/#2/#4's *live* checks (`systemctl is-active` per role; a forbidden unit refusing at start) need a role-pinned, unit-installed box — a bench/deployed verification.
   **As** an operator, **I want** systemd to start the unit set matching my role, **so that** `systemctl` shows exactly the services that role requires and nothing it forbids.
   *Reuse:* `mde-session` (§9 as-is — session orchestrator) + `mackesd` unit (§9 as-is) + new packaging glue. *Deps:* E1.1, E1.2.
   **Acceptance** (runtime-observable):
