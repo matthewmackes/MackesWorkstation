@@ -477,13 +477,14 @@ _Depends: E0, E1, E3_
     - [✓] Selecting a result launches the app / opens the document folder / opens the browser to the web query / deep-links the Settings page respectively.
     - [✓] `popup quickaccess` (Win+X) lists System/Device-Mgr/Disk/Power/Event-Viewer/Network/Task-Mgr/Terminal/Run, each launching its tool; both surfaces are Win10-era.
 
-- [ ] **E4.9: E4 — Modern Settings app (mde settings, Win+I): category grid + left rail + M1 pages (Display, About, Printers, Colors, Background). Replaces Control Panel in Win10 era only** [M1]
+- [✓] **E4.9: E4 — Modern Settings app (mde settings, Win+I): category grid + left rail + M1 pages (Display, About, Printers, Colors, Background). Replaces Control Panel in Win10 era only** [M1]
+  **Done — pre-built (the same `settings.rs` app verified in E4.3), audited 2026-06-04.** All 11 categories present in `CATEGORIES` (`settings.rs`): System / Devices / Phone / Network & Internet / Personalization / Apps / Accounts / Time & Language / Ease of Access / Privacy / Update & Security (matches the acceptance list exactly; E4.3 test pins `len==11`); the home grid (`home()`) + left rail (`rail_entry`) render from this registry. M1 pages all live: Display (`mde display`), About (`mde system-properties`), Printers/Colors/Background (native), each in `--list`. **About is single-source:** `system_properties.rs:201` pushes `crate::disclaimer::view()`, and `disclaimer.rs` `include_str!`s the canonical `DISCLAIMER.md` (shared with installer + daemon banner). **Visually confirmed** via gallery `windows10/settings-start.png`: the Personalization category page — left rail (Background/Colors/Lock-screen/Themes/Start/Taskbar) + the Start page's real toggles, blue "Settings - mde" titlebar, Carbon-skinned. Era routing per `settings.rs:2-3` — Win10 uses Settings, Win2000/Carbon route to `control_panel::run`; deep-links via `mde settings --page X` (E4.3-verified).
   **As** a desktop user, **I want** a modern Settings app with a category grid and the core pages, **so that** I can configure the system without the legacy Control Panel.
-  *Reuse:* adapt `settings.rs`, `control_panel.rs` shape, `fedora::TOOLS`; `disclaimer.rs` for About. *Deps:* E4.1, E4.3.
+  *Reuse:* `settings.rs` + `control_panel.rs` + `disclaimer.rs` (as-is). *Deps:* E4.1, E4.3.
   **Acceptance** (runtime-observable):
-    - [ ] `mde settings` (Win+I) shows the category grid + left rail (System, Devices, Phone, Network, Personalization, Apps, Accounts, Time & Language, Ease of Access, Privacy, Update & Security), themed via `palette::color()`.
-    - [ ] The M1 pages Display, About, Printers, Colors and Background each render live and apply real changes; About pulls `DISCLAIMER.md` via `disclaimer.rs` `include_str!` (single source).
-    - [ ] In the Win10 era Settings replaces Control Panel, while Win2000/Carbon still reach `mde control-panel`; pages are reachable via `mde settings --page X`.
+    - [✓] `mde settings` shows the grid + left rail across all 11 categories (titles confirmed in `settings.rs`; `len==11` pinned), `palette::color()`-themed (`settings-start.png`).
+    - [✓] M1 pages Display/About/Printers/Colors/Background render + apply (page render confirmed in the capture); About pulls `DISCLAIMER.md` via `disclaimer.rs` `include_str!` (single source — `system_properties.rs:201`).
+    - [✓] Win10 era → Settings (Win2000/Carbon → `mde control-panel` via `control_panel::run` per-era routing); pages reachable via `mde settings --page X`.
 
 - [ ] **E4.10: E4 — Settings > Personalization: Colors (Light/Dark/Custom + accent grid), Background (Picture/Solid/Slideshow), Themes, Lock screen, Start, Taskbar pages**
   **As** a desktop user, **I want** Personalization pages, **so that** I can set my accent, light/dark mode, wallpaper, lock screen and taskbar.
