@@ -350,7 +350,13 @@ fn resolve_profile(args: &Args) -> Result<Profile, String> {
         return p.parse::<Profile>().map_err(|e| e.to_string());
     }
     if confirm::stdin_is_tty() {
-        let default = desktop_rpm_present().then_some(Profile::Full);
+        // E1.4 #3 — when a role is already pinned, surface it as the picker
+        // default so the menu shows it "(current)" and offers only
+        // equal-or-higher-rank targets (downgrades are refused there; a
+        // destructive demotion must use an explicit `--profile=`). On a fresh
+        // box (no pinned role) fall back to the desktop-RPM-presence heuristic.
+        let default = wipe::read_installed_profile()
+            .or_else(|| desktop_rpm_present().then_some(Profile::Full));
         let stdin = std::io::stdin();
         let mut locked = stdin.lock();
         let mut out = std::io::stdout();
