@@ -10,9 +10,9 @@
 //!      $XDG_CACHE_HOME/mde/*) via the matching applier modules.
 //!   3. Registers the `dev.mackes.MDE.Session` zbus surface
 //!      (Logout / Restart / Shutdown / Lock / SaveLayout).
-//!   4. Execs the compositor (sway) and waits.
+//!   4. Execs the compositor (labwc) and waits.
 //!   5. On SIGTERM / SIGINT cleanly tears down: signals the zbus
-//!      server, waits for sway to exit, exits 0.
+//!      server, waits for labwc to exit, exits 0.
 //!
 //! Iced + libcosmic for the logout / restart / shutdown dialog
 //! (Phase D.2) is intentionally NOT pulled in here — that's a
@@ -35,13 +35,18 @@ use anyhow::Context;
 use tokio::process::Command;
 use tokio::signal::unix::{signal, SignalKind};
 
-/// MDE-shipped sway config. Falls back here when the operator has no
-/// per-user override at `~/.config/sway/config` (the failure mode that
-/// landed operators in stock Fedora sway on fresh installs).
-const SYSTEM_SWAY_CONFIG: &str = "/usr/share/mde/sway/config";
+/// MDE-shipped labwc config DIR. Falls back here when the operator has no
+/// per-user config at `~/.config/labwc/` (the failure mode that landed
+/// operators in an empty / stock labwc session on fresh installs). labwc
+/// reads `{rc.xml,menu.xml,autostart,themerc}` from this directory. This is
+/// the same tree the RPM ships as the skel (see crates/shell/mde Cargo.toml
+/// generate-rpm assets), reused as the system fallback.
+const SYSTEM_LABWC_CONFIG_DIR: &str = "/usr/share/mde/skel/.config/labwc";
 
-/// Compositor command. Defaults to `sway` (wayland feature) or `i3`
-/// (x11 feature); override via `$MDE_COMPOSITOR` for development.
+/// Compositor command. Defaults to `labwc` (wayland feature, the locked
+/// compositor — plan §0 Q8) or `i3` (x11 feature); override via
+/// `$MDE_COMPOSITOR` for development (e.g. `sway` for the nested-capture
+/// harness).
 fn compositor_cmd() -> String {
     mackesd_core::env_with_legacy_fallback("MDE_COMPOSITOR", "MACKES_COMPOSITOR")
         .unwrap_or_else(default_compositor)
@@ -49,7 +54,7 @@ fn compositor_cmd() -> String {
 
 #[cfg(not(feature = "x11"))]
 fn default_compositor() -> String {
-    "sway".to_owned()
+    "labwc".to_owned()
 }
 
 #[cfg(feature = "x11")]
@@ -57,38 +62,38 @@ fn default_compositor() -> String {
     "i3".to_owned()
 }
 
-fn user_sway_config_path() -> Option<PathBuf> {
+fn user_labwc_config_dir() -> Option<PathBuf> {
     let base = std::env::var("XDG_CONFIG_HOME")
         .ok()
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .or_else(|| dirs::home_dir().map(|h| h.join(".config")))?;
-    Some(base.join("sway").join("config"))
+    Some(base.join("labwc"))
 }
 
-/// Pure helper: pick the `-c <path>` args sway should be invoked with.
-/// Empty vec = "let sway resolve its config the default way" — returned
-/// for non-sway compositors, when the user already has
-/// `~/.config/sway/config`, or when the system fallback is also absent.
-fn sway_config_args(
+/// Pure helper: pick the `-C <dir>` args labwc should be invoked with.
+/// Empty vec = "let labwc resolve its config the default way" — returned
+/// for non-labwc compositors, when the user already has `~/.config/labwc/`,
+/// or when the system fallback dir is also absent.
+fn labwc_config_args(
     compositor: &str,
-    user_config: Option<&Path>,
-    system_config: &Path,
+    user_config_dir: Option<&Path>,
+    system_config_dir: &Path,
 ) -> Vec<String> {
-    if compositor != "sway" {
+    if compositor != "labwc" {
         return Vec::new();
     }
-    if let Some(p) = user_config {
+    if let Some(p) = user_config_dir {
         if p.exists() {
             return Vec::new();
         }
     }
-    if !system_config.exists() {
+    if !system_config_dir.exists() {
         return Vec::new();
     }
     vec![
-        "-c".to_string(),
-        system_config.to_string_lossy().into_owned(),
+        "-C".to_string(),
+        system_config_dir.to_string_lossy().into_owned(),
     ]
 }
 
@@ -140,15 +145,15 @@ async fn main() -> anyhow::Result<()> {
 
     // 3. Exec the compositor.
     let cmp = compositor_cmd();
-    let user_cfg = user_sway_config_path();
-    let extra_args = sway_config_args(
+    let user_cfg = user_labwc_config_dir();
+    let extra_args = labwc_config_args(
         &cmp,
         user_cfg.as_deref(),
-        Path::new(SYSTEM_SWAY_CONFIG),
+        Path::new(SYSTEM_LABWC_CONFIG_DIR),
     );
     if !extra_args.is_empty() {
         tracing::info!(
-            "mde-session: no ~/.config/sway/config — falling back to {SYSTEM_SWAY_CONFIG}",
+            "mde-session: no ~/.config/labwc — falling back to {SYSTEM_LABWC_CONFIG_DIR}",
         );
     }
     tracing::info!("mde-session: starting compositor {cmp}");
@@ -187,57 +192,57 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sway_config_args_empty_for_non_sway_compositor() {
+    fn labwc_config_args_empty_for_non_labwc_compositor() {
         let tmp = tempfile::tempdir().expect("tempdir");
-        let system = tmp.path().join("config");
-        std::fs::write(&system, "").unwrap();
+        let system = tmp.path().join("sysdir");
+        std::fs::create_dir(&system).unwrap();
         let user = tmp.path().join("user-missing");
-        assert!(sway_config_args("i3", Some(&user), &system).is_empty());
-        assert!(sway_config_args("cage", Some(&user), &system).is_empty());
+        assert!(labwc_config_args("i3", Some(&user), &system).is_empty());
+        assert!(labwc_config_args("sway", Some(&user), &system).is_empty());
     }
 
     #[test]
-    fn sway_config_args_empty_when_user_config_exists() {
+    fn labwc_config_args_empty_when_user_dir_exists() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let user = tmp.path().join("user-config");
-        std::fs::write(&user, "").unwrap();
+        std::fs::create_dir(&user).unwrap();
         let system = tmp.path().join("system-config");
-        std::fs::write(&system, "").unwrap();
-        assert!(sway_config_args("sway", Some(&user), &system).is_empty());
+        std::fs::create_dir(&system).unwrap();
+        assert!(labwc_config_args("labwc", Some(&user), &system).is_empty());
     }
 
     #[test]
-    fn sway_config_args_empty_when_system_missing() {
+    fn labwc_config_args_empty_when_system_missing() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let user = tmp.path().join("user-missing");
         let system = tmp.path().join("system-missing");
-        assert!(sway_config_args("sway", Some(&user), &system).is_empty());
+        assert!(labwc_config_args("labwc", Some(&user), &system).is_empty());
     }
 
     #[test]
-    fn sway_config_args_returns_c_flag_when_user_missing_and_system_present() {
+    fn labwc_config_args_returns_big_c_flag_when_user_missing_and_system_present() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let user = tmp.path().join("user-missing");
         let system = tmp.path().join("system-config");
-        std::fs::write(&system, "").unwrap();
-        let args = sway_config_args("sway", Some(&user), &system);
+        std::fs::create_dir(&system).unwrap();
+        let args = labwc_config_args("labwc", Some(&user), &system);
         assert_eq!(args.len(), 2);
-        assert_eq!(args[0], "-c");
+        assert_eq!(args[0], "-C");
         assert_eq!(args[1], system.to_string_lossy());
     }
 
     #[test]
-    fn sway_config_args_returns_c_flag_when_no_user_path_at_all() {
+    fn labwc_config_args_returns_big_c_flag_when_no_user_path_at_all() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let system = tmp.path().join("system-config");
-        std::fs::write(&system, "").unwrap();
-        let args = sway_config_args("sway", None, &system);
+        std::fs::create_dir(&system).unwrap();
+        let args = labwc_config_args("labwc", None, &system);
         assert_eq!(args.len(), 2);
-        assert_eq!(args[0], "-c");
+        assert_eq!(args[0], "-C");
     }
 
     #[test]
-    fn system_sway_config_constant_points_at_install_path() {
-        assert_eq!(SYSTEM_SWAY_CONFIG, "/usr/share/mde/sway/config");
+    fn system_labwc_config_dir_constant_points_at_install_path() {
+        assert_eq!(SYSTEM_LABWC_CONFIG_DIR, "/usr/share/mde/skel/.config/labwc");
     }
 }
