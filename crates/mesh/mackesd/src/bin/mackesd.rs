@@ -3522,8 +3522,11 @@ fn run_serve(
         // stateless (it appends to action/shell/<verb> per call), so the
         // relay always attaches it — a CRITICAL alert's goto(control) is
         // durable even if mde-portal is down at the time.
-        let alert_relay = mackesd_core::workers::alert_relay::AlertRelayWorker::new()
-            .with_portal_client(mackesd_core::ipc::portal::PortalClient::new());
+        // E4.20 — the portal-era "navigate to Control on CRITICAL" publish was
+        // dropped: alerts already surface via `notify-send` → notifyd → the Win10
+        // Action Center, so the `action/shell/goto` Bus publish (whose only
+        // consumer was the retired portal) is redundant.
+        let alert_relay = mackesd_core::workers::alert_relay::AlertRelayWorker::new();
         tracing::info!(
             "alert_relay: PortalClient attached \
              (CRITICAL alerts publish action/shell/goto control)"

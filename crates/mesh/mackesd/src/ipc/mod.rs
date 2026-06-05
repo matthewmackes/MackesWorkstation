@@ -35,10 +35,9 @@ pub mod fleet;
 // Reachable from run_serve at boot.
 pub mod nebula;
 pub mod notifications;
-// v6.0 Portal-1 — thin async client for dev.mackes.MDE.Portal.
-// mackesd callers (idle-lock, alert relay, DND sync) import
-// PortalClient::new + call .lock() / .goto() / .toggle_dnd().
-pub mod portal;
+// E4.20 (2026-06-04): the `portal` Bus-publish client (action/shell/<verb>) was
+// retired with mde-portal — its only caller (alert_relay's CRITICAL goto) is
+// redundant with the notify-send → notifyd → Action Center path.
 // DBUS-1 (2026-05-30): the `session` D-Bus interface module was retired
 // — the session lifecycle surface migrated to Bus `action/session/<verb>`
 // in `crates/mde-session/src/session.rs` (Q96 / EPIC-RETIRE-DBUS). The
