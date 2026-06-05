@@ -68,6 +68,7 @@ mod task_view;
 mod taskbar_properties;
 mod tray;
 mod tui_setup;
+mod urgent_theater;
 mod uri;
 mod wallpaper;
 mod wlr;

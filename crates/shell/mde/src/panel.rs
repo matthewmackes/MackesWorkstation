@@ -138,6 +138,7 @@ enum Message {
     NetFlyout,                 // Win10 network flyout (E15.3)
     Reveal,                    // auto-hide: pointer entered the strip → expand (E2.9a)
     Unreveal,                  // auto-hide: pointer left the bar → collapse to 1px
+    UrgentAlert(crate::urgent_theater::UrgentAlert), // BUS-2.5 urgent-theater (E0.17)
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
@@ -422,7 +423,14 @@ fn style(_state: &Panel, _theme: &iced::Theme) -> Appearance {
 }
 
 fn subscription(_state: &Panel) -> iced::Subscription<Message> {
-    iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick)
+    iced::Subscription::batch([
+        iced::time::every(Duration::from_secs(1)).map(|_| Message::Tick),
+        // BUS-2.5 urgent-theater (E0.17): a `priority=urgent` fleet/announce
+        // segment raises the full-screen `mde-popover urgent` takeover. The
+        // mapper is a non-capturing (zero-sized) closure — a fn pointer panics
+        // at startup under iced_futures 0.13.
+        crate::urgent_theater::subscription(Message::UrgentAlert),
+    ])
 }
 
 fn update(state: &mut Panel, message: Message) -> Task<Message> {
@@ -567,6 +575,10 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
                 (0, 1)
             };
             return Task::done(Message::SizeChange(size));
+        }
+        Message::UrgentAlert(alert) => {
+            // BUS-2.5 (E0.17) — raise the full-screen urgent takeover.
+            crate::urgent_theater::spawn_urgent_theater(&alert);
         }
         _ => {}
     }
