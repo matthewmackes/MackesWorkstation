@@ -109,6 +109,13 @@ once this repo builds and is pushed — they live on as the history merged here.
   `cargo tree` shows one host, the legacy `mde-kdc{,-proto}` are fully orphaned
   (#1/#2 met; discovery/pair/ping parity = 2-device bench). E2.3/2.4 downstream;
   follow-up: drop the orphaned legacy crates from `[workspace] members`.
+  **E2.3 ✅ to floor** (commits `4d6f9ed7`/`274757d1`/`2c49595e`): the canonical
+  `PairingStore` is interior-mutable (one shared `Arc`); mackesd's `kdc_host` worker
+  runs the single supervised host (UDP discovery + the E2.1 TLS listener) + serves the
+  roster on `action/connect/devices`; the shell's `mde connect` is now a pure Bus
+  client (the shell dropped its `mde-kdc-host`/`mde-kdc-proto` deps — `cargo tree -p
+  mde` shows zero KDC-host refs). All 4 acceptance met single-node; live online/battery
+  = 2-device bench. E2.4 (sftp Cloud Files) next.
 - **E3 — LizardFS mesh-storage: ❌ blocked** on the external LizardFS FUSE dependency
   (E3.1 `[!]`).
 - **E4 — Win10 shell era: ✅ done** (the large E4.1–E4.23 epic — taskbar, tiled Start,
