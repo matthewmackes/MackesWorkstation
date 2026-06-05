@@ -43,6 +43,7 @@ mod net_flyout;
 mod nm;
 mod notifyd;
 mod oobe;
+mod open_uri;
 mod outputs;
 mod packages;
 mod panel;
@@ -66,6 +67,7 @@ mod task_view;
 mod taskbar_properties;
 mod tray;
 mod tui_setup;
+mod uri;
 mod wallpaper;
 mod wlr;
 mod workspace;
@@ -82,6 +84,7 @@ COMMANDS:
     menu [MODE]      Start menu (modes: main, programs, system, run)
     popup KIND       Context menu (kinds: taskbar, start) for the panel
     files [PATH]     Explorer-style file manager
+    open-uri URI     Dispatch an mde:// URI (the x-scheme-handler/mde handler)
     mount URI        Mount a remote share (smb://, sftp://…); prints its local path
     control-panel    MackesDE 2000 Control Panel
     add-remove       Add/Remove Programs (dnf-backed package manager)
@@ -210,6 +213,9 @@ fn main() -> ExitCode {
         "popup" => popup::run(rest),
         "jumplist" => popup::run_jumplist(rest),
         "files" => files::run(rest),
+        // `mde open-uri mde://…` — the x-scheme-handler/mde dispatcher (E4.20,
+        // migrated from the retired mde-portal mde-open).
+        "open-uri" => open_uri::run(rest),
         "add-remove" => packages::run(rest),
         "browser-default" => browser::run(rest),
         "browser-jumplist" => browser_jumplist::run(rest),

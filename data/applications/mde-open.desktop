@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
 Name=MDE URI Handler
-Comment=Dispatch mde:// URIs to the running MDE Portal (Portal-35).
-Exec=/usr/bin/mde-open %u
+Comment=Dispatch mde:// URIs to the Mackes Workstation shell (E4.20)
+Exec=/usr/bin/mde open-uri %u
 Icon=preferences-desktop
 Categories=System;
 MimeType=x-scheme-handler/mde;
