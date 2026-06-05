@@ -807,7 +807,9 @@ impl App {
             (Group::Fleet, "run_history") => run_history_panel::RunHistoryPanel::load(),
             (Group::System, "datetime") => datetime_panel::DateTimePanel::load(),
             (Group::System, "default_apps") => default_apps_panel::DefaultAppsPanel::load(),
-            (Group::System, "window_manager") => window_manager_panel::WindowManagerPanel::load(),
+            (Group::LookAndFeel, "window_manager") => {
+                window_manager_panel::WindowManagerPanel::load()
+            }
             (Group::Maintain, "snapshots") => snapshots_panel::SnapshotsPanel::load(),
             (Group::Maintain, "logs") => logs_panel::LogsPanel::load(),
             (Group::Maintain, "resources") => resources_panel::ResourcesPanel::load(),
@@ -1044,7 +1046,7 @@ impl App {
                 panel: "default_apps",
             } => self.default_apps.view(),
             View::Panel {
-                group: Group::System,
+                group: Group::LookAndFeel,
                 panel: "window_manager",
             } => self.window_manager.view(),
             View::Panel {
