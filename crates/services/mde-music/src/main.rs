@@ -28,8 +28,43 @@ fn main() -> iced::Result {
         State::view,
     )
     .subscription(State::subscription)
+    .theme(|_state: &State| mde_music_iced_theme())
     .window_size(Size::new(1100.0, 720.0))
     .run_with(|| (State::new(), Task::none()))
+}
+
+/// Build the media player's `iced::Theme` from the canonical
+/// `mde_theme::Palette` (E5.3) — the Q2 indigo accent, Apple-charcoal
+/// background, and the centralized semantic tokens, single-sourced so
+/// the player's chrome matches the rest of the MDE dark desktop instead
+/// of iced's default light theme. (The now-playing surface keeps its
+/// album-art-driven accent on top of this base.)
+#[must_use]
+fn mde_music_iced_theme() -> iced::Theme {
+    use mde_theme::Palette;
+    // Convert an mde_theme `Rgba` (u8) to this crate's `iced::Color`
+    // via a struct literal — avoids both the cross-crate `iced::Color`
+    // skew of `into_iced_color()` and a raw `from_rgb*`/hex token.
+    fn c(rgba: mde_theme::Rgba) -> iced::Color {
+        iced::Color {
+            r: f32::from(rgba.r) / 255.0,
+            g: f32::from(rgba.g) / 255.0,
+            b: f32::from(rgba.b) / 255.0,
+            a: 1.0,
+        }
+    }
+    let p = Palette::dark();
+    // NB: this crate's iced `theme::Palette` predates the `warning`
+    // field (a dep skew from the workbench's iced), so it carries the
+    // 5 base roles only.
+    let palette = iced::theme::Palette {
+        background: c(p.background),
+        text: c(p.text),
+        primary: c(p.accent),
+        success: c(p.success),
+        danger: c(p.danger),
+    };
+    iced::Theme::custom("MDE Music".to_string(), palette)
 }
 
 /// The first-run "connect your Airsonic server" form, shown until valid
@@ -1274,4 +1309,22 @@ fn result_section<'a>(
     }
     col = col.push(Space::with_height(Length::Fixed(10.0)));
     col.into()
+}
+
+#[cfg(test)]
+mod theme_tests {
+    use super::mde_music_iced_theme;
+
+    #[test]
+    fn iced_theme_builds_from_the_mde_palette() {
+        // E5.3 — the player theme derives from mde_theme::Palette::dark()
+        // (the MDE dark base), not iced's default light theme. Its
+        // extended palette background must equal the palette's charcoal.
+        let theme = mde_music_iced_theme();
+        let bg = theme.extended_palette().background.base.color;
+        let p = mde_theme::Palette::dark();
+        assert!((bg.r - f32::from(p.background.r) / 255.0).abs() < 0.01);
+        assert!((bg.g - f32::from(p.background.g) / 255.0).abs() < 0.01);
+        assert!((bg.b - f32::from(p.background.b) / 255.0).abs() < 0.01);
+    }
 }

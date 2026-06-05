@@ -83,8 +83,8 @@ crates/services/mde-files/src/theme.rs:185
 crates/services/mde-files/src/theme.rs:208
 crates/services/mde-files/src/theme.rs:222
 crates/services/mde-files/src/widgets.rs:755
-crates/services/mde-music/src/main.rs:1022
-crates/services/mde-music/src/main.rs:1023
+crates/services/mde-music/src/main.rs:1057
+crates/services/mde-music/src/main.rs:1058
 crates/shared/mackes-theme/src/lib.rs:18
 crates/shared/mackes-theme/src/lib.rs:19
 crates/shared/mackes-theme/src/lib.rs:263
