@@ -56,20 +56,20 @@ mackes-nebula-https-tunnel = { path = "../mackes-nebula-https-tunnel" }
 # mackes-https-tunnel, mackesd::transport::direct_udp).
 mackes-transport = { path = "../mackes-transport" }
 
-# KDC2-3.10 — host integration crate consumed by the kdc_host
-# worker under async-services. Pulls in mde-kdc-proto + rsa +
-# pkcs8 transitively, so it's behind the same feature gate that
-# already gates tokio + zbus.
-mde-kdc = { path = "../../legacy/mde-kdc", optional = true }
+# KDC2-3.10 — the canonical host integration crate consumed by the
+# kdc_host worker under async-services (E2.2, 2026-06-05: converged
+# off the retired legacy `mde-kdc`; one host across the monorepo).
+# Provides `pairing::{PairingStore,DeviceRecord}` + the LAN transport;
+# pulls in mde-kdc-proto + rsa + pkcs8 transitively, so it's behind
+# the same feature gate that already gates tokio + zbus.
+mde-kdc-host = { path = "../../kdc/mde-kdc-host", optional = true }
 
-# Pure protocol crate consumed by `workers/kdc_host.rs` for
-# `DiscoveryRegistry` integration. The original mesh-shunt
-# helper (`transport::mesh_shunt`) was retired with TUNE-3.b
-# (2026-05-27) — phone discovery now flows through full
-# Nebula peer-hood per Q23 of the 25-Q tuning survey
-# (EPIC PHONE-NEBULA-PEER). No feature gate — these are pure
+# The canonical pure protocol crate (E2.2 — replaced the renamed
+# `mde-kdc-proto-legacy`): `wire::Packet` for the kdc_host worker's
+# outbound queue + `dispatch::PluginAuthority` implemented by
+# `transport::policy::LoadedPolicy`. No feature gate — these are pure
 # types, no I/O or async runtime needed in the base build.
-mde-kdc-proto = { path = "../../legacy/mde-kdc-proto", package = "mde-kdc-proto-legacy" }
+mde-kdc-proto = { path = "../../kdc/mde-kdc-proto" }
 
 # EPIC-MESH-PROBE (MESH-PROBE-2) — the probe inventory IS mde-card
 # Cards (Q7): the nmap parser emits Host cards with Service children
@@ -279,7 +279,7 @@ async-services = [
     "dep:zbus",
     "dep:async-trait",
     "dep:mdns-sd",
-    "dep:mde-kdc",
+    "dep:mde-kdc-host",
     "dep:rustls",
     "dep:tokio-rustls",
     "dep:rustls-native-certs",

@@ -50,6 +50,7 @@
 pub mod codec;
 pub mod crypto;
 pub mod discovery;
+pub mod dispatch;
 pub mod plugins;
 pub mod wire;
 

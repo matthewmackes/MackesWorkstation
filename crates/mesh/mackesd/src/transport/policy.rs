@@ -163,11 +163,11 @@ impl LoadedPolicy {
 }
 
 // KDC2-3.11 — `LoadedPolicy` IS the `PluginAuthority` consumed
-// by the KDC dispatch check. Gated behind the `async-services`
-// feature so the trait impl + the mde-kdc dep tree only land
-// in the daemon binary build.
-#[cfg(feature = "async-services")]
-impl mde_kdc::dispatch::PluginAuthority for LoadedPolicy {
+// by the KDC dispatch check. E2.2 (2026-06-05) — the dispatch
+// policy trait moved to the canonical `mde-kdc-proto` (a pure,
+// always-on dep), so this impl is no longer gated on
+// `async-services` and the legacy `mde-kdc` host is gone.
+impl mde_kdc_proto::dispatch::PluginAuthority for LoadedPolicy {
     fn plugin_allowed(&self, name: &str) -> bool {
         LoadedPolicy::plugin_allowed(self, name)
     }

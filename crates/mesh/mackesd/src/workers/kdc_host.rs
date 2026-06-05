@@ -1,38 +1,42 @@
 //! KDC2-3.10 — the KDE Connect host registered as a `mackesd` worker.
 //!
-//! Owns the `Arc<PairingStore>` + the operator-facing **Connect** surface
-//! over the Bus (`action/connect/<verb>`: version / list / get / pair /
-//! unpair / ring / sms / clipboard) + the pending-sends queue.
+//! Owns the `Arc<Mutex<PairingStore>>` + the operator-facing **Connect**
+//! surface over the Bus (`action/connect/<verb>`: version / list / get /
+//! pair / unpair / ring / sms / clipboard) + the pending-sends queue.
 //!
-//! **E2.2 (2026-06-05) — KDC host convergence.**
+//! **E2.2 (2026-06-05) — KDC host convergence (complete).**
 //! *Step 1* dropped the held-but-unused `mde_kdc::transport::KdcHost`
 //! orchestrator + `mde_kdc_proto::discovery::DiscoveryRegistry`
 //! scaffolding (nothing consumed the `host()`/`discovery()` accessors —
 //! §3 dead code for never-built workers).
-//! *Step 2 (this file)* retired the legacy `mde_kdc::dbus::DbusServer`
+//! *Step 2* retired the legacy `mde_kdc::dbus::DbusServer`
 //! (`dev.mackes.MDE.Connect` D-Bus) in favour of a **Bus responder**
 //! ([`serve_connect_bus`] + the pure [`handle_connect_verb`]) over
 //! `action/connect/<verb>` request → `reply/<ulid>`, per the
-//! EPIC-RETIRE-DBUS lock — which also advances E0.3.7's final D-Bus
-//! sweep. The store verbs are faithful ports; `ring`/`sms`/`clipboard`
-//! keep enqueuing onto the outbound queue (the live send is the 2-device
-//! bench / the `kdc_outbound` drainer follow-up).
-//! *Remaining:* swap the legacy `pairing::PairingStore`/`outbound` for the
-//! canonical `mde-kdc-host` equivalents (E2.3 — one store), then drop the
-//! `crates/legacy/mde-kdc` path-dep so `cargo tree` shows one host.
+//! EPIC-RETIRE-DBUS lock — which also advanced E0.3.7's D-Bus sweep.
+//! *Step 3 (this file)* converged off the legacy `mde-kdc` host entirely:
+//! the store is the canonical [`mde_kdc_host::pairing::PairingStore`]
+//! (one store across the monorepo — folds into E2.3), the outbound queue
+//! is a small worker-local [`PendingSends`] over the canonical
+//! `mde_kdc_proto::wire::Packet`, and the plugin-dispatch policy trait now
+//! lives in the canonical `mde_kdc_proto::dispatch`. With that the legacy
+//! `crates/legacy/mde-kdc{,-proto}` path-deps are gone and `cargo tree`
+//! shows one KDE Connect host (E2.2 acceptance #1/#2). The live
+//! ring/sms/clipboard send is the 2-device bench / the `kdc_outbound`
+//! drainer follow-up.
 
 #![cfg(feature = "async-services")]
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use mde_bus::hooks::config::Priority;
 use mde_bus::persist::Persist;
 use mde_bus::rpc::reply_topic;
-use mde_kdc::outbound::{OutboundSend, PendingSends};
-use mde_kdc::pairing::{PairedDevice, PairingError, PairingStore};
+use mde_kdc_host::error::HostError;
+use mde_kdc_host::pairing::{DeviceRecord, PairingStore};
 use serde_json::{json, Value};
 use tracing::{debug, error, info, warn};
 
@@ -60,6 +64,57 @@ const CONNECT_POLL: Duration = Duration::from_millis(400);
 /// `lan_discovery` uses for its idle scan.
 const TICK: Duration = Duration::from_secs(30);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Worker-local outbound queue
+//
+// E2.2 — the canonical `mde-kdc-host` is the lower-level host (LAN transport,
+// pairing, TLS) and owns no operator-action send queue, so the queue the
+// retired legacy `mde_kdc::outbound` provided lives here, over the canonical
+// `mde_kdc_proto::wire::Packet`. Intentionally simple — a `Mutex<Vec<...>>` —
+// because the throughput target is operator-scale (clicks per minute). The
+// `ring`/`sms`/`clipboard` verbs push here; a future `kdc_outbound` worker (or
+// the `LanTransport::send_to` path at the 2-device bench) drains it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One pending outbound send: a built `Packet` addressed to a paired device id.
+#[derive(Debug, Clone, PartialEq)]
+struct OutboundSend {
+    /// Paired-device id (KDC UUID) — picks the per-peer transport at drain.
+    device_id: String,
+    /// Already-built `Packet` (type-tagged + body-serialized).
+    packet: mde_kdc_proto::wire::Packet,
+}
+
+/// Shared outbound queue handle. Cloneable cheaply via `Arc`; the Bus
+/// responder pushes, the future drainer takes.
+#[derive(Debug, Clone, Default)]
+struct PendingSends {
+    inner: Arc<Mutex<Vec<OutboundSend>>>,
+}
+
+impl PendingSends {
+    /// Empty queue.
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// Enqueue one outbound send. Poison-tolerant (operator-scale, single op).
+    fn push(&self, send: OutboundSend) {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(send);
+    }
+
+    /// Current backlog length. O(1).
+    fn len(&self) -> usize {
+        self.inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len()
+    }
+}
+
 /// Async worker that owns the KDC host objects.
 pub struct KdcHostWorker {
     config_dir: PathBuf,
@@ -86,16 +141,22 @@ impl KdcHostWorker {
     }
 
     /// Open the on-disk pairing store (creating the identity on first
-    /// run). Idempotent + cheap once `identity.pem` exists, so `run`
-    /// can call it freely after a restart.
-    fn open_pairing(&self) -> Result<Arc<PairingStore>, PairingError> {
-        Ok(Arc::new(PairingStore::open_or_init(&self.config_dir)?))
+    /// run). Idempotent + cheap once `identity.pkcs8` exists, so `run`
+    /// can call it freely after a restart. Wrapped in a `Mutex` because
+    /// the canonical `PairingStore::{pair,unpair}` take `&mut self`.
+    fn open_pairing(&self) -> Result<Arc<Mutex<PairingStore>>, HostError> {
+        Ok(Arc::new(Mutex::new(PairingStore::open(&self.config_dir)?)))
     }
 }
 
+/// Lock the pairing store, recovering the guard if a prior holder panicked
+/// (poison-tolerant — the store is plain data, no broken invariant on panic).
+fn lock_store(store: &Mutex<PairingStore>) -> MutexGuard<'_, PairingStore> {
+    store.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
 /// Build an outbound `Packet` from a kind token + body (id = wall-clock
-/// ms, the receiver's dual-send dedupe key). Replicates the legacy
-/// `dbus::build_packet` so the responder doesn't depend on `mde_kdc::dbus`.
+/// ms, the receiver's dual-send dedupe key).
 fn build_packet(kind: &str, body: Value) -> mde_kdc_proto::wire::Packet {
     let id = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -109,27 +170,26 @@ fn build_packet(kind: &str, body: Value) -> mde_kdc_proto::wire::Packet {
     }
 }
 
-/// A paired device as the Bus reply renders it (the wire subset, no
-/// `public_key_b64`).
-fn device_json(d: &PairedDevice) -> Value {
+/// A paired device as the Bus reply renders it. The canonical
+/// [`DeviceRecord`] persists the id, friendly name, first-pair timestamp, and
+/// the pinned TLS cert fingerprint (the wire/capability fields the legacy
+/// store carried are not persisted by the canonical store).
+fn device_json(d: &DeviceRecord) -> Value {
     json!({
-        "id": d.id,
-        "name": d.name,
-        "kind": d.kind,
+        "id": d.device_id,
+        "name": d.device_name,
         "fingerprint": d.fingerprint,
-        "capabilities": d.capabilities,
-        "paired_at": d.paired_at,
-        "last_seen_at": d.last_seen_at,
+        "paired_at": d.paired_at_ms,
     })
 }
 
 /// Handle one `action/connect/<verb>` request and return the reply JSON.
 /// Pure over (`store`, `outbound`) — the unit tests drive it directly.
-/// E2.2 — faithfully ports the retired `dev.mackes.MDE.Connect1` methods:
+/// E2.2 — faithfully serves the operator verbs over the canonical store:
 /// `version`/`list`/`get` read; `pair`/`unpair` mutate the store;
 /// `ring`/`sms`/`clipboard` enqueue an outbound `Packet`.
 fn handle_connect_verb(
-    store: &PairingStore,
+    store: &Mutex<PairingStore>,
     outbound: &PendingSends,
     verb: &str,
     body: &Value,
@@ -141,76 +201,64 @@ fn handle_connect_verb(
     };
     let reply = match verb {
         "version" => json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") }),
-        "list" => json!({
-            "ok": true,
-            "devices": store.list().iter().map(device_json).collect::<Vec<_>>(),
-        }),
-        "get" => match dev_id().and_then(|id| store.get(&id)) {
-            Some(d) => json!({ "ok": true, "device": device_json(&d) }),
-            None => json!({ "ok": false, "error": "NoSuchDevice" }),
-        },
+        "list" => {
+            let guard = lock_store(store);
+            json!({
+                "ok": true,
+                "devices": guard.records().into_iter().map(device_json).collect::<Vec<_>>(),
+            })
+        }
+        "get" => {
+            let guard = lock_store(store);
+            match dev_id().and_then(|id| guard.get(&id).map(device_json)) {
+                Some(device) => json!({ "ok": true, "device": device }),
+                None => json!({ "ok": false, "error": "NoSuchDevice" }),
+            }
+        }
         "pair" => {
-            let device = PairedDevice {
-                id: body
+            let record = DeviceRecord {
+                device_id: body
                     .get("id")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
-                name: body
+                device_name: body
                     .get("name")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
-                kind: body
-                    .get("kind")
-                    .and_then(Value::as_str)
-                    .unwrap_or("unknown")
-                    .to_string(),
+                paired_at_ms: body.get("paired_at").and_then(Value::as_i64).unwrap_or(0),
                 fingerprint: body
                     .get("fingerprint")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_string(),
-                public_key_b64: body
-                    .get("public_key_b64")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
-                capabilities: body
-                    .get("capabilities")
-                    .and_then(Value::as_array)
-                    .map(|a| {
-                        a.iter()
-                            .filter_map(|v| v.as_str().map(str::to_string))
-                            .collect()
-                    })
-                    .unwrap_or_default(),
-                paired_at: body.get("paired_at").and_then(Value::as_i64).unwrap_or(0),
-                last_seen_at: 0,
             };
-            let name = device.name.clone();
-            match store.upsert(device) {
-                Ok(()) => {
-                    // Best-effort mesh-storage drop folder (GF-15.1).
-                    let _ = mde_kdc::receive::ensure_phone_drop_folder(&name);
-                    json!({ "ok": true })
-                }
+            let mut guard = lock_store(store);
+            match guard.pair(record) {
+                Ok(()) => json!({ "ok": true }),
                 Err(e) => json!({ "ok": false, "error": format!("PersistFailed: {e}") }),
             }
         }
         "unpair" => match dev_id() {
-            Some(id) => match store.forget(&id) {
-                Ok(true) => json!({ "ok": true }),
-                Ok(false) => json!({ "ok": false, "error": "NoSuchDevice" }),
-                Err(e) => json!({ "ok": false, "error": format!("PersistFailed: {e}") }),
-            },
+            Some(id) => {
+                let mut guard = lock_store(store);
+                if guard.is_paired(&id) {
+                    match guard.unpair(&id) {
+                        Ok(()) => json!({ "ok": true }),
+                        Err(e) => json!({ "ok": false, "error": format!("PersistFailed: {e}") }),
+                    }
+                } else {
+                    json!({ "ok": false, "error": "NoSuchDevice" })
+                }
+            }
             None => json!({ "ok": false, "error": "NoSuchDevice" }),
         },
         "ring" | "sms" | "clipboard" => {
             let Some(id) = dev_id() else {
                 return json!({ "ok": false, "error": "NoSuchDevice" }).to_string();
             };
-            if store.get(&id).is_none() {
+            if !lock_store(store).is_paired(&id) {
                 return json!({ "ok": false, "error": "NoSuchDevice" }).to_string();
             }
             let packet = match verb {
@@ -244,7 +292,7 @@ fn handle_connect_verb(
 /// when `stop` is set. Mirrors `mde-session`'s poll responder.
 fn serve_connect_bus(
     persist: &Persist,
-    store: &PairingStore,
+    store: &Mutex<PairingStore>,
     outbound: &PendingSends,
     stop: &AtomicBool,
 ) {
@@ -361,18 +409,17 @@ mod tests {
 
     #[test]
     fn open_pairing_creates_the_identity() {
-        // E2.2 — the worker holds only the pairing store now (the dead
-        // KdcHost/discovery scaffolding was dropped). open_pairing opens
-        // it, creating identity.pem on first run.
+        // E2.2 — the worker holds the canonical pairing store now.
+        // open_pairing opens it, creating identity.pkcs8 on first run.
         let tmp = tempdir().unwrap();
         let w = KdcHostWorker::new(tmp.path().to_path_buf());
         let store = w.open_pairing().unwrap();
         assert!(Arc::strong_count(&store) >= 1);
-        assert!(tmp.path().join("identity.pem").exists());
+        assert!(tmp.path().join("identity.pkcs8").exists());
     }
 
-    fn test_store(dir: &std::path::Path) -> PairingStore {
-        PairingStore::open_or_init(dir).unwrap()
+    fn test_store(dir: &std::path::Path) -> Mutex<PairingStore> {
+        Mutex::new(PairingStore::open(dir).unwrap())
     }
 
     fn pair_body(id: &str, name: &str) -> Value {
@@ -430,6 +477,7 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(g["device"]["name"], "Pixel");
+        assert_eq!(g["device"]["fingerprint"], "AB:CD");
         // get unknown
         let gx: Value = serde_json::from_str(&handle_connect_verb(
             &store,
@@ -456,6 +504,21 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(u2["error"], "NoSuchDevice");
+    }
+
+    #[test]
+    fn connect_verb_pair_persists_across_reopen() {
+        // E2.2 — the pair verb writes through to the canonical store's
+        // devices.toml; a fresh store opened on the same dir sees it.
+        let tmp = tempdir().unwrap();
+        {
+            let store = test_store(tmp.path());
+            let outbound = PendingSends::new();
+            handle_connect_verb(&store, &outbound, "pair", &pair_body("d1", "Pixel"));
+        }
+        let reopened = PairingStore::open(tmp.path()).unwrap();
+        assert!(reopened.is_paired("d1"));
+        assert_eq!(reopened.get("d1").unwrap().device_name, "Pixel");
     }
 
     #[test]
@@ -497,7 +560,7 @@ mod tests {
         tx.send(true).expect("shutdown channel intact");
         let result = handle.await.expect("worker join");
         assert!(result.is_ok(), "worker must exit Ok on shutdown");
-        // identity.pem was created during init.
-        assert!(tmp.path().join("identity.pem").exists());
+        // identity.pkcs8 was created during init.
+        assert!(tmp.path().join("identity.pkcs8").exists());
     }
 }
