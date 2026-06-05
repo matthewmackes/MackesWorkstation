@@ -12,7 +12,7 @@
 %global appname mde
 
 Name:           mde-core
-Version:        4.0.0
+Version:        10.0.0
 Release:        1%{?dist}
 Summary:        Mackes Desktop Environment (MDE) — headless core substrate (Fedora Server build-up base)
 
