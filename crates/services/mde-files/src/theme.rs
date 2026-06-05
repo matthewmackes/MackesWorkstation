@@ -89,6 +89,11 @@ pub fn mde_files_palette() -> mde_theme::Palette {
             c.a,
         )
     };
+    // The three semantic roles (success/danger/warning) are platform-wide
+    // tokens single-sourced in `mde_theme` (E5.3); reuse them verbatim rather
+    // than minting a divergent set here — only the surface/accent tiers are
+    // mde-files-specific.
+    let semantic = mde_theme::Palette::dark();
     mde_theme::Palette {
         background: to_rgba(BG),
         surface: to_rgba(WINDOW_TITLEBAR),
@@ -98,6 +103,9 @@ pub fn mde_files_palette() -> mde_theme::Palette {
         border: to_rgba(PF_BORDER),
         text: to_rgba(FG),
         text_muted: to_rgba(FG_FAINT),
+        success: semantic.success,
+        danger: semantic.danger,
+        warning: semantic.warning,
     }
 }
 pub const WINDOW_TITLEBAR: Color = PF_BG_200;

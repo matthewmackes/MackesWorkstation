@@ -79,9 +79,9 @@ crates/mesh/mackes-mesh-types/src/tags.rs:361
 crates/mesh/mackes-mesh-types/src/tags.rs:505
 crates/mesh/mackes-mesh-types/src/tags.rs:508
 crates/mesh/mackes-mesh-types/src/tags.rs:63
-crates/services/mde-files/src/theme.rs:185
-crates/services/mde-files/src/theme.rs:208
-crates/services/mde-files/src/theme.rs:222
+crates/services/mde-files/src/theme.rs:193
+crates/services/mde-files/src/theme.rs:216
+crates/services/mde-files/src/theme.rs:230
 crates/services/mde-files/src/widgets.rs:755
 crates/services/mde-music/src/main.rs:1057
 crates/services/mde-music/src/main.rs:1058
