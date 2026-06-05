@@ -981,10 +981,13 @@ _Depends: surfaced by the E0.11 audit (2026-06-03). These are v1.x→v2.0.0 tran
 - [ ] **RETIRE-PY.6: RETIRE-PY — Pure-Rust asset installer — drop the `python3` "Asset installer runtime" dep (catalogue.rs)**
   **As** a packager, **I want** `mde install --assets` to fetch + stage assets without a `python3` runtime, **so that** the asset path is pure-Rust (git fetch + native unpack).
   *Reuse:* `mde/src/catalogue.rs` + `install.rs`. *Deps:* none.
+  **Finding (2026-06-04, ship-drain):** scoped during the drain — bigger + entangled. `install.rs::run` shells to a bash orchestrator (`install-assets.sh`) found via `locate_orchestrator`, which runs **two** installers: `install-chicago95.sh` (bash) and `install-win2k-icons.py` (the **sole** python3 source — 226 lines: fetch tarball from `$MDE_WIN2K_URL`/KDE-Store 1120706 → gzip+tar extract to `~/.local/share/icons/Win2k` → freedesktop alias copies → spec `index.theme` → `gtk-update-icon-cache`). **Two blockers:** (1) *none* of the three scripts live in the live monorepo — they exist only under `provenance/mde-retro/assets/` + `skel/.config/sway/scripts/`, so `mde install --assets` can't even locate an orchestrator in a checkout/RPM today (separate monorepo-ification gap); (2) a native port needs new deps — a rustls HTTP client (`ureq`, reuses the project's existing rustls/ring) + pure-Rust `flate2`(miniz_oxide)+`tar`. **Re-split (each ships complete in one commit):**
+    - **6a — native Win2k icon installer:** port `install-win2k-icons.py` → a Rust module in `mde` (fetch+extract+alias+index.theme+cache); locally verifiable against a synthetic pre-seeded tarball (the script honors a cached `TARBALL`, so no live-network dep for the §3 check). Drops the `("python3", …)` entry from `catalogue.rs`. *This is the actual python-retirement.*
+    - **6b — monorepo-ify + Rust-drive the asset path:** bring the Chicago95 bash + orchestrator into the live tree (or fold orchestration into `install.rs` calling 6a natively + the chicago95 step), so `mde install --assets` runs end-to-end from a checkout/RPM.
   **Acceptance** (runtime-observable):
-    - [ ] `mde install --assets` fetches + stages the asset set with **no** `python3` invoked.
-    - [ ] `catalogue.rs` no longer lists `python3` as an asset-installer runtime dependency.
-    - [ ] A fresh install resolves all bundled assets to disk (verifiable file presence).
+    - [ ] `mde install --assets` fetches + stages the asset set with **no** `python3` invoked. *(6a drops python; 6b makes the path runnable.)*
+    - [ ] `catalogue.rs` no longer lists `python3` as an asset-installer runtime dependency. *(6a)*
+    - [ ] A fresh install resolves all bundled assets to disk (verifiable file presence). *(6b end-to-end)*
 
 - [ ] **RETIRE-PY.7: RETIRE-PY — Workbench service-publishing reads via Bus, not `python3 -c mackes.mesh_nebula` (mde-workbench)**
   **As** an admin, **I want** the Workbench service-publishing panel to read published-services state over `mde-bus` from `mackesd`, **so that** it needs no `python3` shell-out.
