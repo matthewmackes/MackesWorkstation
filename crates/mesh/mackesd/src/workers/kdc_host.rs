@@ -1,21 +1,21 @@
-//! KDC2-3.10 — `KdcHost` registered as a `mackesd` worker.
+//! KDC2-3.10 — the KDE Connect host registered as a `mackesd` worker.
 //!
-//! Owns the `Arc<mde_kdc::pairing::PairingStore>`, the
-//! `Arc<mde_kdc::transport::KdcHost>`, and (when running under
-//! the `kdc-dbus` feature path) the live
-//! `mde_kdc::dbus::DbusServer` registered at
-//! `/dev/mackes/MDE/Connect`. The mesh-router worker (KDC2-1.8)
-//! pulls the KdcHost out of the registry to dispatch through
-//! it; the D-Bus host exposes the operator-facing actions
-//! (Ring / Pair / SendSms / SendFile / SendClipboard).
+//! Owns the `Arc<PairingStore>` + the operator-facing
+//! `dev.mackes.MDE.Connect` surface (Ring / Pair / SendSms /
+//! SendFile / SendClipboard) + the pending-sends queue.
 //!
-//! KDC2-3.3 wire-up (2026-05-23): `DbusServer::start` runs once
-//! during `init_host` and the returned handle is held on the
-//! worker for the daemon's lifetime. Dropping the worker
-//! surrenders the bus name. The pending-sends queue is shared
-//! with the future `kdc_outbound` worker (KDC2-3.2.a follow-up)
-//! that drains the queue and writes packets onto the live
-//! `KdcTlsConnection`.
+//! **E2.2 (2026-06-05) — convergence step 1.** The worker formerly also
+//! held an `mde_kdc::transport::KdcHost` orchestrator + an
+//! `mde_kdc_proto::discovery::DiscoveryRegistry`, exposed via `host()` /
+//! `discovery()` "for the future mesh_router / kdc_discovery workers".
+//! Those workers were never built and **nothing consumed those
+//! accessors** — held-but-unused scaffolding (§3 dead code). Dropped
+//! them, which also retires this worker's use of the legacy
+//! `transport::KdcHost` + the legacy proto discovery registry. The
+//! canonical transport is `mde-kdc-host`'s `LanTransport` (E2.1); the
+//! remaining legacy `dbus`/`outbound`/`pairing` usage migrates next
+//! (the `dbus::DbusServer` → a Bus responder, the store → the canonical
+//! `PairingStore`).
 
 #![cfg(feature = "async-services")]
 
@@ -26,9 +26,6 @@ use std::time::Duration;
 use mde_kdc::dbus::{DbusError, DbusServer};
 use mde_kdc::outbound::PendingSends;
 use mde_kdc::pairing::{PairingError, PairingStore};
-use mde_kdc::transport::KdcHost;
-use mde_kdc_proto::discovery::DiscoveryRegistry;
-use tokio::sync::Mutex as AsyncMutex;
 use tracing::{debug, error, info, warn};
 
 use super::{ShutdownToken, Worker};
@@ -40,13 +37,6 @@ const TICK: Duration = Duration::from_secs(30);
 /// Async worker that owns the KDC host objects.
 pub struct KdcHostWorker {
     config_dir: PathBuf,
-    host: Option<Arc<KdcHost>>,
-    /// Shared discovery registry. The future `kdc_discovery`
-    /// worker (KDC2-2.9.a wire-up) writes to this via the
-    /// host's `discovery()` handle; `KdcHost::open` reads from
-    /// it. Held on the worker so a daemon restart re-uses the
-    /// same registry across host re-init.
-    discovery: Arc<AsyncMutex<DiscoveryRegistry>>,
     /// Shared outbound queue. The Connect D-Bus interface
     /// pushes here; the future `kdc_outbound` worker drains.
     outbound: PendingSends,
@@ -71,23 +61,16 @@ impl KdcHostWorker {
     pub fn new(config_dir: PathBuf) -> Self {
         Self {
             config_dir,
-            host: None,
-            discovery: Arc::new(AsyncMutex::new(DiscoveryRegistry::new())),
             outbound: PendingSends::new(),
             dbus_server: None,
         }
     }
 
-    /// Open the on-disk pairing store + construct the KdcHost.
-    /// Pure helper so the run loop can re-init after a restart.
-    fn init_host(&mut self) -> Result<Arc<PairingStore>, PairingError> {
-        let store = PairingStore::open_or_init(&self.config_dir)?;
-        let store_arc = Arc::new(store);
-        self.host = Some(Arc::new(KdcHost::new(
-            Arc::clone(&store_arc),
-            Arc::clone(&self.discovery),
-        )));
-        Ok(store_arc)
+    /// Open the on-disk pairing store (creating the identity on first
+    /// run). Idempotent + cheap once `identity.pem` exists, so `run`
+    /// can call it freely after a restart.
+    fn open_pairing(&self) -> Result<Arc<PairingStore>, PairingError> {
+        Ok(Arc::new(PairingStore::open_or_init(&self.config_dir)?))
     }
 
     /// Start the D-Bus host scaffold (KDC2-3.3) registered at
@@ -126,34 +109,6 @@ impl KdcHostWorker {
         }
     }
 
-    /// Borrow the live KdcHost. `None` before `init_host()` runs
-    /// or after a fatal error. Exposed for the future
-    /// mesh_router registration (KDC2-1.8 → 3.10 bridge) +
-    /// tests.
-    #[must_use]
-    pub fn host(&self) -> Option<&Arc<KdcHost>> {
-        self.host.as_ref()
-    }
-
-    /// Borrow the shared discovery registry. The future
-    /// `kdc_discovery` worker (which owns the UDP/1716 socket +
-    /// the mDNS browser) consumes this handle to inject real
-    /// announces — the same `Arc` the host's `open()` reads
-    /// from.
-    #[must_use]
-    pub fn discovery(&self) -> Arc<AsyncMutex<DiscoveryRegistry>> {
-        Arc::clone(&self.discovery)
-    }
-
-    /// Borrow the shared outbound queue. The future
-    /// `kdc_outbound` worker (KDC2-3.2.a follow-up) drains this
-    /// queue and dispatches packets through the KdcHost's
-    /// live `Connection`s.
-    #[must_use]
-    pub fn outbound(&self) -> PendingSends {
-        self.outbound.clone()
-    }
-
     /// True when the D-Bus host is registered on the session
     /// bus. Used by `healthz` to surface whether the operator-
     /// facing Connect interface is reachable.
@@ -170,23 +125,12 @@ impl Worker for KdcHostWorker {
     }
 
     async fn run(&mut self, mut shutdown: ShutdownToken) -> anyhow::Result<()> {
-        // Lazy init the host. On failure, surface to the
-        // supervisor so the restart policy can act.
-        let pairing_arc = if self.host.is_none() {
-            self.init_host().map_err(|e| {
-                error!(error = %e, "kdc-host: pairing store init failed");
-                anyhow::anyhow!("kdc-host init failed: {e}")
-            })?
-        } else {
-            // Host was pre-initialized (test path). Re-read the
-            // store so we can hand it to DbusServer::start. The
-            // open_or_init call is idempotent + cheap when the
-            // identity.pem already exists.
-            Arc::new(
-                PairingStore::open_or_init(&self.config_dir)
-                    .map_err(|e| anyhow::anyhow!("re-open pairing store: {e}"))?,
-            )
-        };
+        // Open the pairing store (idempotent). On failure, surface to
+        // the supervisor so the restart policy can act.
+        let pairing_arc = self.open_pairing().map_err(|e| {
+            error!(error = %e, "kdc-host: pairing store init failed");
+            anyhow::anyhow!("kdc-host init failed: {e}")
+        })?;
         // KDC2-3.3 — register the operator-facing D-Bus host.
         // Graceful-degrade: a session bus that's unreachable
         // doesn't fail worker startup.
@@ -236,18 +180,14 @@ mod tests {
     }
 
     #[test]
-    fn host_is_none_before_init() {
-        let w = KdcHostWorker::new(PathBuf::from("/tmp/never-touched"));
-        assert!(w.host().is_none());
-    }
-
-    #[test]
-    fn init_host_populates_the_arc() {
+    fn open_pairing_creates_the_identity() {
+        // E2.2 — the worker holds only the pairing store now (the dead
+        // KdcHost/discovery scaffolding was dropped). open_pairing opens
+        // it, creating identity.pem on first run.
         let tmp = tempdir().unwrap();
-        let mut w = KdcHostWorker::new(tmp.path().to_path_buf());
-        w.init_host().unwrap();
-        assert!(w.host().is_some());
-        // The store created an identity.pem.
+        let w = KdcHostWorker::new(tmp.path().to_path_buf());
+        let store = w.open_pairing().unwrap();
+        assert!(Arc::strong_count(&store) >= 1);
         assert!(tmp.path().join("identity.pem").exists());
     }
 
