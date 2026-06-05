@@ -168,15 +168,50 @@ fn publish_announce(persist: Option<&Persist>, ann: &MdnsAnnounce) {
     }
 }
 
+/// Peer-suffixed instance name for a republished service — avoids colliding
+/// with the peer's own LAN advertisement and with other peers' services.
+fn republish_name(ann: &MdnsAnnounce) -> String {
+    format!("{}-{}", ann.service, ann.peer.replace('.', "-"))
+}
+
+/// Dedup key for an inbound announce (origin peer + type + instance).
+fn service_key(ann: &MdnsAnnounce) -> String {
+    format!("{}|{}|{}", ann.peer, ann.service_type, ann.service)
+}
+
+/// Build the `ServiceInfo` to register a peer's service on the LOCAL LAN:
+/// advertised at the peer's **mesh IP** (so LAN clients connect over the
+/// overlay), peer-suffixed instance name, carrying the [`RELAY_ORIGIN_TXT`] tag
+/// so our own browse skips it (anti-loop). `None` when `peer` isn't a valid IP.
+fn build_republish_info(ann: &MdnsAnnounce) -> Option<ServiceInfo> {
+    let ip: std::net::IpAddr = ann.peer.parse().ok()?;
+    let instance = republish_name(ann);
+    let hostname = format!("{instance}.local.");
+    let mut txt = ann.txt.clone();
+    txt.push((RELAY_ORIGIN_TXT.to_string(), ann.peer.clone()));
+    let txt_refs: Vec<(&str, &str)> = txt.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    ServiceInfo::new(
+        &browse_type(&ann.service_type),
+        &instance,
+        &hostname,
+        ip,
+        ann.port,
+        &txt_refs[..],
+    )
+    .ok()
+}
+
 /// This host's mesh IP (`nebula1`), or `None` pre-enrolment.
 fn own_mesh_ip() -> Option<String> {
     crate::voip_rtt::own_nebula_ip()
 }
 
-/// Outbound relay loop (blocking): browse the relayed types and publish every
-/// discovered local service to the Bus until `stop` is set. Idles gracefully
-/// when there's no mesh IP yet or no multicast-capable interface.
-fn run_outbound_blocking(stop: &AtomicBool) {
+/// The relay loop (blocking). Each pass does BOTH halves: the **outbound** half
+/// drains the mDNS browsers and publishes discovered local services to the Bus;
+/// the **inbound** half polls the Bus for peers' announces and registers them on
+/// the local LAN (at the peer's mesh IP). Runs until `stop` is set. Idles
+/// gracefully when there's no mesh IP yet or no multicast-capable interface.
+fn run_relay_blocking(stop: &AtomicBool) {
     let Some(own_ip) = own_mesh_ip() else {
         eprintln!("mdns_relay: no nebula1 mesh IP (pre-enrolment); relay idle");
         wait_until_stop(stop);
@@ -200,8 +235,15 @@ fn run_outbound_blocking(stop: &AtomicBool) {
         }
     }
 
+    // Inbound republish state: a cursor over the announce topic + the set of
+    // already-registered service keys (a peer service is registered once).
+    let mut cursor: Option<String> = None;
+    let mut registered: std::collections::HashSet<String> = std::collections::HashSet::new();
+
     while !stop.load(Ordering::Relaxed) {
         let mut got_any = false;
+
+        // OUTBOUND — drain every browser, publish local services.
         for (bare, rx) in &browsers {
             while let Ok(event) = rx.try_recv() {
                 got_any = true;
@@ -212,6 +254,33 @@ fn run_outbound_blocking(stop: &AtomicBool) {
                 }
             }
         }
+
+        // INBOUND — poll the Bus for peers' announces, republish locally.
+        if let Some(p) = persist.as_ref() {
+            if let Ok(msgs) = p.list_since(ANNOUNCE_TOPIC, cursor.as_deref()) {
+                for msg in msgs {
+                    got_any = true;
+                    cursor = Some(msg.ulid.clone());
+                    let Some(body) = msg.body.as_deref() else {
+                        continue;
+                    };
+                    let Ok(ann) = serde_json::from_str::<MdnsAnnounce>(body) else {
+                        continue;
+                    };
+                    if ann.peer == own_ip {
+                        continue; // anti-loop: our own announce
+                    }
+                    if registered.insert(service_key(&ann)) {
+                        if let Some(info) = build_republish_info(&ann) {
+                            if let Err(e) = daemon.register(info) {
+                                eprintln!("mdns_relay: republish {} failed: {e}", ann.service);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if !got_any {
             std::thread::sleep(IDLE_SLEEP);
         }
@@ -252,7 +321,7 @@ impl Worker for MdnsRelayWorker {
     async fn run(&mut self, mut shutdown: ShutdownToken) -> anyhow::Result<()> {
         let stop = Arc::new(AtomicBool::new(false));
         let stop2 = stop.clone();
-        let handle = tokio::task::spawn_blocking(move || run_outbound_blocking(&stop2));
+        let handle = tokio::task::spawn_blocking(move || run_relay_blocking(&stop2));
         shutdown.wait().await;
         stop.store(true, Ordering::Relaxed);
         let _ = handle.await;
@@ -342,5 +411,53 @@ mod tests {
             &[(RELAY_ORIGIN_TXT, "10.42.0.9")],
         );
         assert!(announce_from_info("_jellyfin._tcp", &info, "10.42.0.3").is_none());
+    }
+
+    fn ann(peer: &str, service: &str, ty: &str, port: u16) -> MdnsAnnounce {
+        MdnsAnnounce {
+            peer: peer.into(),
+            service: service.into(),
+            service_type: ty.into(),
+            port,
+            txt: vec![],
+        }
+    }
+
+    #[test]
+    fn republish_name_is_peer_suffixed_and_collision_safe() {
+        let a = ann("10.42.0.9", "Jellyfin", "_jellyfin._tcp", 8096);
+        assert_eq!(republish_name(&a), "Jellyfin-10-42-0-9");
+    }
+
+    #[test]
+    fn service_key_distinguishes_peer_type_instance() {
+        let a = ann("10.42.0.9", "Jellyfin", "_jellyfin._tcp", 8096);
+        let b = ann("10.42.0.8", "Jellyfin", "_jellyfin._tcp", 8096);
+        assert_ne!(service_key(&a), service_key(&b)); // different peer
+        assert_eq!(service_key(&a), service_key(&a)); // stable
+    }
+
+    #[test]
+    fn build_republish_info_advertises_peer_mesh_ip_and_origin_tag() {
+        let a = ann("10.42.0.9", "Jellyfin", "_jellyfin._tcp", 8096);
+        let info = build_republish_info(&a).expect("valid mesh IP");
+        assert_eq!(info.get_port(), 8096);
+        // peer-suffixed instance name + the relay-origin TXT (anti-loop).
+        assert!(info.get_fullname().starts_with("Jellyfin-10-42-0-9."));
+        assert_eq!(
+            info.get_property_val_str(RELAY_ORIGIN_TXT).as_deref(),
+            Some("10.42.0.9")
+        );
+        // advertised at the peer's mesh IP, not our LAN address.
+        assert!(info
+            .get_addresses()
+            .iter()
+            .any(|ip| ip.to_string() == "10.42.0.9"));
+    }
+
+    #[test]
+    fn build_republish_info_rejects_a_non_ip_peer() {
+        let a = ann("not-an-ip", "Jellyfin", "_jellyfin._tcp", 8096);
+        assert!(build_republish_info(&a).is_none());
     }
 }
