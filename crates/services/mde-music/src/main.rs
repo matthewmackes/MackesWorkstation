@@ -231,7 +231,7 @@ impl State {
             now_artist: String::new(),
             now_art: None,
             now_duration_ms: 0,
-            album_color: color::INDIGO,
+            album_color: color::accent_rgb(),
             album_text_color: (255, 255, 255),
             album_art: None,
             sort: prefs::load().sort,
@@ -469,7 +469,7 @@ impl State {
                 self.album = None;
                 self.album_error = None;
                 self.album_loading = true;
-                self.album_color = color::INDIGO;
+                self.album_color = color::accent_rgb();
                 self.album_text_color = (255, 255, 255);
                 self.album_art = None;
                 Task::perform(album::fetch_album(id), |r| match r {
@@ -544,11 +544,11 @@ impl State {
                     Task::perform(color::fetch_cover_art(cover), |r| match r {
                         Ok(bytes) if !bytes.is_empty() => {
                             let handle = image::Handle::from_bytes(bytes.clone());
-                            let (d, t) =
-                                color::extract(&bytes).unwrap_or((color::INDIGO, (255, 255, 255)));
+                            let (d, t) = color::extract(&bytes)
+                                .unwrap_or((color::accent_rgb(), (255, 255, 255)));
                             Message::ArtReady(Some(handle), d, t)
                         }
-                        _ => Message::ArtReady(None, color::INDIGO, (255, 255, 255)),
+                        _ => Message::ArtReady(None, color::accent_rgb(), (255, 255, 255)),
                     })
                 }
             }

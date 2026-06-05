@@ -24,6 +24,9 @@ mde-musicd = { path = "../mde-musicd" }
 # AIR-10.b — the GUI talks to the mde-musicd daemon over the Bus
 # (action/music/<verb> → reply) per the Q96 Bus-canonical lock.
 mde-bus    = { path = "../../platform/mde-bus" }
+# E5.3 — single-source the fallback accent from the canonical design
+# palette (the Q2 indigo) instead of a hardcoded hex tuple.
+mde-theme  = { path = "../../shared/mde-theme" }
 # AIR-10.b — parse the daemon's JSON Bus replies into display rows.
 serde_json = "1"
 # AIR-11.b — derive (de)serialize for the persisted MusicPrefs (sort).

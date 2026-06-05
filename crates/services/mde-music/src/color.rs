@@ -14,8 +14,15 @@ use base64::Engine;
 
 use crate::album::{req, with_bus};
 
-/// The fallback accent when extraction fails / can't meet contrast.
-pub const INDIGO: (u8, u8, u8) = (91, 106, 245); // #5b6af5
+/// The fallback accent when extraction fails / can't meet contrast —
+/// the canonical MDE indigo accent, single-sourced from the design
+/// palette (`mde_theme::Palette::dark().accent`) so there is no
+/// hardcoded hex here (E5.3 / §2.1).
+#[must_use]
+pub fn accent_rgb() -> (u8, u8, u8) {
+    let a = mde_theme::Palette::dark().accent;
+    (a.r, a.g, a.b)
+}
 
 /// Dominant colour of an interleaved RGBA buffer via a 4-bit/channel
 /// quantized histogram (a median-cut approximation): the most-populous
@@ -65,7 +72,7 @@ pub fn contrast_text(bg: (u8, u8, u8)) -> (u8, u8, u8) {
 
 /// Decode `bytes` (JPEG/PNG), downscale to a ~64×64 thumbnail, and extract
 /// the dominant colour + its contrast text colour. `None` on a decode
-/// failure or an all-skipped image (the caller then uses [`INDIGO`]).
+/// failure or an all-skipped image (the caller then uses [`accent_rgb`]).
 #[must_use]
 pub fn extract(bytes: &[u8]) -> Option<((u8, u8, u8), (u8, u8, u8))> {
     let img = image::load_from_memory(bytes).ok()?;
@@ -129,6 +136,6 @@ mod tests {
         assert_eq!(contrast_text((20, 20, 20)), (255, 255, 255));
         assert_eq!(contrast_text((240, 240, 240)), (40, 40, 40));
         // Indigo is dark-ish → white text.
-        assert_eq!(contrast_text(INDIGO), (255, 255, 255));
+        assert_eq!(contrast_text(accent_rgb()), (255, 255, 255));
     }
 }
