@@ -351,14 +351,25 @@ mod tests {
             std::time::Duration::from_secs(HEARTBEAT_INTERVAL_S),
             std::sync::Arc::clone(&shutdown),
         );
-        // Let it tick once.
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
-        // Worker exits at the start of its next loop iteration
-        // (after the 10 s sleep). Bound the test wait to 11 s.
-        let _ = h.join();
-        // Heartbeat file should exist (written before shutdown flip).
+        // The worker writes the heartbeat at the start of its first loop
+        // iteration. POLL for it rather than assuming a fixed 100 ms tick —
+        // under heavy parallel test load the worker thread can take far longer
+        // than 100 ms to be scheduled, which made the old fixed-sleep assertion
+        // flaky (it raced the very first write). Bound the wait to 5 s.
         let path = heartbeat_path(dir.path(), "peer:test");
-        assert!(path.exists(), "expected {path:?} to exist after one tick");
+        let step = std::time::Duration::from_millis(20);
+        let mut waited = std::time::Duration::ZERO;
+        while !path.exists() && waited < std::time::Duration::from_secs(5) {
+            std::thread::sleep(step);
+            waited += step;
+        }
+        assert!(
+            path.exists(),
+            "expected {path:?} to exist after one tick (waited {waited:?})"
+        );
+        // Flip shutdown; the chunked-sleep loop honors it within ~100 ms, so
+        // join() returns promptly (no full-interval wait).
+        shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+        let _ = h.join();
     }
 }
