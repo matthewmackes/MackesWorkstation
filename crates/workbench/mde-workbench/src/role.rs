@@ -420,6 +420,28 @@ mod tests {
     }
 
     #[test]
+    fn system_role_card_matches_the_e6_8_acceptance() {
+        // E6.8 acceptance #1: the System role card surfaces exactly
+        // Date & Time / Logs / Resources / System Update / Notifications
+        // (logs/resources/system_update surfaced here from Maintain, where
+        // they were wired but orphaned from the nav).
+        let slugs: Vec<&str> = role_action_panels(Group::System)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        assert_eq!(
+            slugs,
+            vec![
+                "datetime",
+                "logs",
+                "resources",
+                "system_update",
+                "notifications"
+            ]
+        );
+    }
+
+    #[test]
     fn window_manager_left_system_for_look_and_feel() {
         // E6.6/E6.8 — window_manager moved out of System (E6.8's
         // acceptance excludes it) into Look & Feel; it must not appear

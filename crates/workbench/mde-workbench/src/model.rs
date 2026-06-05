@@ -305,9 +305,13 @@ pub fn nav_model() -> Vec<NavEntry> {
             group: Group::System,
             panels: vec![
                 Panel::new("datetime", "Date & Time"),
-                // E6.3 — default_apps moved to Apps; E6.4 — session moved to
-                // Devices. System trends toward the E6.8 acceptance
-                // (datetime / logs / resources / system_update / notifications).
+                // E6.8 — logs/resources/system_update were wired under
+                // Maintain but orphaned from its nav (reachable only via a
+                // direct deep-link); surfaced here under System per the E6.8
+                // acceptance. (default_apps→Apps E6.3, session→Devices E6.4.)
+                Panel::new("logs", "Logs"),
+                Panel::new("resources", "Resources"),
+                Panel::new("system_update", "System Update"),
                 Panel::new("notifications", "Notifications"),
             ],
         },

@@ -811,9 +811,9 @@ impl App {
                 window_manager_panel::WindowManagerPanel::load()
             }
             (Group::Maintain, "snapshots") => snapshots_panel::SnapshotsPanel::load(),
-            (Group::Maintain, "logs") => logs_panel::LogsPanel::load(),
-            (Group::Maintain, "resources") => resources_panel::ResourcesPanel::load(),
-            (Group::Maintain, "system_update") => system_update_panel::SystemUpdatePanel::load(),
+            (Group::System, "logs") => logs_panel::LogsPanel::load(),
+            (Group::System, "resources") => resources_panel::ResourcesPanel::load(),
+            (Group::System, "system_update") => system_update_panel::SystemUpdatePanel::load(),
             // v4.0.1 WB-2.f — auto-run probes on first nav so
             // the panel lands populated rather than empty.
             (Group::Maintain, "health_check") => health_check_panel::HealthCheckPanel::load(),
@@ -1054,15 +1054,15 @@ impl App {
                 panel: "snapshots",
             } => self.snapshots.view(),
             View::Panel {
-                group: Group::Maintain,
+                group: Group::System,
                 panel: "logs",
             } => self.logs.view(),
             View::Panel {
-                group: Group::Maintain,
+                group: Group::System,
                 panel: "resources",
             } => self.resources.view(),
             View::Panel {
-                group: Group::Maintain,
+                group: Group::System,
                 panel: "system_update",
             } => self.system_update.view(),
             View::Panel {
