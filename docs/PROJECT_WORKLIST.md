@@ -234,7 +234,7 @@ _Depends: none_
     - [ ] The `commit-msg` hook enforces the message convention and rejects a malformed message at commit time.
   **Done (2026-06-03):** ported the 12 lint-gate scripts to `install-helpers/` + 5 snapshot allowlists (catch net-new only); wired a staged-file-gated `run-lint-gates.sh` runner + `.claude/hooks/pre-commit` (suite + worklist) + `commit-msg.sh` (visual-citation) + `install-hooks.sh`. The "15 gates" = these 12 scripts + cargo build/test/clippy/fmt (CI, E0.9). All gates run clean. Notable: fixed an inherited bug in lint-dbus-shape (its `#` comment-filter swallowed every `#[interface]` — MDE's gate never fired); neutralized lint-material-symbols (the monorepo KEEPS Carbon, so its Carbon-forbidding policy is N/A → documented no-op); runtime-reachability surfaced 1 pre-existing dead module (mackesd::orchestrator, allowlisted — picked up by the E8.4 sweep).
 
-- [>] **E0.11: E0 — Audit: confirm no subprocess-supervised Python remains (all mackesd workers are Rust); file gaps as tasks if found**
+- [!] **E0.11: E0 — Audit: confirm no subprocess-supervised Python remains (all mackesd workers are Rust); file gaps as tasks if found** *(BLOCKED on E3, 2026-06-05)*
   **As** a platform owner, **I want** to confirm mackesd supervises only Rust workers with no subprocess-supervised Python, **so that** the control plane is a single-language runtime and any survivor becomes a tracked task.
   *Reuse:* mackesd (§9 as-is, worker supervision). *Deps:* E0.5.
   **Acceptance** (runtime-observable):
@@ -242,6 +242,7 @@ _Depends: none_
     - [ ] `lint-no-stubs.sh` and the runtime-reachability lint find no Python supervision shim in the worker path.
     - [ ] Any surviving Python worker is filed as a new E-task with its replacement scope (audit produces actionable gaps, not just a pass/fail).
   **Note (2026-06-03):** audit ran — found 7 subprocess-Python shims (mackesd workers mdns/remmina_sync/fs_sync/clipboard + Birthright in mde-wizard/mde-installer + Workbench service-publishing). Filed as **RETIRE-PY.1–7**. E0.11 closes when RETIRE-PY drains.
+  **Status (2026-06-05): 5/7 drained, BLOCKED on the last worker-path survivor.** ✓ RETIRE-PY.1 (mdns relay, native), .2 (remmina sync), .3 (clipboard → mde-clipd), .6 (asset installer), .7 (workbench service-publishing). **Remaining:** **RETIRE-PY.4** — the `fs_sync` GVFS worker still spawns `python3 -m mackes.mesh_gvfs.daemon` and is the *only* python left in mackesd's **supervised-worker path** (acceptance #1/#2); it's retired *by* standing up E3 LizardFS as the mesh-storage backend, so **E0.11 is blocked on E3**. RETIRE-PY.5 (native Birthright) is the other survivor but lives in the **mde-wizard/mde-installer install-time path, not the mackesd worker path** — it's E7.2-coupled and does not gate E0.11's worker-supervision acceptance. So once E3 lands (RETIRE-PY.4), E0.11's worker-path acceptance is met and it closes; the installer-path Birthright tracks separately under E7.2/RETIRE-PY.5.
 
 - [ ] **E0.12: E0 — Archive the 3 predecessor repos read-only (operator-gated)**
   **As** the operator, **I want** the three predecessor repos archived read-only behind an explicit gate, **so that** the monorepo is the single origin and history is preserved without accidental writes.
