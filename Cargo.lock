@@ -4443,8 +4443,6 @@ dependencies = [
  "iced_layershell 0.13.7",
  "mde-bus",
  "mde-disclaimer",
- "mde-kdc-host",
- "mde-kdc-proto",
  "mde-role",
  "mde-ui",
  "png 0.17.16",

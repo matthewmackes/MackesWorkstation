@@ -94,7 +94,7 @@ COMMANDS:
     browser-default [--icon|--set-default|--pin URL [--name T]|URL]   Default browser / pin a page / open
     browser-jumplist   Firefox taskbar jump list (New / Private window)
     net-flyout         Win10 network flyout (Wi-Fi list + Airplane toggle)
-    connect [--list]   KDE Connect daemon (roster on org.mde.Connect); --list prints it
+    connect [--list]   Print the KDE Connect device roster (the host runs in mackesd)
     phone              Your Phone / Mobile Devices — KDE Connect device window (E9)
 
     start-win10        Tiled Win10 Start overlay (--pin/--unpin/--resize/--list-tiles)

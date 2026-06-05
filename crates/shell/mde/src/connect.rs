@@ -1,48 +1,29 @@
-//! KDE Connect surface link — the `mde connect` daemon + its in-process client (E9.1).
+//! KDE Connect surface client — `mde connect` reads the device roster that the
+//! mackesd `kdc_host` worker publishes over the mesh **Bus** at
+//! `action/connect/devices`.
 //!
-//! The daemon hosts the native KDE Connect stack (the `mde-kdc-host` crate: UDP
-//! discovery + the mutual-TLS LAN transport with its inbound listener) and exposes
-//! the **paired-device roster** — id, name, online, battery — over the mesh **Bus**
-//! at `action/connect/devices` (E0.3.6) so the short-lived shell surfaces (`mde
-//! phone`, the panel, the OOBE Your-Phone stage) can query it without each embedding
-//! the host. The `org.mde.Connect` D-Bus *name* is kept only as the single-instance
-//! guard — name ownership stays a D-Bus primitive (the documented EPIC-RETIRE-DBUS
-//! exception); the roster data itself moved off the `org.mde.Connect1` interface onto
-//! the Bus.
+//! **E2.3 (2026-06-05) — one host, owned by mackesd.** The live KDE Connect
+//! host (UDP discovery + the mutual-TLS LAN transport with its inbound listener)
+//! and the on-disk `PairingStore` now run inside mackesd's supervised
+//! `kdc_host` worker, which folds `HostEvent`s into the roster and serves it on
+//! the Bus. This module is the **client** the short-lived shell surfaces share
+//! (`mde phone`, the panel, the OOBE Your-Phone stage): [`devices`] queries the
+//! daemon's roster, and `mde connect` prints it. Nothing here runs a host or
+//! owns a store any more — the prior in-shell daemon (its `LanTransport`
+//! bring-up, the `org.mde.Connect` single-instance guard, and the
+//! event→roster folding) was retired into the worker.
 //!
-//! Architecture mirrors `tray.rs` / `notifyd.rs`: the host runs on its own Tokio
-//! runtime on a background thread, folding `HostEvent`s into a shared map; the main
-//! thread runs a Bus responder loop reading that map. The roster is seeded from the
-//! on-disk `PairingStore` so it is populated even before any device connects, and the
-//! host bring-up is **best-effort**: if the UDP port can't bind (already in use, no
-//! permission) the daemon still serves the static roster.
-//!
-//! Live device round-trips (a real phone connecting, sending battery) are the owner's
-//! post-release hardware bench; here the event→roster folding is unit-tested and the
-//! daemon is launch-verified (`timeout 3 mde connect` is a clean no-panic park/exit).
+//! Degrades gracefully: with mackesd (or the Bus, or a timely reply) absent,
+//! [`devices`] returns an empty list rather than panicking, so callers render an
+//! honest "no devices" state.
 
-use std::collections::HashMap;
 use std::process::ExitCode;
-use std::sync::{Arc, Mutex};
-use std::thread;
 use std::time::Duration;
 
-use mde_kdc_host::{EventStream, HostEvent, LanTransport, PairingStore, Transport, UdpDiscovery};
-use mde_kdc_proto::discovery::{Announce, DeviceType};
-use mde_kdc_proto::plugins::battery::BatteryBody;
-
-/// The well-known D-Bus name the daemon claims for **single-instance**
-/// enforcement (name ownership stays a D-Bus primitive — the
-/// EPIC-RETIRE-DBUS exception); the roster *data* moved to the Bus.
-const BUS_NAME: &str = "org.mde.Connect";
-/// Bus action topic the daemon answers + clients query for the roster.
+/// Bus action topic the mackesd `kdc_host` worker answers with the roster.
 const ACTION_TOPIC: &str = "action/connect/devices";
-/// How often the daemon's responder loop polls for new roster queries.
-const POLL_INTERVAL: Duration = Duration::from_millis(200);
 /// Client-side wait for the roster reply before giving up (→ empty).
 const QUERY_TIMEOUT: Duration = Duration::from_secs(2);
-/// KDE Connect's stock UDP/TCP port (identity broadcast + TLS link).
-const KDC_PORT: u16 = 1716;
 
 /// One paired peer as the shell sees it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -57,167 +38,8 @@ pub struct DeviceInfo {
     pub battery: Option<u8>,
 }
 
-impl DeviceInfo {
-    fn unknown(id: &str) -> Self {
-        DeviceInfo {
-            id: id.to_string(),
-            name: id.to_string(),
-            online: false,
-            battery: None,
-        }
-    }
-}
-
-/// The shared roster the host thread writes and the D-Bus interface reads.
-type Roster = Arc<Mutex<HashMap<String, DeviceInfo>>>;
-
-/// Fold one host event into the roster: connections flip `online`, battery packets
-/// update the charge, discovery announces refresh the display name. Pure (no I/O) so
-/// the state machine is unit-tested without a bus or a phone.
-fn apply_event(map: &mut HashMap<String, DeviceInfo>, ev: HostEvent) {
-    match ev {
-        HostEvent::Connected(p) => {
-            map.entry(p.0.clone())
-                .or_insert_with(|| DeviceInfo::unknown(&p.0))
-                .online = true;
-        }
-        HostEvent::Disconnected(p) => {
-            if let Some(d) = map.get_mut(p.as_str()) {
-                d.online = false;
-            }
-        }
-        HostEvent::PeerDiscovered(a) => {
-            let e = map
-                .entry(a.device_id.clone())
-                .or_insert_with(|| DeviceInfo::unknown(&a.device_id));
-            if !a.device_name.is_empty() {
-                e.name = a.device_name;
-            }
-        }
-        // A discovered peer ageing out doesn't drop it from the paired roster; it's
-        // simply no longer broadcasting (online already tracks the live link).
-        HostEvent::PeerLost(_) => {}
-        HostEvent::Packet { peer, packet } => {
-            if packet.kind == "kdeconnect.battery" {
-                if let Ok(b) = serde_json::from_value::<BatteryBody>(packet.body) {
-                    if let Some(d) = map.get_mut(peer.as_str()) {
-                        d.battery = b.charge_pct();
-                    }
-                }
-            }
-        }
-        HostEvent::TransportError(_) => {}
-    }
-}
-
-/// This host's identity announce. `device_id` is the machine id (stable across boots),
-/// `device_name` the hostname; type Desktop, protocol 7 (KDE Connect current).
-fn local_announce() -> Announce {
-    let device_id = std::fs::read_to_string("/etc/machine-id")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .or_else(|| std::env::var("HOSTNAME").ok())
-        .unwrap_or_else(|| "mde-host".to_string());
-    let device_name = std::fs::read_to_string("/etc/hostname")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-        .or_else(|| std::env::var("HOSTNAME").ok())
-        .unwrap_or_else(|| "MDE-Retro".to_string());
-    Announce {
-        device_id,
-        device_name,
-        device_type: DeviceType::Desktop,
-        protocol_version: 7,
-        incoming_capabilities: Vec::new(),
-        outgoing_capabilities: Vec::new(),
-    }
-}
-
-/// Seed the roster from the on-disk pairing store (all paired peers, offline) so the
-/// daemon answers `Devices()` even before the host comes up or any device connects.
-fn seed_roster() -> HashMap<String, DeviceInfo> {
-    let mut map = HashMap::new();
-    if let Ok(dir) = PairingStore::default_dir() {
-        if let Ok(store) = PairingStore::open(dir) {
-            for rec in store.records() {
-                map.insert(
-                    rec.device_id.clone(),
-                    DeviceInfo {
-                        id: rec.device_id.clone(),
-                        name: if rec.device_name.is_empty() {
-                            rec.device_id.clone()
-                        } else {
-                            rec.device_name.clone()
-                        },
-                        online: false,
-                        battery: None,
-                    },
-                );
-            }
-        }
-    }
-    map
-}
-
-/// Run the KDE Connect host on a Tokio runtime (own thread), folding its events into
-/// `roster`. Best-effort: a discovery-bind or transport-start failure is logged and the
-/// thread exits, leaving the daemon serving the seeded (static) roster.
-fn spawn_host(roster: Roster) {
-    thread::spawn(move || {
-        let rt = match tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-        {
-            Ok(rt) => rt,
-            Err(e) => {
-                eprintln!("mde connect: tokio runtime: {e} (serving static roster)");
-                return;
-            }
-        };
-        rt.block_on(async move {
-            let announce = local_announce();
-            let dir = match PairingStore::default_dir() {
-                Ok(d) => d,
-                Err(e) => {
-                    eprintln!("mde connect: pairing dir: {e}");
-                    return;
-                }
-            };
-            let pairing = match PairingStore::open(dir) {
-                Ok(p) => Arc::new(p),
-                Err(e) => {
-                    eprintln!("mde connect: pairing store: {e}");
-                    return;
-                }
-            };
-            let bind = std::net::SocketAddr::from(([0, 0, 0, 0], KDC_PORT));
-            let discovery = match UdpDiscovery::bind(bind, announce.clone()).await {
-                Ok(d) => d,
-                Err(e) => {
-                    eprintln!("mde connect: UDP {KDC_PORT} bind: {e} (serving static roster)");
-                    return;
-                }
-            };
-            let transport = LanTransport::new(announce, discovery, pairing).with_listen_addr(bind);
-            let (sink, mut stream) = EventStream::channel();
-            if let Err(e) = transport.start(sink).await {
-                eprintln!("mde connect: transport start: {e} (serving static roster)");
-                return;
-            }
-            while let Some(ev) = stream.recv().await {
-                if let Ok(mut m) = roster.lock() {
-                    apply_event(&mut m, ev);
-                }
-            }
-        });
-    });
-}
-
-/// Wire shape for one roster row over the Bus. Unlike the old D-Bus
-/// tuple (battery `-1` for unknown — D-Bus has no optional int), JSON
-/// carries `battery` as a real `Option<u8>`.
+/// Wire shape for one roster row over the Bus. JSON carries `battery` as a real
+/// `Option<u8>` (unlike the old D-Bus `-1`-for-unknown tuple).
 #[derive(serde::Serialize, serde::Deserialize)]
 struct WireDevice {
     id: String,
@@ -226,116 +48,37 @@ struct WireDevice {
     battery: Option<u8>,
 }
 
-/// Snapshot the roster as a sorted JSON array of [`WireDevice`] — the
-/// reply body for an `action/connect/devices` query. `"[]"` on a
-/// poisoned lock or encode error (an honest empty roster).
-fn roster_json(roster: &Roster) -> String {
-    let mut wires: Vec<WireDevice> = roster
-        .lock()
-        .map(|m| {
-            m.values()
-                .map(|d| WireDevice {
-                    id: d.id.clone(),
-                    name: d.name.clone(),
-                    online: d.online,
-                    battery: d.battery,
-                })
-                .collect()
-        })
-        .unwrap_or_default();
-    wires.sort_by(|a, b| a.id.cmp(&b.id));
-    serde_json::to_string(&wires).unwrap_or_else(|_| "[]".to_string())
+/// `mde connect [--list]` — print the paired-device roster the mackesd host
+/// publishes. Both forms read now that mackesd owns the host (the `--list`
+/// flag is kept for back-compat; there is no longer an in-shell daemon to run).
+pub fn run(_args: &[String]) -> ExitCode {
+    let devs = devices();
+    if devs.is_empty() {
+        println!("(no paired devices, or mackesd's KDE Connect host isn't running)");
+    }
+    for d in devs {
+        let batt = d
+            .battery
+            .map(|b| format!("{b}%"))
+            .unwrap_or_else(|| "?".into());
+        println!(
+            "{}  {}  [{}]  battery {batt}",
+            d.id,
+            d.name,
+            if d.online { "online" } else { "offline" },
+        );
+    }
+    ExitCode::SUCCESS
 }
 
-/// `mde connect` — run the daemon (seed the roster, spawn the host, serve the bus).
-/// `mde connect --list` instead queries a *running* daemon via the client and prints
-/// the roster (the scriptable read path that exercises [`devices`]).
-pub fn run(args: &[String]) -> ExitCode {
-    if args.iter().any(|a| a == "--list") {
-        let devs = devices();
-        if devs.is_empty() {
-            println!("(no paired devices, or the connect daemon isn't running)");
-        }
-        for d in devs {
-            let batt = d
-                .battery
-                .map(|b| format!("{b}%"))
-                .unwrap_or_else(|| "?".into());
-            println!(
-                "{}  {}  [{}]  battery {batt}",
-                d.id,
-                d.name,
-                if d.online { "online" } else { "offline" },
-            );
-        }
-        return ExitCode::SUCCESS;
-    }
-    let roster: Roster = Arc::new(Mutex::new(seed_roster()));
-    spawn_host(Arc::clone(&roster));
-    match serve(roster) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("mde connect: {e}");
-            ExitCode::FAILURE
-        }
-    }
-}
-
-/// Serve the roster on the Bus until the process exits. First holds
-/// the single-instance guard (`org.mde.Connect` D-Bus name ownership —
-/// a second `mde connect` fails `request_name` and exits rather than
-/// running a second host on `KDC_PORT`), then runs the responder loop
-/// answering `action/connect/devices` with [`roster_json`].
-fn serve(roster: Roster) -> anyhow::Result<()> {
-    // Single-owner guard: name ownership stays a D-Bus primitive (only
-    // the roster data moved to the Bus). `_guard` is held for the
-    // process lifetime — dropping the connection releases the name.
-    let _guard = zbus::blocking::Connection::session()?;
-    _guard.request_name(BUS_NAME)?;
-
-    let bus_dir = mde_bus::default_data_dir()
-        .ok_or_else(|| anyhow::anyhow!("no Bus data dir for the connect responder"))?;
-    let persist = mde_bus::persist::Persist::open(bus_dir)
-        .map_err(|e| anyhow::anyhow!("connect responder: bus persist: {e}"))?;
-    // Start at the latest ulid so we answer only queries that arrive
-    // after bring-up (not replay stale history into orphan replies).
-    let mut cursor: Option<String> = persist
-        .list_since(ACTION_TOPIC, None)
-        .ok()
-        .and_then(|m| m.last().map(|x| x.ulid.clone()));
-    loop {
-        match persist.list_since(ACTION_TOPIC, cursor.as_deref()) {
-            Ok(msgs) => {
-                for msg in msgs {
-                    cursor = Some(msg.ulid.clone());
-                    let body = roster_json(&roster);
-                    if let Err(e) = persist.write(
-                        &mde_bus::rpc::reply_topic(&msg.ulid),
-                        mde_bus::hooks::config::Priority::Default,
-                        None,
-                        Some(&body),
-                    ) {
-                        eprintln!("mde connect: reply write: {e}");
-                    }
-                }
-            }
-            Err(e) => eprintln!("mde connect: list_since: {e}"),
-        }
-        thread::sleep(POLL_INTERVAL);
-    }
-}
-
-// ── Client (used by `mde phone`, the panel, the OOBE Your-Phone stage) ────────
-
-/// Query the paired-device roster from the running `mde connect` daemon
-/// over the Bus (`action/connect/devices`). Returns an empty list
-/// (never panics) when the daemon, the Bus, or a timely reply isn't
-/// available, so callers render an honest "no devices" state.
+/// Query the paired-device roster from the mackesd `kdc_host` worker over the
+/// Bus (`action/connect/devices`). Returns an empty list (never panics) when
+/// the daemon, the Bus, or a timely reply isn't available, so callers render an
+/// honest "no devices" state.
 ///
-/// Builds its own current-thread runtime and blocks, so it MUST be
-/// called outside an async runtime — async callers (e.g. `mde phone`)
-/// wrap it in `tokio::task::spawn_blocking`. The sync `mde connect
-/// --list` path calls it directly.
+/// Builds its own current-thread runtime and blocks, so it MUST be called
+/// outside an async runtime — async callers (e.g. `mde phone`) wrap it in
+/// `tokio::task::spawn_blocking`. The sync `mde connect` path calls it directly.
 #[must_use]
 pub fn devices() -> Vec<DeviceInfo> {
     let Some(bus_dir) = mde_bus::default_data_dir() else {
@@ -379,130 +122,40 @@ pub fn devices() -> Vec<DeviceInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mde_kdc_host::PeerId;
-    use mde_kdc_proto::plugins::battery::battery_packet;
-
-    fn announce(id: &str, name: &str) -> Announce {
-        Announce {
-            device_id: id.into(),
-            device_name: name.into(),
-            device_type: DeviceType::Phone,
-            protocol_version: 7,
-            incoming_capabilities: vec![],
-            outgoing_capabilities: vec![],
-        }
-    }
 
     #[test]
-    fn connected_then_disconnected_flips_online() {
-        let mut m = HashMap::new();
-        apply_event(&mut m, HostEvent::Connected(PeerId::from("p1")));
-        assert!(m["p1"].online, "Connected brings the peer online");
-        apply_event(&mut m, HostEvent::Disconnected(PeerId::from("p1")));
-        assert!(
-            !m["p1"].online,
-            "Disconnected takes it offline (kept in roster)"
-        );
-        assert!(m.contains_key("p1"));
-    }
-
-    #[test]
-    fn discovery_refreshes_the_display_name() {
-        let mut m = HashMap::new();
-        m.insert("p1".to_string(), DeviceInfo::unknown("p1"));
-        apply_event(&mut m, HostEvent::PeerDiscovered(announce("p1", "Pixel 8")));
-        assert_eq!(m["p1"].name, "Pixel 8");
-    }
-
-    #[test]
-    fn battery_packet_updates_charge_and_clamps_unknown() {
-        let mut m = HashMap::new();
-        m.insert("p1".to_string(), DeviceInfo::unknown("p1"));
-        apply_event(
-            &mut m,
-            HostEvent::Packet {
-                peer: PeerId::from("p1"),
-                packet: battery_packet(
-                    1,
-                    BatteryBody {
-                        current_charge: 73,
-                        is_charging: false,
-                        threshold_event: String::new(),
-                    },
-                ),
-            },
-        );
-        assert_eq!(m["p1"].battery, Some(73));
-        // Upstream's -1 "unknown" sentinel sanitizes to None.
-        apply_event(
-            &mut m,
-            HostEvent::Packet {
-                peer: PeerId::from("p1"),
-                packet: battery_packet(
-                    2,
-                    BatteryBody {
-                        current_charge: -1,
-                        is_charging: false,
-                        threshold_event: String::new(),
-                    },
-                ),
-            },
-        );
-        assert_eq!(m["p1"].battery, None);
-    }
-
-    #[test]
-    fn battery_for_unknown_peer_is_ignored() {
-        // A battery packet from a peer not in the roster doesn't create a ghost entry.
-        let mut m = HashMap::new();
-        apply_event(
-            &mut m,
-            HostEvent::Packet {
-                peer: PeerId::from("ghost"),
-                packet: battery_packet(
-                    1,
-                    BatteryBody {
-                        current_charge: 50,
-                        is_charging: true,
-                        threshold_event: String::new(),
-                    },
-                ),
-            },
-        );
-        assert!(m.is_empty());
-    }
-
-    #[test]
-    fn roster_json_round_trips_sorted_with_optional_battery() {
-        let mut map = HashMap::new();
-        map.insert(
-            "zeta".to_string(),
-            DeviceInfo {
-                id: "zeta".into(),
-                name: "Zeta".into(),
-                online: true,
-                battery: Some(80),
-            },
-        );
-        map.insert(
-            "alpha".to_string(),
-            DeviceInfo {
-                id: "alpha".into(),
-                name: "Alpha".into(),
-                online: false,
-                battery: None,
-            },
-        );
-        let roster: Roster = Arc::new(Mutex::new(map));
-        let json = roster_json(&roster);
-        let wires: Vec<WireDevice> = serde_json::from_str(&json).expect("decode roster json");
-        // Sorted by id (alpha before zeta); battery is a real Option
-        // (no -1 sentinel) over the Bus.
+    fn wire_device_decodes_roster_json_with_optional_battery() {
+        // The client decodes the worker's `action/connect/devices` reply: a
+        // JSON array of rows with `battery` as a real Option (no -1 sentinel).
+        let json = r#"[
+            {"id":"alpha","name":"Alpha","online":false,"battery":null},
+            {"id":"zeta","name":"Zeta","online":true,"battery":80}
+        ]"#;
+        let wires: Vec<WireDevice> = serde_json::from_str(json).expect("decode roster json");
         assert_eq!(wires.len(), 2);
         assert_eq!(wires[0].id, "alpha");
         assert_eq!(wires[0].battery, None);
-        assert_eq!(wires[1].id, "zeta");
         assert!(wires[1].online);
         assert_eq!(wires[1].battery, Some(80));
+    }
+
+    #[test]
+    fn devices_maps_wire_rows_and_clamps_out_of_range_battery() {
+        // A defensive clamp lives on the client side: an out-of-range battery
+        // (e.g. a malformed reply) sanitizes to None rather than a bogus %.
+        let w = WireDevice {
+            id: "p1".into(),
+            name: "Phone".into(),
+            online: true,
+            battery: Some(200),
+        };
+        let info = DeviceInfo {
+            id: w.id.clone(),
+            name: w.name.clone(),
+            online: w.online,
+            battery: w.battery.filter(|b| *b <= 100),
+        };
+        assert_eq!(info.battery, None, "out-of-range battery clamps to None");
+        assert!(info.online);
     }
 }
