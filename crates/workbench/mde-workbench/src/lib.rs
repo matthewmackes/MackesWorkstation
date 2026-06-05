@@ -24,6 +24,7 @@ pub mod model;
 pub mod panel_chrome;
 pub mod panels;
 pub mod patternfly;
+pub mod role;
 pub mod sidebar;
 pub mod single_instance;
 

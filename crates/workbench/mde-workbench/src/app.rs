@@ -1218,6 +1218,14 @@ impl App {
                 group: Group::Fleet,
                 panel: "revisions",
             } => self.fleet_revisions.view(),
+            // E6.1 — any group-root view without a bespoke landing
+            // (Apps / Devices / Fleet / Look & Feel / System, plus
+            // Network when deep-linked) renders the "Manage Your Server"
+            // role card: description + action-links + See-also sidebar.
+            // Replaces the old "group landing isn't ready yet"
+            // placeholder. Per-panel not-yet-shipped views still fall to
+            // the friendly empty-state below.
+            View::Group(g) => crate::role::role_landing(g),
             other => panel_under_construction(other),
         }
     }
