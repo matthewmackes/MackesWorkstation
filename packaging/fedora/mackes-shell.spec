@@ -792,6 +792,13 @@ install -D -m 0644 data/tag-manifests/chat.toml  %{buildroot}%{_datadir}/mde/tag
 install -D -m 0644 data/greetd/config.toml \
     %{buildroot}%{_datadir}/mde/greetd/config.toml
 
+# E1.5/E1.3 (2026-06-05) — greetd role-gate drop-in: greetd only starts on a
+# Workstation-pinned box (ExecCondition `mackesd role-gate --min-rank 2`), so
+# Lighthouse/Server boot headless even if greetd is enabled. A drop-in (MDE
+# owns it, not the greetd package's main unit) so there is no dual-ownership.
+install -D -m 0644 data/systemd/greetd.service.d/role-gate.conf \
+    %{buildroot}%{_prefix}/lib/systemd/system/greetd.service.d/role-gate.conf
+
 # BUS-1.2 (v6.x Mackes Bus) — ntfy broker config template. The
 # mde-bus daemon renders this against the live Nebula overlay IP
 # at startup (Tera). Per design doc §line 210 the broker uses
@@ -1466,6 +1473,8 @@ echo ">>> mde-desktop installed. Run \`sudo mde-install --profile=full\` to fini
 # already owns /etc/greetd/config.toml. DM-5's birthright
 # step copies this over the live /etc/greetd/config.toml at
 # install-time.
+# E1.5/E1.3 — greetd role-gate drop-in (Workstation-only ExecCondition).
+%{_prefix}/lib/systemd/system/greetd.service.d/role-gate.conf
 %{_prefix}/lib/systemd/user-preset/90-mackes.preset
 %{_prefix}/lib/systemd/user-preset/90-mde.preset
 # CB-2.4 — first-boot orchestration target + the two oneshot
