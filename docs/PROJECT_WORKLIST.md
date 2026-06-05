@@ -1008,6 +1008,7 @@ _Depends: surfaced by the E0.11 audit (2026-06-03). These are v1.x→v2.0.0 tran
     - [ ] Degrades gracefully with no mesh / no peers (local shadow answers reads).
 
 - [ ] **RETIRE-PY.5: RETIRE-PY — Native Rust Birthright apply/rollback (replaces `python3 -m mackes.birthright` in mde-wizard + mde-installer)**
+  **Scope finding (2026-06-05):** NOT a bounded port — `birthright.py` is **2947 lines** + `birthright_rollback.py` 590, a full first-run provisioning framework (themes/fonts/apps/panel-layout/plymouth/dnf-update/third-party-repos/remote-desktop/display-manager/gluster-bootstrap/netdata/uid-normalize + more), much of it targeting **retired stacks** (xfconf/sway/gluster/x11vnc) that need v10 re-architecting (labwc/LizardFS), not a faithful port. This is **E7-scale** — execute as part of **E7.2 (OOBE Birthright merge)**, a feature epic, not a single loop commit.
   **As** a new user, **I want** first-run Birthright steps applied by native Rust, **so that** OOBE and install need no Python runtime.
   *Reuse:* `mde-wizard/src/pages/apply.rs` + `mde-installer/.../mde-install.rs` (today build `python3 -m mackes.birthright [apply|rollback]`). *Deps:* converges with **E7.2** (OOBE Birthright merge).
   **Acceptance** (runtime-observable):
