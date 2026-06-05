@@ -115,7 +115,14 @@ once this repo builds and is pushed — they live on as the history merged here.
   roster on `action/connect/devices`; the shell's `mde connect` is now a pure Bus
   client (the shell dropped its `mde-kdc-host`/`mde-kdc-proto` deps — `cargo tree -p
   mde` shows zero KDC-host refs). All 4 acceptance met single-node; live online/battery
-  = 2-device bench. E2.4 (sftp Cloud Files) next.
+  = 2-device bench.
+  **E2.4 ✅ to floor** (commit `cdeb6597`): Explorer's Cloud Files pane was prebuilt
+  (E8.7/8.8/8.10) but enumerated from a dead local `devices.json` nothing writes — wired
+  it to the mackesd roster (`connect::devices()`, fetched off-thread) so it lists the
+  actually-paired devices (#1); mount + browse a real phone over sftp = 2-device bench
+  (#2/#3). **NET: the whole E2 epic (KDE Connect) is feature-complete to its single-node
+  floor** — listener, one host, mackesd-owned store, Cloud Files enumeration — with the
+  live 2-device round-trips as the post-release bench.
 - **E3 — LizardFS mesh-storage: ❌ blocked** on the external LizardFS FUSE dependency
   (E3.1 `[!]`).
 - **E4 — Win10 shell era: ✅ done** (the large E4.1–E4.23 epic — taskbar, tiled Start,
