@@ -83,3 +83,49 @@ replaces mde-portal, E5 apps, E6 Workbench re-skin, E7 merged OOBE, E8 polish + 
 
 The old repos (MDE, mde-retro-workstation, MDE-KDECnt-Rust) are **archived read-only**
 once this repo builds and is pushed — they live on as the history merged here.
+
+## Status — E1–E8 (updated 2026-06-05)
+
+> Epic-level snapshot; `docs/PROJECT_WORKLIST.md` holds the per-task detail + the live
+> `[ ]`/`[>]`/`[✓]`/`[!]` state. Per the operator's standing directive (2026-06-05):
+> **all hardware/2-device verification is held until after release**, the peer-testing
+> gates are open for single-node §3 implementation, and the platform is driven
+> feature-complete (E0–E7) before the RPM cut (E8, the only held action).
+
+- **E0 — merge + foundation: ✅ done** (bar operator-gated items). mde-bus migration
+  (E0.3) largely complete; sway→labwc surface retirement (E0.16) done; the standalone
+  applet/panel ecosystem retired (E0.17/E5.5). *Open:* E0.12 (archive old repos —
+  operator-gated), E0.3.7 (final D-Bus sweep — gated on E2.2's legacy-KDC-host
+  retirement), E0.11 (no-supervised-Python audit — blocked on E3's `fs_sync`).
+- **E1 — deployment-role install: ✅ done to floor.** Role chooser → `role.toml`,
+  role-gated mackesd workers + systemd units (greetd role-gate drop-in), installer
+  wired. Live cold-boot/per-role unit set = HW bench.
+- **E2 — KDE Connect: E2.1 ✅ (inbound listener — built + loopback-tested; live
+  phone-initiated = 2-device bench).** E2.2 (converge the legacy mackesd KDC host onto
+  the canonical `mde-kdc-host`) **unblocked but large/architectural**; E2.3/2.4
+  downstream.
+- **E3 — LizardFS mesh-storage: ❌ blocked** on the external LizardFS FUSE dependency
+  (E3.1 `[!]`).
+- **E4 — Win10 shell era: ✅ done** (the large E4.1–E4.23 epic — taskbar, tiled Start,
+  Action Center, Settings, Search, Security, Storage, etc.; mde-portal retired).
+- **E5 — apps: mixed.** E5.5/5.6 (applet-host retirement) ✅. E5.3 (Media Player Win10
+  reskin) `[>]` — palette-integrated, app on the MDE dark theme; chrome polish +
+  Airsonic/MPRIS = bench. E5.1 Explorer / E5.2 Phone depend on E3/E2; E5.4 VoIP is a
+  greenfield PJSIP softphone.
+- **E6 — Workbench reskin: ✅ all 8 role-landings done** (E6.1 foundation + the
+  Manage-Your-Server console: Dashboard/Apps/Devices/Fleet/Look&Feel/Maintain/System/Help,
+  each `mde-workbench --page <role>`, contract-tested). *Remaining:* E6.10 Compute
+  (rebuild legacy `mde-virtual`, large + HW-bench) and E6.11 Preset/drift engine
+  (blocked on the 5 undefined preset variants — product spec).
+- **E7 — merged OOBE: E7.1 ✅ (Win10 OOBE, all stages + `mde oobe`).** E7.2 `[>]` — the
+  Role-picker (#1, pins `role.toml` + gates the flow), Nebula mesh-enrolment (#2, real
+  `mackesd enroll`), and "read before proceeding" Disclaimer (#4) stages are built +
+  tested; #3 (KDC phone-pair) deps E2.2; live mesh enrolment = bench.
+- **E8 — release: held.** E8.2 (disclaimer single-source audit) partially verified
+  (existing surfaces clean). The RPM cut (E8.5/8.6) is the one operator-gated action,
+  held until E0–E7 are feature-complete.
+
+**Net:** every cleanly-completable, in-this-environment task is drained; the remaining
+work is large multi-iteration efforts (E2.2 convergence, E6.10 Compute), greenfield
+(E5.4), product-spec-blocked (E6.11), external-dep-blocked (E3), or the held
+HW-bench / RPM cut.
