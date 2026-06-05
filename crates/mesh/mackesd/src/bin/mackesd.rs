@@ -3148,7 +3148,7 @@ fn run_serve(
 ) -> anyhow::Result<()> {
     use mackesd_core::workers::{
         firewall_preset::FirewallPresetWorker, fs_sync::FsSyncWorker, heartbeat::HeartbeatWorker,
-        mdns::MdnsWorker, mesh_router::MeshRouterWorker, sshd_overlay_bind::SshdOverlayBindWorker,
+        mesh_router::MeshRouterWorker, sshd_overlay_bind::SshdOverlayBindWorker,
         voice_config::VoiceConfigWorker, RestartPolicy, Spawn, Supervisor,
     };
     use std::collections::HashMap;
@@ -3267,10 +3267,6 @@ fn run_serve(
             mesh_latency_sweep_secs = daemon_cfg.mesh_latency_sweep_secs,
             "E1.3: loaded /etc/mackesd/mackesd.toml daemon config",
         );
-        if mackesd_core::worker_role::runs("mdns", role_rank) {
-            sup.spawn(Spawn::new(MdnsWorker::new(), RestartPolicy::OnFailure));
-            worker_names.lock().expect("worker_names mutex").push("mdns".into());
-        }
         if mackesd_core::worker_role::runs("fs_sync", role_rank) {
             sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
             worker_names.lock().expect("worker_names mutex").push("fs_sync".into());

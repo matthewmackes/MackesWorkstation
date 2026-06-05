@@ -36,7 +36,7 @@ crates/applets/mesh-status/src/lib.rs:522
 crates/applets/mesh-status/src/lib.rs:523
 crates/applets/mesh-status/src/lib.rs:524
 crates/applets/mesh-status/src/lib.rs:525
-crates/mesh/mackesd/src/bin/mackesd.rs:4425
+crates/mesh/mackesd/src/bin/mackesd.rs:4421
 crates/mesh/mackesd/src/config/tag_manifest.rs:222
 crates/mesh/mackesd/src/config/tag_manifest.rs:230
 crates/mesh/mackesd/src/config/tag_manifest.rs:24
