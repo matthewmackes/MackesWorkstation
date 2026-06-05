@@ -45,6 +45,19 @@ impl Profile {
         }
     }
 
+    /// The install profile for a canonical [`mde_role::Role`] — inverse of
+    /// [`to_role`](Self::to_role) (E1.4 reconciliation). Lets the installer read
+    /// its "previously installed" profile from the canonical `role.toml` instead
+    /// of the redundant `installed-profile` marker (now retired).
+    #[must_use]
+    pub const fn from_role(role: mde_role::Role) -> Self {
+        match role {
+            mde_role::Role::Lighthouse => Self::Lighthouse,
+            mde_role::Role::Server => Self::Headless,
+            mde_role::Role::Workstation => Self::Full,
+        }
+    }
+
     /// One-line description for the interactive picker.
     #[must_use]
     pub const fn describe(self) -> &'static str {
@@ -188,5 +201,23 @@ mod tests {
         assert_eq!(Profile::Lighthouse.to_role().rank(), 0);
         assert_eq!(Profile::Headless.to_role().rank(), 1);
         assert_eq!(Profile::Full.to_role().rank(), 2);
+    }
+
+    #[test]
+    fn from_role_is_the_inverse_of_to_role() {
+        // E1.4 reconciliation: read_installed_profile derives the prior profile
+        // from role.toml via from_role, so the mapping must round-trip exactly
+        // (else the lossy-downgrade NUKE-confirm would mis-fire).
+        for p in [Profile::Lighthouse, Profile::Headless, Profile::Full] {
+            assert_eq!(Profile::from_role(p.to_role()), p);
+        }
+        assert_eq!(
+            Profile::from_role(mde_role::Role::Server),
+            Profile::Headless
+        );
+        assert_eq!(
+            Profile::from_role(mde_role::Role::Workstation),
+            Profile::Full
+        );
     }
 }

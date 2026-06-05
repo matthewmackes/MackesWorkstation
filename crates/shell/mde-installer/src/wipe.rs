@@ -21,8 +21,10 @@ use crate::profile::Profile;
 /// Services stopped before the wipe and re-started after (best-effort).
 pub const MANAGED_SERVICES: &[&str] = &["mackesd", "nebula", "mfschunkserver", "netdata"];
 
-/// The installed-profile marker file.
-pub const PROFILE_MARKER: &str = "/var/lib/mde/installed-profile";
+// E1.4 reconciliation (2026-06-05): the `/var/lib/mde/installed-profile` marker
+// is retired — the installer reads/derives its role state from the canonical
+// `/var/lib/mde/role.toml` (E1.1) instead. A stale marker from a prior install is
+// cleared anyway when the wipe removes `/var/lib/mde`.
 
 /// The MDE local-state paths a clean install removes. Per-user paths
 /// resolve against `$HOME`; system paths are absolute.
@@ -85,13 +87,15 @@ pub fn human_size(bytes: u64) -> String {
 }
 
 /// Read the previous install profile from the marker file, if present.
-/// Missing / unparsable marker → `None` (treated as no-previous-profile,
-/// so INST-6's lossy-downgrade confirm doesn't fire on a first install).
+/// The "previously installed" profile, read from the **canonical** pinned role
+/// (`/var/lib/mde/role.toml`, E1.1) — E1.4 reconciliation: one source of truth,
+/// retiring the redundant `installed-profile` marker. Not-pinned / malformed →
+/// `None` (no-previous-profile, so INST-6's lossy-downgrade confirm doesn't fire
+/// on a first install). The lossy-downgrade NUKE-confirm now keys off the same
+/// `role.toml` rank the runtime role-gating (E1.2/E1.3) reads.
 #[must_use]
 pub fn read_installed_profile() -> Option<Profile> {
-    std::fs::read_to_string(PROFILE_MARKER)
-        .ok()
-        .and_then(|s| s.trim().parse::<Profile>().ok())
+    mde_role::load().ok().map(Profile::from_role)
 }
 
 /// Remove each path in `paths` that exists. Per-path result is logged
@@ -127,18 +131,6 @@ pub fn start_services(units: &[&str]) -> Vec<String> {
         log.push(systemctl(&["enable", "--now", u]));
     }
     log
-}
-
-/// Write the installed-profile marker (`/var/lib/mde/installed-profile`).
-///
-/// # Errors
-/// IO failures creating the parent dir or writing the file.
-pub fn write_profile_marker(profile: Profile) -> std::io::Result<()> {
-    let path = PathBuf::from(PROFILE_MARKER);
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&path, format!("{profile}\n"))
 }
 
 /// INST-7 mesh-departure step 2: revoke this node's own Nebula cert.

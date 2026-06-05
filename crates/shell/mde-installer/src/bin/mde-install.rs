@@ -252,18 +252,14 @@ fn run(args: &Args) -> Result<u8, String> {
         Ok(None) => audit.push("peer-record: none to remove".to_string()),
         Err(e) => audit.push(format!("peer-record remove failed: {e}")),
     }
-    if let Err(e) = wipe::write_profile_marker(profile) {
-        audit.push(format!("FAILED to write profile marker: {e}"));
-    } else {
-        audit.push(format!("wrote {}", wipe::PROFILE_MARKER));
-    }
-    // E1.4 — also pin the canonical deployment role to /var/lib/mde/role.toml
-    // (E1.1's source of truth for worker_role / role_gate / the mde dispatcher),
-    // so the role-gated runtime is live straight after install with no manual
-    // `mde setup --profile` step. The wipe above cleared /var/lib/mde, so on a
-    // fresh/NUKE install this is a first-pin (any rank); an in-place re-run hits
-    // mde_role::pin's upgrade-only guard. (Full reconciliation with the
-    // installed-profile marker above is the recorded E1.4 follow-up.)
+    // E1.4 — pin the canonical deployment role to /var/lib/mde/role.toml (E1.1's
+    // single source of truth for worker_role / role_gate / the mde dispatcher AND
+    // the installer's own downgrade-detection — `read_installed_profile` now
+    // reads it), so the role-gated runtime is live straight after install with no
+    // manual `mde setup --profile` step. The wipe above cleared /var/lib/mde, so
+    // on a fresh/NUKE install this is a first-pin (any rank); an in-place re-run
+    // hits mde_role::pin's upgrade-only guard. (The redundant `installed-profile`
+    // marker is retired — E1.4 reconciliation complete.)
     match mde_role::pin(profile.to_role()) {
         Ok(outcome) => audit.push(format!("pinned role.toml: {outcome}")),
         Err(e) => audit.push(format!("FAILED to pin role.toml: {e}")),
