@@ -1063,11 +1063,11 @@ install -D -m 0755 target/release/mde-workbench \
 install -D -m 0644 data/applications/mde-workbench.desktop \
     %{buildroot}%{_datadir}/applications/mde-workbench.desktop
 
-# v2.0.0 Phase E.1 — mde-panel (Iced side-by-side rewrite of the
-# GTK mackes-panel; ships in parallel, spec primary swaps at
-# end-of-Phase-E parity).
-install -D -m 0755 target/release/mde-panel \
-    %{buildroot}%{_bindir}/mde-panel
+# E5.5/E0.17 (2026-06-05) — `mde-panel` is now an argv[0]-dispatch SYMLINK to the
+# `mde` binary (→ the canonical wlr `panel.rs`), NOT the retired standalone
+# mde-panel crate (swaymsg-based, superseded). The autostart launches `mde-panel`,
+# which now resolves to the integrated panel.
+ln -sf mde %{buildroot}%{_bindir}/mde-panel
 
 # v3.0.2 panel-host wiring — mde-popover (Iced layer-shell overlay
 # host). Spawned by mde-panel's click handlers; mounts the
@@ -1137,10 +1137,6 @@ install -D -m 0755 target/release/mde-logout-dialog \
 install -D -m 0755 bin/mded \
     %{buildroot}%{_bindir}/mded
 
-# v2.0.0 Phase E.8 — mde-applet-drawer (drawer overlay binary).
-install -D -m 0755 target/release/mde-applet-drawer \
-    %{buildroot}%{_bindir}/mde-applet-drawer
-
 # v2.0.0 CB-1.10 — mde-wizard first-run provisioning UI.
 install -D -m 0755 target/release/mde-wizard \
     %{buildroot}%{_bindir}/mde-wizard
@@ -1153,20 +1149,10 @@ if [ -f target/release/mde-peer-card ]; then
         %{buildroot}%{_bindir}/mde-peer-card
 fi
 
-# v2.0.0 Phase E1.x — applet binaries (panel-host spawns these per
-# pane / per tray slot via mde-panel host.rs).
-for applet in mde-applet-app-switcher mde-applet-apple-menu \
-              mde-applet-audio mde-applet-bg mde-applet-brightness-osd \
-              mde-applet-clock mde-applet-dock mde-applet-mesh-status \
-              mde-applet-network mde-applet-notification-bell \
-              mde-applet-notifications mde-applet-recents \
-              mde-applet-start-menu mde-applet-status-cluster \
-              mde-applet-sway-cluster mde-applet-volume-osd; do
-    if [ -f target/release/$applet ]; then
-        install -D -m 0755 target/release/$applet \
-            %{buildroot}%{_bindir}/$applet
-    fi
-done
+# E5.5/E0.17 (2026-06-05) — the standalone applet binaries + the mde-panel
+# applet-host were retired (the integrated `mde` shell supersedes them); no
+# `mde-applet-*` binaries ship. The 4 surviving applet crates (audio/clock/
+# notifications/start-menu) are LINKED as libs by mde-popover, not shipped.
 
 # v12.16 — self-hosted DERP relay unit (only active on the Host-role
 # peer; gated by ConditionPathExists=/var/lib/mde/derper.enabled).
@@ -1540,24 +1526,7 @@ echo ">>> mde-desktop installed. Run \`sudo mde-install --profile=full\` to fini
 %{_bindir}/mde-logout-dialog
 %{_bindir}/mde-wizard
 %{_bindir}/mde-peer-card
-# Per-applet binaries (16).
-%{_bindir}/mde-applet-drawer
-%{_bindir}/mde-applet-app-switcher
-%{_bindir}/mde-applet-apple-menu
-%{_bindir}/mde-applet-audio
-%{_bindir}/mde-applet-bg
-%{_bindir}/mde-applet-brightness-osd
-%{_bindir}/mde-applet-clock
-%{_bindir}/mde-applet-dock
-%{_bindir}/mde-applet-mesh-status
-%{_bindir}/mde-applet-network
-%{_bindir}/mde-applet-notification-bell
-%{_bindir}/mde-applet-notifications
-%{_bindir}/mde-applet-recents
-%{_bindir}/mde-applet-start-menu
-%{_bindir}/mde-applet-status-cluster
-%{_bindir}/mde-applet-sway-cluster
-%{_bindir}/mde-applet-volume-osd
+# E5.5/E0.17 (2026-06-05): standalone applet binaries retired — none ship.
 # v2.0.0 Phase 0.3 — mde-* GUI helpers.
 %{_bindir}/mde-wm
 %{_bindir}/mde-enforce-session

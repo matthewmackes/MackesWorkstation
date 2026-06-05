@@ -4485,24 +4485,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mde-applet-app-switcher"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-apple-menu"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "mde-applet-audio"
 version = "10.0.0"
 dependencies = [
@@ -4512,67 +4494,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "mde-applet-bg"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-brightness-osd"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde_json",
-]
-
-[[package]]
 name = "mde-applet-clock"
 version = "10.0.0"
 dependencies = [
  "mde-applet-api",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-dock"
-version = "10.0.0"
-dependencies = [
- "iced 0.13.1",
- "iced_layershell 0.13.7",
- "mackes-config",
- "mde-applet-api",
- "mde-theme",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
-name = "mde-applet-mesh-status"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-network"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-notification-bell"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde",
  "serde_json",
 ]
 
@@ -4586,44 +4511,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "mde-applet-recents"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde_json",
-]
-
-[[package]]
 name = "mde-applet-start-menu"
 version = "10.0.0"
 dependencies = [
  "mde-applet-api",
  "serde",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-status-cluster"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-sway-cluster"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "mde-applet-volume-osd"
-version = "10.0.0"
-dependencies = [
- "mde-applet-api",
  "serde_json",
 ]
 
@@ -4830,27 +4722,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "ulid",
- "zbus 5.16.0",
-]
-
-[[package]]
-name = "mde-panel"
-version = "10.0.0"
-dependencies = [
- "clap",
- "dirs 5.0.1",
- "iced 0.13.1",
- "iced_layershell 0.13.7",
- "mackes-config",
- "mackes-mesh-types",
- "mackes-theme",
- "mde-applet-api",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
  "zbus 5.16.0",
 ]
 

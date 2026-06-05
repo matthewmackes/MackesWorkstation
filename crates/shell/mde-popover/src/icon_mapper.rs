@@ -22,8 +22,6 @@
 //! invoking cell renders). The fullscreen backdrop dismiss
 //! pattern from v3.0.4 keeps the click-outside semantics.
 
-use std::process::Command;
-
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text, Space};
 use iced::{
     Background, Border, Color, Element, Length, Padding, Shadow, Subscription, Task, Theme,
@@ -344,31 +342,17 @@ fn popover_surface(_t: &Theme) -> container::Style {
     }
 }
 
-/// Best-effort current-glyph readout. Spawns `mde-panel
-/// --resolve-icon <app_id>` and falls back to the static
-/// builtin table when the subprocess isn't installed (dev
-/// builds) or fails. The function is a pure read — never
-/// writes anywhere.
+/// Best-effort current-glyph readout via the inline builtin table. The function
+/// is a pure read — never writes anywhere.
+///
+/// (Until E5.5 this first shelled out to `mde-panel --resolve-icon`, but that
+/// standalone applet binary was retired — `mde-panel` now resolves to the panel
+/// symlink, which would launch the bar, not answer a query. The inline table
+/// covers the glyphs this popover's `CANDIDATE_GLYPHS` shows.)
 fn resolve_current(app_id: &str) -> String {
     if app_id.is_empty() {
         return "application".to_string();
     }
-    // Try the panel binary first.
-    if let Ok(out) = Command::new("mde-panel")
-        .args(["--resolve-icon", app_id])
-        .output()
-    {
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if !s.is_empty() {
-                return s;
-            }
-        }
-    }
-    // Fall back to a tiny inline table mirroring the
-    // mde_panel::icon_mapper::builtin_map entries that this
-    // popover's CANDIDATE_GLYPHS shows. Keeps the popover
-    // useful even when mde-panel isn't on PATH.
     inline_fallback_resolve(&app_id.to_lowercase())
 }
 

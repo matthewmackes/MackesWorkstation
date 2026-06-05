@@ -7,23 +7,18 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/applets/app-switcher",
-    "crates/applets/apple-menu",
+    # E5.5/E0.17 (2026-06-05): the standalone applet *binaries* + the mde-panel
+    # applet-host were retired — the integrated `mde` shell (panel.rs tray +
+    # action_center/task_view/wallpaper/notifyd) supersedes them. The 4 applet
+    # *backends* below stay: mde-popover (a live popover-host) links their libs
+    # (start-menu/audio/clock/notifications), and they share applet-api. The 12
+    # pure-standalone applets (had no lib consumers, only the dead host spawned
+    # them) + mde-panel + mde-drawer were git-rm'd.
     "crates/applets/applet-api",
     "crates/applets/audio",
-    "crates/applets/bg",
-    "crates/applets/brightness-osd",
     "crates/applets/clock",
-    "crates/applets/dock",
-    "crates/applets/mesh-status",
-    "crates/applets/network",
-    "crates/applets/notification-bell",
     "crates/applets/notifications",
-    "crates/applets/recents",
     "crates/applets/start-menu",
-    "crates/applets/status-cluster",
-    "crates/applets/sway-cluster",
-    "crates/applets/volume-osd",
     "crates/kdc/mde-kdc-host",
     "crates/kdc/mde-kdc-proto",
     "crates/mesh/mackes-config",
@@ -48,7 +43,6 @@ members = [
     "crates/shell/mde-alert-emit",
     "crates/shell/mde-installer",
     "crates/shell/mde-logout-dialog",
-    "crates/shell/mde-panel",
     "crates/shell/mde-peer-card",
     "crates/shell/mde-popover",
     "crates/shell/mde-session",
