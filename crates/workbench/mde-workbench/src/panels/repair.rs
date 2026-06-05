@@ -11,7 +11,7 @@
 //!
 //!   * Reload sway (re-read `~/.config/sway/config` without
 //!     a full session restart)
-//!   * Restart mded (kicks the user systemd unit if a worker
+//!   * Restart mackesd (kicks the user systemd unit if a worker
 //!     wedged)
 //!   * Re-install the MDE .desktop launcher (copies the
 //!     system-wide entry under
@@ -52,7 +52,7 @@ pub struct RepairPanel {
 #[derive(Debug, Clone)]
 pub enum Message {
     ReloadSwayClicked,
-    RestartMdedClicked,
+    RestartMackesdClicked,
     ReinstallDesktopClicked,
     RestorePresetClicked,
     Finished { argv: String, output: String },
@@ -69,9 +69,9 @@ impl RepairPanel {
             Message::ReloadSwayClicked => {
                 self.dispatch("swaymsg reload", vec!["swaymsg", "reload"])
             }
-            Message::RestartMdedClicked => self.dispatch(
-                "systemctl --user restart mded",
-                vec!["systemctl", "--user", "restart", "mded"],
+            Message::RestartMackesdClicked => self.dispatch(
+                "systemctl --user restart mackesd",
+                vec!["systemctl", "--user", "restart", "mackesd"],
             ),
             Message::ReinstallDesktopClicked => self.dispatch_async_fn("reinstall mde.desktop"),
             Message::RestorePresetClicked => self.dispatch_restore("restore my preset"),
@@ -154,9 +154,9 @@ impl RepairPanel {
             palette,
         );
         let restart_btn = variant_button(
-            "Restart mded",
+            "Restart mackesd",
             ButtonVariant::Secondary,
-            (!self.busy).then(|| crate::Message::Repair(Message::RestartMdedClicked)),
+            (!self.busy).then(|| crate::Message::Repair(Message::RestartMackesdClicked)),
             palette,
         );
         let reinstall_btn = variant_button(
@@ -191,8 +191,8 @@ impl RepairPanel {
             .spacing(12),
             row![
                 column![
-                    text("Restart mded").size(14),
-                    text("Kicks the user systemd unit when a mded worker wedges.").size(12)
+                    text("Restart mackesd").size(14),
+                    text("Kicks the user systemd unit when a mackesd worker wedges.").size(12)
                 ]
                 .spacing(2)
                 .width(Length::Fill),
@@ -332,9 +332,9 @@ mod tests {
     }
 
     #[test]
-    fn restart_mded_clicked_sets_busy_and_status() {
+    fn restart_mackesd_clicked_sets_busy_and_status() {
         let mut panel = RepairPanel::new();
-        let _ = panel.update(Message::RestartMdedClicked);
+        let _ = panel.update(Message::RestartMackesdClicked);
         assert!(panel.busy);
         assert!(panel.status.contains("systemctl"));
     }
