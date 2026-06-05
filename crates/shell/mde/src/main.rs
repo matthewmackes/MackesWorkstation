@@ -121,6 +121,7 @@ COMMANDS:
     snip [rect|full]   Region/full screenshot → ~/Pictures/Screenshots + clipboard
     taskbar-properties   Taskbar and Start Menu Properties
     setup [--profile=R|--show|--tui|--gui|--dry-run]   Pin deployment role (R=lighthouse|server|workstation; upgrade-only) / --show rank / install
+    oobe [--tui|--force|--dry-run]   Win10 first-run OOBE (Region→…→Finalize); same flow as `setup --era=win10`
     install [--assets]   Fetch Chicago95 + Win2k assets (first run)
     logoff           Log Off / Win10 account flyout (Lock · Sign out)
     shutdown         Shut Down / Win10 power flyout (Sleep · Shut down · Restart)
@@ -291,6 +292,9 @@ fn main() -> ExitCode {
         "shutdown" => dialogs::shutdown(),
         "lock" => lock::run(rest),
         "setup" => installer::dispatch(rest),
+        // E7.1 — the Win10 OOBE as a first-class subcommand (the same flow
+        // as `mde setup --era=win10`); honours --tui / --force / --dry-run.
+        "oobe" => oobe::run(rest),
         "install" => install::run(rest),
         "-V" | "--version" => {
             println!("mde {}", env!("CARGO_PKG_VERSION"));
