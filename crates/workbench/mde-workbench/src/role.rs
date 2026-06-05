@@ -20,7 +20,7 @@ use iced::widget::{button, column, row, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding, Theme};
 use mde_theme::{mde_icon, Icon, IconSize, Palette};
 
-use crate::model::{nav_model, Group};
+use crate::model::{nav_model, Group, Panel};
 use crate::Message;
 
 /// The card-header glyph for a role — 1:1 with the sidebar group icon.
@@ -86,6 +86,19 @@ const fn see_also(group: Group) -> &'static [Group] {
     }
 }
 
+/// The panels surfaced as Tasks action-links on a role's card — the
+/// group's [`nav_model`] entry, in its locked order. Each maps to a
+/// `Message::SelectPanel { group, panel }`, so the card and the sidebar
+/// stay in lock-step. Exposed for the E6 role-contract tests.
+#[must_use]
+pub fn role_action_panels(group: Group) -> Vec<Panel> {
+    nav_model()
+        .into_iter()
+        .find(|e| e.group == group)
+        .map(|e| e.panels)
+        .unwrap_or_default()
+}
+
 /// Render the role-card landing for a group-root view.
 #[must_use]
 pub fn role_landing<'a>(group: Group) -> Element<'a, Message> {
@@ -107,11 +120,7 @@ pub fn role_landing<'a>(group: Group) -> Element<'a, Message> {
     .align_y(iced::alignment::Vertical::Center);
 
     // ── tasks: one action-link per panel in this group ──────────────
-    let panels = nav_model()
-        .into_iter()
-        .find(|e| e.group == group)
-        .map(|e| e.panels)
-        .unwrap_or_default();
+    let panels = role_action_panels(group);
     let mut task_links: Vec<Element<'a, Message>> = vec![section_label("Tasks", palette)];
     for panel in panels {
         task_links.push(action_link(panel.label(), group, panel.slug(), palette));
@@ -285,5 +294,40 @@ mod tests {
         for g in Group::all() {
             let _: Element<'_, Message> = role_landing(g);
         }
+    }
+
+    #[test]
+    fn every_role_card_has_at_least_one_action_link() {
+        // The card↔nav_model contract: each sidebar role surfaces ≥1
+        // Tasks action-link (an empty card would be a dead landing).
+        for g in Group::sidebar_groups() {
+            assert!(
+                !role_action_panels(g).is_empty(),
+                "role {g:?} renders no action-links"
+            );
+        }
+    }
+
+    #[test]
+    fn fleet_role_card_links_match_the_e6_5_acceptance() {
+        // E6.5 acceptance #1: the Fleet role card surfaces action-links
+        // to Inventory / Playbooks / Run-History / Settings / Revisions.
+        // Locks the Fleet role's task set to the acceptance (each panel
+        // is wired in app.rs::panel_body, so each link opens its
+        // backend, not the not-ready empty-state).
+        let slugs: Vec<&str> = role_action_panels(Group::Fleet)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        assert_eq!(
+            slugs,
+            vec![
+                "inventory",
+                "playbooks",
+                "run_history",
+                "settings",
+                "revisions"
+            ]
+        );
     }
 }
