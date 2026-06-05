@@ -666,7 +666,7 @@ mod tests {
 
         // Host pairing store: trust phone-1 with the server's pinned fingerprint.
         let tmp = tempfile::tempdir().unwrap();
-        let mut store = PairingStore::open(tmp.path()).unwrap();
+        let store = PairingStore::open(tmp.path()).unwrap();
         store
             .pair(DeviceRecord {
                 device_id: "phone-1".into(),

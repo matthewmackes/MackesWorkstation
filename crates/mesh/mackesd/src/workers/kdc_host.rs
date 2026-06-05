@@ -29,7 +29,7 @@
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use mde_bus::hooks::config::Priority;
@@ -142,17 +142,13 @@ impl KdcHostWorker {
 
     /// Open the on-disk pairing store (creating the identity on first
     /// run). Idempotent + cheap once `identity.pkcs8` exists, so `run`
-    /// can call it freely after a restart. Wrapped in a `Mutex` because
-    /// the canonical `PairingStore::{pair,unpair}` take `&mut self`.
-    fn open_pairing(&self) -> Result<Arc<Mutex<PairingStore>>, HostError> {
-        Ok(Arc::new(Mutex::new(PairingStore::open(&self.config_dir)?)))
+    /// can call it freely after a restart. A single `Arc<PairingStore>`
+    /// is shared (E2.3): the canonical store is interior-mutable, so the
+    /// verb responder pairs/unpairs through the same `&self` the read-only
+    /// LAN host holds — no outer lock, one authoritative store.
+    fn open_pairing(&self) -> Result<Arc<PairingStore>, HostError> {
+        Ok(Arc::new(PairingStore::open(&self.config_dir)?))
     }
-}
-
-/// Lock the pairing store, recovering the guard if a prior holder panicked
-/// (poison-tolerant — the store is plain data, no broken invariant on panic).
-fn lock_store(store: &Mutex<PairingStore>) -> MutexGuard<'_, PairingStore> {
-    store.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Build an outbound `Packet` from a kind token + body (id = wall-clock
@@ -189,7 +185,7 @@ fn device_json(d: &DeviceRecord) -> Value {
 /// `version`/`list`/`get` read; `pair`/`unpair` mutate the store;
 /// `ring`/`sms`/`clipboard` enqueue an outbound `Packet`.
 fn handle_connect_verb(
-    store: &Mutex<PairingStore>,
+    store: &PairingStore,
     outbound: &PendingSends,
     verb: &str,
     body: &Value,
@@ -201,20 +197,14 @@ fn handle_connect_verb(
     };
     let reply = match verb {
         "version" => json!({ "ok": true, "version": env!("CARGO_PKG_VERSION") }),
-        "list" => {
-            let guard = lock_store(store);
-            json!({
-                "ok": true,
-                "devices": guard.records().into_iter().map(device_json).collect::<Vec<_>>(),
-            })
-        }
-        "get" => {
-            let guard = lock_store(store);
-            match dev_id().and_then(|id| guard.get(&id).map(device_json)) {
-                Some(device) => json!({ "ok": true, "device": device }),
-                None => json!({ "ok": false, "error": "NoSuchDevice" }),
-            }
-        }
+        "list" => json!({
+            "ok": true,
+            "devices": store.records().iter().map(device_json).collect::<Vec<_>>(),
+        }),
+        "get" => match dev_id().and_then(|id| store.get(&id)) {
+            Some(rec) => json!({ "ok": true, "device": device_json(&rec) }),
+            None => json!({ "ok": false, "error": "NoSuchDevice" }),
+        },
         "pair" => {
             let record = DeviceRecord {
                 device_id: body
@@ -234,31 +224,23 @@ fn handle_connect_verb(
                     .unwrap_or_default()
                     .to_string(),
             };
-            let mut guard = lock_store(store);
-            match guard.pair(record) {
+            match store.pair(record) {
                 Ok(()) => json!({ "ok": true }),
                 Err(e) => json!({ "ok": false, "error": format!("PersistFailed: {e}") }),
             }
         }
         "unpair" => match dev_id() {
-            Some(id) => {
-                let mut guard = lock_store(store);
-                if guard.is_paired(&id) {
-                    match guard.unpair(&id) {
-                        Ok(()) => json!({ "ok": true }),
-                        Err(e) => json!({ "ok": false, "error": format!("PersistFailed: {e}") }),
-                    }
-                } else {
-                    json!({ "ok": false, "error": "NoSuchDevice" })
-                }
-            }
-            None => json!({ "ok": false, "error": "NoSuchDevice" }),
+            Some(id) if store.is_paired(&id) => match store.unpair(&id) {
+                Ok(()) => json!({ "ok": true }),
+                Err(e) => json!({ "ok": false, "error": format!("PersistFailed: {e}") }),
+            },
+            _ => json!({ "ok": false, "error": "NoSuchDevice" }),
         },
         "ring" | "sms" | "clipboard" => {
             let Some(id) = dev_id() else {
                 return json!({ "ok": false, "error": "NoSuchDevice" }).to_string();
             };
-            if !lock_store(store).is_paired(&id) {
+            if !store.is_paired(&id) {
                 return json!({ "ok": false, "error": "NoSuchDevice" }).to_string();
             }
             let packet = match verb {
@@ -292,7 +274,7 @@ fn handle_connect_verb(
 /// when `stop` is set. Mirrors `mde-session`'s poll responder.
 fn serve_connect_bus(
     persist: &Persist,
-    store: &Mutex<PairingStore>,
+    store: &PairingStore,
     outbound: &PendingSends,
     stop: &AtomicBool,
 ) {
@@ -418,8 +400,8 @@ mod tests {
         assert!(tmp.path().join("identity.pkcs8").exists());
     }
 
-    fn test_store(dir: &std::path::Path) -> Mutex<PairingStore> {
-        Mutex::new(PairingStore::open(dir).unwrap())
+    fn test_store(dir: &std::path::Path) -> PairingStore {
+        PairingStore::open(dir).unwrap()
     }
 
     fn pair_body(id: &str, name: &str) -> Value {

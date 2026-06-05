@@ -14,6 +14,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use mde_kdc_proto::crypto::{KeyHandle, KeyStore, PairingKeyPair, RingKeyStore};
 use serde::{Deserialize, Serialize};
@@ -56,7 +57,12 @@ pub struct PairingStore {
     /// This host's RSA public key as PKCS#1 `RSAPublicKey` DER — the form
     /// [`mde_kdc_proto::crypto::verify_signature`] expects.
     public_key_der: Vec<u8>,
-    devices: HashMap<String, DeviceRecord>,
+    /// The trusted-peer records. Interior-mutable (E2.3) so a single
+    /// `Arc<PairingStore>` is shared, without an outer `Mutex`, between the
+    /// read-only LAN transport (identity + pin-verify) and the operator
+    /// pairing surface (`pair`/`unpair` via `&self`) that mutates it — the
+    /// canonical "one authoritative store" mackesd owns.
+    devices: Mutex<HashMap<String, DeviceRecord>>,
     sessions: RingKeyStore,
 }
 
@@ -104,7 +110,7 @@ impl PairingStore {
             dir,
             keypair,
             public_key_der,
-            devices,
+            devices: Mutex::new(devices),
             sessions: RingKeyStore::new(),
         })
     }
@@ -132,53 +138,72 @@ impl PairingStore {
         Ok(self.keypair.sign(message)?)
     }
 
+    /// Lock the device map, recovering the guard if a prior holder panicked
+    /// (the map is plain data — a panic leaves no broken invariant).
+    fn devices(&self) -> MutexGuard<'_, HashMap<String, DeviceRecord>> {
+        self.devices.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     /// Whether `device_id` is a trusted, persisted peer (drives
     /// `PluginContext.paired`).
     #[must_use]
     pub fn is_paired(&self, device_id: &str) -> bool {
-        self.devices.contains_key(device_id)
+        self.devices().contains_key(device_id)
     }
 
-    /// Look up a trusted peer's record.
+    /// Look up a trusted peer's record (cloned out of the lock).
     #[must_use]
-    pub fn get(&self, device_id: &str) -> Option<&DeviceRecord> {
-        self.devices.get(device_id)
+    pub fn get(&self, device_id: &str) -> Option<DeviceRecord> {
+        self.devices().get(device_id).cloned()
     }
 
     /// Every trusted peer, for enumeration — e.g. a host surfacing the paired-device
-    /// roster (the `mde connect` daemon's `Devices()`). Iteration order is unspecified.
+    /// roster (the daemon's published roster). Iteration order is unspecified.
     #[must_use]
-    pub fn records(&self) -> Vec<&DeviceRecord> {
-        self.devices.values().collect()
+    pub fn records(&self) -> Vec<DeviceRecord> {
+        self.devices().values().cloned().collect()
     }
 
     /// Number of trusted peers.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.devices.len()
+        self.devices().len()
     }
 
     /// Whether the store has no trusted peers.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.devices.is_empty()
+        self.devices().is_empty()
     }
 
     /// Trust a peer and persist the store (atomic write of `devices.toml`).
-    pub fn pair(&mut self, record: DeviceRecord) -> Result<(), HostError> {
-        self.devices.insert(record.device_id.clone(), record);
-        self.persist()
+    /// Interior-mutable (`&self`) so a shared `Arc<PairingStore>` can pair
+    /// without an outer lock (E2.3).
+    pub fn pair(&self, record: DeviceRecord) -> Result<(), HostError> {
+        let snapshot = {
+            let mut devices = self.devices();
+            devices.insert(record.device_id.clone(), record);
+            devices.values().cloned().collect::<Vec<_>>()
+        };
+        self.write_devices(&snapshot)
     }
 
     /// Untrust a peer and persist the store. No-op for an unknown id.
-    pub fn unpair(&mut self, device_id: &str) -> Result<(), HostError> {
-        self.devices.remove(device_id);
-        self.persist()
+    pub fn unpair(&self, device_id: &str) -> Result<(), HostError> {
+        let snapshot = {
+            let mut devices = self.devices();
+            devices.remove(device_id);
+            devices.values().cloned().collect::<Vec<_>>()
+        };
+        self.write_devices(&snapshot)
     }
 
-    fn persist(&self) -> Result<(), HostError> {
+    /// Atomically write a peer snapshot to `devices.toml`. The snapshot is
+    /// built under the device lock and passed here by reference so the disk
+    /// write happens *after* the lock is released (no I/O under the lock).
+    fn write_devices(&self, devices: &[DeviceRecord]) -> Result<(), HostError> {
         let file = DeviceFile {
-            device: self.devices.values().cloned().collect(),
+            device: devices.to_vec(),
         };
         let text = toml::to_string_pretty(&file)?;
         let path = self.dir.join("devices.toml");
@@ -327,7 +352,7 @@ mod tests {
     fn pair_persists_across_reopen() {
         let tmp = tempfile::tempdir().unwrap();
         {
-            let mut s = PairingStore::open(tmp.path()).unwrap();
+            let s = PairingStore::open(tmp.path()).unwrap();
             s.pair(rec("dev-1")).unwrap();
             assert!(s.is_paired("dev-1"));
             assert_eq!(s.len(), 1);
@@ -360,7 +385,7 @@ mod tests {
     fn unpair_persists_removal() {
         let tmp = tempfile::tempdir().unwrap();
         {
-            let mut s = PairingStore::open(tmp.path()).unwrap();
+            let s = PairingStore::open(tmp.path()).unwrap();
             s.pair(rec("dev-1")).unwrap();
             s.unpair("dev-1").unwrap();
         }
@@ -370,10 +395,11 @@ mod tests {
     #[test]
     fn records_enumerates_every_paired_peer() {
         let tmp = tempfile::tempdir().unwrap();
-        let mut s = PairingStore::open(tmp.path()).unwrap();
+        let s = PairingStore::open(tmp.path()).unwrap();
         s.pair(rec("dev-1")).unwrap();
         s.pair(rec("dev-2")).unwrap();
-        let mut ids: Vec<&str> = s.records().iter().map(|d| d.device_id.as_str()).collect();
+        let recs = s.records();
+        let mut ids: Vec<&str> = recs.iter().map(|d| d.device_id.as_str()).collect();
         ids.sort_unstable();
         assert_eq!(ids, ["dev-1", "dev-2"]);
         assert!(PairingStore::open(tmp.path()).unwrap().records().len() == 2);
