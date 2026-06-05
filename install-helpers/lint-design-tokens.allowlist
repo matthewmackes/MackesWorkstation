@@ -193,9 +193,9 @@ crates/shell/mde-wizard/src/pages/preset.rs:18
 crates/shell/mde-wizard/src/pages/preset.rs:24
 crates/shell/mde-wizard/src/pages/preset.rs:30
 crates/shell/mde-wizard/src/pages/preset.rs:91
-crates/workbench/mde-workbench/src/app.rs:1600
-crates/workbench/mde-workbench/src/app.rs:1601
-crates/workbench/mde-workbench/src/app.rs:1635
+crates/workbench/mde-workbench/src/app.rs:1610
+crates/workbench/mde-workbench/src/app.rs:1611
+crates/workbench/mde-workbench/src/app.rs:1645
 crates/workbench/mde-workbench/src/app.rs:55
 crates/workbench/mde-workbench/src/app.rs:66
 crates/workbench/mde-workbench/src/app.rs:68

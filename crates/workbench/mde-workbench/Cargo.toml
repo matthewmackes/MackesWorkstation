@@ -76,6 +76,10 @@ mde-theme = { path = "../../shared/mde-theme", features = ["iced"] }
 # mde-popover, mde-music) can render the canonical Material Object
 # Card without taking a dep on the entire workbench crate.
 mde-iced-components = { path = "../../shared/mde-iced-components" }
+# E6.9 — the Help → About surface renders the single-source project
+# disclaimer/mission (embedded from the repo-root DISCLAIMER.md at build
+# time), shared with the shell About, installer, and daemon banner.
+mde-disclaimer = { path = "../../shared/mde-disclaimer" }
 # AIR-20 (2026-05-30) — the Devices → Music settings panel reuses the
 # music daemon's creds + cache + airsonic-client modules so the panel
 # and `mde-musicd` agree byte-for-byte on storage paths + auth.

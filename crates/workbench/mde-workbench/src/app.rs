@@ -967,7 +967,6 @@ impl App {
             // catch-all placeholder "Panel view lands in a later
             // CB-1.x substep."
             View::Group(Group::Dashboard) => self.home.view(),
-            View::Group(Group::Help) => self.help.view(),
             // E6.7 — the Maintain group root now renders the standard role
             // card (via the View::Group(g) catch-all), matching the other
             // roles; the hub overview dashboard becomes the "Hub" sub-panel
@@ -976,6 +975,17 @@ impl App {
                 group: Group::Maintain,
                 panel: "hub",
             } => self.hub.view(),
+            // E6.9 — the Help group root renders the role card (catch-all);
+            // its action-links open the help topics index + the About/Help
+            // disclaimer surface as sub-panels.
+            View::Panel {
+                group: Group::Help,
+                panel: "index",
+            } => self.help.view(),
+            View::Panel {
+                group: Group::Help,
+                panel: "about",
+            } => crate::panels::about::AboutPanel::view(),
             View::Panel {
                 group: Group::LookAndFeel,
                 panel: "themes",

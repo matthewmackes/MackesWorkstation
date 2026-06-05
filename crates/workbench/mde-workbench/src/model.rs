@@ -317,7 +317,12 @@ pub fn nav_model() -> Vec<NavEntry> {
         },
         NavEntry {
             group: Group::Help,
-            panels: vec![Panel::new("index", "Help Topics")],
+            panels: vec![
+                Panel::new("index", "Help Topics"),
+                // E6.9 — About/Help: the single-source project
+                // disclaimer/mission (embedded DISCLAIMER.md).
+                Panel::new("about", "About"),
+            ],
         },
     ]
 }

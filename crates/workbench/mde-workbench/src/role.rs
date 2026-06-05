@@ -420,6 +420,17 @@ mod tests {
     }
 
     #[test]
+    fn help_role_card_has_index_and_about() {
+        // E6.9 acceptance #1: the Help role card surfaces action-links to
+        // the help topics index and the About/Help (disclaimer) surface.
+        let slugs: Vec<&str> = role_action_panels(Group::Help)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        assert_eq!(slugs, vec!["index", "about"]);
+    }
+
+    #[test]
     fn maintain_role_card_matches_the_e6_7_acceptance() {
         // E6.7 acceptance #1: the Maintain role card surfaces action-links
         // to Hub / Snapshots / Debloat / Health / Repair / Drift. The
