@@ -92,6 +92,10 @@ struct Files {
     cloud_device: Option<String>,
     /// The Cloud device whose right-click offline menu is open, if any (E8.10).
     cloud_ctx: Option<String>,
+    /// The paired-device roster (E2.4), fetched off-thread from the mackesd
+    /// `kdc_host` worker over the Bus (`connect::devices()`) on `ShowCloud` —
+    /// the single authoritative source replacing the dead local `devices.json`.
+    cloud_roster: Vec<CloudDevice>,
     /// Network pane SMB browse (E8.5a): the server typed into the browse box,
     /// the host the listed shares were actually browsed against (so they don't
     /// mislabel when the box is edited afterward), the Disk shares `smbclient -L`
@@ -153,8 +157,13 @@ enum Message {
     /// Browse result + the op generation it was dispatched under (E8.8b).
     NetBrowsed(Result<Vec<String>, String>, u64),
     OpenShare(String),
-    /// Show the Cloud devices pane (the paired-device list).
+    /// Show the Cloud devices pane (the paired-device list). Dispatches an
+    /// off-thread fetch of the mackesd roster (E2.4), reported via
+    /// [`Message::CloudRosterLoaded`].
     ShowCloud,
+    /// The mackesd paired-device roster finished loading off-thread (E2.4) —
+    /// the `connect::devices()` Bus query mapped to [`CloudDevice`] rows.
+    CloudRosterLoaded(Vec<CloudDevice>),
     /// Mount a paired device over sftp and browse it (E8.8); on failure it selects
     /// the device and shows the error on the Cloud pane. The actual mount runs
     /// off-thread (E8.8a) and reports back via [`Message::MountDone`].
@@ -279,6 +288,7 @@ fn launch(start: PathBuf, pane: Pane, pins: Vec<PathBuf>) -> iced::Result {
                 qctx: None,
                 cloud_device: None,
                 cloud_ctx: None,
+                cloud_roster: Vec::new(),
                 net_host: String::new(),
                 net_browsed_host: String::new(),
                 net_shares: Vec::new(),
@@ -287,7 +297,14 @@ fn launch(start: PathBuf, pane: Pane, pins: Vec<PathBuf>) -> iced::Result {
                 sync: None,
             };
             f.load();
-            (f, Task::none())
+            // If Explorer lands directly on the Cloud pane, fetch the roster up
+            // front (else it's fetched on the first ShowCloud).
+            let init = if f.pane == Pane::CloudDevice {
+                fetch_cloud_roster()
+            } else {
+                Task::none()
+            };
+            (f, init)
         })
 }
 
@@ -626,8 +643,13 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
             state.bump_gen();
             state.cloud_device = None;
             state.pane = Pane::CloudDevice;
+            // Refresh the roster from the mackesd host worker over the Bus.
+            return fetch_cloud_roster();
         }
-        Message::MountCloud(id) => match cloud_devices().into_iter().find(|d| d.id == id) {
+        Message::CloudRosterLoaded(devices) => {
+            state.cloud_roster = devices;
+        }
+        Message::MountCloud(id) => match state.cloud_roster.iter().find(|d| d.id == id).cloned() {
             // The mount itself runs off-thread (E8.8a); MountDone navigates or, on
             // error, reselects the device on the Cloud pane via `cloud_id`.
             Some(d) if !d.address.is_empty() => {
@@ -682,7 +704,7 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 state.error = Some("An offline copy is already running.".into());
                 return Task::none();
             }
-            let dev = cloud_devices().into_iter().find(|d| d.id == id);
+            let dev = state.cloud_roster.iter().find(|d| d.id == id).cloned();
             match (dev, cloud_mirror(&id)) {
                 (Some(d), Some(mirror)) if !d.address.is_empty() => {
                     // Run the mount + recursive copy off the UI thread (E8.10a): the
@@ -719,10 +741,11 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 state.sync = None;
             }
             if gen == state.op_gen {
-                let name = cloud_devices()
-                    .into_iter()
+                let name = state
+                    .cloud_roster
+                    .iter()
                     .find(|d| d.id == id)
-                    .map(|d| d.name)
+                    .map(|d| d.name.clone())
                     .unwrap_or_else(|| id.clone());
                 state.error = Some(match result {
                     Ok(n) => format!("'{name}' is now available offline ({n} file(s))."),
@@ -1296,7 +1319,7 @@ fn status_bar(state: &Files) -> Element<'_, Message> {
             }
         }
         None if state.pane == Pane::CloudDevice => {
-            let n = cloud_devices().len();
+            let n = state.cloud_roster.len();
             if n == 0 {
                 "No paired devices".to_string()
             } else {
@@ -2169,37 +2192,51 @@ fn mount_uri(uri: &str) -> Result<PathBuf, String> {
     }
 }
 
-/// A paired KDE Connect device from mde's connect store (E8.7).
-#[derive(serde::Deserialize)]
+/// A paired KDE Connect device as the Cloud Files pane shows it (E8.7 / E2.4).
+/// Built from the mackesd host roster (`connect::devices()`); every reported
+/// device is a trusted peer, so there is no `paired` flag to filter on.
+#[derive(Clone, Debug)]
 struct CloudDevice {
     id: String,
     name: String,
-    #[serde(default)]
-    paired: bool,
-    /// sftp target (host or user@host) used by E8.8 to mount + browse the device.
-    #[serde(default)]
+    /// sftp target (host or user@host) used by E8.8 to mount + browse the
+    /// device. Negotiated on the live link, so empty until the 2-device bench.
     address: String,
 }
 
-/// The connect pairing store: `~/.config/mde/connect/devices.json` (honouring
-/// `$XDG_CONFIG_HOME`) — the direct-read fallback for the shared KDE Connect crate.
-fn connect_store() -> Option<PathBuf> {
-    crate::state::config_path()?
-        .parent()
-        .map(|d| d.join("connect").join("devices.json"))
+/// Map the shared client's roster row to a Cloud-pane [`CloudDevice`]. Every
+/// device the host reports is a trusted (paired) peer; the sftp `address` is
+/// negotiated on the live link (the 2-device bench), so it is empty here and
+/// `MountCloud` is gated on a non-empty address.
+fn roster_to_cloud(d: crate::connect::DeviceInfo) -> CloudDevice {
+    CloudDevice {
+        id: d.id,
+        name: d.name,
+        address: String::new(),
+    }
 }
 
-/// Paired cloud devices, read from the connect store. Missing/garbage → none
-/// (never panics); only `paired` devices are returned.
-fn cloud_devices() -> Vec<CloudDevice> {
-    let Some(path) = connect_store() else {
-        return Vec::new();
-    };
-    let Ok(txt) = std::fs::read_to_string(&path) else {
-        return Vec::new();
-    };
-    let list: Vec<CloudDevice> = serde_json::from_str(&txt).unwrap_or_default();
-    list.into_iter().filter(|d| d.paired).collect()
+/// Fetch the paired-device roster from the mackesd `kdc_host` worker over the
+/// Bus (`connect::devices()`), off the UI thread — the Bus query blocks up to
+/// 2s. E2.4 — the single authoritative source (mackesd owns the host + the
+/// on-disk store, E2.3), replacing the dead local `devices.json` direct-read
+/// that nothing ever wrote. Delivers the mapped rows as
+/// [`Message::CloudRosterLoaded`]; a Bus timeout yields an empty roster
+/// (never panics).
+fn fetch_cloud_roster() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::task::spawn_blocking(|| {
+                crate::connect::devices()
+                    .into_iter()
+                    .map(roster_to_cloud)
+                    .collect::<Vec<CloudDevice>>()
+            })
+            .await
+            .unwrap_or_default()
+        },
+        Message::CloudRosterLoaded,
+    )
 }
 
 /// The per-device offline-mirror dir: `$XDG_CACHE_HOME/mde/cloud/<id>` (honouring
@@ -2296,7 +2333,7 @@ fn cloud_row(d: &CloudDevice, selected: bool, syncing: Option<usize>) -> Element
 /// mounts it over sftp and browses it (E8.8), a failed device staying highlighted
 /// with its error. Empty → an empty-state line (the status bar echoes the count).
 fn cloud_pane(state: &Files) -> Element<'_, Message> {
-    let devices = cloud_devices();
+    let devices = &state.cloud_roster;
     let mut col = Column::new().spacing(0.0);
     col = col.push(section_header("Paired devices"));
     if devices.is_empty() {
@@ -2308,7 +2345,7 @@ fn cloud_pane(state: &Files) -> Element<'_, Message> {
             .padding(pad(2.0, 6.0, 2.0, 6.0)),
         );
     } else {
-        for d in &devices {
+        for d in devices {
             let sel = state.cloud_device.as_deref() == Some(d.id.as_str());
             let syncing = state
                 .sync
@@ -2448,9 +2485,9 @@ fn nav_pane(state: &Files) -> Element<'_, Message> {
         state.pane == Pane::CloudDevice && state.cloud_device.is_none(),
         Message::ShowCloud,
     ));
-    for d in cloud_devices() {
+    for d in &state.cloud_roster {
         let sel = state.pane == Pane::CloudDevice && state.cloud_device.as_deref() == Some(&d.id);
-        col = col.push(cloud_nav_child(d.name, d.id, sel));
+        col = col.push(cloud_nav_child(d.name.clone(), d.id.clone(), sel));
     }
     iced::widget::stack![
         frame::sunken().face(palette::color(palette::WINDOW)),
@@ -2597,6 +2634,25 @@ fn view(state: &Files) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn roster_to_cloud_maps_id_name_with_empty_bench_address() {
+        // E2.4 — the Cloud pane enumerates from the mackesd roster; the sftp
+        // address is negotiated on the live link (bench), so it's empty here.
+        let info = crate::connect::DeviceInfo {
+            id: "p1".into(),
+            name: "Pixel".into(),
+            online: true,
+            battery: Some(80),
+        };
+        let cd = roster_to_cloud(info);
+        assert_eq!(cd.id, "p1");
+        assert_eq!(cd.name, "Pixel");
+        assert!(
+            cd.address.is_empty(),
+            "sftp address is bench-negotiated; empty single-node so MountCloud stays gated"
+        );
+    }
 
     #[test]
     fn parse_smb_shares_takes_disk_shares_only() {
