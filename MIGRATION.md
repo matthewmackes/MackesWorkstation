@@ -100,10 +100,15 @@ once this repo builds and is pushed — they live on as the history merged here.
 - **E1 — deployment-role install: ✅ done to floor.** Role chooser → `role.toml`,
   role-gated mackesd workers + systemd units (greetd role-gate drop-in), installer
   wired. Live cold-boot/per-role unit set = HW bench.
-- **E2 — KDE Connect: E2.1 ✅ (inbound listener — built + loopback-tested; live
-  phone-initiated = 2-device bench).** E2.2 (converge the legacy mackesd KDC host onto
-  the canonical `mde-kdc-host`) **unblocked but large/architectural**; E2.3/2.4
-  downstream.
+- **E2 — KDE Connect: E2.1 ✅ + E2.2 ✅ to floor.** E2.1 (inbound listener — built +
+  loopback-tested; live phone-initiated = 2-device bench). E2.2 (converge the legacy
+  mackesd KDC host onto the canonical `mde-kdc-host`) **done to single-node floor**
+  (commit `3b3eb8b6`): the plugin-dispatch policy moved to `mde-kdc-proto::dispatch`,
+  `KdcHostWorker` rewritten on the canonical `PairingStore` (`Arc<Mutex<…>>` + a
+  worker-local outbound queue), mackesd's deps swapped to the canonical host+proto —
+  `cargo tree` shows one host, the legacy `mde-kdc{,-proto}` are fully orphaned
+  (#1/#2 met; discovery/pair/ping parity = 2-device bench). E2.3/2.4 downstream;
+  follow-up: drop the orphaned legacy crates from `[workspace] members`.
 - **E3 — LizardFS mesh-storage: ❌ blocked** on the external LizardFS FUSE dependency
   (E3.1 `[!]`).
 - **E4 — Win10 shell era: ✅ done** (the large E4.1–E4.23 epic — taskbar, tiled Start,
