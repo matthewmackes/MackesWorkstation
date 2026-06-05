@@ -1,15 +1,17 @@
 [Desktop Entry]
-# Iced-based Workbench preview shipped alongside the v1.x GTK3
-# panel for early testing. Becomes the primary Workbench surface
-# at the v2.0.0 cut (CB-1.12 retires `mackes/workbench/`).
+# E6.1 — the MDE Workbench as the "Manage Your Server"-style role
+# console: a left-nav of role cards (Apps / Devices / Fleet / Look &
+# Feel / Maintain / System / Help) each with task action-links. Opens
+# at the Dashboard role via `--page dashboard`; the Win10 Start seeds a
+# matching "Manage Workstation" tile (see state::seed_start_tiles).
 Type=Application
-Name=MDE Workbench (preview)
-GenericName=Settings (preview)
-Comment=Iced-based MDE Workbench — preview alongside the v1.x panel
-Exec=mde-workbench
+Name=Manage Workstation
+GenericName=Workbench
+Comment=Administer the workstation from one task-oriented role console
+Exec=mde-workbench --page dashboard
 Icon=mackes-shell
 Terminal=false
 Categories=Settings;System;DesktopSettings;
-Keywords=settings;preferences;control;panel;mde;mackes;preview;
+Keywords=manage;workstation;workbench;console;roles;settings;control;mde;mackes;
 StartupNotify=true
 StartupWMClass=mde-workbench

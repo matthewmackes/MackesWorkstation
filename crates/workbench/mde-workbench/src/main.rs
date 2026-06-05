@@ -36,6 +36,22 @@ struct Cli {
     /// (e.g. `--focus network.mesh_ssh`).
     #[arg(long)]
     focus: Option<String>,
+    /// E6.1 — open the workbench at a role's card landing
+    /// (e.g. `--page apps`). Role-level alias of `--focus`; the
+    /// Start tile + "Manage Workstation" app invoke this. When both
+    /// are given `--focus` (the more specific panel target) wins.
+    #[arg(long)]
+    page: Option<String>,
+}
+
+impl Cli {
+    /// The effective deep-link slug: the panel-level `--focus` if
+    /// given, else the role-level `--page`. Both resolve through the
+    /// same `model::view_from_focus_slug` router (a bare role slug
+    /// lands on that role's card; `<role>.<panel>` on the panel).
+    fn target(&self) -> Option<String> {
+        self.focus.clone().or_else(|| self.page.clone())
+    }
 }
 
 fn main() -> ExitCode {
@@ -46,7 +62,8 @@ fn main() -> ExitCode {
         .init();
 
     let cli = Cli::parse();
-    let initial_focus = cli.focus.clone().unwrap_or_default();
+    let target = cli.target();
+    let initial_focus = target.clone().unwrap_or_default();
 
     let runtime = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -66,7 +83,7 @@ fn main() -> ExitCode {
         Ok((status, conn)) => {
             if status == PrimaryStatus::Existing {
                 drop(conn);
-                return hand_off_to_running(&runtime, &cli.focus);
+                return hand_off_to_running(&runtime, &target);
             }
             start_primary_focus_responder(conn)
         }
@@ -187,4 +204,46 @@ fn start_primary_focus_responder(conn: Connection) -> Result<(), ()> {
             info!("primary workbench focus responder started on the Bus");
         })
         .map_err(|e| error!("spawning workbench focus responder thread: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Cli;
+    use mde_workbench::model::{view_from_focus_slug, Group, View};
+
+    fn cli(focus: Option<&str>, page: Option<&str>) -> Cli {
+        Cli {
+            focus: focus.map(str::to_string),
+            page: page.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn focus_wins_over_page_when_both_set() {
+        // --focus is the more specific panel target; it takes precedence.
+        let c = cli(Some("network.mesh_ssh"), Some("apps"));
+        assert_eq!(c.target().as_deref(), Some("network.mesh_ssh"));
+    }
+
+    #[test]
+    fn page_is_used_when_focus_absent() {
+        let c = cli(None, Some("apps"));
+        assert_eq!(c.target().as_deref(), Some("apps"));
+    }
+
+    #[test]
+    fn target_is_none_when_neither_given() {
+        assert_eq!(cli(None, None).target(), None);
+    }
+
+    #[test]
+    fn page_role_slug_routes_to_that_roles_card() {
+        // E6.1 acceptance: `--page <role>` deep-links to the role's
+        // card landing (a group-root View).
+        let target = cli(None, Some("fleet")).target().unwrap();
+        assert_eq!(
+            view_from_focus_slug(&target),
+            Some(View::Group(Group::Fleet))
+        );
+    }
 }

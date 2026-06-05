@@ -518,16 +518,27 @@ pub fn seed_start_tiles(state: &MenuState) -> Vec<StartTile> {
     if !state.start_tiles.is_empty() {
         return state.start_tiles.clone();
     }
-    effective_pinned(state)
-        .iter()
-        .map(|p| StartTile {
-            name: p.name.clone(),
-            command: p.command.clone(),
-            icon: String::new(),
-            size: TileSize::Medium,
-            group: String::new(),
-        })
-        .collect()
+    // E6.1 — seed the "Manage Workstation" console tile first: it opens
+    // the Workbench's Manage-Your-Server role landing
+    // (`mde-workbench --page dashboard`), so the role console is
+    // reachable from the Win10 Start out of the box. `seed_start_tiles`
+    // is consumed only by the Win10 Start surface (`mde start-win10`),
+    // so this tile only ever renders there — no theme gate needed.
+    let mut tiles = vec![StartTile {
+        name: "Manage Workstation".to_string(),
+        command: "mde-workbench --page dashboard".to_string(),
+        icon: String::new(),
+        size: TileSize::Wide,
+        group: String::new(),
+    }];
+    tiles.extend(effective_pinned(state).iter().map(|p| StartTile {
+        name: p.name.clone(),
+        command: p.command.clone(),
+        icon: String::new(),
+        size: TileSize::Medium,
+        group: String::new(),
+    }));
+    tiles
 }
 
 /// `~/.config/mde/menu.json` (honouring `$XDG_CONFIG_HOME`).
@@ -692,9 +703,14 @@ mod tests {
             ..Default::default()
         };
         let seeded = seed_start_tiles(&st);
-        assert_eq!(seeded.len(), 1);
-        assert_eq!(seeded[0].name, "Files");
-        assert_eq!(seeded[0].size, TileSize::Medium);
+        // E6.1 — the "Manage Workstation" console tile seeds first, then
+        // the pins (here: Files).
+        assert_eq!(seeded.len(), 2);
+        assert_eq!(seeded[0].name, "Manage Workstation");
+        assert_eq!(seeded[0].command, "mde-workbench --page dashboard");
+        assert_eq!(seeded[0].size, TileSize::Wide);
+        assert_eq!(seeded[1].name, "Files");
+        assert_eq!(seeded[1].size, TileSize::Medium);
         st.start_tiles = vec![StartTile {
             name: "Term".into(),
             command: "foot".into(),
@@ -703,6 +719,22 @@ mod tests {
             group: String::new(),
         }];
         assert_eq!(seed_start_tiles(&st), st.start_tiles); // non-empty → no seeding
+    }
+
+    #[test]
+    fn seed_includes_manage_workstation_console_tile_even_without_pins() {
+        // E6.1 — with no custom tiles and no pins, the Manage Workstation
+        // console tile still seeds so the Workbench role console is
+        // reachable from the Win10 Start out of the box.
+        let st = MenuState::default();
+        let seeded = seed_start_tiles(&st);
+        assert!(
+            seeded
+                .iter()
+                .any(|t| t.name == "Manage Workstation"
+                    && t.command == "mde-workbench --page dashboard"),
+            "Manage Workstation console tile must seed: {seeded:?}"
+        );
     }
 
     #[test]
