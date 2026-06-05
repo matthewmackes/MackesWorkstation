@@ -275,6 +275,14 @@ _Depends: none_
     - [ ] No workbench panel shells out to `swaymsg`; `rg "swaymsg" crates/workbench` returns nothing. *(repair done; mouse/keyboard/displays/window_manager deferred to the E6 reskin — they're sway-IPC duplicates of `mde settings`, retire-not-port.)*
     - [ ] Mouse/Keyboard/Displays libinput changes are written where labwc re-reads them and a reconfigure makes the change observable at runtime. *(Already true in the SHELL's `mde settings` Devices pages, E12.6–8; the workbench duplicates are E6.)*
 
+- [>] **E0.16: E0 — Rescue pass: migrate the SHELL-surface `swaymsg` shell-outs off sway onto labwc** *(rescue-pass finding, 2026-06-05)*
+  **As** a Workstation user, **I want** every shell surface's compositor action to work under labwc, **so that** Logout / window-overview / save-layout don't silently fail against a non-existent `swaymsg`. *Surfaced by the 2026-06-05 rescue sweep (sibling to E0.15, which was workbench-panel-only):* shell surfaces also shell out to `swaymsg`. **Split by tractability:**
+    - [✓] `mde-popover` farewell **Logout** ran `swaymsg exit` (broken) → now `pkill labwc` (terminates the compositor `mde-session` waits on → clean systemd `graphical-session.target` tear-down). 11 farewell tests pass. *(DONE this commit.)*
+    - [ ] `mde-popover/src/overview.rs` uses `swaymsg -t get_tree` for the window overview — labwc has **no tree IPC**; port to `wlr-foreign-toplevel` (the shell already has `wlr.rs` for exactly this). Bigger than a swap.
+    - [ ] `mde-session/src/session.rs` `run_wm_get_tree` (`swaymsg -t get_tree`) backs **SaveLayout** — labwc exposes no layout tree; SaveLayout is a sway-specific concept. Decide: drop SaveLayout under labwc, or reconstruct from `wlr.rs` toplevel geometry. *(The `x11`/`i3-msg` arm is also dead — no X11 path in v10.)*
+  *Deps:* E0.4. *Note:* the `mackesd` tag-cluster `swaymsg` (`tag_mode_writer`/`sway_config_watcher`) stays a separate deeper E4/E5 sway-IPC→labwc concern (not this task).
+  **Acceptance:** no shell surface shells to `swaymsg` for a labwc session; Logout/overview/save-layout each work or are deliberately retired under labwc (`rg swaymsg crates/shell` → only deliberately-gated or removed).
+
 ### E1 — Deployment-Role Install
 _Depends: E0_
 

@@ -50,7 +50,10 @@ pub enum Action {
 impl Action {
     fn command(self) -> (&'static str, &'static [&'static str]) {
         match self {
-            Action::Logout => ("swaymsg", &["exit"]),
+            // labwc has no `swaymsg`-style IPC; logout terminates the
+            // compositor, which `mde-session` waits on — its exit triggers
+            // the systemd graphical-session.target tear-down (clean end).
+            Action::Logout => ("pkill", &["labwc"]),
             Action::Restart => ("systemctl", &["reboot"]),
             Action::Shutdown => ("systemctl", &["poweroff"]),
         }
@@ -199,10 +202,10 @@ mod tests {
     }
 
     #[test]
-    fn action_command_logout_is_swaymsg_exit() {
+    fn action_command_logout_terminates_labwc() {
         let (cmd, args) = Action::Logout.command();
-        assert_eq!(cmd, "swaymsg");
-        assert_eq!(args, &["exit"]);
+        assert_eq!(cmd, "pkill");
+        assert_eq!(args, &["labwc"]);
     }
 
     #[test]
