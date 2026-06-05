@@ -30,6 +30,7 @@ const WORKER_TIERS: &[(&str, u8)] = &[
     ("health_reconciler", 0),
     ("mesh_router", 0),
     ("stun_gather", 0),
+    ("mdns_relay", 0),
     ("mesh_latency", 0),
     ("bus_supervisor", 0),
     ("firewall_preset", 0),
@@ -108,20 +109,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_table_is_the_full_29_worker_census() {
+    fn the_table_is_the_full_30_worker_census() {
         // Guards against a worker added to run_serve without a deliberate tier
-        // (it would silently default to Lighthouse). Census shrank from the
-        // original 31: -1 redundant python `clipboard` (RETIRE-PY.3, mde-clipd
-        // is sole), -1 broken `mdns` relay (RETIRE-PY.1 — it spawned the
-        // non-existent `mackes.mesh_mdns` module over the retired mesh_sync
-        // substrate; dead, retired not ported).
-        assert_eq!(WORKER_TIERS.len(), 29);
+        // (it would silently default to Lighthouse). 31 originally; -1 redundant
+        // python `clipboard` (RETIRE-PY.3, mde-clipd is sole), -1 broken python
+        // `mdns` relay (RETIRE-PY.1), +1 native `mdns_relay` (MESH-MDNS-RELAY,
+        // the real Rust cross-segment relay).
+        assert_eq!(WORKER_TIERS.len(), 30);
     }
 
     #[test]
     fn tier_counts_match_the_plan_12_split() {
         let count = |rank: u8| WORKER_TIERS.iter().filter(|(_, r)| *r == rank).count();
-        assert_eq!(count(0), 10, "Lighthouse control plane");
+        assert_eq!(count(0), 11, "Lighthouse control plane");
         assert_eq!(count(1), 3, "Server adds fleet + meshfs");
         assert_eq!(count(2), 16, "Workstation adds voice/media/desktop");
     }
@@ -190,9 +190,9 @@ mod tests {
         let lh = workers_for_rank(Role::Lighthouse.rank());
         let srv = workers_for_rank(Role::Server.rank());
         let ws = workers_for_rank(Role::Workstation.rank());
-        assert_eq!(lh.len(), 10);
-        assert_eq!(srv.len(), 13);
-        assert_eq!(ws.len(), 29);
+        assert_eq!(lh.len(), 11);
+        assert_eq!(srv.len(), 14);
+        assert_eq!(ws.len(), 30);
         // Strict superset: every lower-tier worker is in the higher tier.
         assert!(lh.iter().all(|w| srv.contains(w)));
         assert!(srv.iter().all(|w| ws.contains(w)));

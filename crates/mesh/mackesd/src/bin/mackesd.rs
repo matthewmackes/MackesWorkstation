@@ -3148,8 +3148,9 @@ fn run_serve(
 ) -> anyhow::Result<()> {
     use mackesd_core::workers::{
         firewall_preset::FirewallPresetWorker, fs_sync::FsSyncWorker, heartbeat::HeartbeatWorker,
-        mesh_router::MeshRouterWorker, sshd_overlay_bind::SshdOverlayBindWorker,
-        voice_config::VoiceConfigWorker, RestartPolicy, Spawn, Supervisor,
+        mdns_relay::MdnsRelayWorker, mesh_router::MeshRouterWorker,
+        sshd_overlay_bind::SshdOverlayBindWorker, voice_config::VoiceConfigWorker, RestartPolicy,
+        Spawn, Supervisor,
     };
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -3267,6 +3268,13 @@ fn run_serve(
             mesh_latency_sweep_secs = daemon_cfg.mesh_latency_sweep_secs,
             "E1.3: loaded /etc/mackesd/mackesd.toml daemon config",
         );
+        // MESH-MDNS-RELAY — native cross-segment mDNS service relay (browses
+        // the local LAN, publishes services to the mesh Bus). Rank 0: a relay
+        // control-plane worker, runs on every role.
+        if mackesd_core::worker_role::runs("mdns_relay", role_rank) {
+            sup.spawn(Spawn::new(MdnsRelayWorker::new(), RestartPolicy::OnFailure));
+            worker_names.lock().expect("worker_names mutex").push("mdns_relay".into());
+        }
         if mackesd_core::worker_role::runs("fs_sync", role_rank) {
             sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
             worker_names.lock().expect("worker_names mutex").push("fs_sync".into());

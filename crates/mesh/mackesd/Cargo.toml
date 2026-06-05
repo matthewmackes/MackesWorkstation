@@ -217,6 +217,14 @@ zbus = { version = "5", default-features = false, features = ["tokio"], optional
 # storage, which the supervisor needs. Locked 2026-05-19.
 async-trait = { version = "0.1", optional = true }
 
+# MESH-MDNS-RELAY (2026-06-05) — native cross-segment mDNS service relay.
+# `mdns-sd` is async-runtime-agnostic (spawns its own daemon thread) so it
+# cohabits with the worker without a dedicated executor; it does BOTH the
+# local browse and the LAN republish (registering peers' services), replacing
+# the v1.x avahi-browse + avahi-publish-service. (Re-added: RETIRE-PY.1 dropped
+# it when the dead python mdns worker retired; this is the real consumer.)
+mdns-sd = { version = "0.11", optional = true }
+
 # Phase 12.18 D.2 — Https443 transport. rustls 0.23 + tokio-rustls
 # 0.26 match the workspace's existing TLS stack (mde-kdc uses
 # the same versions). rustls-native-certs loads the system root
@@ -270,6 +278,7 @@ async-services = [
     "dep:task-supervisor",
     "dep:zbus",
     "dep:async-trait",
+    "dep:mdns-sd",
     "dep:mde-kdc",
     "dep:rustls",
     "dep:tokio-rustls",

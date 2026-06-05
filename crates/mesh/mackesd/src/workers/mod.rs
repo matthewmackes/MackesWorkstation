@@ -101,6 +101,7 @@ pub mod health_reconciler;
 // kdeconnectd wrapper. The native KDC host worker
 // (`workers::kdc_host`) replaces it in the v2.1+ stack.
 pub mod kdc_host;
+pub mod mdns_relay;
 pub mod mesh_latency;
 pub mod mesh_router;
 // NF-3.4 (v2.5) — Nebula supervisor worker (CA mint +
