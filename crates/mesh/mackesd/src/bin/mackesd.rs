@@ -4476,10 +4476,9 @@ fn run_serve(
             ));
             worker_names.lock().expect("worker_names mutex").push("app-sync".into());
         }
-        // TUNE-3.b — remmina_sync is still a subprocess-tick worker
-        // driving `python3 -m mackes.remmina_sync`; its native port is
-        // tracked under EPIC-SYNC-APP-CONFIG's sibling note +
-        // EPIC-RETIRE-PY-DAEMONS.
+        // remmina-sync is a native Rust tick worker (RETIRE-PY.2): every 60 s
+        // it reads the mesh peer registry, TCP-probes SSH/RDP/VNC, and
+        // reconciles Remmina's "Mesh Peers" group. No `python3` is spawned.
         if mackesd_core::worker_role::runs("remmina-sync", role_rank) {
             sup.spawn(Spawn::new(
                 mackesd_core::workers::remmina_sync::build(),
