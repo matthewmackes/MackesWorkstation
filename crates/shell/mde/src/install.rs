@@ -1,16 +1,20 @@
 //! First-run asset installer (`mde install --assets`).
 //!
-//! Per locked decision #7, the RPM ships CODE ONLY — the binary plus the asset
-//! *installer scripts* (which are code). The visual assets themselves are
-//! fetched from upstream at runtime so their licenses travel with the bytes and
-//! nothing third-party is redistributed:
-//!   * Chicago95 (icons/cursors/sounds/GTK theme) — github grassmunk/Chicago95
-//!   * Win2k icon theme                            — KDE-Store item 1120706
+//! Per locked decision #7, the RPM ships CODE ONLY — the binary plus the
+//! Chicago95 installer script (code). The visual assets themselves are fetched
+//! from upstream at runtime so their licenses travel with the bytes and nothing
+//! third-party is redistributed:
+//!   * Chicago95 (icons/cursors/sounds/GTK theme) — github grassmunk/Chicago95,
+//!     via the bundled `assets/install-chicago95.sh` (git clone + deploy);
+//!   * Win2k icon theme — KDE-Store item 1120706, via the native Rust
+//!     `install_win2k` step (no `python3`; RETIRE-PY.6a).
 //!
-//! This is a *per-user* operation: the orchestrator deploys into the caller's
-//! `~/.local/share`, and the Win2k step reads the cached tarball + generates
-//! its aliases under `~/.config/labwc` — so the config tree must be deployed
-//! first (the system installer does that, then triggers this per user).
+//! This is a *per-user* operation deploying into `~/.local/share`. `run()`
+//! orchestrates directly — Chicago95 first (broad base), then the native Win2k
+//! step — so there is no separate orchestrator script and nothing shells to
+//! python. A missing Chicago95 script is fatal only when it was the explicit
+//! `--only chicago95` target; the default `--assets` run degrades to a warning
+//! so the native Win2k step still lands.
 //!
 //! Usage:
 //!   mde install [--assets] [--only chicago95|win2k] [--dry-run]
@@ -55,9 +59,12 @@ pub fn run(args: &[String]) -> ExitCode {
             None => println!("  scope        : Chicago95 + Win2k icon theme"),
         }
         if do_chicago {
-            match locate_orchestrator() {
-                Some(s) => println!("  chicago95    : {} --only chicago95", s.display()),
-                None => println!("  chicago95    : orchestrator not in tree yet (RETIRE-PY.6b)"),
+            match locate_chicago95_script() {
+                Some(s) => println!(
+                    "  chicago95    : {} (git clone grassmunk/Chicago95)",
+                    s.display()
+                ),
+                None => println!("  chicago95    : install-chicago95.sh not found"),
             }
         }
         if do_win2k {
@@ -91,27 +98,23 @@ pub fn run(args: &[String]) -> ExitCode {
 /// false (the default both-assets run) a missing orchestrator is a warning,
 /// not an error, so the native Win2k step still runs.
 fn run_chicago95(required: bool) -> Result<(), ExitCode> {
-    let Some(script) = locate_orchestrator() else {
+    let Some(script) = locate_chicago95_script() else {
         if required {
             eprintln!(
-                "mde install: Chicago95 orchestrator not found.\n\
-                 Looked in /usr/share/mde/scripts and the dev tree. On an installed\n\
-                 system this ships with the `mde` RPM; in a checkout it is not yet\n\
-                 vendored (tracked as RETIRE-PY.6b)."
+                "mde install: Chicago95 installer (install-chicago95.sh) not found.\n\
+                 Looked in /usr/share/mde/scripts and the in-repo assets/ dir. On an\n\
+                 installed system this ships with the `mde` RPM; in a checkout run from\n\
+                 the repo root."
             );
             return Err(ExitCode::FAILURE);
         }
         eprintln!(
-            "mde install: skipping Chicago95 — orchestrator not vendored yet \
-             (RETIRE-PY.6b); continuing with the native Win2k step."
+            "mde install: skipping Chicago95 — install-chicago95.sh not found; \
+             continuing with the native Win2k step."
         );
         return Ok(());
     };
-    let status = Command::new("bash")
-        .arg(&script)
-        .arg("--only")
-        .arg("chicago95")
-        .status();
+    let status = Command::new("bash").arg(&script).status();
     match status {
         Ok(s) if s.success() => Ok(()),
         Ok(s) => {
@@ -125,17 +128,18 @@ fn run_chicago95(required: bool) -> Result<(), ExitCode> {
     }
 }
 
-/// Find `install-assets.sh`: the RPM ships it under `/usr/share/mde/scripts`;
-/// in a dev checkout it lives at `<repo>/assets/`, next to the `rust/` tree.
-fn locate_orchestrator() -> Option<PathBuf> {
+/// Find `install-chicago95.sh`: the RPM ships it under `/usr/share/mde/scripts`;
+/// in a dev checkout it lives at `<repo>/assets/`.
+fn locate_chicago95_script() -> Option<PathBuf> {
     let mut candidates = vec![
-        PathBuf::from("/usr/share/mde/scripts/install-assets.sh"),
-        PathBuf::from("/usr/share/mde/assets/install-assets.sh"),
+        PathBuf::from("/usr/share/mde/scripts/install-chicago95.sh"),
+        PathBuf::from("/usr/share/mde/assets/install-chicago95.sh"),
     ];
     if let Ok(exe) = std::env::current_exe() {
-        // exe = <repo>/rust/target/<profile>/mde -> ancestors().nth(3) = <repo>/rust
-        if let Some(rust_dir) = exe.ancestors().nth(3) {
-            candidates.push(rust_dir.join("../assets/install-assets.sh"));
+        // Dev checkout: exe = <repo>/target/<profile>/mde, so ancestors().nth(3)
+        // is the repo root and the script lives at <repo>/assets/.
+        if let Some(repo_root) = exe.ancestors().nth(3) {
+            candidates.push(repo_root.join("assets/install-chicago95.sh"));
         }
     }
     candidates.into_iter().find(|p| p.exists())

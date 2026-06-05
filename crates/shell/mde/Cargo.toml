@@ -117,12 +117,12 @@ assets = [
     # Symlinks so `mde-panel`, `mde-menu`, ... dispatch via argv[0].
     # (created in %post; see post_install_script below)
     { source = "../../README.md", dest = "/usr/share/doc/mde/README.md", mode = "0644", doc = true },
-    # Asset *installer scripts* are code (decision #7): they fetch Chicago95 +
-    # the Win2k icons from upstream at runtime. `mde install --assets` runs
-    # these; no third-party asset bytes are shipped in the package.
-    { source = "../../assets/install-assets.sh", dest = "/usr/share/mde/scripts/install-assets.sh", mode = "0755" },
+    # Asset installer (decision #7 — code, not asset bytes): the Chicago95
+    # fetcher script is shipped; `mde install --assets` runs it (git clone +
+    # deploy) then the native Rust Win2k step. The Win2k installer is no longer
+    # a script — it is compiled into the `mde` binary (`install_win2k`,
+    # RETIRE-PY.6a) — so no `install-win2k-icons.py` / `install-assets.sh` ship.
     { source = "../../assets/install-chicago95.sh", dest = "/usr/share/mde/scripts/install-chicago95.sh", mode = "0755" },
-    { source = "../../home/.config/sway/scripts/install-win2k-icons.py", dest = "/usr/share/mde/scripts/install-win2k-icons.py", mode = "0755" },
     # Skel: the labwc config + Win2000 Openbox theme `mde setup` deploys to
     # /etc/skel + users (this is what launches the mde shell + draws the
     # Win2000 title bars). Code/config only; no third-party asset bytes.
