@@ -38,6 +38,7 @@ mod installer;
 mod keyboard;
 mod lock;
 mod menu;
+mod mesh_status;
 mod mount;
 mod mouse;
 mod net_flyout;

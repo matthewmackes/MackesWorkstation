@@ -81,6 +81,11 @@ struct Panel {
     volume: Option<(u8, bool)>,
     net: NetState,
     battery: Option<(u8, bool)>,
+    /// Mesh-status chip (PANEL-POLISH, E5.5 — re-homes mde-applet-mesh-status):
+    /// a background thread polls `action/nebula/status` over the Bus; `mesh` is
+    /// its shared handle, `mesh_status` the snapshot copied each tick.
+    mesh: crate::mesh_status::Handle,
+    mesh_status: Option<crate::mesh_status::MeshStatus>,
     /// Whether a laptop backlight exists (gates the brightness tray glyph).
     has_backlight: bool,
     /// Tick counter: the expensive subprocess polls run every 5th tick.
@@ -392,6 +397,8 @@ fn launch() -> Result<(), iced_layershell::Error> {
         let st = crate::state::load();
         let panel = Panel {
             tray: Some(crate::tray::start()),
+            mesh: crate::mesh_status::start(),
+            mesh_status: None,
             wm: wlr::start(),
             has_backlight: backlight_dir().is_some(),
             clock_offset: utc_offset_secs(),
@@ -442,6 +449,9 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
             if let Some(t) = &state.tray {
                 state.tray_items = t.lock().map(|v| v.clone()).unwrap_or_default();
             }
+            // Mesh-status chip (PANEL-POLISH): copy the latest snapshot the
+            // background poller wrote — a cheap shared-memory read.
+            state.mesh_status = state.mesh.lock().ok().and_then(|g| *g);
             // Win10 Action Center unread badge (E2.7): a cheap mirror-file read.
             if palette::is_windows10() {
                 state.unread = crate::notifyd::unread_count();
@@ -659,6 +669,11 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
         Message::Launch("nm-connection-editor".into())
     };
     v.push(glyph_button(net_glyph(state.net), net_action));
+    // Mesh-status chip (PANEL-POLISH, E5.5) — peer-count + online glyph; opens
+    // the Workbench mesh view. Hidden until the first poll lands.
+    if let Some(ms) = state.mesh_status {
+        v.push(mesh_chip(ms));
+    }
     if let Some((pct, charging)) = state.battery {
         v.push(glyph_button(
             battery_glyph(pct, charging),
@@ -1662,6 +1677,40 @@ fn glyph_button(g: char, msg: Message) -> Element<'static, Message> {
             .color(palette::color(palette::WINDOW_TEXT)),
     )
     .on_press(msg)
+    .padding(Padding {
+        top: 1.0,
+        right: 3.0,
+        bottom: 1.0,
+        left: 3.0,
+    })
+    .style(|_, _| iced::widget::button::Style {
+        background: None,
+        ..Default::default()
+    })
+    .into()
+}
+
+/// Mesh-status chip (PANEL-POLISH, E5.5): a flat glyph + peer-count button. The
+/// glyph reflects online state (connected hub vs disconnected); clicking opens
+/// the Workbench mesh view.
+fn mesh_chip(ms: crate::mesh_status::MeshStatus) -> Element<'static, Message> {
+    // Nerd-font: lan-connect when online, lan-disconnect when offline.
+    let glyph = if ms.online { '\u{f0319}' } else { '\u{f0318}' };
+    let color = palette::color(palette::WINDOW_TEXT);
+    iced::widget::button(
+        iced::widget::row![
+            text(glyph.to_string())
+                .font(mde_ui::font::NERD)
+                .size(metrics::PANEL_GLYPH_PX)
+                .color(color),
+            text(format!("{}", ms.peer_count))
+                .size(metrics::PANEL_GLYPH_PX - 2.0)
+                .color(color),
+        ]
+        .spacing(2)
+        .align_y(iced::Alignment::Center),
+    )
+    .on_press(Message::Launch("mde workbench".into()))
     .padding(Padding {
         top: 1.0,
         right: 3.0,
