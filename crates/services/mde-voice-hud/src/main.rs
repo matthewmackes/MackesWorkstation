@@ -49,18 +49,40 @@ const HEIGHT: u32 = 720;
 const MARGIN_RIGHT: i32 = 16;
 const MARGIN_BOTTOM: i32 = 56;
 
-/// VOIP-27 — registration status string. Live data wires in
-/// VOIP-28; until then the topbar shows the design-bundle
-/// reference value verbatim.
-const REGISTRATION_PLACEHOLDER: &str = "Registered · 127.0.0.1:5060";
+/// Registration status shown in the topbar. Single-node there is no PJSIP
+/// account, so this is an honest "Not registered" — VOIP-28 wires the live
+/// registrar state over the Bus (the real "Registered · <server>" is the
+/// SIP-server bench). Replaces the prior hardcoded "Registered ·
+/// 127.0.0.1:5060" mockup that claimed a registration that didn't exist.
+const REGISTRATION_STATUS: &str = "Not registered";
 
-/// VOIP-27 — account-dot initials placeholder. Matches the
-/// design bundle's `app.jsx` initial state.
-const ACCOUNT_INITIALS: &str = "BT";
+/// The local peer's display name — the host's own name (`/etc/hostname`, else
+/// `$HOSTNAME`, else "MDE"). Real single-node data, not a fabricated label;
+/// VOIP-28 swaps in the live mded read.
+fn local_peer_name() -> String {
+    std::fs::read_to_string("/etc/hostname")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| std::env::var("HOSTNAME").ok())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "MDE".to_string())
+}
 
-/// VOIP-27 — local-peer display name placeholder. VOIP-28 wires
-/// the live mded hostname read.
-const PEER_NAME_PLACEHOLDER: &str = "Operator";
+/// Account-dot initials derived from the peer name: up to two leading
+/// alphanumerics, uppercased (or "—" when the name has none).
+fn account_initials(name: &str) -> String {
+    let inits: String = name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .take(2)
+        .collect();
+    if inits.is_empty() {
+        "—".to_string()
+    } else {
+        inits.to_uppercase()
+    }
+}
 
 /// Iced application messages. `#[to_layer_message]` derives the
 /// `TryInto<LayershellCustomActions>` bound that the
@@ -183,28 +205,34 @@ fn subscription(_state: &VoiceHud) -> iced::Subscription<Message> {
     })
 }
 
-/// Build the topbar — account dot + peer name + presence pip +
-/// registration string. Live data lands in VOIP-28; the strings
-/// here are operator-visible placeholders so the bench
-/// observable view matches §3.5 mde-voice-hud surface.
+/// Build the topbar — account dot + peer name + presence pip + registration
+/// status. The peer name + initials are the real host identity; the presence
+/// pip is offline and the status reads "Not registered" until VOIP-28 wires
+/// the live PJSIP registrar state over the Bus (the registered view is the
+/// SIP-server bench).
 fn build_topbar<'a>() -> Element<'a, Message> {
-    let account_dot = container(text(ACCOUNT_INITIALS).size(13.0).color(theme::ON_PRIMARY))
-        .style(|_: &Theme| iced::widget::container::Style {
-            background: Some(iced::Background::Color(theme::PRIMARY)),
-            border: iced::Border {
-                radius: iced::border::Radius::from(16.0),
-                ..Default::default()
-            },
+    let peer_name = local_peer_name();
+    let account_dot = container(
+        text(account_initials(&peer_name))
+            .size(13.0)
+            .color(theme::ON_PRIMARY),
+    )
+    .style(|_: &Theme| iced::widget::container::Style {
+        background: Some(iced::Background::Color(theme::PRIMARY)),
+        border: iced::Border {
+            radius: iced::border::Radius::from(16.0),
             ..Default::default()
-        })
-        .width(Length::Fixed(32.0))
-        .height(Length::Fixed(32.0))
-        .align_x(iced::alignment::Horizontal::Center)
-        .align_y(iced::alignment::Vertical::Center);
+        },
+        ..Default::default()
+    })
+    .width(Length::Fixed(32.0))
+    .height(Length::Fixed(32.0))
+    .align_x(iced::alignment::Horizontal::Center)
+    .align_y(iced::alignment::Vertical::Center);
 
     let presence_pip = container(iced::widget::Space::new())
         .style(|_: &Theme| iced::widget::container::Style {
-            background: Some(iced::Background::Color(theme::PRESENCE_AVAILABLE)),
+            background: Some(iced::Background::Color(theme::PRESENCE_OFFLINE)),
             border: iced::Border {
                 radius: iced::border::Radius::from(4.0),
                 ..Default::default()
@@ -215,11 +243,11 @@ fn build_topbar<'a>() -> Element<'a, Message> {
         .height(Length::Fixed(8.0));
 
     let name_col = column![
-        text(PEER_NAME_PLACEHOLDER).size(14.0).color(theme::ON_SURF),
+        text(peer_name).size(14.0).color(theme::ON_SURF),
         row![
             presence_pip,
             iced::widget::space().width(Length::Fixed(6.0)),
-            text(REGISTRATION_PLACEHOLDER)
+            text(REGISTRATION_STATUS)
                 .size(11.0)
                 .color(theme::ON_SURF_VAR),
         ]
@@ -586,7 +614,18 @@ mod tests {
         assert_eq!(HEIGHT, 720);
         assert_eq!(MARGIN_RIGHT, 16);
         assert_eq!(MARGIN_BOTTOM, 56);
-        assert_eq!(REGISTRATION_PLACEHOLDER, "Registered · 127.0.0.1:5060");
-        assert_eq!(ACCOUNT_INITIALS, "BT");
+    }
+
+    #[test]
+    fn topbar_shows_honest_unregistered_state_and_derived_initials() {
+        // The topbar is honest single-node: not a fabricated "Registered ·
+        // 127.0.0.1:5060" — the live registrar state is the SIP-server bench.
+        assert_eq!(REGISTRATION_STATUS, "Not registered");
+        // Initials derive from the real peer name (up to two leading alnums).
+        assert_eq!(account_initials("Pixel Workstation"), "PI");
+        assert_eq!(account_initials("mde-host-7"), "MD");
+        assert_eq!(account_initials("—//—"), "—");
+        // The local peer name is the real host identity, never empty.
+        assert!(!local_peer_name().is_empty());
     }
 }
