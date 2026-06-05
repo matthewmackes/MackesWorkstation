@@ -350,6 +350,35 @@ mod tests {
     }
 
     #[test]
+    fn apps_role_card_includes_the_e6_3_acceptance_panels() {
+        // E6.3 acceptance #1: the Apps role card surfaces action-links to
+        // Install / Installed / Remove / Sources / Default-Apps (install &
+        // remove added to nav_model — they were already wired; default_apps
+        // moved here from System). `panel` (Panel Apps) stays as a bonus.
+        let slugs: Vec<&str> = role_action_panels(Group::Apps)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        for want in ["install", "installed", "remove", "sources", "default_apps"] {
+            assert!(slugs.contains(&want), "Apps card missing {want}: {slugs:?}");
+        }
+    }
+
+    #[test]
+    fn default_apps_left_system_for_apps() {
+        // E6.3 — default_apps moved out of System into Apps; it must not
+        // appear under both.
+        let system: Vec<&str> = role_action_panels(Group::System)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        assert!(
+            !system.contains(&"default_apps"),
+            "default_apps must leave System (E6.3): {system:?}"
+        );
+    }
+
+    #[test]
     fn window_manager_left_system_for_look_and_feel() {
         // E6.6/E6.8 — window_manager moved out of System (E6.8's
         // acceptance excludes it) into Look & Feel; it must not appear

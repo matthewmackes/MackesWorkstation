@@ -806,7 +806,7 @@ impl App {
             (Group::Fleet, "playbooks") => playbooks_panel::PlaybooksPanel::load(),
             (Group::Fleet, "run_history") => run_history_panel::RunHistoryPanel::load(),
             (Group::System, "datetime") => datetime_panel::DateTimePanel::load(),
-            (Group::System, "default_apps") => default_apps_panel::DefaultAppsPanel::load(),
+            (Group::Apps, "default_apps") => default_apps_panel::DefaultAppsPanel::load(),
             (Group::LookAndFeel, "window_manager") => {
                 window_manager_panel::WindowManagerPanel::load()
             }
@@ -1042,7 +1042,7 @@ impl App {
                 panel: "datetime",
             } => self.datetime.view(),
             View::Panel {
-                group: Group::System,
+                group: Group::Apps,
                 panel: "default_apps",
             } => self.default_apps.view(),
             View::Panel {

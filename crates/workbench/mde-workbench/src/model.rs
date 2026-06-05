@@ -187,8 +187,16 @@ pub fn nav_model() -> Vec<NavEntry> {
         NavEntry {
             group: Group::Apps,
             panels: vec![
+                // E6.3 — install/remove were wired in panel_body but absent
+                // from nav_model (so the role card + sidebar never surfaced
+                // them); default_apps moved here from System per the E6.3
+                // acceptance. Order follows the acceptance; `panel` (Panel
+                // Apps) stays as a bonus link.
+                Panel::new("install", "Install"),
                 Panel::new("installed", "Installed"),
+                Panel::new("remove", "Remove"),
                 Panel::new("sources", "Sources"),
+                Panel::new("default_apps", "Default Apps"),
                 Panel::new("panel", "Panel Apps"),
             ],
         },
@@ -293,7 +301,7 @@ pub fn nav_model() -> Vec<NavEntry> {
             group: Group::System,
             panels: vec![
                 Panel::new("datetime", "Date & Time"),
-                Panel::new("default_apps", "Default Apps"),
+                // E6.3 — default_apps moved to Apps (software management).
                 Panel::new("session", "Session"),
                 Panel::new("notifications", "Notifications"),
             ],
