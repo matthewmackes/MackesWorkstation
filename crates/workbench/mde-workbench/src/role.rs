@@ -420,6 +420,29 @@ mod tests {
     }
 
     #[test]
+    fn maintain_role_card_matches_the_e6_7_acceptance() {
+        // E6.7 acceptance #1: the Maintain role card surfaces action-links
+        // to Hub / Snapshots / Debloat / Health / Repair / Drift. The
+        // Maintain group root now renders the generic role card (was the
+        // bespoke hub dashboard, which becomes the "Hub" sub-panel).
+        let slugs: Vec<&str> = role_action_panels(Group::Maintain)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        assert_eq!(
+            slugs,
+            vec![
+                "hub",
+                "snapshots",
+                "debloat",
+                "health_check",
+                "repair",
+                "drift"
+            ]
+        );
+    }
+
+    #[test]
     fn system_role_card_matches_the_e6_8_acceptance() {
         // E6.8 acceptance #1: the System role card surfaces exactly
         // Date & Time / Logs / Resources / System Update / Notifications
