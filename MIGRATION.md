@@ -138,10 +138,12 @@ once this repo builds and is pushed — they live on as the history merged here.
   each `mde-workbench --page <role>`, contract-tested). *Remaining:* E6.10 Compute
   (rebuild legacy `mde-virtual`, large + HW-bench) and E6.11 Preset/drift engine
   (blocked on the 5 undefined preset variants — product spec).
-- **E7 — merged OOBE: E7.1 ✅ (Win10 OOBE, all stages + `mde oobe`).** E7.2 `[>]` — the
-  Role-picker (#1, pins `role.toml` + gates the flow), Nebula mesh-enrolment (#2, real
-  `mackesd enroll`), and "read before proceeding" Disclaimer (#4) stages are built +
-  tested; #3 (KDC phone-pair) deps E2.2; live mesh enrolment = bench.
+- **E7 — merged OOBE: E7.1 ✅ + E7.2 ✅ to floor.** E7.1 (Win10 OOBE, all stages +
+  `mde oobe`). E7.2 — Role-picker (#1, pins `role.toml` + gates the flow), Nebula
+  mesh-enrolment (#2, real `mackesd enroll`), KDC phone-pair stage (#3, honest KDE
+  Connect guidance — unblocked by the E2 convergence, commit `40e250f4`), and
+  "read before proceeding" Disclaimer (#4) all built + tested. Live mesh-enrolment
+  cert-sign + live phone-pair persist = post-release bench.
 - **E8 — release: held.** E8.2 (disclaimer single-source audit) partially verified
   (existing surfaces clean). The RPM cut (E8.5/8.6) is the one operator-gated action,
   held until E0–E7 are feature-complete.
