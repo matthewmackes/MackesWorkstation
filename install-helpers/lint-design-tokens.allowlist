@@ -171,9 +171,9 @@ crates/shell/mde/src/display.rs:944
 crates/shell/mde/src/display.rs:946
 crates/shell/mde/src/icons.rs:157
 crates/shell/mde/src/installer.rs:314
-crates/shell/mde/src/oobe.rs:746
-crates/shell/mde/src/oobe.rs:850
-crates/shell/mde/src/oobe.rs:909
+crates/shell/mde/src/oobe.rs:831
+crates/shell/mde/src/oobe.rs:935
+crates/shell/mde/src/oobe.rs:994
 crates/shell/mde/src/outputs.rs:417
 crates/shell/mde/src/outputs.rs:419
 crates/shell/mde/src/outputs.rs:421

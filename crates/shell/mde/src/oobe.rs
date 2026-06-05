@@ -41,6 +41,10 @@ enum Stage {
     /// E7.2 — "read before proceeding": the single-source project
     /// disclaimer, acknowledged before the flow proceeds.
     Disclaimer,
+    /// E7.2 — deployment role picker (Lighthouse/Server/Workstation).
+    /// The choice pins `role.toml` and gates the rest of the flow
+    /// (desktop-personalization stages drop for the headless roles).
+    Role,
     Region,
     Keyboard,
     SecondKeyboard,
@@ -58,6 +62,7 @@ enum Stage {
 /// E11.4), so adding a stage is a one-line edit and navigation can't desync.
 const FLOW: &[Stage] = &[
     Stage::Disclaimer,
+    Stage::Role,
     Stage::Region,
     Stage::Keyboard,
     Stage::SecondKeyboard,
@@ -81,6 +86,48 @@ fn flow_prev(flow: &[Stage], s: Stage) -> Option<Stage> {
     i.checked_sub(1).and_then(|j| flow.get(j).copied())
 }
 
+/// E7.2 — the deployment roles offered in the OOBE Role stage, in picker order
+/// (Workstation first / default). Each maps to an `mde_role::Role` pinned to
+/// `role.toml` on Next.
+const ROLES: &[(mde_role::Role, &str, &str)] = &[
+    (
+        mde_role::Role::Workstation,
+        "Workstation",
+        "Full desktop + mesh — the complete experience.",
+    ),
+    (
+        mde_role::Role::Server,
+        "Server (headless)",
+        "Headless mesh peer: storage brick + fleet + monitoring, no desktop.",
+    ),
+    (
+        mde_role::Role::Lighthouse,
+        "Lighthouse",
+        "Routing-only mesh relay; VPS-friendly, no desktop.",
+    ),
+];
+
+/// E7.2 — stages that only make sense on a Workstation (desktop personalization);
+/// the headless roles (Lighthouse/Server) drop these from the flow.
+const fn is_desktop_only(s: Stage) -> bool {
+    matches!(
+        s,
+        Stage::Pin | Stage::Privacy | Stage::YourPhone | Stage::Personalize
+    )
+}
+
+/// Build the live stage order for a role: `FLOW` minus the Network stage when a
+/// wired link is already up (E11.4), minus the desktop-only stages when the role
+/// isn't Workstation (E7.2 acceptance #1 — the role gates the remaining flow).
+fn build_flow(role: mde_role::Role, wired: bool) -> Vec<Stage> {
+    let workstation = matches!(role, mde_role::Role::Workstation);
+    FLOW.iter()
+        .copied()
+        .filter(|s| !(*s == Stage::Network && wired))
+        .filter(|s| workstation || !is_desktop_only(*s))
+        .collect()
+}
+
 /// The four UI accent choices (Personalize, E11.9) — the icon_color keys + their
 /// Win10 accent swatch (`palette::icon_accent`, the one accent edge).
 const ACCENTS: &[(&str, &str)] = &[
@@ -97,6 +144,8 @@ struct Oobe {
     /// E7.2 — the disclaimer "read before proceeding" acknowledgement;
     /// Next is gated on this on the Disclaimer stage.
     disclaimer_ack: bool,
+    /// E7.2 — index into [`ROLES`] for the picked deployment role.
+    role: usize,
     /// Echo backend commands instead of running them (`--dry-run`).
     dry: bool,
     region: usize,
@@ -140,6 +189,8 @@ enum Msg {
     Phone(String),
     /// E7.2 — toggle the disclaimer acknowledgement checkbox.
     AckDisclaimer(bool),
+    /// E7.2 — pick a deployment role (index into `ROLES`).
+    PickRole(usize),
     /// Advance without committing the current stage (Skip / Do-it-later).
     Skip,
     Next,
@@ -236,17 +287,21 @@ pub fn run(args: &[String]) -> ExitCode {
             "personalize" => Some(Stage::Personalize),
             "finalize" => Some(Stage::Finalize),
             "disclaimer" => Some(Stage::Disclaimer),
+            "role" => Some(Stage::Role),
             _ => None,
         })
         .unwrap_or(Stage::Disclaimer);
 
+    // E7.2 — default the role picker to any already-pinned role, else
+    // Workstation (index 0). The flow is built for that role (desktop stages
+    // present) and rebuilt when the operator changes the role on its stage.
+    let role = mde_role::load()
+        .ok()
+        .and_then(|r| ROLES.iter().position(|(rr, _, _)| *rr == r))
+        .unwrap_or(0);
     // A live wired link skips the Network stage (E11.4): drop it from the flow.
     let wired = is_wired();
-    let flow: Vec<Stage> = FLOW
-        .iter()
-        .copied()
-        .filter(|s| !(*s == Stage::Network && wired))
-        .collect();
+    let flow: Vec<Stage> = build_flow(ROLES[role].0, wired);
     // Scan Wi-Fi once up front only when the Network stage will be shown.
     let wifis = if wired {
         Vec::new()
@@ -258,6 +313,7 @@ pub fn run(args: &[String]) -> ExitCode {
         stage,
         flow,
         disclaimer_ack: false,
+        role,
         dry,
         region: detected_region(),
         layout: detected_layout(),
@@ -307,6 +363,15 @@ fn headless(dry: bool) -> ExitCode {
     println!(
         "  Disclaimer: presented ({} chars from DISCLAIMER.md)",
         crate::disclaimer::TEXT.len()
+    );
+    // E7.2 — the role is an interactive choice; the non-interactive
+    // walkthrough doesn't pin a role (that would mutate role.toml in CI /
+    // the capture harness). Note the current pinned role if any.
+    println!(
+        "  Role:     {} (interactive stage; not pinned in headless)",
+        mde_role::load()
+            .ok()
+            .map_or("unpinned".to_string(), |r| format!("{r:?}"))
     );
     println!("  Region:   {}", REGIONS[region].0);
     println!("  Keyboard: {}", crate::keyboard::LAYOUTS[layout].1);
@@ -607,6 +672,24 @@ fn commit_network(state: &Oobe) {
 /// Create the local account (E11.5): `useradd -m -G wheel <user>` + set its password,
 /// echoed under dry-run (the only path). Blank/mismatched fields are a no-op (the
 /// view keeps Next disabled until they agree, so this is defensive).
+/// E7.2 — pin the chosen deployment role to `role.toml` (echoed under
+/// `--dry-run`) and rebuild the live flow for it (headless roles drop the
+/// desktop-only stages). `mde_role::pin` is upgrade-only, so a re-run that
+/// would lower the rank is refused by the platform — surfaced, not fatal.
+fn commit_role(state: &mut Oobe) {
+    let role = ROLES[state.role].0;
+    if state.dry {
+        println!(
+            "  + would pin deployment role: {} (rank {})",
+            ROLES[state.role].1,
+            role.rank()
+        );
+    } else if let Err(e) = mde_role::pin(role) {
+        eprintln!("oobe: pinning role {} failed: {e}", ROLES[state.role].1);
+    }
+    state.flow = build_flow(role, is_wired());
+}
+
 fn commit_account(state: &Oobe) {
     if state.username.is_empty() || state.password.is_empty() || state.password != state.password2 {
         return;
@@ -658,6 +741,7 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
         Msg::SetMode(light) => state.light = light,
         Msg::Phone(s) => state.phone = s,
         Msg::AckDisclaimer(on) => state.disclaimer_ack = on,
+        Msg::PickRole(i) => state.role = i,
         Msg::Skip => {
             // Skip / Do-it-later: advance without committing this stage. For the
             // second-keyboard stage that means clearing any tentative pick.
@@ -679,6 +763,7 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
             // Commit the stage we're leaving, then advance.
             match state.stage {
                 Stage::Disclaimer => {}
+                Stage::Role => commit_role(state),
                 Stage::Region => apply_locale(REGIONS[state.region].1, state.dry),
                 Stage::Keyboard => {
                     apply_keymap(crate::keyboard::LAYOUTS[state.layout].0, state.dry)
@@ -1079,6 +1164,16 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
             disclaimer_body(state),
             actions(false, "Accept and continue", Msg::Next),
         ),
+        Stage::Role => frame(
+            "Choose your deployment role",
+            "Workstation is the full desktop; Server and Lighthouse are headless mesh nodes.",
+            picker(
+                ROLES.iter().enumerate().map(|(i, (_, name, _))| (i, *name)),
+                state.role,
+                Msg::PickRole,
+            ),
+            actions(true, "Next", Msg::Next),
+        ),
         Stage::Region => frame(
             "Let's start with your region",
             "Is this the right country or region?",
@@ -1201,9 +1296,10 @@ mod tests {
     #[test]
     fn stage_flow_is_linear_and_terminates() {
         // The canonical FLOW: flow_next/flow_prev walk it and terminate cleanly.
-        // E7.2 — Disclaimer is the first stage ("read before proceeding").
+        // E7.2 — Disclaimer is first, then the Role picker, then Region.
         assert_eq!(flow_prev(FLOW, Stage::Disclaimer), None);
-        assert_eq!(flow_next(FLOW, Stage::Disclaimer), Some(Stage::Region));
+        assert_eq!(flow_next(FLOW, Stage::Disclaimer), Some(Stage::Role));
+        assert_eq!(flow_next(FLOW, Stage::Role), Some(Stage::Region));
         assert_eq!(flow_next(FLOW, Stage::Region), Some(Stage::Keyboard));
         assert_eq!(flow_next(FLOW, *FLOW.last().unwrap()), None);
         // Round-trip every adjacent pair: prev(next(s)) == s.
@@ -1218,6 +1314,7 @@ mod tests {
             stage,
             flow: FLOW.to_vec(),
             disclaimer_ack: false,
+            role: 0,
             dry: true,
             region: 0,
             layout: 0,
@@ -1247,7 +1344,34 @@ mod tests {
         assert_eq!(o.stage, Stage::Disclaimer, "Next must not advance unacked");
         let _ = update(&mut o, Msg::AckDisclaimer(true));
         let _ = update(&mut o, Msg::Next);
-        assert_eq!(o.stage, Stage::Region, "acked Next advances to Region");
+        assert_eq!(
+            o.stage,
+            Stage::Role,
+            "acked Next advances to the Role stage"
+        );
+    }
+
+    #[test]
+    fn role_gates_the_flow_desktop_stages() {
+        use mde_role::Role;
+        // E7.2 acceptance #1 — Workstation keeps the desktop-personalization
+        // stages; the headless roles (Server/Lighthouse) drop them but keep
+        // the system-config stages.
+        let ws = build_flow(Role::Workstation, false);
+        assert!(ws.contains(&Stage::Personalize) && ws.contains(&Stage::Privacy));
+        for role in [Role::Server, Role::Lighthouse] {
+            let f = build_flow(role, false);
+            for desktop in [
+                Stage::Personalize,
+                Stage::Privacy,
+                Stage::YourPhone,
+                Stage::Pin,
+            ] {
+                assert!(!f.contains(&desktop), "{role:?} should drop {desktop:?}");
+            }
+            assert!(f.contains(&Stage::Region) && f.contains(&Stage::Finalize));
+            assert!(f.contains(&Stage::Role) && f.contains(&Stage::Disclaimer));
+        }
     }
 
     #[test]
