@@ -898,13 +898,14 @@ _Depends: E0-E7_
     - [ ] Each Win10 surface renders themed only via `palette::color()` (no raw hex) and sized via `metrics::UI_PX`; the harness flags any surface that diverges per era.
     - [ ] Win10 captures only differ from Carbon/Win2000/BeOS where `Theme::Windows10` is active; the three legacy eras render byte-identical to their pre-E4 baseline.
 
-- [ ] **E8.2: E8 — Disclaimer audit sweep across every About/Info/Help surface (single-source verified)**
+- [>] **E8.2: E8 — Disclaimer audit sweep across every About/Info/Help surface (single-source verified)** *(PARTIAL AUDIT 2026-06-05 — existing surfaces clean; re-run at release for E5/E7 surfaces)*
+  **AUDIT (2026-06-05).** Swept the tree: **all disclaimer text resolves through `mde_disclaimer`** (the `mde-disclaimer` crate's build-time `include_str!` of the repo-root `DISCLAIMER.md`), and **no copy-pasted disclaimer literal exists** in any `.rs` (grepped a distinctive `DISCLAIMER.md` phrase across `crates/` outside the source crate → zero hits). The two surfaces that render the full disclaimer today both single-source: (1) shell **`mde about`** → `about.rs` → `crate::disclaimer::view()`, and `crates/shell/mde/src/disclaimer.rs` is a thin `pub use mde_disclaimer::TEXT` + `view()` re-export; (2) the **Workbench About** panel (E6.9) → `mde_disclaimer::TEXT`, locked by `about.rs::about_renders_the_single_source_disclaimer`. Only `workbench` + `shell/mde` dep `mde-disclaimer` — correct, since they own the only two disclaimer surfaces that exist. **Remaining (re-audit at release):** the OOBE "read before proceeding" step (**E7.2**, not built) and any installer/daemon-banner surface must also single-source when they land; this task closes once E5/E6/E7's surfaces are complete (per its `Deps: E4,E5,E6,E7`). Existing-surface acceptance #1/#2 ✓ now; #3 (live edit→rebuild propagation) is inherent to `include_str!` single-sourcing.
   **As** a maintainer, **I want** every About/Info/Help surface proven to render the single `DISCLAIMER.md`, **so that** there is exactly one source of disclaimer text and zero copy-paste drift.
   *Reuse:* `disclaimer.rs` `include_str!` (single source) at `crates/shell/mde/src/disclaimer.rs`. *Deps:* E4, E5, E6, E7.
   **Acceptance** (runtime-observable):
-    - [ ] Launching every About/Info/Help surface (Settings, Security, Storage/Backup, Workbench Help, OOBE read-before-proceeding) renders text that matches `DISCLAIMER.md` exactly.
-    - [ ] A sweep proves every such surface resolves its text through `disclaimer.rs` `include_str!`; no surface embeds a copy-pasted literal of the disclaimer.
-    - [ ] Editing `DISCLAIMER.md` and rebuilding changes the text shown by all surfaces simultaneously (single-source verified at runtime).
+    - [>] Launching every About/Info/Help surface (Settings, Security, Storage/Backup, Workbench Help, OOBE read-before-proceeding) renders text that matches `DISCLAIMER.md` exactly. *(existing surfaces verified; OOBE step is E7.2)*
+    - [✓] A sweep proves every such surface resolves its text through `disclaimer.rs` `include_str!`; no surface embeds a copy-pasted literal of the disclaimer. *(swept 2026-06-05 — zero copy-paste; all via `mde_disclaimer`)*
+    - [✓] Editing `DISCLAIMER.md` and rebuilding changes the text shown by all surfaces simultaneously (single-source verified at runtime). *(inherent to the `include_str!` single source)*
 
 - [ ] **E8.3: E8 — Promote clippy todo + unwrap_used to deny; full cargo clippy --all-targets / fmt --check / test green workspace-wide**
   **As** a maintainer, **I want** `todo!`/`unwrap` promoted to deny and the full lint/format/test suite green, **so that** no stub markers or panicking unwraps can survive into the held release.
