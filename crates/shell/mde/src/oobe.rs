@@ -49,6 +49,9 @@ enum Stage {
     Keyboard,
     SecondKeyboard,
     Network,
+    /// E7.2 — Nebula mesh enrolment: paste a `mesh:` join token and the
+    /// node requests a signed cert via `mackesd enroll` (skippable).
+    MeshEnroll,
     Account,
     Pin,
     Privacy,
@@ -67,6 +70,7 @@ const FLOW: &[Stage] = &[
     Stage::Keyboard,
     Stage::SecondKeyboard,
     Stage::Network,
+    Stage::MeshEnroll,
     Stage::Account,
     Stage::Pin,
     Stage::Privacy,
@@ -146,6 +150,8 @@ struct Oobe {
     disclaimer_ack: bool,
     /// E7.2 — index into [`ROLES`] for the picked deployment role.
     role: usize,
+    /// E7.2 — the `mesh:` join token typed on the Nebula enrolment stage.
+    enroll_token: String,
     /// Echo backend commands instead of running them (`--dry-run`).
     dry: bool,
     region: usize,
@@ -191,6 +197,8 @@ enum Msg {
     AckDisclaimer(bool),
     /// E7.2 — pick a deployment role (index into `ROLES`).
     PickRole(usize),
+    /// E7.2 — edit the Nebula `mesh:` join token.
+    EnrollToken(String),
     /// Advance without committing the current stage (Skip / Do-it-later).
     Skip,
     Next,
@@ -288,6 +296,7 @@ pub fn run(args: &[String]) -> ExitCode {
             "finalize" => Some(Stage::Finalize),
             "disclaimer" => Some(Stage::Disclaimer),
             "role" => Some(Stage::Role),
+            "meshenroll" => Some(Stage::MeshEnroll),
             _ => None,
         })
         .unwrap_or(Stage::Disclaimer);
@@ -314,6 +323,7 @@ pub fn run(args: &[String]) -> ExitCode {
         flow,
         disclaimer_ack: false,
         role,
+        enroll_token: String::new(),
         dry,
         region: detected_region(),
         layout: detected_layout(),
@@ -375,6 +385,9 @@ fn headless(dry: bool) -> ExitCode {
     );
     println!("  Region:   {}", REGIONS[region].0);
     println!("  Keyboard: {}", crate::keyboard::LAYOUTS[layout].1);
+    // E7.2 — mesh enrolment is an interactive token paste; the headless
+    // walkthrough doesn't enrol (no token), it's a clean skip.
+    println!("  Mesh:     (enrolment is an interactive stage; skipped headless)");
     apply_locale(REGIONS[region].1, dry);
     apply_keymap(crate::keyboard::LAYOUTS[layout].0, dry);
     finish(dry);
@@ -690,6 +703,39 @@ fn commit_role(state: &mut Oobe) {
     state.flow = build_flow(role, is_wired());
 }
 
+/// E7.2 — argv for `mackesd enroll --token <token>` when the operator pasted a
+/// real `mesh:` join token, else `None` (the stage is then a clean skip). Mirrors
+/// `mde-wizard`'s `pages::apply::build_enroll_argv`; replicated here so the OOBE
+/// (in the `mde` shell) doesn't take a heavyweight wizard dep. Pure + testable.
+fn build_enroll_argv(token: &str) -> Option<Vec<String>> {
+    let trimmed = token.trim();
+    if !trimmed.starts_with("mesh:") {
+        return None;
+    }
+    Some(vec![
+        "mackesd".to_string(),
+        "enroll".to_string(),
+        "--token".to_string(),
+        trimmed.to_string(),
+    ])
+}
+
+/// E7.2 — Nebula enrolment: if a `mesh:` join token was pasted, request a signed
+/// cert from the mesh CA via `mackesd enroll` (echoed under `--dry-run`). An empty
+/// / non-`mesh:` token is a clean skip (enrol later from Settings) — never panics,
+/// and a CA that isn't reachable just leaves the node un-enrolled (the live
+/// success is the mesh bench). The cert-on-disk / `mackesd` mesh-up check is bench.
+fn commit_enroll(state: &Oobe) {
+    let Some(argv) = build_enroll_argv(&state.enroll_token) else {
+        return;
+    };
+    if state.dry {
+        println!("  + {}", argv.join(" "));
+        return;
+    }
+    let _ = Command::new(&argv[0]).args(&argv[1..]).status();
+}
+
 fn commit_account(state: &Oobe) {
     if state.username.is_empty() || state.password.is_empty() || state.password != state.password2 {
         return;
@@ -742,6 +788,7 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
         Msg::Phone(s) => state.phone = s,
         Msg::AckDisclaimer(on) => state.disclaimer_ack = on,
         Msg::PickRole(i) => state.role = i,
+        Msg::EnrollToken(s) => state.enroll_token = s,
         Msg::Skip => {
             // Skip / Do-it-later: advance without committing this stage. For the
             // second-keyboard stage that means clearing any tentative pick.
@@ -774,6 +821,7 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
                     state.dry,
                 ),
                 Stage::Network => commit_network(state),
+                Stage::MeshEnroll => commit_enroll(state),
                 Stage::Account => commit_account(state),
                 Stage::Privacy => commit_privacy(state),
                 Stage::Personalize => commit_personalize(state),
@@ -1136,6 +1184,31 @@ fn disclaimer_body(state: &Oobe) -> Element<'_, Msg> {
         .into()
 }
 
+/// E7.2 — the Nebula enrolment body: a `mesh:` join-token field. Empty / a
+/// non-`mesh:` value means "skip" — the stage proceeds without enrolling.
+fn mesh_enroll_body(state: &Oobe) -> Element<'_, Msg> {
+    Column::new()
+        .spacing(12.0)
+        .padding(pad(20.0, 8.0, 0.0, 8.0))
+        .push(text("Mesh join token").size(metrics::UI_PX).color(dim()))
+        .push(
+            text_input("mesh:…", &state.enroll_token)
+                .on_input(Msg::EnrollToken)
+                .size(metrics::UI_PX)
+                .padding(pad(6.0, 10.0, 6.0, 10.0))
+                .width(Length::Fixed(360.0)),
+        )
+        .push(
+            text(
+                "Get a token from an enrolled peer (Workbench → Fleet) or your \
+                 admin. You can also enrol later from Settings → Network.",
+            )
+            .size(metrics::BADGE_PX)
+            .color(dim()),
+        )
+        .into()
+}
+
 fn your_phone_body(state: &Oobe) -> Element<'_, Msg> {
     Column::new()
         .spacing(12.0)
@@ -1173,6 +1246,12 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
                 Msg::PickRole,
             ),
             actions(true, "Next", Msg::Next),
+        ),
+        Stage::MeshEnroll => frame(
+            "Join your mesh",
+            "Paste your mesh join token to enrol this node, or skip to enrol later.",
+            mesh_enroll_body(state),
+            actions_full(true, Some("Skip for now"), "Enrol", Msg::Next),
         ),
         Stage::Region => frame(
             "Let's start with your region",
@@ -1315,6 +1394,7 @@ mod tests {
             flow: FLOW.to_vec(),
             disclaimer_ack: false,
             role: 0,
+            enroll_token: String::new(),
             dry: true,
             region: 0,
             layout: 0,
@@ -1352,6 +1432,40 @@ mod tests {
     }
 
     #[test]
+    fn enroll_argv_only_for_mesh_tokens() {
+        // E7.2 — a real `mesh:` token yields the mackesd enroll argv; anything
+        // else (empty / junk) is None, so the Nebula stage is a clean skip.
+        assert_eq!(
+            build_enroll_argv("mesh:abc123"),
+            Some(vec![
+                "mackesd".to_string(),
+                "enroll".to_string(),
+                "--token".to_string(),
+                "mesh:abc123".to_string(),
+            ])
+        );
+        assert_eq!(build_enroll_argv("  mesh:xy  "), {
+            Some(vec![
+                "mackesd".into(),
+                "enroll".into(),
+                "--token".into(),
+                "mesh:xy".into(),
+            ])
+        });
+        assert_eq!(build_enroll_argv(""), None);
+        assert_eq!(build_enroll_argv("not-a-token"), None);
+    }
+
+    #[test]
+    fn mesh_enroll_stage_follows_network_for_all_roles() {
+        // E7.2 — enrolment is mesh-relevant for every role (not desktop-only),
+        // so it stays in the headless flow too.
+        assert_eq!(flow_next(FLOW, Stage::Network), Some(Stage::MeshEnroll));
+        let f = build_flow(mde_role::Role::Lighthouse, false);
+        assert!(f.contains(&Stage::MeshEnroll), "headless keeps MeshEnroll");
+    }
+
+    #[test]
     fn role_gates_the_flow_desktop_stages() {
         use mde_role::Role;
         // E7.2 acceptance #1 — Workstation keeps the desktop-personalization
@@ -1376,8 +1490,8 @@ mod tests {
 
     #[test]
     fn wired_link_drops_the_network_stage() {
-        // E11.4: the live flow excludes Network when wired; Account follows
-        // SecondKeyboard directly.
+        // E11.4: the live flow excludes Network when wired; the next stage
+        // (E7.2 MeshEnroll, which followed Network) follows SecondKeyboard.
         let flow: Vec<Stage> = FLOW
             .iter()
             .copied()
@@ -1385,8 +1499,9 @@ mod tests {
             .collect();
         assert_eq!(
             flow_next(&flow, Stage::SecondKeyboard),
-            Some(Stage::Account)
+            Some(Stage::MeshEnroll)
         );
+        assert_eq!(flow_next(&flow, Stage::MeshEnroll), Some(Stage::Account));
         assert!(!flow.contains(&Stage::Network));
     }
 

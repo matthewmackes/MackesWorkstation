@@ -48,9 +48,9 @@ crates/shell/mde/src/files.rs:516
 crates/shell/mde/src/files.rs:517
 crates/shell/mde/src/files.rs:991
 crates/shell/mde/src/files.rs:998
-crates/shell/mde/src/oobe.rs:1240
-crates/shell/mde/src/oobe.rs:1096
-crates/shell/mde/src/oobe.rs:1098
+crates/shell/mde/src/oobe.rs:1319
+crates/shell/mde/src/oobe.rs:1144
+crates/shell/mde/src/oobe.rs:1146
 crates/shell/mde/src/panel.rs:199
 crates/shell/mde/src/panel.rs:203
 crates/shell/mde/src/panel.rs:206
