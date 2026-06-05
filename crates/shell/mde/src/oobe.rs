@@ -38,6 +38,9 @@ const REGIONS: &[(&str, &str)] = &[
 /// arms, §3); later stages are added as they land.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Stage {
+    /// E7.2 — "read before proceeding": the single-source project
+    /// disclaimer, acknowledged before the flow proceeds.
+    Disclaimer,
     Region,
     Keyboard,
     SecondKeyboard,
@@ -54,6 +57,7 @@ enum Stage {
 /// that doesn't apply (e.g. Network is dropped when a wired link is already up,
 /// E11.4), so adding a stage is a one-line edit and navigation can't desync.
 const FLOW: &[Stage] = &[
+    Stage::Disclaimer,
     Stage::Region,
     Stage::Keyboard,
     Stage::SecondKeyboard,
@@ -90,6 +94,9 @@ struct Oobe {
     stage: Stage,
     /// The live stage order (FLOW minus skipped stages, e.g. Network when wired).
     flow: Vec<Stage>,
+    /// E7.2 — the disclaimer "read before proceeding" acknowledgement;
+    /// Next is gated on this on the Disclaimer stage.
+    disclaimer_ack: bool,
     /// Echo backend commands instead of running them (`--dry-run`).
     dry: bool,
     region: usize,
@@ -131,6 +138,8 @@ enum Msg {
     PickAccent(usize),
     SetMode(bool), // true = light
     Phone(String),
+    /// E7.2 — toggle the disclaimer acknowledgement checkbox.
+    AckDisclaimer(bool),
     /// Advance without committing the current stage (Skip / Do-it-later).
     Skip,
     Next,
@@ -226,9 +235,10 @@ pub fn run(args: &[String]) -> ExitCode {
             "yourphone" => Some(Stage::YourPhone),
             "personalize" => Some(Stage::Personalize),
             "finalize" => Some(Stage::Finalize),
+            "disclaimer" => Some(Stage::Disclaimer),
             _ => None,
         })
-        .unwrap_or(Stage::Region);
+        .unwrap_or(Stage::Disclaimer);
 
     // A live wired link skips the Network stage (E11.4): drop it from the flow.
     let wired = is_wired();
@@ -247,6 +257,7 @@ pub fn run(args: &[String]) -> ExitCode {
     let init = Oobe {
         stage,
         flow,
+        disclaimer_ack: false,
         dry,
         region: detected_region(),
         layout: detected_layout(),
@@ -290,6 +301,13 @@ fn headless(dry: bool) -> ExitCode {
     let region = detected_region();
     let layout = detected_layout();
     println!("MDE-Retro Windows 10 setup (headless)");
+    // E7.2 — the "read before proceeding" disclaimer. In the
+    // non-interactive walkthrough it can't block on a keypress, so note
+    // that it was presented (the GUI stage gates Next on acknowledgement).
+    println!(
+        "  Disclaimer: presented ({} chars from DISCLAIMER.md)",
+        crate::disclaimer::TEXT.len()
+    );
     println!("  Region:   {}", REGIONS[region].0);
     println!("  Keyboard: {}", crate::keyboard::LAYOUTS[layout].1);
     apply_locale(REGIONS[region].1, dry);
@@ -639,6 +657,7 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
         Msg::PickAccent(i) => state.accent = i,
         Msg::SetMode(light) => state.light = light,
         Msg::Phone(s) => state.phone = s,
+        Msg::AckDisclaimer(on) => state.disclaimer_ack = on,
         Msg::Skip => {
             // Skip / Do-it-later: advance without committing this stage. For the
             // second-keyboard stage that means clearing any tentative pick.
@@ -653,8 +672,13 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
             }
         }
         Msg::Next => {
+            // E7.2 — the disclaimer stage blocks Next until acknowledged.
+            if state.stage == Stage::Disclaimer && !state.disclaimer_ack {
+                return Task::none();
+            }
             // Commit the stage we're leaving, then advance.
             match state.stage {
+                Stage::Disclaimer => {}
                 Stage::Region => apply_locale(REGIONS[state.region].1, state.dry),
                 Stage::Keyboard => {
                     apply_keymap(crate::keyboard::LAYOUTS[state.layout].0, state.dry)
@@ -1002,6 +1026,31 @@ fn account_body(state: &Oobe) -> Element<'_, Msg> {
     col.into()
 }
 
+/// E7.2 — the "read before proceeding" body: the single-source project
+/// disclaimer (`crate::disclaimer::TEXT`, a re-export of `mde_disclaimer`)
+/// in a scrollable pane + the acknowledgement checkbox that gates Next.
+fn disclaimer_body(state: &Oobe) -> Element<'_, Msg> {
+    use iced::widget::{checkbox, scrollable};
+    Column::new()
+        .spacing(12.0)
+        .padding(pad(20.0, 8.0, 0.0, 8.0))
+        .push(
+            scrollable(
+                text(crate::disclaimer::TEXT)
+                    .size(metrics::BADGE_PX)
+                    .color(white()),
+            )
+            .height(Length::Fixed(240.0)),
+        )
+        .push(
+            checkbox("I have read and understood the above", state.disclaimer_ack)
+                .on_toggle(Msg::AckDisclaimer)
+                .size(metrics::UI_PX)
+                .text_size(metrics::UI_PX),
+        )
+        .into()
+}
+
 fn your_phone_body(state: &Oobe) -> Element<'_, Msg> {
     Column::new()
         .spacing(12.0)
@@ -1024,6 +1073,12 @@ fn your_phone_body(state: &Oobe) -> Element<'_, Msg> {
 
 fn view(state: &Oobe) -> Element<'_, Msg> {
     match state.stage {
+        Stage::Disclaimer => frame(
+            "Before you begin",
+            "Please read the following, then check the box to continue.",
+            disclaimer_body(state),
+            actions(false, "Accept and continue", Msg::Next),
+        ),
         Stage::Region => frame(
             "Let's start with your region",
             "Is this the right country or region?",
@@ -1146,14 +1201,53 @@ mod tests {
     #[test]
     fn stage_flow_is_linear_and_terminates() {
         // The canonical FLOW: flow_next/flow_prev walk it and terminate cleanly.
+        // E7.2 — Disclaimer is the first stage ("read before proceeding").
+        assert_eq!(flow_prev(FLOW, Stage::Disclaimer), None);
+        assert_eq!(flow_next(FLOW, Stage::Disclaimer), Some(Stage::Region));
         assert_eq!(flow_next(FLOW, Stage::Region), Some(Stage::Keyboard));
-        assert_eq!(flow_prev(FLOW, Stage::Region), None);
         assert_eq!(flow_next(FLOW, *FLOW.last().unwrap()), None);
         // Round-trip every adjacent pair: prev(next(s)) == s.
         for w in FLOW.windows(2) {
             assert_eq!(flow_next(FLOW, w[0]), Some(w[1]));
             assert_eq!(flow_prev(FLOW, w[1]), Some(w[0]));
         }
+    }
+
+    fn test_oobe(stage: Stage) -> Oobe {
+        Oobe {
+            stage,
+            flow: FLOW.to_vec(),
+            disclaimer_ack: false,
+            dry: true,
+            region: 0,
+            layout: 0,
+            second_layout: None,
+            wifis: Vec::new(),
+            wifi_sel: None,
+            wifi_pw: String::new(),
+            username: String::new(),
+            password: String::new(),
+            password2: String::new(),
+            phone: String::new(),
+            p_location: true,
+            p_diagnostics: true,
+            p_find: true,
+            p_ads: true,
+            accent: 0,
+            light: false,
+        }
+    }
+
+    #[test]
+    fn disclaimer_blocks_next_until_acknowledged() {
+        // E7.2 — on the Disclaimer stage, Next does not advance until the
+        // acknowledgement checkbox is ticked.
+        let mut o = test_oobe(Stage::Disclaimer);
+        let _ = update(&mut o, Msg::Next);
+        assert_eq!(o.stage, Stage::Disclaimer, "Next must not advance unacked");
+        let _ = update(&mut o, Msg::AckDisclaimer(true));
+        let _ = update(&mut o, Msg::Next);
+        assert_eq!(o.stage, Stage::Region, "acked Next advances to Region");
     }
 
     #[test]
