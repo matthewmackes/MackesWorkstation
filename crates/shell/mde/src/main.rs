@@ -33,6 +33,7 @@ mod files;
 mod greeter;
 mod icons;
 mod install;
+mod install_win2k;
 mod installer;
 mod keyboard;
 mod lock;

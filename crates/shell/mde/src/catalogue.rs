@@ -36,7 +36,6 @@ const BASE: &[(&str, &str)] = &[
     ("google-droid-sans-fonts", "UI font"),
     ("lightdm", "Login manager (LightDM)"),
     ("lightdm-gtk-greeter", "Login greeter"),
-    ("python3", "Asset installer runtime"),
     ("git", "Asset fetcher"),
 ];
 

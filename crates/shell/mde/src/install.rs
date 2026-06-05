@@ -45,41 +45,82 @@ pub fn run(args: &[String]) -> ExitCode {
         }
     }
 
-    let Some(script) = locate_orchestrator() else {
-        eprintln!(
-            "mde install: asset installer not found.\n\
-             Looked in /usr/share/mde/scripts and the dev tree. On an installed\n\
-             system this ships with the `mde` RPM; in a checkout, run from the repo."
-        );
-        return ExitCode::FAILURE;
-    };
+    let do_chicago = only.as_deref() != Some("win2k");
+    let do_win2k = only.as_deref() != Some("chicago95");
 
     if dry {
         println!("mde install --assets (dry run)");
-        println!("  orchestrator : {}", script.display());
         match &only {
             Some(o) => println!("  scope        : --only {o}"),
             None => println!("  scope        : Chicago95 + Win2k icon theme"),
+        }
+        if do_chicago {
+            match locate_orchestrator() {
+                Some(s) => println!("  chicago95    : {} --only chicago95", s.display()),
+                None => println!("  chicago95    : orchestrator not in tree yet (RETIRE-PY.6b)"),
+            }
+        }
+        if do_win2k {
+            println!("  win2k        : native Rust (no python) → ~/.local/share/icons/Win2k");
         }
         println!("  deploys into : ~/.local/share/{{icons,themes,sounds}} (this user)");
         println!("  source       : fetched from upstream at runtime (not redistributed)");
         return ExitCode::SUCCESS;
     }
 
-    let mut cmd = Command::new("bash");
-    cmd.arg(&script);
-    if let Some(o) = only {
-        cmd.arg("--only").arg(o);
+    // Order mirrors the v1.x orchestrator: Chicago95 first (broad coverage +
+    // cursors + sounds + GTK theme), then the Win2k icon theme (now a native
+    // Rust step — RETIRE-PY.6a — so no `python3` is ever spawned). A missing
+    // Chicago95 orchestrator is fatal only when it was the explicit target;
+    // for the default `--assets` run it degrades to a warning so the native
+    // Win2k step still lands (the orchestrator move is RETIRE-PY.6b).
+    if do_chicago {
+        if let Err(code) = run_chicago95(only.as_deref() == Some("chicago95")) {
+            return code;
+        }
     }
-    match cmd.status() {
-        Ok(s) if s.success() => ExitCode::SUCCESS,
+    if do_win2k {
+        // Native installer is the final step → return its code directly.
+        return crate::install_win2k::run();
+    }
+    ExitCode::SUCCESS
+}
+
+/// Run the Chicago95 step via the bash orchestrator (`--only chicago95`).
+/// `required` is true when Chicago95 was the explicit `--only` target; when
+/// false (the default both-assets run) a missing orchestrator is a warning,
+/// not an error, so the native Win2k step still runs.
+fn run_chicago95(required: bool) -> Result<(), ExitCode> {
+    let Some(script) = locate_orchestrator() else {
+        if required {
+            eprintln!(
+                "mde install: Chicago95 orchestrator not found.\n\
+                 Looked in /usr/share/mde/scripts and the dev tree. On an installed\n\
+                 system this ships with the `mde` RPM; in a checkout it is not yet\n\
+                 vendored (tracked as RETIRE-PY.6b)."
+            );
+            return Err(ExitCode::FAILURE);
+        }
+        eprintln!(
+            "mde install: skipping Chicago95 — orchestrator not vendored yet \
+             (RETIRE-PY.6b); continuing with the native Win2k step."
+        );
+        return Ok(());
+    };
+    let status = Command::new("bash")
+        .arg(&script)
+        .arg("--only")
+        .arg("chicago95")
+        .status();
+    match status {
+        Ok(s) if s.success() => Ok(()),
         Ok(s) => {
-            eprintln!("mde install: asset installer exited with {s}");
-            ExitCode::from(s.code().unwrap_or(1).clamp(1, 255) as u8)
+            eprintln!("mde install: Chicago95 installer exited with {s}");
+            Err(ExitCode::from(s.code().unwrap_or(1).clamp(1, 255) as u8))
         }
         Err(e) => {
             eprintln!("mde install: failed to run {}: {e}", script.display());
-            ExitCode::FAILURE
+            Err(ExitCode::FAILURE)
         }
     }
 }

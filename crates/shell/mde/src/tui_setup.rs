@@ -18,8 +18,10 @@ const TITLE: &str = "MDE-Retro Professional Setup";
 
 // The package set is now the unified `catalogue` (base session + apps + Control
 // Panel tools + Xen/XCP-ng guest tools). Step 1 installs the user's selection
-// (or the curated default); git/python3 are mandatory `Base System` entries so
-// they still land before the "Installing visual assets" fetch step.
+// (or the curated default); `git` is a mandatory `Base System` entry (the
+// Chicago95 asset fetcher) so it still lands before the "Installing visual
+// assets" fetch step. (`python3` was retired here — RETIRE-PY.6a — once the
+// Win2k installer became native Rust; no asset step shells to python now.)
 
 #[derive(PartialEq)]
 enum Screen {

@@ -68,6 +68,14 @@ argon2 = "0.5"
 # NB: this is the one C-compiled crate (cf. the otherwise pure-Rust text/TLS stack)
 # — a deliberate, user-approved choice for a robust embedded reader.
 rusqlite = { version = "0.32", features = ["bundled"] }
+# RETIRE-PY.6a — native Win2k icon-theme installer (`install_win2k.rs`), replacing
+# the retired `install-win2k-icons.py`. `ureq` 3 is a blocking HTTPS client that
+# bundles rustls (matches the project's pure-Rust/no-OpenSSL TLS posture, already in
+# the lock); `flate2` (miniz_oxide backend) + `tar` are pure-Rust gzip+tar for the
+# upstream KDE-Store icon tarball. Only the asset-install path pulls these.
+ureq = "3"
+flate2 = "1"
+tar = "0.4"
 
 [dev-dependencies]
 # Accuracy harness (tests/accuracy.rs): decode grim PNG captures and parse the
