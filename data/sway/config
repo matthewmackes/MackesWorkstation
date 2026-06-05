@@ -133,13 +133,10 @@ bindsym $mod+Shift+space focus mode_toggle
 # the v2.0.0 cut (Phase H.1).
 bindsym $mod+Return exec foot
 bindsym $mod+d exec bemenu-run -fn "Red Hat Text 11" -nb "#262626" -nf "#f4f4f4" -sb "#2b9af3" -sf "#f4f4f4"
-# v3.0.3 — F3 opens the exposé grid (fullscreen overlay rendering
-# one card per top-level window; click focuses + dismisses).
-bindsym F3 exec mde-popover expose
-# ANIM-6.b — $mod+Tab opens the workspace overview (Q46): fullscreen
-# grid of workspace cards showing name + app pills. Click switches;
-# Esc dismisses.
-bindsym $mod+Tab exec mde-popover overview
+# E0.16 — the F3 exposé + $mod+Tab workspace-overview popovers were
+# retired (swaymsg-IPC surfaces with no labwc analog; superseded by the
+# wlr `mde task-view`, E4.7). This sway config is itself a dead-era
+# holdover pending full data/sway retirement (E0.17 step 4 / E6).
 # v3.0.3 — Super+V opens the clipboard history popover (mesh-
 # synced entries from ~/.cache/mde/clipboard.json; click an
 # entry to copy it back via wl-copy).

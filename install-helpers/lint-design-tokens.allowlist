@@ -163,14 +163,8 @@ crates/shell/mde-panel/src/top_bar.rs:126
 crates/shell/mde-panel/src/top_bar.rs:14
 crates/shell/mde-panel/src/top_bar.rs:17
 crates/shell/mde-panel/src/top_bar.rs:507
-crates/shell/mde-popover/src/app_switcher.rs:518
-crates/shell/mde-popover/src/app_switcher.rs:519
-crates/shell/mde-popover/src/app_switcher.rs:520
 crates/shell/mde-popover/src/hostname_info.rs:302
 crates/shell/mde-popover/src/lock.rs:570
-crates/shell/mde-popover/src/minimized.rs:418
-crates/shell/mde-popover/src/minimized.rs:419
-crates/shell/mde-popover/src/minimized.rs:420
 crates/shell/mde-popover/src/network.rs:974
 crates/shell/mde-popover/src/network.rs:975
 crates/shell/mde-popover/src/network.rs:976

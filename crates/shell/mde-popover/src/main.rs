@@ -23,29 +23,23 @@
 #![forbid(unsafe_code)]
 
 mod admin_menu;
-mod app_switcher;
 mod audio;
 mod clipboard;
 mod clock;
 mod dismiss;
-mod expose;
 mod farewell;
 mod fonts;
 mod hostname_info;
 mod icon_mapper;
 mod lock;
-mod minimized;
 mod network;
 mod notifications;
-mod overview;
-mod snap_assist;
 mod start_menu;
 mod status;
 mod toasts;
 mod urgent;
 mod watermark;
 mod weather;
-mod window_actions;
 
 use clap::Parser;
 
@@ -75,10 +69,6 @@ enum Kind {
     /// click invokes `pkexec dnf upgrade`. Spawned at session
     /// start via data/sway/config rather than from the panel.
     Watermark,
-    /// v3.0.3 — F3 exposé grid. Fullscreen overlay rendering one
-    /// card per sway top-level; click focuses + dismisses.
-    /// Bound to F3 in data/sway/config.
-    Expose,
     /// v3.0.3 — Super+V clipboard history popover. Reads
     /// ~/.cache/mde/clipboard.json (mesh-synced by mackesd's
     /// clipboard worker); click an entry to copy it back via
@@ -89,25 +79,6 @@ enum Kind {
     /// up to STACK_LIMIT=3 toasts above the panel. Spawned at
     /// session start via data/sway/config.
     Toast,
-    /// v4.0.1 WM-2 — minimized-windows popover. Lists sway
-    /// scratchpad windows + click-to-restore via swaymsg. Bind
-    /// with `bindsym $mod+Shift+s exec mde-popover minimized`.
-    Minimized,
-    /// v4.0.1 WM-5 — visible Alt-Tab window switcher. Centered
-    /// overlay with one card per open window; Tab cycles, Enter
-    /// focuses, Esc cancels. Bind with `bindsym Mod1+Tab exec
-    /// mde-popover app-switcher`.
-    AppSwitcher,
-    /// v4.0.1 WM-3 — right-click-on-dock-cell window-actions
-    /// popover. Reads target via MDE_WINDOW_CON_ID +
-    /// MDE_WINDOW_APP_ID env vars (the dock applet sets both
-    /// before spawning).
-    WindowActions,
-    /// v4.0.1 WM-4 — Snap Assist overlay. Modal layer-shell
-    /// surface with 8 click-to-snap zones (4 halves + 4
-    /// quadrants); targets the focused sway window. Bound to
-    /// `bindsym $mod+z exec mde-popover snap-assist`.
-    SnapAssist,
     /// v3.0.3 E.19 — icon-mapper glyph picker. Reads target
     /// via MDE_ICON_MAPPER_APP_ID env var; writes the picked
     /// Material Symbols glyph to ~/.local/share/applications/
@@ -145,11 +116,15 @@ enum Kind {
     // the locked labwc compositor (plan §0 Q8), which has no sway-style
     // binding modes to set `MDE_SWAY_MODE`. Retired per §0.12 (no dead
     // code) — the newer labwc lock supersedes the sway-era surface.
-    /// ANIM-6.b — workspace overview surface (Q46). Fullscreen grid
-    /// of workspace cards (name + app pills). Click to switch
-    /// workspace; Esc to dismiss. No wlr-screencopy thumbnails.
-    /// Bind with `bindsym $mod+Tab exec mde-popover overview`.
-    Overview,
+    //
+    // E0.16 — the sway-mode window surfaces (`overview`, `expose`,
+    // `app-switcher`, `window-actions`, `snap-assist`, `minimized`) were
+    // retired the same way: each shelled out to `swaymsg -t get_tree`/
+    // scratchpad IPC that labwc does not provide, was bound only in the
+    // dead `data/sway/*` config, and is superseded by the integrated
+    // wlr-foreign-toplevel shell (`mde task-view`, E4.7) + labwc-native
+    // edge-snap. Porting them would duplicate `task-view` (§2.7), so they
+    // were dropped, not ported.
     /// ANIM-7.c — session-end fade-out overlay (Q40). Fullscreen
     /// Layer::Overlay that fades transparent → opaque charcoal
     /// (~200 ms) then executes the session action (logout/restart/
@@ -178,20 +153,14 @@ fn main() -> iced_layershell::Result {
         Kind::Clock => clock::run(),
         Kind::AdminMenu => admin_menu::run(),
         Kind::Watermark => watermark::run(),
-        Kind::Expose => expose::run(),
         Kind::Clipboard => clipboard::run(),
         Kind::Toast => toasts::run(),
         Kind::Network => network::run(),
-        Kind::Minimized => minimized::run(),
-        Kind::AppSwitcher => app_switcher::run(),
-        Kind::WindowActions => window_actions::run(),
-        Kind::SnapAssist => snap_assist::run(),
         Kind::IconMapper => icon_mapper::run(),
         Kind::HostnameInfo => hostname_info::run(),
         Kind::Status => status::run(),
         Kind::Lock => lock::run(),
         Kind::Urgent => urgent::run(),
-        Kind::Overview => overview::run(),
         Kind::Farewell => farewell::run(),
     }
 }

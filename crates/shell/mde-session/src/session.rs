@@ -1,50 +1,34 @@
 //! Session lifecycle control surface (DBUS-1 — migrated to Bus).
 //!
 //! Per the Q96 Bus-canonical lock (EPIC-RETIRE-DBUS), the session
-//! lifecycle verbs (logout / restart / shutdown / lock / save-layout)
-//! are served on the Bus at `action/session/<verb>` instead of the
-//! retired `dev.mackes.MDE.Session` D-Bus interface. The
-//! `mde-logout-dialog` + panel publish a request on the action topic;
-//! this responder applies the effect and replies on `reply/<ulid>`.
+//! lifecycle verbs (logout / restart / shutdown / lock) are served on
+//! the Bus at `action/session/<verb>` instead of the retired
+//! `dev.mackes.MDE.Session` D-Bus interface. The `mde-logout-dialog` +
+//! panel publish a request on the action topic; this responder applies
+//! the effect and replies on `reply/<ulid>`.
 //!
 //! The verb → action mapping ([`action_for_verb`]) is a pure function
 //! (unit-tested); [`apply`] performs the side effects (kill / systemctl
-//! / lock / wm get_tree), which are exercised at the §0.15 HW bench.
+//! / lock), which are exercised at the §0.15 HW bench.
+//!
+//! E0.16 — the `save-layout` verb was retired: it ran `swaymsg -t
+//! get_tree`, which labwc does not provide, and wlr-foreign-toplevel
+//! exposes no window geometry to reconstruct a layout from. No surface
+//! produced `action/session/save-layout`, so the verb was dropped rather
+//! than left as an unimplementable stub (§3).
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use mde_bus::hooks::config::Priority;
 use mde_bus::persist::Persist;
 use mde_bus::rpc::reply_topic;
 use serde_json::json;
-use tokio::sync::Mutex;
 
 /// Poll cadence for the action topics.
 pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(400);
 
 /// The lifecycle verbs served on `action/session/<verb>`.
-pub const ACTION_VERBS: [&str; 5] = ["logout", "restart", "shutdown", "lock", "save-layout"];
-
-/// Per-session state owned by the responder. Tracks whether the layout
-/// was saved this session.
-#[derive(Clone, Debug, Default)]
-pub struct SessionState {
-    inner: Arc<Mutex<Inner>>,
-}
-
-#[derive(Debug, Default)]
-struct Inner {
-    layout_saved: bool,
-}
-
-impl SessionState {
-    /// Construct a fresh session-state with `layout_saved=false`.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
+pub const ACTION_VERBS: [&str; 4] = ["logout", "restart", "shutdown", "lock"];
 
 /// A session lifecycle action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,7 +37,6 @@ pub enum SessionAction {
     Restart,
     Shutdown,
     Lock,
-    SaveLayout,
 }
 
 /// Map an `action/session/<verb>` verb to its action. Pure + testable.
@@ -64,7 +47,6 @@ pub fn action_for_verb(verb: &str) -> Option<SessionAction> {
         "restart" => Some(SessionAction::Restart),
         "shutdown" => Some(SessionAction::Shutdown),
         "lock" => Some(SessionAction::Lock),
-        "save-layout" => Some(SessionAction::SaveLayout),
         _ => None,
     }
 }
@@ -73,7 +55,7 @@ pub fn action_for_verb(verb: &str) -> Option<SessionAction> {
 ///
 /// # Errors
 /// Returns a message when the effect's shell-out / IO fails.
-pub async fn apply(action: SessionAction, state: &SessionState) -> Result<(), String> {
+pub async fn apply(action: SessionAction) -> Result<(), String> {
     match action {
         SessionAction::Logout => {
             tracing::info!("session: logout");
@@ -99,21 +81,6 @@ pub async fn apply(action: SessionAction, state: &SessionState) -> Result<(), St
                 .await
                 .map_err(|e| format!("lock command failed: {e}"))
         }
-        SessionAction::SaveLayout => {
-            tracing::info!("session: save-layout");
-            let layout = run_wm_get_tree()
-                .await
-                .map_err(|e| format!("wm get_tree failed: {e}"))?;
-            let path = layout_save_path();
-            if let Some(parent) = path.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| format!("mkdir {} failed: {e}", parent.display()))?;
-            }
-            std::fs::write(&path, layout)
-                .map_err(|e| format!("write {} failed: {e}", path.display()))?;
-            state.inner.lock().await.layout_saved = true;
-            Ok(())
-        }
     }
 }
 
@@ -134,7 +101,7 @@ async fn run(bin: &str, args: &[&str]) -> Result<(), String> {
 /// tokio runtime for the async effects (`Persist`/rusqlite isn't `Send`,
 /// so this runs off the main async executor — see `mde-session` main).
 /// Loops until `should_stop()` returns true.
-pub fn serve_bus<F: Fn() -> bool>(persist: &Persist, state: &SessionState, should_stop: F) {
+pub fn serve_bus<F: Fn() -> bool>(persist: &Persist, should_stop: F) {
     let rt = match tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -147,7 +114,7 @@ pub fn serve_bus<F: Fn() -> bool>(persist: &Persist, state: &SessionState, shoul
     };
     let mut cursors: HashMap<String, String> = HashMap::new();
     while !should_stop() {
-        poll_once(persist, state, &rt, &mut cursors);
+        poll_once(persist, &rt, &mut cursors);
         std::thread::sleep(POLL_INTERVAL);
     }
 }
@@ -156,7 +123,6 @@ pub fn serve_bus<F: Fn() -> bool>(persist: &Persist, state: &SessionState, shoul
 /// it without the sleep loop).
 pub fn poll_once(
     persist: &Persist,
-    state: &SessionState,
     rt: &tokio::runtime::Runtime,
     cursors: &mut HashMap<String, String>,
 ) {
@@ -170,7 +136,7 @@ pub fn poll_once(
         for msg in msgs {
             cursors.insert(topic.clone(), msg.ulid.clone());
             let reply = match action_for_verb(verb) {
-                Some(action) => match rt.block_on(apply(action, state)) {
+                Some(action) => match rt.block_on(apply(action)) {
                     Ok(()) => json!({ "ok": true }).to_string(),
                     Err(e) => json!({ "ok": false, "error": e }).to_string(),
                 },
@@ -186,37 +152,6 @@ pub fn poll_once(
     }
 }
 
-/// Path of the saved-layout sidecar.
-fn layout_save_path() -> std::path::PathBuf {
-    let cache = std::env::var("XDG_CACHE_HOME")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map_or_else(
-            || dirs::home_dir().unwrap_or_default().join(".cache"),
-            std::path::PathBuf::from,
-        );
-    cache.join("mde").join("session-layout.json")
-}
-
-/// Fetch the current WM tree as JSON.
-/// - `wayland` feature: `swaymsg -t get_tree`
-/// - `x11` feature: `i3-msg -t get_tree`
-async fn run_wm_get_tree() -> anyhow::Result<String> {
-    #[cfg(not(feature = "x11"))]
-    let wm_msg = "swaymsg";
-    #[cfg(feature = "x11")]
-    let wm_msg = "i3-msg";
-
-    let out = tokio::process::Command::new(wm_msg)
-        .args(["-t", "get_tree"])
-        .output()
-        .await?;
-    if !out.status.success() {
-        anyhow::bail!("{wm_msg} get_tree exited non-zero");
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -227,30 +162,14 @@ mod tests {
         assert_eq!(action_for_verb("restart"), Some(SessionAction::Restart));
         assert_eq!(action_for_verb("shutdown"), Some(SessionAction::Shutdown));
         assert_eq!(action_for_verb("lock"), Some(SessionAction::Lock));
-        assert_eq!(
-            action_for_verb("save-layout"),
-            Some(SessionAction::SaveLayout)
-        );
         assert_eq!(action_for_verb("frobnicate"), None);
     }
 
-    #[tokio::test]
-    async fn session_state_starts_with_layout_not_saved() {
-        let s = SessionState::new();
-        assert!(!s.inner.lock().await.layout_saved);
-    }
-
     #[test]
-    fn layout_save_path_honors_xdg_cache_home() {
-        let prev = std::env::var_os("XDG_CACHE_HOME");
-        std::env::set_var("XDG_CACHE_HOME", "/tmp/test-cache-mde-session");
-        assert_eq!(
-            layout_save_path(),
-            std::path::PathBuf::from("/tmp/test-cache-mde-session/mde/session-layout.json")
-        );
-        match prev {
-            Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
-            None => std::env::remove_var("XDG_CACHE_HOME"),
-        }
+    fn save_layout_verb_is_retired() {
+        // E0.16 — the sway-tree save-layout verb was dropped under labwc;
+        // it must no longer map to an action nor appear in the verb set.
+        assert_eq!(action_for_verb("save-layout"), None);
+        assert!(!ACTION_VERBS.contains(&"save-layout"));
     }
 }

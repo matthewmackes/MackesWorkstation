@@ -1,11 +1,12 @@
 [Unit]
 Description=MDE Session — Mackes Desktop Environment login orchestrator
 Documentation=https://github.com/matthewmackes/MAP2-RELEASES
-# v2.0.0 Phase D.6 — user-session unit that execs sway (or whichever
-# compositor the operator picked), chains graphical-session.target,
-# owns the Logout / Restart / Shutdown / Lock / SaveLayout DBus
-# surface (Phase D.1–D.4), and re-applies persisted settings
-# (Phase C sidecars under $XDG_CACHE_HOME/mde/) on each login.
+# v2.0.0 Phase D.6 — user-session unit that execs labwc, chains
+# graphical-session.target, serves the Logout / Restart / Shutdown /
+# Lock lifecycle verbs on the Bus (action/session/<verb>, Q96; the
+# sway-tree SaveLayout was retired under labwc, E0.16), and re-applies
+# persisted settings (Phase C sidecars under $XDG_CACHE_HOME/mde/) on
+# each login.
 PartOf=graphical-session.target
 After=graphical-session.target
 # Runs after the first-boot migration target (CB-2.4) so the

@@ -5,14 +5,14 @@
 //! command. Mirrors ANIM-7.d's lock crossfade; this is the egress
 //! counterpart (fade-out = session ending, fade-in = lock appearing).
 //!
-//! Actions:
-//!   `logout`   → `swaymsg exit`
+//! Actions (E0.16 — logout is labwc-native, not `swaymsg exit`):
+//!   `logout`   → `pkill labwc` (compositor exit → graphical-session
+//!                tear-down; labwc has no `swaymsg`-style IPC)
 //!   `restart`  → `systemctl reboot`
 //!   `shutdown` → `systemctl poweroff`
 //!
-//! Wired via `$mod+Shift+e` in `data/sway/config.d/mackes-defaults.conf`
-//! (logout), and called by the mde-panel power-button surface by passing
-//! the matching action slug.
+//! Called by the shell power-button surface by passing the matching
+//! action slug (the labwc keybind lives in the shipped rc.xml).
 
 #![forbid(unsafe_code)]
 

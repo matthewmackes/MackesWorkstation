@@ -122,13 +122,12 @@ async fn main() -> anyhow::Result<()> {
     autostart::launch_user_autostart().await;
 
     // 2. DBUS-1 — serve the session lifecycle verbs on the Bus
-    //    (action/session/{logout,restart,shutdown,lock,save-layout}),
-    //    replacing the retired dev.mackes.MDE.Session D-Bus interface
-    //    (Q96). Runs on a detached thread with its own current-thread
-    //    runtime — `Persist` (rusqlite) isn't `Send`, so it can't live
-    //    on this multi-thread async executor. The thread exits with the
-    //    process on SIGTERM tear-down below.
-    let session = session::SessionState::new();
+    //    (action/session/{logout,restart,shutdown,lock}), replacing the
+    //    retired dev.mackes.MDE.Session D-Bus interface (Q96). Runs on a
+    //    detached thread with its own current-thread runtime — `Persist`
+    //    (rusqlite) isn't `Send`, so it can't live on this multi-thread
+    //    async executor. The thread exits with the process on SIGTERM
+    //    tear-down below.
     std::thread::Builder::new()
         .name("session-bus".into())
         .spawn(move || {
@@ -137,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
                 return;
             };
             match mde_bus::persist::Persist::open(bus_root) {
-                Ok(persist) => session::serve_bus(&persist, &session, || false),
+                Ok(persist) => session::serve_bus(&persist, || false),
                 Err(e) => tracing::warn!("session responder: opening Bus store: {e}"),
             }
         })
