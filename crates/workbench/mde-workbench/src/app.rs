@@ -785,7 +785,7 @@ impl App {
             (Group::LookAndFeel, "wallpaper") => {
                 wallpaper_panel::WallpaperPanel::load(self.backend())
             }
-            (Group::System, "session") => session_panel::SessionPanel::load(self.backend()),
+            (Group::Devices, "session") => session_panel::SessionPanel::load(self.backend()),
             (Group::System, "notifications") => {
                 notifications_panel::NotificationsPanel::load(self.backend())
             }
@@ -982,7 +982,7 @@ impl App {
                 panel: "wallpaper",
             } => self.wallpaper.view(),
             View::Panel {
-                group: Group::System,
+                group: Group::Devices,
                 panel: "session",
             } => self.session.view(),
             View::Panel {
@@ -1444,16 +1444,17 @@ mod tests {
     }
 
     #[test]
-    fn select_system_session_swaps_view_to_panel() {
+    fn select_devices_session_swaps_view_to_panel() {
+        // E6.4 — session lives under Devices now (moved from System).
         let mut app = App::new();
         let _ = app.update(Message::SelectPanel {
-            group: Group::System,
+            group: Group::Devices,
             panel: "session",
         });
         assert_eq!(
             app.current_view(),
             View::Panel {
-                group: Group::System,
+                group: Group::Devices,
                 panel: "session"
             }
         );

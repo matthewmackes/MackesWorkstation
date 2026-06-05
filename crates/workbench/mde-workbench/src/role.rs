@@ -379,6 +379,47 @@ mod tests {
     }
 
     #[test]
+    fn devices_role_card_includes_the_e6_4_acceptance_panels() {
+        // E6.4 acceptance #1: the Devices role card surfaces action-links
+        // to the 9 device panels (displays/sound/printers/removable/
+        // keyboard/mouse/session/power/connect). `music` stays as a bonus
+        // pending the E5.3 Media Player app.
+        let slugs: Vec<&str> = role_action_panels(Group::Devices)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        for want in [
+            "displays",
+            "sound",
+            "printers",
+            "removable",
+            "keyboard",
+            "mouse",
+            "session",
+            "power",
+            "connect",
+        ] {
+            assert!(
+                slugs.contains(&want),
+                "Devices card missing {want}: {slugs:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn session_left_system_for_devices() {
+        // E6.4 — session moved out of System into Devices.
+        let system: Vec<&str> = role_action_panels(Group::System)
+            .iter()
+            .map(Panel::slug)
+            .collect();
+        assert!(
+            !system.contains(&"session"),
+            "session must leave System (E6.4): {system:?}"
+        );
+    }
+
+    #[test]
     fn window_manager_left_system_for_look_and_feel() {
         // E6.6/E6.8 — window_manager moved out of System (E6.8's
         // acceptance excludes it) into Look & Feel; it must not appear

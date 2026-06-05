@@ -207,6 +207,10 @@ pub fn nav_model() -> Vec<NavEntry> {
                 Panel::new("keyboard", "Keyboard"),
                 Panel::new("mouse", "Mouse & Touchpad"),
                 Panel::new("power", "Power"),
+                // E6.3/E6.4 — Session (logout/lock/session settings) sits
+                // with Power under Devices per the E6.4 acceptance (moved
+                // here from System, which E6.8's acceptance omits it from).
+                Panel::new("session", "Session"),
                 Panel::new("sound", "Sound"),
                 Panel::new("printers", "Printers"),
                 Panel::new("music", "Music"),
@@ -301,8 +305,9 @@ pub fn nav_model() -> Vec<NavEntry> {
             group: Group::System,
             panels: vec![
                 Panel::new("datetime", "Date & Time"),
-                // E6.3 — default_apps moved to Apps (software management).
-                Panel::new("session", "Session"),
+                // E6.3 — default_apps moved to Apps; E6.4 — session moved to
+                // Devices. System trends toward the E6.8 acceptance
+                // (datetime / logs / resources / system_update / notifications).
                 Panel::new("notifications", "Notifications"),
             ],
         },
