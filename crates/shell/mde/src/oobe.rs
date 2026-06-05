@@ -171,9 +171,6 @@ struct Oobe {
     username: String,
     password: String,
     password2: String,
-    /// Your-Phone stage (E11.8): the phone number the user types (informational —
-    /// real pairing is the Your Phone app's job once `mde connect` lands).
-    phone: String,
     /// Personalize stage (E11.9): accent index into ACCENTS + light/dark.
     accent: usize,
     light: bool,
@@ -192,7 +189,6 @@ enum Msg {
     TogglePrivacy(u8),
     PickAccent(usize),
     SetMode(bool), // true = light
-    Phone(String),
     /// E7.2 — toggle the disclaimer acknowledgement checkbox.
     AckDisclaimer(bool),
     /// E7.2 — pick a deployment role (index into `ROLES`).
@@ -334,7 +330,6 @@ pub fn run(args: &[String]) -> ExitCode {
         username: String::new(),
         password: String::new(),
         password2: String::new(),
-        phone: String::new(),
         p_location: st.privacy_location,
         p_diagnostics: st.privacy_diagnostics,
         p_find: st.privacy_find_device,
@@ -785,7 +780,6 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
         },
         Msg::PickAccent(i) => state.accent = i,
         Msg::SetMode(light) => state.light = light,
-        Msg::Phone(s) => state.phone = s,
         Msg::AckDisclaimer(on) => state.disclaimer_ack = on,
         Msg::PickRole(i) => state.role = i,
         Msg::EnrollToken(s) => state.enroll_token = s,
@@ -1209,22 +1203,31 @@ fn mesh_enroll_body(state: &Oobe) -> Element<'_, Msg> {
         .into()
 }
 
-fn your_phone_body(state: &Oobe) -> Element<'_, Msg> {
+fn your_phone_body(_state: &Oobe) -> Element<'_, Msg> {
+    // Phone pairing is the KDE Connect host's job (owned by mackesd since E2.3)
+    // and is phone-initiated, so the first-run stage guides the user rather than
+    // faking an inline form: install KDE Connect, then pair from Mobile Devices.
+    // Skipping leaves setup complete; pairing is re-runnable any time (E7.2 #3 —
+    // the live handshake + persist is the 2-device bench).
     Column::new()
         .spacing(12.0)
         .padding(pad(20.0, 8.0, 0.0, 8.0))
-        .push(text("Phone number").size(metrics::UI_PX).color(dim()))
         .push(
-            text_input("+1 555 0123", &state.phone)
-                .on_input(Msg::Phone)
-                .size(metrics::UI_PX)
-                .padding(pad(6.0, 10.0, 6.0, 10.0))
-                .width(Length::Fixed(260.0)),
+            text(
+                "MDE links phones over KDE Connect — your phone's notifications, \
+                 messages, battery and files appear on this PC, encrypted end to end \
+                 across the mesh.",
+            )
+            .size(metrics::UI_PX),
         )
         .push(
-            text("We'll send a link to install the companion app. Pairing finishes in the Your Phone app.")
-                .size(metrics::BADGE_PX)
-                .color(dim()),
+            text(
+                "Install the KDE Connect app on your phone, then open Mobile Devices \
+                 (Your Phone) after setup and accept the pairing request. Pairing isn't \
+                 required to finish — you can do it any time.",
+            )
+            .size(metrics::BADGE_PX)
+            .color(dim()),
         )
         .into()
 }
@@ -1324,7 +1327,7 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
         }
         Stage::YourPhone => frame(
             "Link your phone and PC",
-            "Get your phone's photos, messages and notifications on your PC. Enter your number, or do this later.",
+            "Get your phone's notifications, messages, battery and files on your PC over KDE Connect — or do it later.",
             your_phone_body(state),
             actions_full(true, Some("Do it later"), "Next", Msg::Next),
         ),
@@ -1405,7 +1408,6 @@ mod tests {
             username: String::new(),
             password: String::new(),
             password2: String::new(),
-            phone: String::new(),
             p_location: true,
             p_diagnostics: true,
             p_find: true,
