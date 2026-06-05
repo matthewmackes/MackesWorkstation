@@ -45,7 +45,6 @@ mod toasts;
 mod urgent;
 mod watermark;
 mod weather;
-mod which_key;
 mod window_actions;
 
 use clap::Parser;
@@ -141,11 +140,11 @@ enum Kind {
     /// owned this `fleet/announce` subscription was retired; re-homing
     /// the spawner is tracked as E4.21 in `docs/PROJECT_WORKLIST.md`.)
     Urgent,
-    /// ANIM-6.c — which-key binding overlay (Q55). Centered card
-    /// listing all `bindsym` entries for the active sway mode. Mode
-    /// name read from MDE_SWAY_MODE env var. (No live spawner yet —
-    /// wiring is tracked as E4.22; see `which_key.rs`.)
-    WhichKey,
+    // E4.22 — `WhichKey` removed. The sway binding-mode overlay (Q55) was
+    // never wired to a spawner and is architecturally inapplicable under
+    // the locked labwc compositor (plan §0 Q8), which has no sway-style
+    // binding modes to set `MDE_SWAY_MODE`. Retired per §0.12 (no dead
+    // code) — the newer labwc lock supersedes the sway-era surface.
     /// ANIM-6.b — workspace overview surface (Q46). Fullscreen grid
     /// of workspace cards (name + app pills). Click to switch
     /// workspace; Esc to dismiss. No wlr-screencopy thumbnails.
@@ -192,7 +191,6 @@ fn main() -> iced_layershell::Result {
         Kind::Status => status::run(),
         Kind::Lock => lock::run(),
         Kind::Urgent => urgent::run(),
-        Kind::WhichKey => which_key::run(),
         Kind::Overview => overview::run(),
         Kind::Farewell => farewell::run(),
     }
