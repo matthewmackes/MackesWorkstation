@@ -30,6 +30,15 @@ pub struct Palette {
     pub text: Rgba,
     /// Muted / secondary text color.
     pub text_muted: Rgba,
+    /// Semantic success (green) — confirmations, healthy status.
+    /// These three semantic roles are the only named colors aside from
+    /// the single accent (E5.3: centralized here so every surface reads
+    /// them from one place instead of hardcoding `Color::from_rgb`).
+    pub success: Rgba,
+    /// Semantic danger (red) — errors, destructive actions.
+    pub danger: Rgba,
+    /// Semantic warning (amber) — cautions, pending / at-risk status.
+    pub warning: Rgba,
 }
 
 impl Palette {
@@ -68,6 +77,10 @@ impl Palette {
             text: Rgba::rgb(0xe8, 0xea, 0xed),
             // Text muted.
             text_muted: Rgba::rgb(0x9a, 0xa0, 0xa6),
+            // Semantic roles (the UX-3 originals, single-sourced here).
+            success: Rgba::rgb(0x3f, 0xb9, 0x50),
+            danger: Rgba::rgb(0xe5, 0x53, 0x4b),
+            warning: Rgba::rgb(0xf5, 0xa6, 0x23),
         }
     }
 
@@ -88,6 +101,11 @@ impl Palette {
             border: Rgba::rgb(0xda, 0xdc, 0xe0),
             text: Rgba::rgb(0x1d, 0x1d, 0x1f),
             text_muted: Rgba::rgb(0x5f, 0x63, 0x68),
+            // Semantic roles — shared with dark for now (a future
+            // light-mode polish can tune them for AA on white).
+            success: Rgba::rgb(0x3f, 0xb9, 0x50),
+            danger: Rgba::rgb(0xe5, 0x53, 0x4b),
+            warning: Rgba::rgb(0xf5, 0xa6, 0x23),
         }
     }
 

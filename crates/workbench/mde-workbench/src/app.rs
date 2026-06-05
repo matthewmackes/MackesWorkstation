@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use iced::widget::{column, container, row, text};
-use iced::{window, Color, Element, Length, Size, Subscription, Task, Theme};
+use iced::{window, Element, Length, Size, Subscription, Task, Theme};
 use mde_theme::Palette;
 
 use crate::backend::{Backend, RemoteBackend};
@@ -51,11 +51,10 @@ pub const WIN_H: f32 = 760.0;
 /// Build the workbench's `iced::Theme` from `mde_theme::Palette`.
 ///
 /// UX-3 — Q-locked dark palette (Q2 indigo accent + Q3 Apple-
-/// charcoal background). Success / danger colours are the
-/// UX-3 originals (`#3fb950` / `#e5534b`) until a future
-/// Q-lock pins semantic colours; they live here rather than
-/// `mde-theme` because the Q-survey didn't enumerate them
-/// (the lock spec is single-accent).
+/// charcoal background). E5.3 — the semantic success / danger /
+/// warning colours now come from `mde_theme::Palette` (centralized in
+/// the design-token crate) instead of hardcoded RGB literals here, so
+/// every surface shares the one source.
 #[must_use]
 pub fn mde_workbench_iced_theme() -> Theme {
     let p = Palette::dark();
@@ -63,23 +62,9 @@ pub fn mde_workbench_iced_theme() -> Theme {
         background: p.background.into_iced_color(),
         text: p.text.into_iced_color(),
         primary: p.accent.into_iced_color(),
-        // iced 0.14 added `warning` to Palette. Amber (#f5a623),
-        // distinct from the single accent + the danger red below.
-        warning: Color::from_rgb(
-            0xf5 as f32 / 255.0,
-            0xa6 as f32 / 255.0,
-            0x23 as f32 / 255.0,
-        ),
-        success: Color::from_rgb(
-            0x3f as f32 / 255.0,
-            0xb9 as f32 / 255.0,
-            0x50 as f32 / 255.0,
-        ),
-        danger: Color::from_rgb(
-            0xe5 as f32 / 255.0,
-            0x53 as f32 / 255.0,
-            0x4b as f32 / 255.0,
-        ),
+        warning: p.warning.into_iced_color(),
+        success: p.success.into_iced_color(),
+        danger: p.danger.into_iced_color(),
     };
     Theme::custom("MDE".to_string(), palette)
 }
