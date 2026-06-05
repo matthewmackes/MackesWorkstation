@@ -23,7 +23,7 @@ use crate::panel_chrome::{empty_state, object_card, panel_container};
 // need the full mde-bus dep. Same serde field names → same YAML/JSON.
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
-struct DndStatusJson {
+pub struct DndStatusJson {
     #[serde(default)]
     active: bool,
     #[serde(default)]
@@ -61,7 +61,7 @@ struct QuietHoursYaml {
 // ─── Topics tab data ─────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Default)]
-struct TopicInfo {
+pub struct TopicInfo {
     name: String,
     message_count: usize,
     last_activity_ms: i64,
@@ -69,7 +69,7 @@ struct TopicInfo {
 }
 
 #[derive(Debug, Clone, Default)]
-struct TopicMessage {
+pub struct TopicMessage {
     title: String,
     body_preview: String,
     published_at_ms: i64,

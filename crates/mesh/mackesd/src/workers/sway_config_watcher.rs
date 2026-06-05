@@ -66,7 +66,7 @@ impl Worker for SwayConfigWatcherWorker {
         "sway_config_watcher"
     }
 
-    async fn run(&mut self, mut shutdown: ShutdownToken) -> anyhow::Result<()> {
+    async fn run(&mut self, shutdown: ShutdownToken) -> anyhow::Result<()> {
         // Write the initial hardware overlay.  Silently skips when sway
         // is not yet running (mded can start before sway is fully up).
         write_hardware_overlay_async().await;

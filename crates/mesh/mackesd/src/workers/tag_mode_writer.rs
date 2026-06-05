@@ -59,7 +59,7 @@ impl Worker for TagModeWriterWorker {
         "tag_mode_writer"
     }
 
-    async fn run(&mut self, mut shutdown: ShutdownToken) -> anyhow::Result<()> {
+    async fn run(&mut self, shutdown: ShutdownToken) -> anyhow::Result<()> {
         if shutdown.is_shutdown() {
             return Ok(());
         }
