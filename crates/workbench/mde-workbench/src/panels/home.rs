@@ -1210,7 +1210,6 @@ fn jump_button<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element<'a,
     let bg = palette.raised.into_iced_color();
     let border = palette.border.into_iced_color();
     let text_color = palette.text.into_iced_color();
-    let muted = palette.text_muted.into_iced_color();
     let style = move |_t: &Theme, status: iced::widget::button::Status| {
         let hover_bg = Color {
             r: bg.r * 1.12,
@@ -1233,18 +1232,6 @@ fn jump_button<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element<'a,
             shadow: iced::Shadow::default(),
         }
     };
-    let disabled_style =
-        move |_t: &Theme, _status: iced::widget::button::Status| iced::widget::button::Style {
-            snap: false,
-            background: Some(Background::Color(bg)),
-            text_color: muted,
-            border: Border {
-                color: border,
-                width: 1.0,
-                radius: 6.0.into(),
-            },
-            shadow: iced::Shadow::default(),
-        };
 
     if let Some((group, panel)) = row_data.jump {
         button(text("Configure  ▸").size(13))
