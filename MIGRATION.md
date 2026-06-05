@@ -95,8 +95,10 @@ once this repo builds and is pushed — they live on as the history merged here.
 - **E0 — merge + foundation: ✅ done** (bar operator-gated items). mde-bus migration
   (E0.3) largely complete; sway→labwc surface retirement (E0.16) done; the standalone
   applet/panel ecosystem retired (E0.17/E5.5). *Open:* E0.12 (archive old repos —
-  operator-gated), E0.3.7 (final D-Bus sweep — gated on E2.2's legacy-KDC-host
-  retirement), E0.11 (no-supervised-Python audit — blocked on E3's `fs_sync`).
+  operator-gated), E0.11 (no-supervised-Python audit — blocked on E3's `fs_sync`).
+  **E0.3.7 ✅ (2026-06-05)** — closed by the E2.2 KDC convergence: the last
+  MDE-internal D-Bus interface is gone, the lint-dbus-shape allowlist is empty,
+  only FDO interop (`org.freedesktop`/`org.kde.StatusNotifier`/`org.mpris`) remains.
 - **E1 — deployment-role install: ✅ done to floor.** Role chooser → `role.toml`,
   role-gated mackesd workers + systemd units (greetd role-gate drop-in), installer
   wired. Live cold-boot/per-role unit set = HW bench.
