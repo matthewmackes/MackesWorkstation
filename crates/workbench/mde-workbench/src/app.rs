@@ -131,6 +131,10 @@ pub enum Message {
     /// v4.0.1 WB-2.c — Help index opened a topic; the path is
     /// dispatched to `xdg-open`.
     HelpTopicOpened(std::path::PathBuf),
+    /// E6.2 — open a Win10 Settings page (the shell's `mde settings`
+    /// app) at the given deep-link slug (`""` = the Settings home).
+    /// Fired by the Dashboard role's See-also links.
+    OpenSettings(&'static str),
     /// CB-1.4.b — Devices sound panel Refresh button. Re-runs
     /// the panel's Load so a freshly-plugged speaker shows up
     /// in the picker without the user having to navigate
@@ -716,6 +720,22 @@ impl App {
             Message::Home(msg) => self.home.update(msg),
             Message::HelpTopicOpened(path) => {
                 help_index_panel::spawn_xdg_open(&path);
+                Task::none()
+            }
+            Message::OpenSettings(slug) => {
+                // E6.2 — bridge to the shell's Win10 Settings app. Spawn
+                // detached (mirrors the help xdg-open path); `mde` resolves
+                // on PATH post-install. Empty slug opens the Settings home.
+                let mut cmd = std::process::Command::new("mde");
+                cmd.arg("settings");
+                if !slug.is_empty() {
+                    cmd.arg(slug);
+                }
+                let _ = cmd
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
                 Task::none()
             }
             Message::Printers(msg) => self.printers.update(msg),

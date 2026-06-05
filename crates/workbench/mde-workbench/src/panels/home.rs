@@ -459,12 +459,41 @@ impl HomePanel {
             col.into()
         };
 
+        // E6.2 — role navigation + a "See also" bridge to Win10 Settings.
+        let manage_label = text("Manage")
+            .size(TypeRole::Heading.size_in(sizes))
+            .color(palette.text.into_iced_color());
+        let manage_row = row![
+            role_link("Apps", Group::Apps, palette),
+            role_link("Devices", Group::Devices, palette),
+            role_link("Fleet", Group::Fleet, palette),
+            role_link("Maintain", Group::Maintain, palette),
+            role_link("System", Group::System, palette),
+        ]
+        .spacing(8);
+        let see_also_row = row![
+            text("See also:")
+                .size(TypeRole::Body.size_in(sizes))
+                .color(palette.text_muted.into_iced_color()),
+            settings_link("All settings", "", palette),
+            settings_link("Storage", "storage", palette),
+            settings_link("Backup & recovery", "recovery", palette),
+        ]
+        .spacing(8)
+        .align_y(iced::alignment::Vertical::Center);
+
         let body = column![
             title,
             Space::new().height(Length::Fixed(4.0)),
             identity,
             Space::new().height(Length::Fixed(24.0)),
             cards,
+            Space::new().height(Length::Fixed(24.0)),
+            manage_label,
+            Space::new().height(Length::Fixed(8.0)),
+            manage_row,
+            Space::new().height(Length::Fixed(8.0)),
+            see_also_row,
             Space::new().height(Length::Fixed(24.0)),
             banner,
             row![section_title, Space::new().width(Length::Fill), refresh_btn]
@@ -481,6 +510,68 @@ impl HomePanel {
             .width(Length::Fill)
             .into()
     }
+}
+
+// ---------------------------------------------------------------------------
+// E6.2 — Dashboard role navigation + Win10 Settings See-also
+// ---------------------------------------------------------------------------
+
+/// A Dashboard action-link that jumps to a sibling role's landing.
+fn role_link<'a>(
+    label: &'static str,
+    group: Group,
+    palette: Palette,
+) -> Element<'a, crate::Message> {
+    nav_chip(label, palette, crate::Message::SelectGroup(group))
+}
+
+/// A Dashboard "See also" link that opens a Win10 Settings page (the
+/// shell's `mde settings` app) at `slug` (`""` = the Settings home).
+fn settings_link<'a>(
+    label: &'static str,
+    slug: &'static str,
+    palette: Palette,
+) -> Element<'a, crate::Message> {
+    nav_chip(label, palette, crate::Message::OpenSettings(slug))
+}
+
+/// Shared pill-style action-link button (palette-tokened; faint raised
+/// tint on hover).
+fn nav_chip<'a>(
+    label: &'static str,
+    palette: Palette,
+    msg: crate::Message,
+) -> Element<'a, crate::Message> {
+    let bg = palette.raised.into_iced_color();
+    let border = palette.border.into_iced_color();
+    let fg = palette.text.into_iced_color();
+    button(text(label).size(13).color(fg))
+        .padding(Padding::from([6u16, 12u16]))
+        .style(move |_t: &Theme, status: iced::widget::button::Status| {
+            let hover_bg = Color {
+                r: bg.r * 1.1,
+                g: bg.g * 1.1,
+                b: bg.b * 1.1,
+                a: bg.a,
+            };
+            iced::widget::button::Style {
+                snap: false,
+                background: Some(Background::Color(match status {
+                    iced::widget::button::Status::Hovered
+                    | iced::widget::button::Status::Pressed => hover_bg,
+                    _ => bg,
+                })),
+                text_color: fg,
+                border: Border {
+                    color: border,
+                    width: 1.0,
+                    radius: 6.0.into(),
+                },
+                shadow: iced::Shadow::default(),
+            }
+        })
+        .on_press(msg)
+        .into()
 }
 
 // ---------------------------------------------------------------------------

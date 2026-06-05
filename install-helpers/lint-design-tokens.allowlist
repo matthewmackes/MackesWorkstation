@@ -193,9 +193,9 @@ crates/shell/mde-wizard/src/pages/preset.rs:18
 crates/shell/mde-wizard/src/pages/preset.rs:24
 crates/shell/mde-wizard/src/pages/preset.rs:30
 crates/shell/mde-wizard/src/pages/preset.rs:91
-crates/workbench/mde-workbench/src/app.rs:1610
-crates/workbench/mde-workbench/src/app.rs:1611
-crates/workbench/mde-workbench/src/app.rs:1645
+crates/workbench/mde-workbench/src/app.rs:1630
+crates/workbench/mde-workbench/src/app.rs:1631
+crates/workbench/mde-workbench/src/app.rs:1665
 crates/workbench/mde-workbench/src/app.rs:55
 crates/workbench/mde-workbench/src/app.rs:66
 crates/workbench/mde-workbench/src/app.rs:68
@@ -223,7 +223,7 @@ crates/workbench/mde-workbench/src/panels/home.rs:101
 crates/workbench/mde-workbench/src/panels/home.rs:102
 crates/workbench/mde-workbench/src/panels/home.rs:103
 crates/workbench/mde-workbench/src/panels/home.rs:104
-crates/workbench/mde-workbench/src/panels/home.rs:1202
+crates/workbench/mde-workbench/src/panels/home.rs:1293
 crates/workbench/mde-workbench/src/panels/mesh_control.rs:328
 crates/workbench/mde-workbench/src/panels/mesh_control.rs:340
 crates/workbench/mde-workbench/src/panels/mesh_pending.rs:297
