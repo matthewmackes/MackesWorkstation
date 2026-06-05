@@ -136,13 +136,15 @@ enum Kind {
     /// BUS-2.5 — theater takeover for `urgent` Bus messages.
     /// Fullscreen Layer::Overlay rendering a centered urgent card
     /// (⚠ + title + body) read from MDE_URGENT_TITLE / MDE_URGENT_BODY;
-    /// Esc / Enter / click dismisses. Spawned by the mde-portal Dock
-    /// when a `priority=urgent` Bus segment arrives.
+    /// Esc / Enter / click dismisses. Spawned on a `priority=urgent`
+    /// `fleet/announce` Bus segment. (E4.20: the mde-portal Dock that
+    /// owned this `fleet/announce` subscription was retired; re-homing
+    /// the spawner is tracked as E4.21 in `docs/PROJECT_WORKLIST.md`.)
     Urgent,
     /// ANIM-6.c — which-key binding overlay (Q55). Centered card
     /// listing all `bindsym` entries for the active sway mode. Mode
-    /// name read from MDE_SWAY_MODE env var. Spawned by mde-portal
-    /// Dock on ModeChanged entry; Esc or click-outside dismisses.
+    /// name read from MDE_SWAY_MODE env var. (No live spawner yet —
+    /// wiring is tracked as E4.22; see `which_key.rs`.)
     WhichKey,
     /// ANIM-6.b — workspace overview surface (Q46). Fullscreen grid
     /// of workspace cards (name + app pills). Click to switch

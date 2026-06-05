@@ -25,7 +25,7 @@ ExecStart=/usr/bin/mde-musicd serve
 Restart=on-failure
 RestartSec=2
 
-# Structured logging — same pattern as mde-session / mde-portal.
+# Structured logging — same pattern as mde-session.
 StandardError=journal
 SyslogIdentifier=mde-musicd
 

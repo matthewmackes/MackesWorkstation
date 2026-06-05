@@ -421,11 +421,14 @@ fn update(state: &mut App, msg: Message) -> Task<Message> {
             Task::none()
         }
         Message::OpenAction(url) => {
-            // BUS-2.7.b — hand the action URL to `mde-open`, the
-            // `mde://` dispatcher (Portal-35). Fire-and-forget, matching
-            // the farewell/window-action spawn idiom; the dispatched
-            // surface grabs focus, which dismisses this popover.
-            let _ = std::process::Command::new("mde-open").arg(&url).spawn();
+            // BUS-2.7.b — hand the action URL to `mde open-uri`, the `mde://`
+            // dispatcher (E4.20, migrated from the retired mde-portal mde-open).
+            // Fire-and-forget, matching the farewell/window-action spawn idiom;
+            // the dispatched surface grabs focus, which dismisses this popover.
+            let _ = std::process::Command::new("mde")
+                .arg("open-uri")
+                .arg(&url)
+                .spawn();
             Task::none()
         }
         Message::ReplyOpen(ulid) => {

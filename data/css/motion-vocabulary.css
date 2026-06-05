@@ -94,10 +94,6 @@
  * Consumers (search-and-replace target — when these values evolve,
  * grep the codebase for the constant name + update):
  *
- *   crates/mde-portal/src/typewriter.rs          (DEFAULT_CHARS_PER_SEC = 60)
- *   crates/mde-portal/src/marquee.rs             (DEFAULT_PX_PER_SEC = 50)
- *   crates/mde-portal/src/app.rs                 (PREV_WS_SEGMENT_TTL_SECS,
- *                                                 mark-pulse durations)
  *   crates/mde-popover/src/status.rs             (slide-up timing)
  *   crates/mde-popover/src/window_actions.rs     (button-press feedback)
  *   crates/mde-workbench/src/header.rs           (panel-mount fade)

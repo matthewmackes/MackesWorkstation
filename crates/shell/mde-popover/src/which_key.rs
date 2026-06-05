@@ -2,10 +2,16 @@
 //!
 //! Fullscreen semi-transparent backdrop with a centered card listing all
 //! `bindsym` entries for the active sway binding mode. Mode name is read
-//! from the `MDE_SWAY_MODE` environment variable (set by mde-portal's Dock
-//! when it spawns this surface on `ModeChanged`).
+//! from the `MDE_SWAY_MODE` environment variable, which the spawner sets
+//! when launching this surface on a sway `ModeChanged` event.
 //!
 //! Click anywhere or press Esc to dismiss.
+//!
+//! NOTE (rescue, E4.20 sweep): no live spawner sets `MDE_SWAY_MODE` or
+//! launches this surface yet — see the `which-key wiring` rescue task in
+//! `docs/PROJECT_WORKLIST.md`. It also needs a `KeyboardInteractivity`
+//! change (Exclusive grab conflicts with the resize-mode `bindsym`s it
+//! is meant to display) before it can ship reachable.
 
 use std::path::PathBuf;
 

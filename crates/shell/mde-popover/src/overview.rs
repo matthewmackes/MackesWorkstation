@@ -6,9 +6,8 @@
 //! and dismiss. Esc dismisses without switching. No wlr-screencopy —
 //! this is a card-list overview, not a thumbnail grid.
 //!
-//! Bound via `bindsym $mod+Tab exec mde-popover overview` (or any sway
-//! binding the operator prefers). Spawned by mde-portal on the Super+Tab
-//! gesture once Portal-34 ships; for now, plain sway keybind.
+//! Spawned by the live sway keybind `bindsym $mod+Tab exec mde-popover
+//! overview` (`data/sway/config`), or any binding the operator prefers.
 
 use iced::widget::container::Style as ContainerStyle;
 use iced::widget::{button, column, container, row, text, Space};

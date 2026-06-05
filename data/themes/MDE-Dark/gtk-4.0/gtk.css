@@ -1,9 +1,9 @@
 /*
- * MDE-Dark — GTK4 theme matching Portal visual identity.
+ * MDE-Dark — GTK4 theme matching the Carbon visual identity.
  *
  * Ships at /usr/share/themes/MDE-Dark/gtk-4.0/gtk.css and is selected
  * by the GTK4 settings stack via `gtk-theme-name = "MDE-Dark"` (set by
- * `mde-portal::theme_pump` on every login).
+ * `mde-session::theme_pump` on every login).
  *
  * Palette is the Classic ChromeOS / Carbon lock locked
  * 2026-05-24 in `project_chromeos_classic_visual_lock`:

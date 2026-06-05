@@ -436,7 +436,7 @@ Requires:       curl
 # is on the wire. Lighthouse / headless installs skip Roboto.
 Requires:       google-roboto-fonts
 Requires:       google-roboto-mono-fonts
-# Portal-3 — Intel One Mono for mde-portal Dock/Portal surfaces;
+# Intel One Mono for the panel / Win10 shell monospaced surfaces;
 # Symbols Nerd Font Mono for Carbon icon-glyph fallback rendering.
 Requires:       intel-one-mono-fonts
 Requires:       symbols-nerd-font-mono-fonts
@@ -1076,26 +1076,10 @@ install -D -m 0755 target/release/mde-panel \
 install -D -m 0755 target/release/mde-popover \
     %{buildroot}%{_bindir}/mde-popover
 
-# v6.0 Portal-1 — mde-portal unified shell (Dock + Portal-compact +
-# Portal-full + Lock + Theater + Mesh-wallpaper).  Registers
-# dev.mackes.MDE.Portal on the session bus; mackesd calls Lock/Goto/
-# Focus/ToggleDND from daemon-side events (idle-lock, mesh alerts).
-install -D -m 0755 target/release/mde-portal \
-    %{buildroot}%{_bindir}/mde-portal
-install -m 0644 data/systemd/user/mde-portal.service \
-    %{buildroot}%{_userunitdir}/
-
-# Portal-16 — mde-portal-full scratchpad surface (Iced regular window;
-# sway scratchpad rules in data/sway/config place it offscreen until
-# the Dock's nav clicks raise it via `scratchpad show`).
-install -D -m 0755 target/release/mde-portal-full \
-    %{buildroot}%{_bindir}/mde-portal-full
-
-# Portal-35 — mde-open URI dispatcher. Registered as the
-# `x-scheme-handler/mde` handler so external apps can route deep links
-# through `xdg-open mde://...` → `dev.mackes.MDE.Portal.OpenUri`.
-install -D -m 0755 target/release/mde-open \
-    %{buildroot}%{_bindir}/mde-open
+# E4.20 — mde-portal (the unified portal shell), mde-portal-full, and the mde-open
+# URI dispatcher were RETIRED with the crate. The `mde://` x-scheme-handler/mde
+# handler is now the shell's own `mde open-uri` subcommand; only its `.desktop`
+# ships so `xdg-open mde://…` routes through `mde open-uri %u`.
 install -D -m 0644 data/applications/mde-open.desktop \
     %{buildroot}%{_datadir}/applications/mde-open.desktop
 
@@ -1540,8 +1524,8 @@ echo ">>> mde-desktop installed. Run \`sudo mde-install --profile=full\` to fini
 %{_datadir}/applications/mde-workbench.desktop
 %{_bindir}/mde-panel
 %{_bindir}/mde-popover
-%{_bindir}/mde-portal-full
-%{_bindir}/mde-open
+# E4.20 — mde-portal-full + mde-open binaries retired; only mde-open.desktop ships
+# (the mde:// handler is now `mde open-uri`).
 %{_datadir}/applications/mde-open.desktop
 %{_bindir}/mde-files
 %{_datadir}/applications/mde-files.desktop
@@ -1610,9 +1594,7 @@ echo ">>> mde-desktop installed. Run \`sudo mde-install --profile=full\` to fini
 # (mde-desktop %post symlinks this into /var/lib/mde/wayland-sessions/
 # — the dir regreet reads — at install time, before first login.)
 %{_datadir}/wayland-sessions/mde.desktop
-# v6.0 Portal-1 — mde-portal unified shell + user service.
-%{_bindir}/mde-portal
-%{_userunitdir}/mde-portal.service
+# E4.20 — mde-portal unified shell + its user service retired with the crate.
 # v2.0.0 Phase D.6 mde-session.service — user-session
 # orchestrator. Only runs after the operator logs in to the
 # Wayland session host.

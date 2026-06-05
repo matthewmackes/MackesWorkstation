@@ -89,8 +89,8 @@ redhat-display-fonts
 redhat-text-fonts
 redhat-mono-fonts
 # MDE itself — base substrate + Wayland desktop addon. mde-core is
-# GUI-free; mde-desktop ships the mde-panel/mde-portal/mde-applet-*
-# binaries and pulls the sway stack via Requires. The ISO is a
+# GUI-free; mde-desktop ships the mde-panel/mde-applet-* binaries
+# and pulls the sway stack via Requires. The ISO is a
 # full-desktop image, so it installs BOTH (base mde alone would
 # yield a headless box).
 mde-core

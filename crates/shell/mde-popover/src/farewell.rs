@@ -11,8 +11,8 @@
 //!   `shutdown` → `systemctl poweroff`
 //!
 //! Wired via `$mod+Shift+e` in `data/sway/config.d/mackes-defaults.conf`
-//! (logout), and called by any power-button surface in mde-panel/mde-portal
-//! by passing the matching action slug.
+//! (logout), and called by the mde-panel power-button surface by passing
+//! the matching action slug.
 
 #![forbid(unsafe_code)]
 

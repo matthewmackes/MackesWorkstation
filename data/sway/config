@@ -153,16 +153,11 @@ bindsym $mod+v exec mde-popover clipboard
 # Mod+Shift+m matches: instead of `scratchpad show` it moves the
 # most-recently-focused window from the parked workspace 99 back
 # into the current workspace. Park-workspace 99 stays out of the
-# Portal mini-tree + running-zone (filter `workspace_num != 99`)
-# so parking feels like minimize. Sway's native scratchpad stays
-# untouched — Portal-full (`mde-portal-full`) still uses
-# `scratchpad show` against its layer-shell surface.
+# panel's running-zone (filter `workspace_num != 99`) so parking
+# feels like minimize. Sway's native scratchpad stays untouched
+# (E4.20 — the portal-full layer surface that used `scratchpad
+# show` was retired; nothing else reserves the native scratchpad).
 bindsym $mod+Shift+m exec swaymsg "[workspace=\"99\"] move container to workspace current"
-
-# Portal-30 — soft-restart mde-portal (R4-Q87). Shell-state snapshot
-# (Portal-29) fires every 5 s so the last snapshot is ≤5 s stale.
-# systemd restarts the unit and mde-portal restores from snapshot.
-bindsym $mod+Shift+q exec systemctl --user restart mde-portal
 
 # Resize mode — Super+r enters resize mode, escape leaves.
 mode "resize" {
@@ -222,7 +217,8 @@ for_window [window_type="dialog"]      floating enable
 exec_always mde-output-autoscale
 exec mde-applet-bg
 exec mde-panel
-exec mde-portal-full
+# E4.20 — `exec mde-portal-full` removed (the portal was retired; the panel +
+# Win10 surfaces are the shell now).
 # ANIM-7.a — idle → gradual dim → crossfade-lock (Q63).
 # Timeout 90 s: gradually fade display to 15 % via mde-idle-dim.
 # Timeout 270 s: mount the lock screen (180 s after dim starts).

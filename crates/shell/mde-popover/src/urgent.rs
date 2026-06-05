@@ -137,10 +137,13 @@ fn update(_state: &mut App, msg: Message) -> Task<Message> {
     match msg {
         Message::Exit => std::process::exit(0),
         Message::OpenAction(url) => {
-            // BUS-2.7.c — dispatch via `mde-open`, then drop the overlay
-            // so the opened surface isn't trapped behind this exclusive-
-            // keyboard takeover. Fire-and-forget spawn.
-            let _ = std::process::Command::new("mde-open").arg(&url).spawn();
+            // BUS-2.7.c — dispatch via `mde open-uri` (E4.20, migrated from the
+            // retired mde-portal mde-open), then drop the overlay so the opened
+            // surface isn't trapped behind this exclusive-keyboard takeover.
+            let _ = std::process::Command::new("mde")
+                .arg("open-uri")
+                .arg(&url)
+                .spawn();
             std::process::exit(0);
         }
         _ => {}

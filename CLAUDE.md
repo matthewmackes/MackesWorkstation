@@ -195,7 +195,7 @@ release unless the operator explicitly asks; never auto-trigger from a `/ship` r
 | `Cargo.toml` | workspace members, version, lints, excluded crates |
 | `crates/shell/mde/src/main.rs` | subcommand dispatch + startup theme select |
 | `crates/shell/mde-ui/` | the look library — `palette.rs` (the one hex/theme edge), metrics, widgets |
-| `crates/shell/` | `mde` + surfaces (panel, popover, installer, wizard, session…); retiring `mde-portal`/`mde-drawer` |
+| `crates/shell/` | `mde` + surfaces (panel, popover, installer, wizard, session…); `mde-portal` retired E4.20, `mde-drawer` retiring |
 | `crates/platform/mde-bus` | internal pub/sub backbone |
 | `crates/mesh/` | `mackesd` (control plane), Nebula tunnel, mesh types/config/transport |
 | `crates/kdc/` | `mde-kdc-proto` + `mde-kdc-host` (canonical KDE Connect host) |
