@@ -3147,10 +3147,9 @@ fn run_serve(
     db_path: PathBuf,
 ) -> anyhow::Result<()> {
     use mackesd_core::workers::{
-        clipboard::ClipboardWorker, firewall_preset::FirewallPresetWorker, fs_sync::FsSyncWorker,
-        heartbeat::HeartbeatWorker, mdns::MdnsWorker, mesh_router::MeshRouterWorker,
-        sshd_overlay_bind::SshdOverlayBindWorker, voice_config::VoiceConfigWorker, RestartPolicy,
-        Spawn, Supervisor,
+        firewall_preset::FirewallPresetWorker, fs_sync::FsSyncWorker, heartbeat::HeartbeatWorker,
+        mdns::MdnsWorker, mesh_router::MeshRouterWorker, sshd_overlay_bind::SshdOverlayBindWorker,
+        voice_config::VoiceConfigWorker, RestartPolicy, Spawn, Supervisor,
     };
     use std::collections::HashMap;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -3268,10 +3267,6 @@ fn run_serve(
             mesh_latency_sweep_secs = daemon_cfg.mesh_latency_sweep_secs,
             "E1.3: loaded /etc/mackesd/mackesd.toml daemon config",
         );
-        if mackesd_core::worker_role::runs("clipboard", role_rank) {
-            sup.spawn(Spawn::new(ClipboardWorker::new(), RestartPolicy::OnFailure));
-            worker_names.lock().expect("worker_names mutex").push("clipboard".into());
-        }
         if mackesd_core::worker_role::runs("mdns", role_rank) {
             sup.spawn(Spawn::new(MdnsWorker::new(), RestartPolicy::OnFailure));
             worker_names.lock().expect("worker_names mutex").push("mdns".into());

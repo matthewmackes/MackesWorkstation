@@ -85,7 +85,6 @@ pub mod ansible_pull;
 // (Sublime Music / Delfin). Replaces the retired `media_sync`
 // subprocess worker + the Python `media_sync_daemon.py` it drove.
 pub mod app_sync;
-pub mod clipboard;
 pub mod fs_sync;
 pub mod heartbeat;
 // OV-7.a (v2.6) — Health reconciler. Reads each known peer's
@@ -381,7 +380,7 @@ pub trait Worker: Send + 'static {
     /// Short, stable identifier used in logs + `mackesd healthz`
     /// output. Should be `kebab-case` and match the matching
     /// `crates/mackesd/src/workers/<name>.rs` module name (e.g.
-    /// `clipboard`, `mdns`, `notifications-server`).
+    /// `clipd_supervisor`, `mdns`, `notifications-server`).
     fn name(&self) -> &'static str;
 
     /// Body of the worker. Runs on the tokio runtime until
@@ -402,7 +401,7 @@ pub enum RestartPolicy {
     /// one-shot timer workers like `app_sync`.
     Never,
     /// Restart only if the worker returned `Err`. Right for
-    /// long-running watchers (`clipboard`, `mdns`, etc.).
+    /// long-running watchers (`clipd_supervisor`, `mdns`, etc.).
     OnFailure,
     /// Restart on any return (Ok or Err). Right for "should never
     /// exit" workers like `notifications_server`.

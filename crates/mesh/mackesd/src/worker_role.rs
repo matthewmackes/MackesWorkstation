@@ -43,7 +43,6 @@ const WORKER_TIERS: &[(&str, u8)] = &[
     // ── Workstation (rank 2) — adds voice + media + the whole sway/desktop
     //    worker stack.
     ("voice_config", 2),
-    ("clipboard", 2),
     ("clipd_supervisor", 2),
     ("kdc_host", 2),
     ("workspace_namer", 2),
@@ -110,10 +109,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_table_is_the_full_31_worker_census() {
+    fn the_table_is_the_full_30_worker_census() {
         // Guards against a worker added to run_serve without a deliberate tier
-        // (it would silently default to Lighthouse).
-        assert_eq!(WORKER_TIERS.len(), 31);
+        // (it would silently default to Lighthouse). 30 since the redundant
+        // python `clipboard` worker retired (RETIRE-PY.3) — mde-clipd via
+        // `clipd_supervisor` is the sole clipboard daemon.
+        assert_eq!(WORKER_TIERS.len(), 30);
     }
 
     #[test]
@@ -121,7 +122,7 @@ mod tests {
         let count = |rank: u8| WORKER_TIERS.iter().filter(|(_, r)| *r == rank).count();
         assert_eq!(count(0), 11, "Lighthouse control plane");
         assert_eq!(count(1), 3, "Server adds fleet + meshfs");
-        assert_eq!(count(2), 17, "Workstation adds voice/media/desktop");
+        assert_eq!(count(2), 16, "Workstation adds voice/media/desktop");
     }
 
     #[test]
@@ -190,7 +191,7 @@ mod tests {
         let ws = workers_for_rank(Role::Workstation.rank());
         assert_eq!(lh.len(), 11);
         assert_eq!(srv.len(), 14);
-        assert_eq!(ws.len(), 31);
+        assert_eq!(ws.len(), 30);
         // Strict superset: every lower-tier worker is in the higher tier.
         assert!(lh.iter().all(|w| srv.contains(w)));
         assert!(srv.iter().all(|w| ws.contains(w)));
