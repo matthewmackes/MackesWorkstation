@@ -245,7 +245,7 @@ crates/workbench/mde-workbench/src/panels/mesh_topology.rs:71
 crates/workbench/mde-workbench/src/panels/mesh_topology.rs:72
 crates/workbench/mde-workbench/src/panels/mesh_topology.rs:73
 crates/workbench/mde-workbench/src/panels/panel_apps.rs:219
-crates/workbench/mde-workbench/src/panels/service_publishing.rs:221
+crates/workbench/mde-workbench/src/panels/service_publishing.rs:220
 crates/workbench/mde-workbench/src/panels/sync_status.rs:163
 crates/workbench/mde-workbench/src/panels/sync_status.rs:167
 crates/workbench/mde-workbench/src/panels/sync_status.rs:265

@@ -5,12 +5,11 @@
 //! when an overlay IP exists, otherwise "not yet enrolled"), port
 //! + protocol, and a per-row hint for the service binary.
 //!
-//! Reads the live snapshot from
-//! `mackes.mesh_nebula.published_services_summary()` via a
-//! `python3 -c '...'` shell-out, mirroring the existing
-//! mesh_services pattern. The Python helper is the pinned
-//! consumer for NF-13.x consumer rewrites — the same data layer
-//! that mesh_nats / mesh_media / mesh_sync feed from.
+//! Reads the live snapshot over the mesh Bus from
+//! `action/nebula/published-services` (RETIRE-PY.7 — replaced the v1.x
+//! `python3 -c mackes.mesh_nebula` shell-out). `mackesd` builds the summary
+//! (the 7 canonical services × this peer's overlay IP) and answers the Bus
+//! query; the panel's `parse_summary` decodes the same JSON list-of-rows shape.
 //!
 //! Chrome influence (per iteration skill Phase 0.8): Ableton
 //! parameter table — dense rows, single indigo accent for the
@@ -189,8 +188,8 @@ fn empty_state<'a>(palette: Palette) -> Element<'a, crate::Message> {
                 .color(palette.text.into_iced_color()),
             Space::new().height(Length::Fixed(6.0)),
             text(
-                "Run Refresh after mackesd starts and Python's \
-                 mackes.mesh_nebula module is importable. The 7 \
+                "Run Refresh after mackesd starts (it answers the \
+                 published-services query over the mesh Bus). The 7 \
                  canonical services (SSH / NATS / Mesh FS / Media / \
                  rsync / WoL / AV) will populate from the overlay state."
             )
@@ -282,39 +281,20 @@ fn service_row_view<'a>(r: &ServiceRow, palette: Palette) -> Element<'a, crate::
 
 // ---- I/O ------------------------------------------------------
 
-/// Shell-out wrapper: invoke
-/// `python3 -c 'import json; from mackes.mesh_nebula import
-/// published_services_summary; print(json.dumps(published_services_summary()))'`
-/// and parse the JSON. Returns `(rows, error)` — on any failure
-/// the rows are empty and the error string carries the operator
-/// hint.
+/// Read the published-services summary over the mesh Bus (RETIRE-PY.7 — was a
+/// `python3 -c mackes.mesh_nebula` shell-out). Queries
+/// `action/nebula/published-services`, which `mackesd` answers with the same
+/// JSON list-of-rows shape [`parse_summary`] expects. Returns `(rows, error)` —
+/// on any failure the rows are empty and the error carries the operator hint.
 #[must_use]
 pub fn fetch_summary() -> (Vec<ServiceRow>, Option<String>) {
-    let out = std::process::Command::new("python3")
-        .args([
-            "-c",
-            "import json; \
-             from mackes.mesh_nebula import published_services_summary; \
-             print(json.dumps(published_services_summary()))",
-        ])
-        .output();
-    let Ok(out) = out else {
-        return (
+    match crate::dbus::nebula_request("published-services") {
+        Some(json) => parse_summary(&json),
+        None => (
             Vec::new(),
-            Some("python3 not available — service summary unavailable".into()),
-        );
-    };
-    if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
-        let msg = if stderr.is_empty() {
-            format!("python3 exit {}", out.status)
-        } else {
-            stderr.lines().next().unwrap_or("").to_string()
-        };
-        return (Vec::new(), Some(msg));
+            Some("mackesd not reachable over the Bus — service summary unavailable".into()),
+        ),
     }
-    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
-    parse_summary(&stdout)
 }
 
 /// Pure parser — accepts the JSON string the Python helper
@@ -367,9 +347,9 @@ mod tests {
     }
 
     #[test]
-    fn parse_summary_decodes_python_json() {
-        // Mirrors the exact shape mackes.mesh_nebula.published_services_summary
-        // emits (verified against tests/test_mesh_nebula.py).
+    fn parse_summary_decodes_published_services_json() {
+        // The exact JSON list-of-rows shape mackesd's
+        // `action/nebula/published-services` responder emits.
         let raw = r#"[
             {"id":"ssh","name":"SSH","port":22,"proto":"tcp",
              "overlay_ip":"10.42.0.5","is_publishable":true},
@@ -460,9 +440,9 @@ mod tests {
         let mut p = ServicePublishingPanel::new();
         let _ = p.update(Message::Loaded {
             rows: Vec::new(),
-            error: Some("python3 not available".into()),
+            error: Some("mackesd not reachable over the Bus".into()),
         });
-        assert_eq!(p.last_op, "python3 not available");
+        assert_eq!(p.last_op, "mackesd not reachable over the Bus");
         assert!(p.rows.is_empty());
     }
 }

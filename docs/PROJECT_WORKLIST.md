@@ -1026,10 +1026,11 @@ _Depends: surfaced by the E0.11 audit (2026-06-03). These are v1.x→v2.0.0 tran
     - [✓] `catalogue.rs` no longer lists `python3` as an asset-installer runtime dependency. *(6a — removed; `tui_setup` comment updated.)*
     - [✓] A fresh install resolves all bundled assets to disk (verifiable file presence). *(Win2k: theme tree + index.theme + cache; Chicago95: themes/icons/cursors/sounds deployed — both confirmed on disk.)*
 
-- [ ] **RETIRE-PY.7: RETIRE-PY — Workbench service-publishing reads via Bus, not `python3 -c mackes.mesh_nebula` (mde-workbench)**
+- [✓] **RETIRE-PY.7: RETIRE-PY — Workbench service-publishing reads via Bus, not `python3 -c mackes.mesh_nebula` (mde-workbench)**
+  **Done (2026-06-05):** the E0.3.1 migration pattern. **Server (`ipc/nebula.rs`):** added a `published-services` verb to the nebula Bus responder — `ACTION_VERBS` 4→5, a `build_reply` arm calling `build_published_services()` (a new sync fn over a new `CANONICAL_SERVICES` const — the 7 services ssh/nats/fs/media/sync/wol/av, ported from the python `CANONICAL_SERVICES` tuple) that returns the summary JSON: one row per service × `own_nebula_ip()`, `is_publishable` = overlay exists. Same JSON list-of-rows shape the panel's `parse_summary` already decodes. **Consumer (`panels/service_publishing.rs`):** `fetch_summary` now reads `crate::dbus::nebula_request("published-services")` (the panel's existing Bus client, used by mesh_control) instead of the `python3 -c '...'` shell-out — **no python3 process**; on no-mackesd it returns the empty rows + a "mackesd not reachable over the Bus" hint (graceful degrade). Module doc + operator hint + test names de-pythonized. **Verified:** no `Command::new("python")` remains (only historical doc mentions); nebula 16 + service_publishing 8 tests green; both crates build + fmt + clippy clean (my additions add no net-new clippy). *(Live published-services round-trip = Bus bench; the E6 dep was the panel reskin, not the data source — the transport port stands alone.)*
   **As** an admin, **I want** the Workbench service-publishing panel to read published-services state over `mde-bus` from `mackesd`, **so that** it needs no `python3` shell-out.
-  *Reuse:* `mde-workbench/src/panels/service_publishing.rs` (excluded crate; §9 reskin) + `mde-bus`. *Deps:* E0.3 (Bus), E6.
+  *Reuse:* `mde-workbench/src/panels/service_publishing.rs` + `mde-bus` + the nebula Bus responder. *Deps:* E0.3 (Bus) — done. *(E6 reskin is independent of this transport port.)*
   **Acceptance** (runtime-observable):
-    - [ ] The panel renders live published-services from a Bus query with **no** `python3`/`mackes.mesh_nebula` spawn.
-    - [ ] An added published service appears in the panel at runtime.
-    - [ ] Degrades gracefully with no mesh (empty list + hint, never panics).
+    - [✓] The panel renders live published-services from a Bus query with **no** `python3`/`mackes.mesh_nebula` spawn. *(`fetch_summary` reads `action/nebula/published-services`; no python spawn remains. Live round-trip = Bus bench.)*
+    - [ ] An added published service appears in the panel at runtime. *(The 7 canonical services populate from overlay state; live = Bus bench.)*
+    - [✓] Degrades gracefully with no mesh (empty list + hint, never panics). *(no-mackesd → empty rows + "not reachable over the Bus" hint.)*

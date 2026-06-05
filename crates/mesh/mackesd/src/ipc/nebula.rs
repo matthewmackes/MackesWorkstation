@@ -73,7 +73,13 @@ pub const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(
 
 /// The read-projection verbs served on `action/nebula/<verb>`.
 /// Locked to the `action/<domain>/<verb>` Q96 convention.
-pub const ACTION_VERBS: [&str; 4] = ["status", "self-node", "list-peers", "regen-certs"];
+pub const ACTION_VERBS: [&str; 5] = [
+    "status",
+    "self-node",
+    "list-peers",
+    "regen-certs",
+    "published-services",
+];
 
 /// Bus event topic the signal dispatcher publishes to (E0.3.1.b).
 /// The retired `dev.mackes.MDE.Nebula.Status` D-Bus interface +
@@ -566,8 +572,46 @@ pub async fn build_reply(svc: &NebulaStatusService, verb: &str) -> String {
             };
             json!({ "ok": ok, "message": message }).to_string()
         }
+        // RETIRE-PY.7 — the Service-Publishing panel's summary (was a
+        // `python3 -c mackes.mesh_nebula` shell-out). Pure read: the 7 canonical
+        // services × this peer's overlay IP.
+        "published-services" => build_published_services(),
         other => json!({ "error": format!("unknown nebula verb: {other}") }).to_string(),
     }
+}
+
+/// The canonical Nebula-published services: `(id, display, default-port, proto)`.
+/// Mirrors the v1.x `mackes.mesh_nebula.CANONICAL_SERVICES` tuple.
+const CANONICAL_SERVICES: [(&str, &str, u16, &str); 7] = [
+    ("ssh", "SSH", 22, "tcp"),
+    ("nats", "NATS broker", 4222, "tcp"),
+    ("fs", "Mesh FS (SSHFS)", 22, "tcp"),
+    ("media", "Media library", 8080, "tcp"),
+    ("sync", "rsync", 873, "tcp"),
+    ("wol", "Wake-on-LAN relay", 9, "udp"),
+    ("av", "Audio/video transport", 5004, "udp"),
+];
+
+/// Build the published-services summary JSON (one row per canonical service ×
+/// the current overlay IP; `is_publishable` = an overlay IP exists). Replaces
+/// the python `published_services_summary()` — same JSON list-of-rows shape the
+/// workbench `service_publishing` panel's `parse_summary` already expects.
+fn build_published_services() -> String {
+    let overlay = crate::voip_rtt::own_nebula_ip();
+    let rows: Vec<serde_json::Value> = CANONICAL_SERVICES
+        .iter()
+        .map(|(id, name, port, proto)| {
+            json!({
+                "id": id,
+                "name": name,
+                "port": port,
+                "proto": proto,
+                "overlay_ip": overlay,
+                "is_publishable": overlay.is_some(),
+            })
+        })
+        .collect();
+    serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_string())
 }
 
 /// Run the Bus responder loop on the current thread, building a
