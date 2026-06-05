@@ -42,6 +42,8 @@ pub const APP_ID: &str = "shell.mackes.Panel";
 // helper at runtime; moving it puts the code in the crate that
 // actually mounts the UI. See git history for the original location.
 pub mod applet_host;
+// E4.21 — re-homed BUS-2.5 urgent-theater spawner (was mde-portal Dock).
+pub mod bus_announce_sub;
 // v3.0.3 — clipboard.rs moved to crates/mde-popover/src/clipboard.rs
 // (the helpers are popover-side; the clip-history popover lives
 // there too).
@@ -162,6 +164,10 @@ pub enum Message {
     /// Phase E.4-E.29 host wiring — a stdout line from one of the
     /// `mde-applet-*` subprocesses driven by [`applet_host`].
     AppletText(applet_host::AppletKind, String),
+    /// E4.21 — a `priority=urgent` `fleet/announce` Bus segment arrived;
+    /// raise the full-screen `mde-popover urgent` theater. Re-homes the
+    /// BUS-2.5 spawner the retired mde-portal Dock used to own.
+    UrgentAlert(bus_announce_sub::UrgentAlert),
     /// Start-button left-click — launches the start-menu popover.
     StartClicked,
     /// v3.0.3 Tier 1D — Start-button right-click. Launches the
@@ -596,6 +602,16 @@ impl iced_layershell::Application for App {
                     }
                 }
             }
+            Message::UrgentAlert(alert) => {
+                // E4.21 — a `priority=urgent` `fleet/announce` segment
+                // arrived; raise the full-screen theater. Best-effort
+                // spawn + detached reap (see bus_announce_sub).
+                tracing::info!(
+                    title = ?alert.title,
+                    "bus urgent: raising mde-popover urgent theater"
+                );
+                bus_announce_sub::spawn_urgent_theater(&alert);
+            }
             // Layer-shell action variants injected by #[to_layer_message] —
             // the runtime intercepts them before they reach user code but
             // the exhaustiveness check requires this arm.
@@ -626,6 +642,9 @@ impl iced_layershell::Application for App {
         iced::Subscription::batch([
             applet_host::subscription(|t| Message::AppletText(t.kind, t.text)),
             toplevels_sub::subscription(Message::ToplevelEvent),
+            // E4.21 — poll `fleet/announce`; a `priority=urgent` segment
+            // raises the BUS-2.5 theater (re-homed from the mde-portal Dock).
+            bus_announce_sub::subscription(Message::UrgentAlert),
             // ~30Hz animation tick — drives `hero::tick` so the
             // 280ms slide stays smooth. 33ms is a balance between
             // visual smoothness (>=10 frames per slide) and CPU

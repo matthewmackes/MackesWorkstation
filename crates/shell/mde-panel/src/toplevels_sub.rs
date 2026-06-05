@@ -48,7 +48,13 @@ use crate::toplevels::{Toplevel, ToplevelEvent, ToplevelId, ToplevelState};
 /// Build the panel-side subscription. Wire into
 /// `App::subscription` via `Subscription::batch` alongside the
 /// existing `applet_host::subscription`.
-pub fn subscription<M: 'static>(map: fn(ToplevelEvent) -> M) -> Subscription<M> {
+// E4.23 — `impl Fn` (zero-sized through monomorphization), NOT a `fn(...)`
+// POINTER: iced_futures 0.13.2's `Subscription::map` asserts the mapper is
+// zero-sized, and an 8-byte fn pointer panics at startup. See the matching
+// note in `applet_host::subscription`.
+pub fn subscription<M: 'static>(
+    map: impl Fn(ToplevelEvent) -> M + Clone + Send + 'static,
+) -> Subscription<M> {
     Subscription::run(event_stream).map(map)
 }
 

@@ -117,7 +117,16 @@ pub struct AppletText {
 /// stdout lines as `AppletText` events. Wire this into
 /// `Application::subscription` and map the result into your panel's
 /// `Message::AppletText` variant.
-pub fn subscription<M: 'static>(map: fn(AppletText) -> M) -> Subscription<M> {
+// E4.23 — the mapper MUST be a generic `impl Fn` (kept zero-sized through
+// monomorphization), NOT a `fn(...)` POINTER. iced_futures 0.13.2's
+// `Subscription::map` asserts the mapper is zero-sized (it hashes the
+// closure for the subscription recipe). A bare `fn` pointer is 8 bytes →
+// the assertion panics at startup ("the closure … is capturing"), which
+// silently killed every panel subscription. A ZST closure / fn-item
+// passed through `impl Fn` stays zero-sized and passes.
+pub fn subscription<M: 'static>(
+    map: impl Fn(AppletText) -> M + Clone + Send + 'static,
+) -> Subscription<M> {
     Subscription::run(applet_stream).map(map)
 }
 
