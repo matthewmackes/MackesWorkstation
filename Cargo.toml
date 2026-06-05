@@ -1,8 +1,9 @@
 # MackesWorkstation — unified cargo workspace (§12 layout).
 # Crates are organized under crates/{platform,mesh,shell,workbench,services,shared,applets,kdc,legacy}/.
-# The canonical KDE Connect host is crates/kdc/{mde-kdc-proto,mde-kdc-host}; MDE's retiring
-# in-tree copies live under crates/legacy/ (mde-kdc + mde-kdc-proto-legacy, path-dep'd by mackesd
-# until the E2 convergence). Four crates are excluded — they need system dev libs absent here.
+# The canonical KDE Connect host is crates/kdc/{mde-kdc-proto,mde-kdc-host}. MDE's retired
+# in-tree copies under crates/legacy/ (mde-kdc + mde-kdc-proto-legacy) are reference-only as of
+# the E2 convergence (E2.2, 2026-06-05) — no longer workspace members and depended on by nothing,
+# so they are out of the build graph (`cargo metadata` lists 35 packages, neither among them).
 
 [workspace]
 resolver = "2"

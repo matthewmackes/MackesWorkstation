@@ -110,7 +110,10 @@ once this repo builds and is pushed — they live on as the history merged here.
   worker-local outbound queue), mackesd's deps swapped to the canonical host+proto —
   `cargo tree` shows one host, the legacy `mde-kdc{,-proto}` are fully orphaned
   (#1/#2 met; discovery/pair/ping parity = 2-device bench). E2.3/2.4 downstream;
-  follow-up: drop the orphaned legacy crates from `[workspace] members`.
+  the orphaned legacy `mde-kdc{,-proto}` are reference-only (they were mackesd path-deps,
+  never `[workspace] members`, so removing that dep already took them out of the build
+  graph — `cargo metadata` lists 35 packages, neither among them; kept under
+  `crates/legacy/` per CLAUDE §8).
   **E2.3 ✅ to floor** (commits `4d6f9ed7`/`274757d1`/`2c49595e`): the canonical
   `PairingStore` is interior-mutable (one shared `Arc`); mackesd's `kdc_host` worker
   runs the single supervised host (UDP discovery + the E2.1 TLS listener) + serves the
