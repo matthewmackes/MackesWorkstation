@@ -59,8 +59,20 @@ trap cleanup EXIT
 # bar and all). --crop "X,Y WxH" grabs just that region (e.g. the taskbar strip,
 # which is otherwise a thin band on a big empty desktop). --wait overrides the
 # paint delay for slow-to-map components.
+#
+# Subset capture: set GALLERY_ONLY to a comma-separated list of shot NAMEs to
+# capture only those (every other shot is skipped) — a fast targeted re-verify of
+# the surfaces a change touched instead of the whole ~40-shot gallery. Empty/unset
+# captures everything (the default full run). e.g.
+#   GALLERY_ONLY="log-off,shut-down,run-dialog" ./preview.sh gallery
 shot() {
     local name="$1"; shift
+    if [[ -n "${GALLERY_ONLY:-}" ]]; then
+        case ",${GALLERY_ONLY}," in
+            *",${name},"*) ;;        # requested → capture it
+            *) return 0 ;;           # not requested → skip
+        esac
+    fi
     local crop="" wait=2.2
     while [[ "${1:-}" == --* ]]; do
         case "$1" in
