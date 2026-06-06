@@ -1,8 +1,53 @@
-//! Windows 2000 default UI metrics at 96 DPI.
+//! UI metrics at 96 DPI.
 //!
-//! These are the target numbers the accuracy harness checks against (see
-//! `rust/ACCURACY.md`). Values are the classic `SM_*` system metrics; adjust
-//! only with a reference screenshot to back the change.
+//! Two layers live here: the **Carbon design tokens** (the 8px spacing scale +
+//! the Carbon type scale — the single source for new/converted surfaces, E9.2),
+//! and the legacy `SM_*`-derived chrome metrics the dense shell still uses as
+//! documented pragmatic exceptions (the panel/tray/title-bar were sized to the
+//! classic system metrics; re-sizing them to the Carbon scale is per-surface E9.3
+//! work, not a blanket re-base). Adjust a Carbon token only with a Carbon-spec
+//! reference + the matching `checklist.rs` pin in the same commit (§2.2/§2.3).
+
+// --- Carbon 8px spacing scale (E9.2) ---------------------------------------
+// The IBM Carbon v11 `$spacing-01..13` step scale (carbondesignsystem.com/
+// elements/spacing). The one source for layout gaps/padding on Carbon surfaces,
+// so a `.spacing(..)`/`.padding(..)` is a named step, not a raw float. Dense
+// shell chrome that predates the grid keeps its `SM_*` value as a documented
+// exception until its surface converts (E9.3).
+pub const SPACING_01: f32 = 2.0;
+pub const SPACING_02: f32 = 4.0;
+pub const SPACING_03: f32 = 8.0;
+pub const SPACING_04: f32 = 12.0;
+pub const SPACING_05: f32 = 16.0;
+pub const SPACING_06: f32 = 24.0;
+pub const SPACING_07: f32 = 32.0;
+pub const SPACING_08: f32 = 40.0;
+pub const SPACING_09: f32 = 48.0;
+pub const SPACING_10: f32 = 64.0;
+pub const SPACING_11: f32 = 80.0;
+pub const SPACING_12: f32 = 96.0;
+pub const SPACING_13: f32 = 160.0;
+
+// --- Carbon type scale (E9.2) ----------------------------------------------
+// The IBM Carbon v11 type tokens (carbondesignsystem.com/elements/typography/
+// type-sets), in device px at 96 DPI. Named here so converted surfaces size text
+// from a Carbon token. The dense shell body text keeps `UI_PX` (8pt → 11px) as a
+// documented pragmatic exception (a Carbon `body-01` 14px shell would be too
+// large for the Win2000-derived chrome density); these tokens are for headings
+// and converted surfaces.
+pub const TYPE_LABEL_01: f32 = 12.0; // caption / label / helper-text
+pub const TYPE_BODY_01: f32 = 14.0;
+pub const TYPE_BODY_02: f32 = 16.0;
+pub const TYPE_HEADING_03: f32 = 20.0;
+pub const TYPE_HEADING_04: f32 = 28.0;
+pub const TYPE_HEADING_05: f32 = 32.0;
+pub const TYPE_HEADING_06: f32 = 42.0;
+pub const TYPE_HEADING_07: f32 = 54.0;
+
+// --- Legacy SM_*-derived chrome metrics (pragmatic exceptions) -------------
+// The classic `SM_*` system metrics the dense shell chrome still uses (panel,
+// tray, title bar, scrollbar). These are the target numbers the accuracy harness
+// checks against (see `ACCURACY.md`); adjust only with a reference to back it.
 
 /// Title-bar height (SM_CYCAPTION), excluding the 3D frame.
 pub const TITLE_BAR_HEIGHT: u16 = 18;

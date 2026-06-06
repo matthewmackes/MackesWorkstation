@@ -312,3 +312,35 @@ fn ui_size_is_one_source_of_truth() {
     assert_eq!(metrics::TILE_GLYPH_PX, 20.0);
     assert_eq!(metrics::BADGE_PX, 9.0);
 }
+
+/// E9.2 — pin the IBM Carbon design-token substrate: the `$spacing-01..13` 8px
+/// step scale and the Carbon type scale, in device px at 96 DPI. Per §2.3 change a
+/// token only with a Carbon-spec reference + this pin in the same commit. (These
+/// are the single source converted surfaces size from; the dense shell chrome
+/// keeps its `SM_*` metrics as documented pragmatic exceptions until it converts.)
+#[test]
+fn carbon_spacing_and_type_tokens_pinned() {
+    // 8px spacing scale.
+    assert_eq!(metrics::SPACING_01, 2.0);
+    assert_eq!(metrics::SPACING_02, 4.0);
+    assert_eq!(metrics::SPACING_03, 8.0);
+    assert_eq!(metrics::SPACING_04, 12.0);
+    assert_eq!(metrics::SPACING_05, 16.0);
+    assert_eq!(metrics::SPACING_06, 24.0);
+    assert_eq!(metrics::SPACING_07, 32.0);
+    assert_eq!(metrics::SPACING_08, 40.0);
+    assert_eq!(metrics::SPACING_09, 48.0);
+    assert_eq!(metrics::SPACING_10, 64.0);
+    assert_eq!(metrics::SPACING_11, 80.0);
+    assert_eq!(metrics::SPACING_12, 96.0);
+    assert_eq!(metrics::SPACING_13, 160.0);
+    // Type scale.
+    assert_eq!(metrics::TYPE_LABEL_01, 12.0);
+    assert_eq!(metrics::TYPE_BODY_01, 14.0);
+    assert_eq!(metrics::TYPE_BODY_02, 16.0);
+    assert_eq!(metrics::TYPE_HEADING_03, 20.0);
+    assert_eq!(metrics::TYPE_HEADING_04, 28.0);
+    assert_eq!(metrics::TYPE_HEADING_05, 32.0);
+    assert_eq!(metrics::TYPE_HEADING_06, 42.0);
+    assert_eq!(metrics::TYPE_HEADING_07, 54.0);
+}
