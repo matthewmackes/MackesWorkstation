@@ -3275,9 +3275,26 @@ fn run_serve(
             sup.spawn(Spawn::new(MdnsRelayWorker::new(), RestartPolicy::OnFailure));
             worker_names.lock().expect("worker_names mutex").push("mdns_relay".into());
         }
+        // Bug 6 (2026-06-06) — fs_sync supervises `python3 -m mackes.mesh_gvfs.daemon`,
+        // a module from the retired Python MDE that is absent in the Rust monorepo,
+        // so the child exits 1 immediately and OnFailure respins it in a tight loop.
+        // Gate on the module actually being importable; skip (don't storm) when absent.
         if mackesd_core::worker_role::runs("fs_sync", role_rank) {
-            sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
-            worker_names.lock().expect("worker_names mutex").push("fs_sync".into());
+            let fs_sync_available = std::process::Command::new("python3")
+                .args(["-c", "import mackes.mesh_gvfs.daemon"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if fs_sync_available {
+                sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
+                worker_names.lock().expect("worker_names mutex").push("fs_sync".into());
+            } else {
+                tracing::info!(
+                    "fs_sync: mesh_gvfs daemon module unavailable (retired Python MDE); worker skipped"
+                );
+            }
         }
         if mackesd_core::worker_role::runs("heartbeat", role_rank) {
             sup.spawn(Spawn::new(
@@ -3316,12 +3333,40 @@ fn run_serve(
         // disabled (v4.1.0 ships them disabled per the spec
         // %post comment until VV-4 + VV-14 are green), so the
         // worker is harmless to run on a fresh peer.
+        // Bug 6 (2026-06-06) — voice_config seeds the system path
+        // /var/lib/mackesd/voice-desired.json (the root ExecStartPre reads it to
+        // build /etc/kamailio-mde/*). A per-user daemon can't write there, so the
+        // worker's 5 s tick spammed an EPERM WARN forever. Only run it when that
+        // dir is actually writable (i.e. the system daemon).
+        let voice_dir_writable = std::path::Path::new(
+            mackesd_core::workers::voice_config::DEFAULT_DESIRED_JSON,
+        )
+        .parent()
+        .is_some_and(|d| {
+            let probe = d.join(".mackesd-write-probe");
+            let ok = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .open(&probe)
+                .is_ok();
+            if ok {
+                let _ = std::fs::remove_file(&probe);
+            }
+            ok
+        });
         if mackesd_core::worker_role::runs("voice_config", role_rank) {
-            sup.spawn(Spawn::new(
-                VoiceConfigWorker::new(node_id.clone()),
-                RestartPolicy::OnFailure,
-            ));
-            worker_names.lock().expect("worker_names mutex").push("voice_config".into());
+            if voice_dir_writable {
+                sup.spawn(Spawn::new(
+                    VoiceConfigWorker::new(node_id.clone()),
+                    RestartPolicy::OnFailure,
+                ));
+                worker_names.lock().expect("worker_names mutex").push("voice_config".into());
+            } else {
+                tracing::info!(
+                    "voice_config: system voice dir not writable (per-user daemon); worker skipped"
+                );
+            }
         }
         // NF-21.1 — sshd overlay-bind worker. Polls
         // /var/lib/mackesd/nebula/overlay-ip every 5 s; on change,
@@ -3872,11 +3917,27 @@ fn run_serve(
                         );
                     }
                 }
-                sup.spawn(Spawn::new(w, RestartPolicy::OnFailure));
-                worker_names
-                    .lock()
-                    .expect("worker_names mutex")
-                    .push("nebula_https_listener".into());
+                // Bug 6 (2026-06-06) — only run the relay :443 listener when a
+                // relay cert is actually present. A box with no lighthouse /
+                // Let's-Encrypt cert is not a relay; spawning anyway only fails
+                // the bind (and a per-user daemon can never bind a privileged
+                // port at all), which the OnFailure policy then respins ~4x/s —
+                // the worker's "backoff quarantines it" claim never held. Skip.
+                let https_cert = std::env::var("MDE_HTTPS_TUNNEL_CERT").unwrap_or_else(|_| {
+                    mackesd_core::workers::nebula_https_listener::DEFAULT_CERT_PATH.to_string()
+                });
+                if std::path::Path::new(&https_cert).exists() {
+                    sup.spawn(Spawn::new(w, RestartPolicy::OnFailure));
+                    worker_names
+                        .lock()
+                        .expect("worker_names mutex")
+                        .push("nebula_https_listener".into());
+                } else {
+                    tracing::info!(
+                        cert = %https_cert,
+                        "nebula-https-listener: no relay cert present; not a relay — worker skipped",
+                    );
+                }
             }
             Err(e) => {
                 tracing::warn!(
@@ -4458,12 +4519,24 @@ fn run_serve(
         // `mackes-ansible-pull.timer`). With MDE_ANSIBLE_PULL_URL
         // unset the ansible-pull binary fails fast + the supervisor
         // logs the error — the worker stays cheap to host.
+        // Bug 6 (2026-06-06) — without MDE_ANSIBLE_PULL_URL the worker only spawns
+        // `ansible-pull` to fail; a box with no fleet config-pull URL has nothing
+        // to do, so skip rather than respawn-on-failure into a periodic WARN.
+        let ansible_configured = std::env::var("MDE_ANSIBLE_PULL_URL")
+            .map(|u| !u.is_empty())
+            .unwrap_or(false);
         if mackesd_core::worker_role::runs("ansible-pull", role_rank) {
-            sup.spawn(Spawn::new(
-                mackesd_core::workers::ansible_pull::build(),
-                RestartPolicy::OnFailure,
-            ));
-            worker_names.lock().expect("worker_names mutex").push("ansible-pull".into());
+            if ansible_configured {
+                sup.spawn(Spawn::new(
+                    mackesd_core::workers::ansible_pull::build(),
+                    RestartPolicy::OnFailure,
+                ));
+                worker_names.lock().expect("worker_names mutex").push("ansible-pull".into());
+            } else {
+                tracing::info!(
+                    "ansible-pull: MDE_ANSIBLE_PULL_URL unset; fleet config-pull worker skipped"
+                );
+            }
         }
 
         // EPIC-SYNC-APP-CONFIG (Q26, 2026-05-28) — app-config sync is
