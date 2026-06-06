@@ -119,12 +119,26 @@ pub async fn launch_user_autostart() {
         // Strip the `%U` / `%F` / `%i` field codes per the XDG spec.
         let cleaned = strip_exec_field_codes(exec);
         tracing::info!("autostart: launching {id} ({cleaned})");
-        let _ = tokio::process::Command::new("sh")
+        match tokio::process::Command::new("sh")
             .args(["-c", &cleaned])
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .spawn();
+            .spawn()
+        {
+            // Reap each child when it exits. mde-session is a long-lived session
+            // leader; dropping the `Child` and trusting tokio's orphan queue let
+            // every short-lived / failed autostart entry (thunar, nm-applet, the
+            // VM-guest agents, …) pile up as `<defunct>` for the whole session.
+            // A detached task that owns the handle and awaits `wait()` reaps it
+            // deterministically and lives as long as the app it launched.
+            Ok(mut child) => {
+                tokio::spawn(async move {
+                    let _ = child.wait().await;
+                });
+            }
+            Err(e) => tracing::warn!("autostart: launching {id} failed: {e}"),
+        }
     }
 }
 
