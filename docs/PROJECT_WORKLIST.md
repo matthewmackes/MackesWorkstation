@@ -1112,3 +1112,38 @@ _Depends: surfaced by the E0.11 audit (2026-06-03). These are v1.x→v2.0.0 tran
     - [✓] The panel renders live published-services from a Bus query with **no** `python3`/`mackes.mesh_nebula` spawn. *(`fetch_summary` reads `action/nebula/published-services`; no python spawn remains. Live round-trip = Bus bench.)*
     - [ ] An added published service appears in the panel at runtime. *(The 7 canonical services populate from overlay state; live = Bus bench.)*
     - [✓] Degrades gracefully with no mesh (empty list + hint, never panics). *(no-mackesd → empty rows + "not reachable over the Bus" hint.)*
+
+- [ ] **RETIRE-PY.8: RETIRE-PY — native Rust mesh-gvfs to replace `fs_sync`'s `python3 -m mackes.mesh_gvfs.daemon`**
+  **Filed 2026-06-06 (bughunt Bug 6).** `mackesd`'s `fs_sync` worker supervises the retired Python `mackes.mesh_gvfs.daemon` (absent in the monorepo), so it exited 1 and the supervisor respun it ~4×/s. **Stopgap landed:** `run_serve` now prereq-gates the spawn on the module being importable (skips with an info log otherwise) — no more storm. The real work is a pure-Rust FUSE mesh-mount (per-peer QNM-Shared) to replace the daemon, then the gate flips to "available".
+  *Reuse:* `fs_sync.rs` worker shell + the LizardFS FUSE binding (E3.1). *Deps:* E3.
+  **Acceptance** (runtime-observable):
+    - [ ] `fs_sync` mounts reachable peers' shares with **no** `python3` spawn; the prereq gate reports available.
+
+### E9 — Carbon-only Design System (operator epic, 2026-06-06)
+_Depends: E4 (reconciliation). **⚠️ SUPERSEDES the four-look lock** (CLAUDE.md §1/§2.2 "Win2000 / Carbon / Win10 / BeOS") and the AI_GOVERNANCE identity framing — newest wins. Scope locks in memory `epic-carbon-design-system-scope`._
+
+**Reconciliation needed before bulk execution (operator-gated):** Carbon-only retires the Win2000/Win10/BeOS eras, which invalidates the era-gated portions of E4 (Win10 shell) + the era remaps woven through `palette.rs`. Rewriting CLAUDE.md §1/§2.2 + `AI_GOVERNANCE.md` to match is part of E9.1 and should be confirmed with the operator.
+
+- [ ] **E9.1: E9 — Governance reconciliation: rewrite the four-look lock to Carbon-only**
+  Update CLAUDE.md §1/§2.2, `AI_GOVERNANCE.md`, and the worklist premise ("four looks" → Carbon Gray 10/90/100). Re-point the §2.2 four-look pinning tests at the Carbon token set.
+  **Acceptance:** docs state Carbon-only; no remaining "four looks" claim; pinning tests reference Carbon tokens.
+- [ ] **E9.2: E9 — Carbon token substrate in `mde-ui`** *(foundation — both E9 + E10 + the settings-unify audit build on this)*
+  Single-source the Carbon **type scale** (exact sizes/line-heights/weights, IBM Plex Sans — already wired) and the **8px $spacing-01..13** tokens in `metrics` (pragmatic exceptions for dense chrome documented); Carbon **color tokens** for Gray 10/90/100 through the single `palette::color()` edge.
+  **Acceptance:** every size/space/colour resolves from a Carbon token module; pinning tests assert the token values (§2.2-style); the lint gate (E9.6) fails on raw values.
+- [ ] **E9.3: E9 — Carbon components for core surfaces** (buttons 48/40/32, fields, lists, modals, tabs as shared `mde-ui` widgets; pragmatic for dense chrome/panel/tray).
+- [ ] **E9.4: E9 — Carbon interaction states** (strict 2px `$focus` ring + hover/active/selected/disabled tokens on every interactive element).
+- [ ] **E9.5: E9 — Carbon motion tokens** (standard durations + easing for hovers/expansions/toasts).
+- [ ] **E9.6: E9 — Compliance enforcement** (token-pinning tests + a CI lint gate failing on raw values outside the token modules).
+- [ ] **E9.7: E9 — Rip out era code as converted** (delete Win2000 ground-truth + carbon()/win10()/beos() remaps, the tiled Start, era-gated branches — no dormant dead code, §3).
+
+### E10 — Ultimate File Manager (operator epic, 2026-06-06)
+_Depends: E9.2 (Carbon substrate), E3 (mesh). Scope locks in memory `epic-ultimate-file-manager-scope`. Subsumes/【retires】the E5.1 split-Explorer plan — one manager remains._
+
+- [ ] **E10.1: E10 — Port `mde-files` UI from libcosmic to iced 0.13 + iced_layershell** *(largest piece)*
+  Rebuild the cosmic-files fork's UI layer onto the shell's iced stack so it folds into the one `mde` binary as `mde files`, using the Carbon palette/metrics. Vendored fork, diverge freely.
+  **Acceptance:** `mde files` launches the ported manager (no libcosmic dep); themed via `palette::color()`; Carbon-only.
+- [ ] **E10.2: E10 — Replace `demo_data.rs` with the real filesystem/mesh backend** (§3 — delete the mock; every view reads real data).
+- [ ] **E10.3: E10 — Fold the Open/Save dialog (`filedialog`) + desktop surface onto the one engine** (scope = everything: browser + dialog + desktop).
+- [ ] **E10.4: E10 — Mesh-first features first-class** (mesh sidebar, send-to-peer, LizardFS browse — the Artifact Manager thesis).
+- [ ] **E10.5: E10 — v1 capabilities: tabs + inline archive (zip/tar) handling.**
+- [ ] **E10.6: E10 — Retire the shell `files.rs` Explorer; repoint the Start-menu "File Explorer" + the `inode/directory` default handler to the unified manager** (no dead code; one manager remains).
