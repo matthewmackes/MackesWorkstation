@@ -1,0 +1,13 @@
+# MackesWorkstation per-user control plane (mackesd serve).
+#
+# SHIPPED DISABLED for now (Bug 6, 2026-06-06). The unit is installed and ready,
+# but `mackesd serve` currently spawns the FULL worker set even as a per-user
+# daemon — including fabric workers that can never succeed off a per-user/
+# non-enrolled box (nebula_https_listener binds privileged :443 + needs a
+# lighthouse cert; fs-sync exits 1). They respawn ~4x/sec (the OnFailure backoff
+# does not actually quarantine), so auto-enabling would ship a crash-loop.
+#
+# Flip this to `enable mackesd.service` once serve gains a per-user worker subset
+# (or the fabric workers are prereq-gated + the backoff capped). Until then an
+# operator can start it manually with `systemctl --user enable --now mackesd`.
+disable mackesd.service

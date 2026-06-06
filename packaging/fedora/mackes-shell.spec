@@ -17,7 +17,7 @@
 
 Name:           mde-core
 Version:        10.0.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Mackes Workstation (MDE) — native-Rust mesh desktop environment
 
 License:        GPL-3.0-or-later
@@ -53,6 +53,8 @@ BuildRequires:  gtk3-devel
 BuildRequires:  alsa-lib-devel
 BuildRequires:  fuse3-devel
 BuildRequires:  openssl-devel
+# Provides the user-unit dir + user-unit scriptlet macros used below.
+BuildRequires:  systemd-rpm-macros
 
 # Hard runtime deps kept minimal so the package installs cleanly; rpm's ELF
 # dependency generator pulls the shared-library deps automatically. The desktop
@@ -123,6 +125,31 @@ install -d %{buildroot}%{_datadir}/mde
 if [ -d data ]; then
     cp -a data/. %{buildroot}%{_datadir}/mde/
 fi
+# Bug 4 (2026-06-06) — drop the retired MDE-internal D-Bus service files. The
+# `cp -a data/.` above drags `data/dbus-1/services/{dev.mackes.MDE.*,org.mackes.*}`
+# into %{_datadir}/mde/dbus-1, a path D-Bus never scans (it reads
+# %{_datadir}/dbus-1/services), so they were inert AND contradicted the
+# "no MDE-internal D-Bus, FDO interop only" architecture lock. The shell talks
+# over mde-bus, not D-Bus — these are dead legacy from the Python MDE.
+rm -rf %{buildroot}%{_datadir}/mde/dbus-1
+# The systemd unit trees under data/ are likewise inert at %{_datadir}/mde/systemd*
+# (systemd reads %{_unitdir} / %{_userunitdir}, not here). They stay as reference
+# copies; step 4b installs the one unit this deployment actually activates.
+
+# 4b. Bug 3 (2026-06-06) — the per-user control plane. The E8.5 spec shipped this
+# unit only to the inert %{_datadir}/mde/systemd-user path, so nothing started
+# `mackesd serve`. Install it to the active %{_userunitdir} so it is available.
+# NOTE: it ships DISABLED (the preset below) pending Bug 6 — `serve` currently
+# spawns the full fabric worker set even per-user, and a couple of those workers
+# crash-loop off an enrolled box. An operator can start it manually meanwhile.
+install -d %{buildroot}%{_userunitdir}
+install -m 0644 data/systemd-user/mackesd.service \
+    %{buildroot}%{_userunitdir}/mackesd.service
+# The preset (currently `disable` — see the file + Bug 6). Flip to `enable` once
+# serve gains a per-user worker subset so auto-start doesn't ship a crash-loop.
+install -d %{buildroot}%{_userpresetdir}
+install -m 0644 data/systemd-user-preset/80-mde-mackesd.preset \
+    %{buildroot}%{_userpresetdir}/80-mde-mackesd.preset
 if [ -d assets ]; then
     install -d %{buildroot}%{_datadir}/mde/assets
     cp -a assets/. %{buildroot}%{_datadir}/mde/assets/
@@ -184,8 +211,30 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %{_datadir}/mde/
 %{_datadir}/wayland-sessions/mde.desktop
 %{_datadir}/themes/Win2000-MDE/
+%{_userunitdir}/mackesd.service
+%{_userpresetdir}/80-mde-mackesd.preset
+
+# Bug 3 (2026-06-06) — register the per-user control-plane unit with systemd.
+# The post scriptlet applies the shipped preset (currently 'disable' — Bug 6),
+# so this installs the unit without auto-starting a crash-loop; the preun
+# scriptlet cleans up on erase. Flip the preset to 'enable' once Bug 6 lands.
+%post
+%systemd_user_post mackesd.service
+
+%preun
+%systemd_user_preun mackesd.service
 
 %changelog
+* Sat Jun 06 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-3
+- fix (Bug 3, partial): install the per-user mackesd.service to the active
+  %{_userunitdir} (+ a user-preset). The control plane had only been cp -a'd to
+  the inert %{_datadir}/mde/systemd-user path, so nothing ran `mackesd serve`.
+  Ships DISABLED pending Bug 6 (per-user serve spawns fabric workers that
+  crash-loop off an enrolled box); flip the preset to `enable` once that lands.
+- fix (Bug 4): stop shipping the retired MDE-internal D-Bus service files
+  (data/dbus-1/services/{dev.mackes.MDE.*,org.mackes.*}). They landed under
+  %{_datadir}/mde/dbus-1 — a path D-Bus never scans — and contradict the
+  "no MDE-internal D-Bus, mde-bus only" architecture lock. Removed in %install.
 * Sat Jun 06 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-2
 - packaging: install the Wayland-session entry into %{_datadir}/wayland-sessions
   so the "MDE" option appears in the greeter. The session .desktop previously
