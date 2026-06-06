@@ -39,32 +39,6 @@ fn silver<'a, Msg: 'a>(content: impl Into<Element<'a, Msg>>) -> Element<'a, Msg>
         .into()
 }
 
-/// The Windows 10 power / account flyout body: flat full-width rows over the
-/// charcoal `MENU` surface (the buttons flatten under the Win10 theme). Each row
-/// carries a [`Choice`] that the dialog's update acts on immediately (E19.3/E19.4).
-fn flyout<'a>(rows: Vec<Element<'a, M>>) -> Element<'a, M> {
-    let mut col = Column::new().spacing(2.0);
-    for r in rows {
-        col = col.push(r);
-    }
-    container(col)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .padding(8.0)
-        .style(|_| container::Style {
-            background: Some(Background::Color(palette::color(palette::MENU))),
-            ..container::Style::default()
-        })
-        .into()
-}
-
-fn flyout_row<'a>(label: &'a str, choice: Choice) -> Element<'a, M> {
-    button(text(label).size(metrics::UI_PX))
-        .on_press(M::Pick(choice))
-        .width(Length::Fill)
-        .into()
-}
-
 // A shared message type for both dialogs (variants used per dialog).
 #[derive(Debug, Clone)]
 enum M {
@@ -153,17 +127,8 @@ fn logoff_update(_: &mut LogOff, m: M) -> Task<M> {
 }
 
 fn logoff_view(_: &LogOff) -> Element<'_, M> {
-    if palette::is_windows10() {
-        // Win10 account flyout: Lock / Sign out rows (Lock -> logind, Sign out
-        // -> the same labwc --exit as the classic "Yes").
-        return flyout(vec![
-            flyout_row("Lock", Choice::Lock),
-            button(text("Sign out").size(metrics::UI_PX))
-                .on_press(M::Confirm)
-                .width(Length::Fill)
-                .into(),
-        ]);
-    }
+    // Carbon-only identity (E9.7, operator 2026-06-06): the classic centered Yes/No
+    // dialog is canonical for every theme (the Win10 account flyout is retired).
     let buttons = Row::new()
         .spacing(8.0)
         .push(Space::with_width(Length::Fill))
@@ -195,7 +160,6 @@ enum Choice {
     ShutDown,
     Restart,
     StandBy,
-    Lock,
 }
 
 impl fmt::Display for Choice {
@@ -205,7 +169,6 @@ impl fmt::Display for Choice {
             Choice::ShutDown => "Shut down",
             Choice::Restart => "Restart",
             Choice::StandBy => "Stand by",
-            Choice::Lock => "Lock",
         })
     }
 }
@@ -245,12 +208,10 @@ pub fn shutdown() -> ExitCode {
 fn do_shutdown(sel: &Choice) -> ! {
     let mut cmd = match sel {
         Choice::LogOff => Command::new("labwc"),
-        Choice::Lock => Command::new("loginctl"),
         _ => Command::new("systemctl"),
     };
     let verb = match sel {
         Choice::LogOff => "--exit",
-        Choice::Lock => "lock-session",
         Choice::ShutDown => "poweroff",
         Choice::Restart => "reboot",
         Choice::StandBy => "suspend",
@@ -291,13 +252,9 @@ pub fn lock() -> ExitCode {
 
 fn shutdown_update(state: &mut Shutdown, m: M) -> Task<M> {
     match m {
-        // The Win10 power flyout is one-click: picking a row acts immediately.
-        // The classic Win2000 dropdown only selects; OK confirms.
+        // Carbon-only identity (E9.7): the classic dropdown only selects; OK confirms.
         M::Pick(c) => {
             state.sel = c;
-            if palette::is_windows10() {
-                do_shutdown(&state.sel);
-            }
         }
         M::Cancel => exit(0),
         M::Confirm => do_shutdown(&state.sel),
@@ -309,15 +266,8 @@ fn shutdown_update(state: &mut Shutdown, m: M) -> Task<M> {
 }
 
 fn shutdown_view(state: &Shutdown) -> Element<'_, M> {
-    if palette::is_windows10() {
-        // Win10 power flyout: flat full-width Sleep / Shut down / Restart rows;
-        // each acts on click (handled in shutdown_update under the era).
-        return flyout(vec![
-            flyout_row("Sleep", Choice::StandBy),
-            flyout_row("Shut down", Choice::ShutDown),
-            flyout_row("Restart", Choice::Restart),
-        ]);
-    }
+    // Carbon-only identity (E9.7): the classic dropdown + OK is canonical for every
+    // theme (the Win10 one-click power flyout is retired).
     let choices = vec![
         Choice::LogOff,
         Choice::ShutDown,

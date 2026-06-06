@@ -138,8 +138,7 @@ fn items_for(kind: &str) -> Vec<Item> {
         ],
         // Taskbar empty-area menu. Per-window Restore/Min/Max/Close now live on
         // the labwc titlebar + its right-click client-menu, so this keeps only
-        // the global actions. Win10 routes the settings entry to the Settings
-        // Taskbar page; other eras keep Taskbar & Start Menu Properties (E7.10).
+        // the global actions: Task Manager + Taskbar & Start Menu Properties (E7.10).
         _ => {
             let mut v = vec![
                 Item {
@@ -148,16 +147,12 @@ fn items_for(kind: &str) -> Vec<Item> {
                 },
                 sep(),
             ];
-            v.push(if mde_ui::palette::is_windows10() {
-                Item {
-                    label: "Taskbar settings".into(),
-                    command: format!("'{mde}' settings personalization --page taskbar"),
-                }
-            } else {
-                Item {
-                    label: "Properties".into(),
-                    command: format!("'{mde}' taskbar-properties"),
-                }
+            // Carbon-only identity (E9.7, operator 2026-06-06): the classic Taskbar &
+            // Start Menu Properties dialog is canonical for every theme (the Win10
+            // "Taskbar settings" → Settings-page entry is retired with the era).
+            v.push(Item {
+                label: "Properties".into(),
+                command: format!("'{mde}' taskbar-properties"),
             });
             v
         }
