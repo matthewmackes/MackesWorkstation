@@ -202,7 +202,11 @@ CUPS
  {"id":2,"app_name":"Files","app_icon":"folder","summary":"Download finished","body":"installer.rpm (4.2 MB)","actions":[],"hint_urgency":1,"timestamp":{"secs_since_epoch":$((now-20)),"nanos_since_epoch":0},"transient":false}
 ],"last_read":{"secs_since_epoch":0,"nanos_since_epoch":0}}
 JSON
+        # Force a deterministic accent-filled tile (Bluetooth "on") so the accuracy
+        # check never depends on host rfkill/audio state (MDE_QUICKACTION_FIXTURE seam).
+        export MDE_QUICKACTION_FIXTURE=bluetooth
         shot "action-center" --wait 2.6 action-center
+        unset MDE_QUICKACTION_FIXTURE
         # The remaining Win10 P0 surfaces (E20.8): Task View (WIN+Tab window/desktop
         # overview) and Search (the bottom-left flyout). Re-seed a clean Win10 config
         # (the action-center step left a notifications.json seed in place).

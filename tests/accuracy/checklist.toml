@@ -100,12 +100,14 @@ tol = 10
 file = "gallery/windows10/action-center.png"
 era = "windows10"
 dark = true
-# An enabled quick-action tile (accent-filled) in the Action Center grid.
+# The Bluetooth quick-action tile, forced "on" (accent-filled) by the gallery's
+# MDE_QUICKACTION_FIXTURE=bluetooth seam so the point is host-state-independent. The
+# coordinate lands on the solid accent fill (away from the centered glyph/label).
 
 [[capture.win10-action-center.point]]
 label = "Action Center on-tile accent fill (HIGHLIGHT)"
-x = 966
-y = 776
+x = 1030
+y = 800
 role = "HIGHLIGHT"
 tol = 12
 

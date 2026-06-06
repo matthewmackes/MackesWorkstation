@@ -248,6 +248,14 @@ fn tile_label(id: &str) -> Option<(&'static str, &'static str)> {
 
 /// Read a quick-action tile's on/off state from its Linux backend.
 fn read_tile(id: &str) -> bool {
+    // Deterministic test seam (the gallery / accuracy harness): when
+    // `MDE_QUICKACTION_FIXTURE` is set to a comma-separated list of tile ids, those
+    // tiles read "on" and every other reads "off" — so the headless capture's
+    // accent-filled tile never depends on host rfkill/audio/nmcli state. Mirrors the
+    // `MDE_CUPS_FIXTURE` seam used by the Devices pages.
+    if let Ok(on) = std::env::var("MDE_QUICKACTION_FIXTURE") {
+        return on.split(',').any(|t| t.trim() == id);
+    }
     match id {
         "wifi" => sh("nmcli -t radio wifi").trim() == "enabled",
         "bluetooth" => !sh("rfkill list bluetooth").contains("Soft blocked: yes"),
