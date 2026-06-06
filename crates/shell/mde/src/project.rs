@@ -125,8 +125,8 @@ enum Message {
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
-    // Win10-era only; classic eras use Display Properties (the keybind is inert).
-    if !palette::is_windows10() || std::env::var_os("WAYLAND_DISPLAY").is_none() {
+    // E9: a universal Carbon surface (was Windows-10-era-gated).
+    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         return ExitCode::SUCCESS;
     }
     match launch() {

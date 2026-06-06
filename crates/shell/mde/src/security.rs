@@ -57,14 +57,7 @@ enum Message {
 }
 
 pub fn run(args: &[String]) -> ExitCode {
-    // Era gate (E14.10): the Security dashboard is a Windows 10 surface.
-    if !palette::is_windows10() {
-        eprintln!(
-            "mde security: Windows Security is a Windows 10-era surface — use the Control Panel \
-             security tools in this theme."
-        );
-        return ExitCode::SUCCESS;
-    }
+    // E9: the Security dashboard is a universal Carbon surface (was Win10-gated).
     // Deep-link: `mde security <page>` opens straight to a detail page.
     let deep = args.iter().find_map(|a| match a.as_str() {
         "firewall" => Some(Pane::Firewall),

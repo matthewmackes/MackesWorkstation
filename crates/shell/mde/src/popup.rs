@@ -460,10 +460,6 @@ fn view(state: &Popup) -> Element<'_, Message> {
 /// to the top instead — so a taskbar right-click menu rests against the bar.
 fn bar_at_bottom() -> bool {
     use mde_ui::palette;
-    if palette::is_windows10() {
-        crate::state::load().taskbar_location != "top"
-    } else {
-        // Win2000 → bottom; Carbon (top) → top-left.
-        !palette::is_carbon()
-    }
+    // Win2000 → bottom; Carbon (top) → top-left. (E9: Win10 bar removed.)
+    !palette::is_carbon()
 }
