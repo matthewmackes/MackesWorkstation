@@ -102,8 +102,6 @@ fn flat_chrome_covers_carbon_and_windows10() {
     assert!(palette::is_flat(), "Windows 10 must use flat chrome (D2)");
     palette::set_theme(Theme::Win2000);
     assert!(!palette::is_flat(), "Win2000 keeps the 3D bevel");
-    palette::set_theme(Theme::Beos);
-    assert!(!palette::is_flat(), "BeOS keeps the 3D bevel");
     palette::set_theme(Theme::Carbon); // restore the default
 }
 

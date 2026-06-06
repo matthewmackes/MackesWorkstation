@@ -51,11 +51,11 @@ crates/shell/mde/src/files.rs:1021
 crates/shell/mde/src/oobe.rs:1322
 crates/shell/mde/src/oobe.rs:1138
 crates/shell/mde/src/oobe.rs:1140
-crates/shell/mde/src/panel.rs:199
+crates/shell/mde/src/panel.rs:196
+crates/shell/mde/src/panel.rs:200
 crates/shell/mde/src/panel.rs:203
-crates/shell/mde/src/panel.rs:206
-crates/shell/mde/src/panel.rs:210
-crates/shell/mde/src/panel.rs:218
+crates/shell/mde/src/panel.rs:207
+crates/shell/mde/src/panel.rs:215
 crates/shell/mde/src/popup.rs:211
 crates/shell/mde/src/popup.rs:215
 crates/shell/mde/src/settings.rs:3602

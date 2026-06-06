@@ -105,14 +105,14 @@ use std::sync::atomic::{AtomicU8, Ordering};
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Theme {
     Win2000,
-    Beos,
     Carbon,
     Windows10,
 }
 
 // Packed active theme + Carbon mode/accent in plain atomics (read on the draw
-// hot path, so lock-free). THEME: 0=Win2000 1=Beos 2=Carbon 3=Windows10.
-// DARK + ACCENT are shared (Carbon and Windows10 both honor light/dark).
+// hot path, so lock-free). THEME stores `Theme as u8`: 0=Win2000 1=Carbon
+// 2=Windows10. DARK + ACCENT are shared (Carbon and Windows10 both honor
+// light/dark).
 static THEME: AtomicU8 = AtomicU8::new(0);
 static DARK: AtomicU8 = AtomicU8::new(1); // Carbon default mode = dark
 static ACCENT: AtomicU8 = AtomicU8::new(0); // 0=blue 1=orange 2=red 3=neutral (icon accent)
@@ -125,9 +125,8 @@ pub fn set_theme(theme: Theme) {
 /// The active theme.
 pub fn theme() -> Theme {
     match THEME.load(Ordering::Relaxed) {
-        1 => Theme::Beos,
-        2 => Theme::Carbon,
-        3 => Theme::Windows10,
+        1 => Theme::Carbon,
+        2 => Theme::Windows10,
         _ => Theme::Win2000,
     }
 }
@@ -174,11 +173,6 @@ pub fn chrome_accent() -> iced::Color {
     }
 }
 
-/// Whether the BeOS theme is active.
-pub fn is_beos() -> bool {
-    theme() == Theme::Beos
-}
-
 /// Whether the Carbon theme is active.
 pub fn is_carbon() -> bool {
     theme() == Theme::Carbon
@@ -191,28 +185,12 @@ pub fn is_windows10() -> bool {
 
 /// Whether the active theme renders **flat** (non-3D) chrome. Carbon and the
 /// Carbon-skinned Windows 10 era both drop the Win2000 raised/sunken bevel for a
-/// flat fill + 2px-radius border (D2); Win2000 and BeOS keep the 3D edge. This is
+/// flat fill + 2px-radius border (D2); Win2000 keeps the 3D edge. This is
 /// the single predicate every flat-vs-3D branch reads — the `draw_edge` bevel, the
 /// scrollbar track, the control corner radius — so the two flat eras can't drift
 /// from the two 3D ones.
 pub fn is_flat() -> bool {
     is_carbon() || is_windows10()
-}
-
-/// Map a Win2000 role color to its BeOS equivalent (light-gray panels, softer
-/// bevels, a blue selection; white/black pass through). Roles that share a
-/// Win2000 value share the BeOS value — they're the same surface concept.
-fn beos(rgb: Rgb) -> Rgb {
-    match rgb {
-        (0xd4, 0xd0, 0xc8) => (0xd8, 0xd8, 0xd8), // panel / menu / button face
-        (0xdf, 0xdf, 0xdf) => (0xec, 0xec, 0xec), // inner bevel light
-        (0x80, 0x80, 0x80) => (0x8c, 0x8c, 0x8c), // bevel shadow / disabled / inactive
-        (0x40, 0x40, 0x40) => (0x55, 0x55, 0x55), // dark bevel
-        (0x0a, 0x24, 0x6a) => (0x33, 0x55, 0x9c), // selection / accent (BeOS blue)
-        (0x3a, 0x6e, 0xa5) => (0x33, 0x66, 0x98), // desktop
-        (0x1d, 0x5c, 0xa8) => (0x46, 0x7a, 0xbe), // web-view info band
-        other => other,                           // white, black, brand art, etc.
-    }
 }
 
 // ───────────────────────────────────────────────────────────────────────────
@@ -460,7 +438,6 @@ fn carbon(rgb: Rgb) -> Rgb {
 pub fn color(rgb: Rgb) -> iced::Color {
     let rgb = match theme() {
         Theme::Win2000 => rgb,
-        Theme::Beos => beos(rgb),
         // The Windows 10 era shares Carbon's coloring + accent verbatim (a
         // Carbon-skinned modern *layout*, not a distinct palette); its former blue
         // accent + accent picker were retired in the MackesDE rebrand.
@@ -475,7 +452,6 @@ pub fn color(rgb: Rgb) -> iced::Color {
 pub fn hex(rgb: Rgb) -> String {
     let rgb = match theme() {
         Theme::Win2000 => rgb,
-        Theme::Beos => beos(rgb),
         // The Windows 10 era shares Carbon's coloring + accent verbatim (a
         // Carbon-skinned modern *layout*, not a distinct palette); its former blue
         // accent + accent picker were retired in the MackesDE rebrand.

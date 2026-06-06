@@ -463,7 +463,7 @@ fn bar_at_bottom() -> bool {
     if palette::is_windows10() {
         crate::state::load().taskbar_location != "top"
     } else {
-        // Win2000 → bottom; Carbon (top) + BeOS (left) → top-left.
-        !palette::is_carbon() && !palette::is_beos()
+        // Win2000 → bottom; Carbon (top) → top-left.
+        !palette::is_carbon()
     }
 }

@@ -23,9 +23,6 @@ const CARBON_BAR_H: f32 = 32.0;
 /// the panel font-DB-free in the common (PNG-icon) case.
 const START_ICON: &[u8] = include_bytes!("start_icon.png");
 
-/// Width of the vertical BeOS Deskbar (px).
-const BEOS_BAR_W: f32 = 115.0;
-
 /// Height of the Windows 10 taskbar (px) — taller than the Win2000 bar, matching
 /// Win10's stock 40px bottom bar. E0 anchors it; the Win10-specific content
 /// (search box, Task View button, jump lists) layers on in E2.
@@ -314,13 +311,6 @@ fn launch() -> Result<(), iced_layershell::Error> {
             size: Some((0, CARBON_BAR_H as u32)),
             exclusive_zone: CARBON_BAR_H as i32,
             anchor: Anchor::Top | Anchor::Left | Anchor::Right,
-            ..Default::default()
-        }
-    } else if palette::is_beos() {
-        LayerShellSettings {
-            size: Some((BEOS_BAR_W as u32, 0)),
-            exclusive_zone: BEOS_BAR_W as i32,
-            anchor: Anchor::Top | Anchor::Left | Anchor::Bottom,
             ..Default::default()
         }
     } else if palette::is_windows10() {
@@ -697,8 +687,6 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
 fn view(state: &Panel) -> Element<'_, Message> {
     if palette::is_carbon() {
         view_carbon(state)
-    } else if palette::is_beos() {
-        view_vertical(state)
     } else if palette::is_windows10() {
         view_win10(state)
     } else {
@@ -1350,96 +1338,6 @@ fn view_horizontal(state: &Panel) -> Element<'_, Message> {
         .push(frame::raised())
         .push(
             container(bar)
-                .padding(2.0)
-                .width(Length::Fill)
-                .height(Length::Fill),
-        )
-        .into()
-}
-
-/// A thin etched horizontal divider for the vertical bar.
-fn vbar_sep<'a>() -> Element<'a, Message> {
-    container(Space::new(Length::Fill, Length::Fixed(1.0)))
-        .width(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(iced::Background::Color(palette::color(
-                palette::BUTTON_SHADOW,
-            ))),
-            ..container::Style::default()
-        })
-        .into()
-}
-
-/// The BeOS Deskbar: a vertical strip on the left — clock + tray glyphs, then
-/// the running-window list, with the Start button pinned at the very bottom.
-fn view_vertical(state: &Panel) -> Element<'_, Message> {
-    let mut col = Column::new()
-        .spacing(3.0)
-        .width(Length::Fill)
-        .height(Length::Fill);
-
-    // Clock, then the tray glyphs in a centred row (BeOS keeps these near the top).
-    col = col.push(
-        container(text(state.clock.clone()).size(metrics::UI_PX))
-            .width(Length::Fill)
-            .center_x(Length::Fill)
-            .padding(Padding {
-                top: 2.0,
-                right: 0.0,
-                bottom: 2.0,
-                left: 0.0,
-            }),
-    );
-    let mut tray = Row::new().spacing(2.0).align_y(iced::Alignment::Center);
-    for g in tray_glyphs(state) {
-        tray = tray.push(g);
-    }
-    col = col.push(container(tray).width(Length::Fill).center_x(Length::Fill));
-    col = col.push(vbar_sep());
-
-    // Quick-launch pins.
-    for item in &state.pinned {
-        col = col.push(
-            button(text(truncate(&item.name, 14)).size(metrics::UI_PX))
-                .on_press(Message::Launch(item.command.clone()))
-                .width(Length::Fill),
-        );
-    }
-
-    // Running windows, stacked; each is icon + title (same Win2000 click rules).
-    for w in &state.windows {
-        let label = Row::new()
-            .spacing(4.0)
-            .align_y(iced::Alignment::Center)
-            .push(crate::icons::icon_any(
-                &[w.app_id.as_str(), "application-x-executable"],
-                16,
-            ))
-            .push(text(truncate(&w.title, 11)).size(metrics::UI_PX));
-        col = col.push(
-            mouse_area(
-                button(label)
-                    .on_press(Message::TaskButton(w.id))
-                    .active(w.focused)
-                    .width(Length::Fill)
-                    .height(Length::Fixed(28.0)),
-            )
-            .on_right_press(Message::MinimizeToggle(w.id)),
-        );
-    }
-
-    // The empty remainder (right-click opens the taskbar context menu) pushes
-    // the Start button down to the very bottom of the bar.
-    col = col.push(
-        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
-    );
-    col = col.push(vbar_sep());
-    col = col.push(start_button(state, Length::Fill, Length::Fixed(24.0)));
-
-    Stack::new()
-        .push(frame::raised())
-        .push(
-            container(col)
                 .padding(2.0)
                 .width(Length::Fill)
                 .height(Length::Fill),

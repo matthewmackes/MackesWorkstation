@@ -141,17 +141,12 @@ fn main() -> ExitCode {
     // every subcommand's UI renders in the right theme. Each subcommand is its
     // own process, so this runs at every launch. Carbon (default) brings the IBM
     // Carbon palette + Plex font with a light/dark mode and an icon accent hue;
-    // "win2000" keeps the classic look (and the Haiku icon set still maps to the
-    // BeOS palette for back-compat).
+    // "win2000" keeps the classic look.
     {
         use mde_ui::palette::{self, Theme};
         let st = state::load();
         match st.theme.as_str() {
-            "win2000" => palette::set_theme(if st.icon_set == "haiku" {
-                Theme::Beos
-            } else {
-                Theme::Win2000
-            }),
+            "win2000" => palette::set_theme(Theme::Win2000),
             "windows10" => palette::set_theme(Theme::Windows10),
             _ => palette::set_theme(Theme::Carbon),
         }

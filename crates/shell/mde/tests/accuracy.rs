@@ -79,7 +79,6 @@ fn want_rgb(cap: &Capture, p: &Point) -> (u8, u8, u8) {
             Some("windows10") => palette::set_theme(Theme::Windows10),
             Some("carbon") => palette::set_theme(Theme::Carbon),
             Some("win2000") => palette::set_theme(Theme::Win2000),
-            Some("beos") => palette::set_theme(Theme::Beos),
             other => panic!("accuracy: role point needs a known capture `era`, got {other:?}"),
         }
         palette::set_dark(cap.dark);

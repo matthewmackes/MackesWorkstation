@@ -26,7 +26,7 @@ pub const PLEX_FAMILY: &str = "IBM Plex Sans";
 /// bundled Plex face per §2.4 — see `metrics::UI_FONT_TARGET_WIN10`), else Droid
 /// Sans. Both are registered at startup, so switching is just the family name.
 fn family() -> &'static str {
-    if crate::palette::is_beos() || crate::palette::is_carbon() || crate::palette::is_windows10() {
+    if crate::palette::is_carbon() || crate::palette::is_windows10() {
         PLEX_FAMILY
     } else {
         FAMILY
