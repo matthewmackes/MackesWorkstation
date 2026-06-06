@@ -81,10 +81,7 @@ fn window_region() -> Option<String> {
 }
 
 pub fn run(args: &[String]) -> ExitCode {
-    if !mde_ui::palette::is_windows10() {
-        eprintln!("mde snip: the snipping tool is a Windows 10-era surface.");
-        return ExitCode::SUCCESS;
-    }
+    // E9: a universal Carbon tool (was Windows-10-era-gated).
     capture(mode_from_args(args))
 }
 

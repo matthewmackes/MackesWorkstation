@@ -71,12 +71,7 @@ fn restore_targets() -> Vec<String> {
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
-    if !palette::is_windows10() {
-        eprintln!(
-            "mde settings backup --restore: the restore browser is a Windows 10-era surface."
-        );
-        return ExitCode::SUCCESS;
-    }
+    // E9: a universal Carbon surface (was Windows-10-era-gated).
     match launch() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

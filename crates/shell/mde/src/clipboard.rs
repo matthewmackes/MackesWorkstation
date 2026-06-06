@@ -281,12 +281,8 @@ mod popup {
     }
 
     pub fn run() -> ExitCode {
-        // The history popup is a Windows 10-era surface (the daemon itself is
-        // era-neutral). Other eras have no Win+V clipboard history.
-        if !palette::is_windows10() {
-            eprintln!("mde clipboard: the history popup is a Windows 10-era surface.");
-            return ExitCode::SUCCESS;
-        }
+        // E9: the Win+V history popup is now a universal Carbon surface (was
+        // Windows-10-era-gated; the daemon itself was always era-neutral).
         // Make sure the watcher is running so the history actually fills (idempotent).
         let _ = Command::new(exe()).args(["clipboard", "daemon"]).spawn();
 

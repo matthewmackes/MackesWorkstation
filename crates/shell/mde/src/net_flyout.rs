@@ -48,10 +48,7 @@ enum Message {
 }
 
 pub fn run(args: &[String]) -> ExitCode {
-    // Win10-era only; other eras use nm-connection-editor via the panel glyph (E15.3).
-    if !palette::is_windows10() {
-        return ExitCode::SUCCESS;
-    }
+    // E9: a universal Carbon surface (was Windows-10-era-gated).
     if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         return ExitCode::SUCCESS;
     }
