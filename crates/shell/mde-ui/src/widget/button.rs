@@ -117,9 +117,12 @@ where
         limits: &layout::Limits,
     ) -> layout::Node {
         layout::padded(limits, self.width, self.height, self.padding, |limits| {
+            // Loose limits (min 0) so the content node is its intrinsic size, not
+            // stretched to fill a fixed-height button — `draw` then vertically
+            // centers it (Carbon button heights, E9.3).
             self.content
                 .as_widget()
-                .layout(&mut tree.children[0], renderer, limits)
+                .layout(&mut tree.children[0], renderer, &limits.loose())
         })
     }
 
@@ -170,11 +173,16 @@ where
                 palette::GRAY_TEXT
             }),
         };
-        let offset = if down {
-            Vector::new(1.0, 1.0)
-        } else {
-            Vector::ZERO
-        };
+        // Vertically center the label when the button is taller than its content
+        // (Carbon button heights, E9.3 — `.height(BUTTON_MD)` etc.). The layout
+        // places the content at `padding.top`; shift it down by the remaining slack
+        // so a 40/48px button centers its label. A content-sized (Shrink) button has
+        // no slack, so this is a no-op there. Hit-testing uses the full button
+        // bounds, so moving the label in `draw` only is safe.
+        let cb = content_layout.bounds();
+        let center_y = (((b.height - cb.height) / 2.0) - (cb.y - b.y)).max(0.0);
+        let nudge = if down { 1.0 } else { 0.0 };
+        let offset = Vector::new(nudge, nudge + center_y);
         renderer.with_translation(offset, |renderer| {
             self.content.as_widget().draw(
                 &tree.children[0],

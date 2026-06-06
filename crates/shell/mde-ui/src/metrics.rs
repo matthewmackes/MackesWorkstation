@@ -44,6 +44,15 @@ pub const TYPE_HEADING_05: f32 = 32.0;
 pub const TYPE_HEADING_06: f32 = 42.0;
 pub const TYPE_HEADING_07: f32 = 54.0;
 
+// Carbon button heights (E9.3) — the three Carbon button sizes
+// (carbondesignsystem.com/components/button/style): small 32 / medium 40 (the
+// default) / large 48 px. Core surfaces (dialogs, settings, control panel) size
+// their buttons from these; dense chrome (panel/tray) keeps its compact buttons
+// as a documented pragmatic exception.
+pub const BUTTON_SM: f32 = 32.0;
+pub const BUTTON_MD: f32 = 40.0;
+pub const BUTTON_LG: f32 = 48.0;
+
 // --- Legacy SM_*-derived chrome metrics (pragmatic exceptions) -------------
 // The classic `SM_*` system metrics the dense shell chrome still uses (panel,
 // tray, title bar, scrollbar). These are the target numbers the accuracy harness

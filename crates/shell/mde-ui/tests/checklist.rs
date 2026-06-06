@@ -343,4 +343,8 @@ fn carbon_spacing_and_type_tokens_pinned() {
     assert_eq!(metrics::TYPE_HEADING_05, 32.0);
     assert_eq!(metrics::TYPE_HEADING_06, 42.0);
     assert_eq!(metrics::TYPE_HEADING_07, 54.0);
+    // Carbon button heights (E9.3): small 32 / medium 40 / large 48.
+    assert_eq!(metrics::BUTTON_SM, 32.0);
+    assert_eq!(metrics::BUTTON_MD, 40.0);
+    assert_eq!(metrics::BUTTON_LG, 48.0);
 }

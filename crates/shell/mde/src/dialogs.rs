@@ -136,12 +136,14 @@ fn logoff_view(_: &LogOff) -> Element<'_, M> {
             button(text("Yes").size(metrics::UI_PX))
                 .on_press(M::Confirm)
                 .default(true)
-                .width(Length::Fixed(76.0)),
+                .width(Length::Fixed(76.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         )
         .push(
             button(text("No").size(metrics::UI_PX))
                 .on_press(M::Cancel)
-                .width(Length::Fixed(76.0)),
+                .width(Length::Fixed(76.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         );
 
     let body = Column::new()
@@ -285,12 +287,14 @@ fn shutdown_view(state: &Shutdown) -> Element<'_, M> {
             button(text("OK").size(metrics::UI_PX))
                 .on_press(M::Confirm)
                 .default(true)
-                .width(Length::Fixed(76.0)),
+                .width(Length::Fixed(76.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         )
         .push(
             button(text("Cancel").size(metrics::UI_PX))
                 .on_press(M::Cancel)
-                .width(Length::Fixed(76.0)),
+                .width(Length::Fixed(76.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         );
 
     let body = Column::new()
@@ -372,12 +376,14 @@ fn run_view(state: &Run) -> Element<'_, RunMsg> {
             button(text("OK").size(metrics::UI_PX))
                 .on_press(RunMsg::Ok)
                 .default(true)
-                .width(Length::Fixed(76.0)),
+                .width(Length::Fixed(76.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         )
         .push(
             button(text("Cancel").size(metrics::UI_PX))
                 .on_press(RunMsg::Cancel)
-                .width(Length::Fixed(76.0)),
+                .width(Length::Fixed(76.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         );
 
     let body = Column::new()
@@ -481,12 +487,14 @@ fn prop_view(state: &Properties) -> Element<'_, PropMsg> {
                     button(text("OK").size(metrics::UI_PX))
                         .on_press(PropMsg::Close)
                         .default(true)
-                        .width(Length::Fixed(80.0)),
+                        .width(Length::Fixed(80.0))
+                        .height(Length::Fixed(metrics::BUTTON_MD)),
                 )
                 .push(
                     button(text("Cancel").size(metrics::UI_PX))
                         .on_press(PropMsg::Close)
-                        .width(Length::Fixed(80.0)),
+                        .width(Length::Fixed(80.0))
+                        .height(Length::Fixed(metrics::BUTTON_MD)),
                 ),
         );
     silver(body)
