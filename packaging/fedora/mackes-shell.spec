@@ -158,6 +158,18 @@ chmod 0755 %{buildroot}%{_datadir}/mde/skel/.config/labwc/autostart
 [ -f %{buildroot}%{_datadir}/mde/skel/.config/labwc/scripts/brightness.sh ] && \
     chmod 0755 %{buildroot}%{_datadir}/mde/skel/.config/labwc/scripts/brightness.sh
 
+# 7. The Win2000-MDE Openbox window-frame theme -> %{_datadir}/themes. rc.xml
+#    references <theme><name>Win2000-MDE</name>, and labwc resolves theme names on
+#    its standard search path (XDG_DATA_DIRS/themes), which includes
+#    %{_datadir}/themes = /usr/share/themes — even when launched with `-C` against
+#    the skel config. The skel copy above lands the theme under
+#    .local/share/themes (where `mde setup` deploys it per-user), which is NOT on
+#    labwc's path under -C; without this system copy the title-bar frames fall back
+#    to labwc's default look on a fresh install.
+install -d %{buildroot}%{_datadir}/themes
+cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
+    %{buildroot}%{_datadir}/themes/
+
 %files
 %doc DISCLAIMER.md
 %{_bindir}/mde
@@ -171,6 +183,7 @@ chmod 0755 %{buildroot}%{_datadir}/mde/skel/.config/labwc/autostart
 %{_sbindir}/lizardfs-admin
 %{_datadir}/mde/
 %{_datadir}/wayland-sessions/mde.desktop
+%{_datadir}/themes/Win2000-MDE/
 
 %changelog
 * Sat Jun 06 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-2
@@ -183,6 +196,9 @@ chmod 0755 %{buildroot}%{_datadir}/mde/skel/.config/labwc/autostart
   fallback. The E8.5 rewrite dropped it, so labwc launched against an empty config
   dir: black desktop (autostart never ran `mde panel`) + labwc's built-in one-item
   fallback root menu. This is what makes the shell actually come up on login.
+- fix: also install the Win2000-MDE Openbox theme into %{_datadir}/themes so labwc
+  resolves the rc.xml <theme> on its standard search path under `-C` — otherwise
+  title-bar frames fell back to labwc's default look on a fresh install.
 * Fri Jun 05 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-1
 - v10.0.0: the MackesWorkstation monorepo — native-Rust mesh desktop. Spec
   rewritten from the Python-era mackes-shell for the Rust workspace; bundles
