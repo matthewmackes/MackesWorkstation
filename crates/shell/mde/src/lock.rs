@@ -45,16 +45,14 @@ enum Message {
     Submit,
 }
 
-/// Dispatch for `mde lock`. Win10 + an enrolled PIN → the overlay; otherwise the
-/// classic logind lock (so a PIN-less or classic session is never trapped).
+/// Dispatch for `mde lock`. An enrolled PIN → the lock overlay; otherwise the
+/// classic logind lock (so a PIN-less session is never trapped). E9: the overlay
+/// is a universal Carbon feature (was Windows-10-era-gated).
 pub fn run(_args: &[String]) -> ExitCode {
-    if !palette::is_windows10() {
-        return crate::dialogs::lock();
-    }
     if !crate::pin::is_set() {
         eprintln!(
             "mde lock: no PIN enrolled — set one in Settings ▸ Accounts ▸ Sign-in options for \
-             the Windows 10 lock screen; falling back to loginctl lock-session."
+             the lock screen; falling back to loginctl lock-session."
         );
         return crate::dialogs::lock();
     }
