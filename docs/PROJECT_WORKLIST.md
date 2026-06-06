@@ -1136,7 +1136,10 @@ _Depends: E4 (reconciliation). **⚠️ SUPERSEDES the four-look lock** (CLAUDE.
 - [ ] **E9.4: E9 — Carbon interaction states** (strict 2px `$focus` ring + hover/active/selected/disabled tokens on every interactive element).
 - [ ] **E9.5: E9 — Carbon motion tokens** (standard durations + easing for hovers/expansions/toasts).
 - [ ] **E9.6: E9 — Compliance enforcement** (token-pinning tests + a CI lint gate failing on raw values outside the token modules).
-- [ ] **E9.7: E9 — Rip out era code as converted** (delete Win2000 ground-truth + carbon()/win10()/beos() remaps, the tiled Start, era-gated branches — no dormant dead code, §3).
+- [>] **E9.7: E9 — Rip out era code as converted** (delete Win2000 ground-truth + carbon()/win10()/beos() remaps, the tiled Start, era-gated branches — no dormant dead code, §3). Done in one-era-per-commit slices:
+  - **[✓] Slice 1 — BeOS (2026-06-06, `49a298cd` on main):** removed `Theme::Beos`, `is_beos()`, the `beos()` remap, the panel Deskbar (`view_vertical`/`vbar_sep`/`BEOS_BAR_W`), startup mapping, era test points. Fixed the enum-discriminant-shift bug the tests caught. Build+tests green.
+  - **[ ] Slice 2 — Windows10:** ~25 files (`is_windows10()` gates 17 surfaces + `Theme::Windows10` in 8 + the whole `start_win10.rs` + win10 `state.rs` fields + win10 settings). Atomic (won't compile until done) → a full-context session. Sub-slice: start_win10 surface → win10 panel layout → the `is_windows10`/`Theme::Windows10` gates.
+  - **[ ] Slice 3 — Win2000:** re-root the palette on Carbon identity (Win2000 is today's ground-truth key space) — then **E9.2 type-scale/8px-spacing** re-base is unblocked.
 
 ### E10 — Ultimate File Manager (operator epic, 2026-06-06)
 _Depends: E9.2 (Carbon substrate), E3 (mesh). Scope locks in memory `epic-ultimate-file-manager-scope`. Subsumes/【retires】the E5.1 split-Explorer plan — one manager remains._
