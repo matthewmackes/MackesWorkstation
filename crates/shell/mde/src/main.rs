@@ -61,7 +61,6 @@ mod security_probe;
 mod settings;
 mod snip;
 mod start_common;
-mod start_win10;
 mod state;
 mod sysinfo;
 mod system_properties;
@@ -97,7 +96,6 @@ COMMANDS:
     connect [--list]   Print the KDE Connect device roster (the host runs in mackesd)
     phone              Your Phone / Mobile Devices — KDE Connect device window (E9)
 
-    start-win10        Tiled Win10 Start overlay (--pin/--unpin/--resize/--list-tiles)
     action-center      Win10 Action Center (Win+A): notifications + quick-action tiles
     toast ID           Transient bottom-right toast for notification <ID>
     task-view          Task View (Win+Tab): window grid + virtual desktops
@@ -190,7 +188,6 @@ fn main() -> ExitCode {
     match cmd {
         "panel" => panel::run(rest),
         "menu" => menu::run(rest),
-        "start-win10" => start_win10::run(rest),
         "action-center" => action_center::run_center(rest),
         "toast" => action_center::run_toast(rest),
         "task-view" => task_view::run(rest),

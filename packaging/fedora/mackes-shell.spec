@@ -105,7 +105,7 @@ done
 # 2. The mde shell's subcommand symlink farm (argv[0] dispatch): mde-<sub> -> mde
 #    for the subcommands that aren't already standalone binaries, so .desktop
 #    Exec= / labwc keybinds resolve.
-for sub in panel menu popup start-win10 action-center task-view search settings \
+for sub in panel menu popup action-center task-view search settings \
            personalization jumplist net-flyout connect phone control-panel \
            add-remove browser-default browser-jumplist display filedialog run \
            system-properties security greeter clipboard devices-monitor project \

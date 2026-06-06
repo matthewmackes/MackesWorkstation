@@ -76,8 +76,9 @@ fn dispatch_goto(mde: &str, layer: &str, sub: Option<&str>) {
         "control" | "network" => spawn(mde, &["settings"]),
         // "voip" ↦ the Your-Phone surface (closest Win10 idiom).
         "voip" => spawn(mde, &["phone"]),
-        // "hub" ↦ the tiled Start overlay.
-        "hub" => spawn(mde, &["start-win10"]),
+        // "hub" ↦ the Start surface (the cascade menu; the tiled Start was
+        // retired in the Carbon-only collapse, E9.7).
+        "hub" => spawn(mde, &["menu"]),
         other => eprintln!("mde open-uri: unmapped layer: {other}"),
     }
 }

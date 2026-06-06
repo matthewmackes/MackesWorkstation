@@ -488,8 +488,6 @@ enum Kind {
     Themes,
     /// The native Personalization ▸ Lock screen page (E7.6).
     LockScreen,
-    /// The native Personalization ▸ Start page (E7.8).
-    Start,
     /// The native Personalization ▸ Taskbar page (E7.9).
     Taskbar,
     /// The native Update & Security ▸ Update page (E13.2): status card + Check.
@@ -756,10 +754,6 @@ const CATEGORIES: &[Category] = &[
                 kind: Kind::Themes,
             },
             Page {
-                title: "Start",
-                kind: Kind::Start,
-            },
-            Page {
                 title: "Taskbar",
                 kind: Kind::Taskbar,
             },
@@ -909,14 +903,6 @@ struct Settings {
     bg_mode: BgMode,
     /// Saved theme bundles (E7.7).
     themes: Vec<crate::state::SavedTheme>,
-    /// Start page toggles (E7.8), consumed by `start_win10`.
-    start_more_tiles: bool,
-    /// Start ▸ "Use Start full screen" (E7.8b).
-    start_full_screen: bool,
-    start_show_recent: bool,
-    start_show_suggested: bool,
-    /// Start rail system folders (E7.8a): the chosen `start_win10::START_FOLDERS` keys.
-    start_folders: Vec<String>,
     /// Taskbar location (E7.9), consumed by `panel.rs`'s Win10 anchor.
     taskbar_loc: TaskbarLoc,
     /// Win10 taskbar search affordance + Task-View button (E7.9a), consumed by panel.rs.
@@ -1098,14 +1084,6 @@ enum Message {
     // Themes page (E7.7).
     SaveTheme,
     ApplyTheme(usize),
-    // Start page (E7.8).
-    SetStartMore(bool),
-    /// Start ▸ "Use Start full screen" (E7.8b).
-    SetStartFullScreen(bool),
-    SetStartRecent(bool),
-    SetStartSuggested(bool),
-    /// Toggle a system folder's presence in the Start rail (E7.8a).
-    ToggleStartFolder(String, bool),
     // Taskbar page (E7.9).
     SetTaskbarLoc(TaskbarLoc),
     SetSearchMode(SearchMode),
@@ -1490,7 +1468,6 @@ fn list() -> ExitCode {
                 Kind::Colors => "(native: Colors)".to_string(),
                 Kind::Background => "(native: Background)".to_string(),
                 Kind::Themes => "(native: Themes)".to_string(),
-                Kind::Start => "(native: Start)".to_string(),
                 Kind::Taskbar => "(native: Taskbar)".to_string(),
                 Kind::Update => "(native: Update)".to_string(),
                 Kind::UpdateHistory => "(native: Update history)".to_string(),
@@ -1563,11 +1540,6 @@ fn gui(
                 bg_selected: None,
                 bg_mode: BgMode::Fill,
                 themes: st.themes.clone(),
-                start_more_tiles: st.start_more_tiles,
-                start_full_screen: st.start_full_screen,
-                start_show_recent: st.start_show_recent,
-                start_show_suggested: st.start_show_suggested,
-                start_folders: st.start_folders.clone(),
                 taskbar_loc: TaskbarLoc::from_key(&st.taskbar_location),
                 search_mode: SearchMode::from_key(&st.win10_search_mode),
                 show_taskview: st.win10_show_taskview,
@@ -1739,37 +1711,6 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         Message::BgApply => apply_background(state),
         Message::SaveTheme => save_theme(state),
         Message::ApplyTheme(i) => apply_theme(state, i),
-        Message::SetStartMore(v) => {
-            state.start_more_tiles = v;
-            persist(state);
-        }
-        Message::SetStartFullScreen(v) => {
-            state.start_full_screen = v;
-            persist(state);
-        }
-        Message::SetStartRecent(v) => {
-            state.start_show_recent = v;
-            persist(state);
-        }
-        Message::SetStartSuggested(v) => {
-            state.start_show_suggested = v;
-            persist(state);
-        }
-        Message::ToggleStartFolder(key, on) => {
-            state.start_folders.retain(|k| k != &key);
-            if on {
-                state.start_folders.push(key);
-                // Keep the chosen set in the canonical START_FOLDERS order, so the
-                // rail order is stable regardless of toggle sequence.
-                state.start_folders.sort_by_key(|k| {
-                    crate::start_win10::START_FOLDERS
-                        .iter()
-                        .position(|f| f.0 == k.as_str())
-                        .unwrap_or(usize::MAX)
-                });
-            }
-            persist(state);
-        }
         Message::SetTaskbarLoc(loc) => {
             state.taskbar_loc = loc;
             persist(state);
@@ -3004,7 +2945,6 @@ fn open_current(state: &mut Settings) {
         | Kind::Colors
         | Kind::Background
         | Kind::Themes
-        | Kind::Start
         | Kind::Taskbar
         | Kind::Update
         | Kind::UpdateHistory
@@ -3074,11 +3014,6 @@ fn persist(state: &Settings) {
     st.theme_mode = if state.dark { "dark" } else { "light" }.to_string();
     st.win10_accent = state.win10_accent;
     st.win10_accent_on_taskbar = state.accent_on_taskbar;
-    st.start_more_tiles = state.start_more_tiles;
-    st.start_full_screen = state.start_full_screen;
-    st.start_show_recent = state.start_show_recent;
-    st.start_show_suggested = state.start_show_suggested;
-    st.start_folders = state.start_folders.clone();
     st.taskbar_location = state.taskbar_loc.key().to_string();
     st.win10_search_mode = state.search_mode.key().to_string();
     st.win10_show_taskview = state.show_taskview;
@@ -3382,7 +3317,6 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Colors => colors_page(state),
         Kind::Background => background_page(state),
         Kind::Themes => themes_page(state),
-        Kind::Start => start_page(state),
         Kind::Taskbar => taskbar_page(state),
         Kind::Update => update_page(state),
         Kind::UpdateHistory => update_history_page(state),
@@ -6341,61 +6275,6 @@ fn theme_tile(i: usize, t: &crate::state::SavedTheme) -> Element<'static, Messag
                 .color(palette::color(palette::WINDOW_TEXT)),
         );
     mouse_area(card).on_press(Message::ApplyTheme(i)).into()
-}
-
-/// Personalization ▸ Start (E7.8): the toggles the Win10 tiled Start consumes.
-fn start_page(state: &Settings) -> Element<'_, Message> {
-    let row = |label: &'static str, checked: bool, msg: fn(bool) -> Message| {
-        checkbox(label, checked)
-            .on_toggle(msg)
-            .size(metrics::UI_PX)
-            .text_size(metrics::UI_PX)
-            .spacing(8.0)
-            .style(mde_ui::checkbox_style)
-    };
-    let mut col = Column::new()
-        .spacing(10.0)
-        .push(row(
-            "Show more tiles",
-            state.start_more_tiles,
-            Message::SetStartMore,
-        ))
-        .push(row(
-            "Use Start full screen",
-            state.start_full_screen,
-            Message::SetStartFullScreen,
-        ))
-        .push(row(
-            "Show recently added apps",
-            state.start_show_recent,
-            Message::SetStartRecent,
-        ))
-        .push(row(
-            "Show most used apps",
-            state.start_show_suggested,
-            Message::SetStartSuggested,
-        ))
-        .push(
-            text("Choose which folders appear on Start")
-                .size(metrics::UI_PX)
-                .font(mde_ui::font::ui_bold()),
-        );
-    // One checkbox per selectable system folder (E7.8a); toggling persists and the
-    // Start rail reflects it on next open. Closures capture the key, so these can't
-    // use the `fn(bool)`-pointer `row` helper above.
-    for entry in crate::start_win10::START_FOLDERS {
-        let key = entry.0.to_string();
-        let checked = state.start_folders.iter().any(|k| k == &key);
-        col = col.push(
-            checkbox(entry.1, checked)
-                .on_toggle(move |on| Message::ToggleStartFolder(key.clone(), on))
-                .size(metrics::UI_PX)
-                .text_size(metrics::UI_PX)
-                .spacing(8.0)
-                .style(mde_ui::checkbox_style),
-        );
-    }
-    col.into()
 }
 
 /// Personalization ▸ Taskbar (E7.9): the location dropdown drives the panel

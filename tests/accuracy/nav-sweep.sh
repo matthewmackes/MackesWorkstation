@@ -32,11 +32,11 @@ command -v grim >/dev/null || { echo "nav-sweep: grim not found" >&2; exit 1; }
 mkdir -p "$out"
 
 # The P0 surfaces swept in every era. The Win10-only ones (action-center, task-view,
-# search, project, start-win10) self-gate and exit 0 under the classic eras.
-P0=(panel menu files control-panel system-properties settings action-center task-view search project start-win10)
+# search, project) self-gate and exit 0 under the classic eras.
+P0=(panel menu files control-panel system-properties settings action-center task-view search project)
 # The Win10 surfaces captured for the focus-ring pass (xdg-toplevel + layer-shell
 # surfaces that render a focusable control on open).
-WIN10_FOCUS=(settings search action-center task-view start-win10)
+WIN10_FOCUS=(settings search action-center task-view)
 
 # --- bring up an isolated headless sway ------------------------------------------
 before=$(ls "$RT"/wayland-[0-9]* 2>/dev/null | grep -v '\.lock' | sort)
@@ -67,7 +67,7 @@ export XDG_CONFIG_HOME="$cfg"
 
 seed() { printf '{"theme":"%s","theme_mode":"dark","icon_set":"%s"}\n' "$1" "$2" > "$cfg/mde/menu.json"; }
 clear_singletons() {
-    for p in mde-menu mde-start-win10 mde-search mde-action-center; do
+    for p in mde-menu mde-search mde-action-center; do
         [ -f "$RT/$p.pid" ] && { kill "$(cat "$RT/$p.pid")" 2>/dev/null; rm -f "$RT/$p.pid"; }
     done
 }

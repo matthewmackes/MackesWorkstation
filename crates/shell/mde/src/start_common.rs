@@ -1,7 +1,7 @@
-//! Shared building blocks for the two Start surfaces — the Carbon switcher
-//! (`menu.rs`) and the Windows 10 tiled Start (`start_win10.rs`). Extracted so
-//! the flat tile widget, the launch helpers, and the single-instance guard each
-//! have ONE implementation instead of being copied per surface.
+//! Shared building blocks for the Start surface (`menu.rs`, the Carbon/Win2000
+//! cascade menu). Holds the flat tile widget, the launch helpers, and the
+//! single-instance guard so each has ONE implementation. (The Windows 10 tiled
+//! Start was retired in the Carbon-only collapse, E9.7.)
 
 use std::process::Command;
 
@@ -36,25 +36,20 @@ pub fn mde_self(sub: &str) {
     }
 }
 
-/// The Start subcommand for the active era. Every era now opens the Carbon/
-/// Win2000 cascade menu (`mde menu`) — the Windows 10 tiled Start was retired
-/// from the Start button (operator request 2026-06-06): the cascade menu is the
-/// one Start surface across all themes. The ONE place the per-era choice lives,
-/// so the panel Start button and the `mde start` keybind dispatcher always agree.
+/// The Start subcommand: the Carbon/Win2000 cascade menu (`mde menu`) — the one
+/// Start surface across all themes (the Windows 10 tiled Start was retired in the
+/// Carbon-only collapse, E9.7). The ONE place the Start subcommand name lives, so
+/// the panel Start button and the `mde start` keybind dispatcher always agree.
 pub fn active_start_cmd() -> &'static str {
-    start_cmd_for(palette::is_windows10())
-}
-
-fn start_cmd_for(_is_windows10: bool) -> &'static str {
     "menu"
 }
 
 /// Single-instance guard via a pid file `<XDG_RUNTIME_DIR>/<basename>.pid`: if it
 /// names a still-live process (`/proc/<pid>`), the slot is taken. A stale file
 /// (the previous surface exited via `exit(0)`, which skips cleanup) is harmless —
-/// its pid is gone, so we reclaim it. The `basename` lets each Start surface
-/// guard its own slot (the Carbon menu on `mde-menu`, the Win10 Start on
-/// `mde-start-win10`). Linux-only liveness check, no extra dependency.
+/// its pid is gone, so we reclaim it. The `basename` lets a Start surface guard
+/// its own slot (the Carbon menu on `mde-menu`). Linux-only liveness check, no
+/// extra dependency.
 pub fn acquire_singleton(basename: &str) -> bool {
     let dir = std::env::var("XDG_RUNTIME_DIR").unwrap_or_else(|_| "/tmp".to_string());
     let path = format!("{dir}/{basename}.pid");
@@ -70,8 +65,8 @@ pub fn acquire_singleton(basename: &str) -> bool {
 
 /// One flat Start tile: a vertical button (icon over a centered, wrapped label)
 /// with an accent-tinted hover. `right`, when set, wires a right-click message.
-/// Generic over the surface's `Message` so both Start surfaces share it; the
-/// Carbon switcher passes its fixed 104×88, the Win10 Start its per-size spans.
+/// Generic over the surface's `Message`; the Carbon switcher passes its fixed
+/// 104×88.
 pub fn tile<'a, M: Clone + 'a>(
     icon: Element<'a, M>,
     label: &'a str,
@@ -109,7 +104,7 @@ pub fn tile<'a, M: Clone + 'a>(
 }
 
 /// Flat tile style: transparent at rest, accent-tinted on hover/press, 2px radius,
-/// label in menu text. Shared by both Start surfaces (flat under Carbon/Win10).
+/// label in menu text (flat under Carbon).
 pub fn tile_style() -> impl Fn(&iced::Theme, button::Status) -> button::Style {
     |_theme, status| {
         let hot = matches!(status, button::Status::Hovered | button::Status::Pressed);
@@ -133,10 +128,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn start_cmd_is_cascade_menu_in_every_era() {
-        // 2026-06-06: the Win10 tiled Start was retired from the Start button;
-        // every era opens the Carbon/Win2000 cascade menu (`mde menu`).
-        assert_eq!(start_cmd_for(true), "menu");
-        assert_eq!(start_cmd_for(false), "menu");
+    fn start_cmd_is_the_cascade_menu() {
+        // E9.7: the Win10 tiled Start was retired; the cascade menu (`mde menu`)
+        // is the one Start surface for the panel button and the keybind dispatcher.
+        assert_eq!(active_start_cmd(), "menu");
     }
 }

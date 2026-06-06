@@ -22,7 +22,7 @@
 /// Pure desktop-UI subcommands — refused on a pinned non-Workstation role.
 /// Deliberately excludes the core CLI and every setup/role tool (see the module
 /// docs): adding `setup` here would break `mde setup --profile` upgrades.
-const DESKTOP_ONLY: &[&str] = &["settings", "start-win10", "action-center", "security"];
+const DESKTOP_ONLY: &[&str] = &["settings", "action-center", "security"];
 
 /// The shared role check: `Ok` when the desktop is permitted (Workstation, or
 /// no role pinned yet), `Err(reason)` when a pinned non-Workstation role can't
@@ -92,7 +92,7 @@ mod tests {
 
     #[test]
     fn desktop_set_is_the_pure_ui_surfaces() {
-        for ui in ["settings", "start-win10", "action-center", "security"] {
+        for ui in ["settings", "action-center", "security"] {
             assert!(DESKTOP_ONLY.contains(&ui), "{ui} should be role-gated");
         }
     }

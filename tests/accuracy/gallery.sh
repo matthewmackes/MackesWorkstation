@@ -110,7 +110,7 @@ panel_crop() {
 # from an earlier run holds its pid slot, which makes that capture come back
 # blank (the surface exits as a duplicate). Kill by the pid FILE (never pkill -f,
 # which would match this script's own command line).
-for s in mde-menu mde-start-win10; do
+for s in mde-menu; do
     pf="$RT/$s.pid"
     [ -f "$pf" ] && { kill "$(cat "$pf")" 2>/dev/null; rm -f "$pf"; }
 done
@@ -164,16 +164,6 @@ for era in "carbon:carbon:" \
         printf '{"theme":"windows10","theme_mode":"dark","explorer_landing":"network"}\n' \
             > "$era_cfg/mde/menu.json"
         shot "files-win10-network" files
-        # A non-default start_folders set (E7.8a) so the rail visibly reflects the
-        # chosen folders (Pictures/Music/Videos/Personal), proving it consumes config.
-        printf '{"theme":"windows10","theme_mode":"dark","start_folders":["pictures","music","videos","personal"],"pinned":[{"name":"Files","command":"mde files"},{"name":"Firefox","command":"firefox","launch_count":5},{"name":"Terminal","command":"foot"}]}\n' \
-            > "$era_cfg/mde/menu.json"
-        "$bin" start-win10 --resize Files wide >/dev/null 2>&1
-        rm -f "$RT/mde-start-win10.pid" # a stale singleton would make Start exit blank
-        shot "start-win10" --wait 2.6 start-win10
-        # The Personalization ▸ Start settings page, incl. the E7.8a "Choose which
-        # folders appear on Start" chooser.
-        shot "settings-start" --wait 2.6 settings personalization --page start
         # Devices pages (E12.11): the native Settings ▸ Devices surfaces. Re-seed a
         # clean Win10 menu.json; a few env seams populate the data-driven pages
         # deterministically (the same MDE_CUPS_FIXTURE / MDE_TOUCHPAD seams the
@@ -248,8 +238,8 @@ fi
 # fatal), so this assembles whatever the run captured.
 if command -v montage >/dev/null 2>&1; then
     win10_p0=()
-    for s in panel start-win10 menu search task-view action-center security \
-             settings-start settings-apps-default; do
+    for s in panel menu search task-view action-center security \
+             settings-apps-default; do
         [[ -f "$out/windows10/$s.png" ]] && win10_p0+=("$out/windows10/$s.png")
     done
     if (( ${#win10_p0[@]} )); then

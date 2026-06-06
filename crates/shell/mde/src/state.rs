@@ -19,62 +19,6 @@ pub struct PinnedItem {
     pub launch_count: u32,
 }
 
-/// A Windows 10 Start tile size (the right tile area). Each maps to a grid span
-/// in base small-tile cells; see `metrics::TILE_*_PX`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum TileSize {
-    Small,
-    #[default]
-    Medium,
-    Wide,
-    Large,
-}
-
-impl TileSize {
-    /// (cols, rows) span in base small-tile cells.
-    pub fn span(self) -> (u16, u16) {
-        match self {
-            TileSize::Small => (1, 1),
-            TileSize::Medium => (2, 2),
-            TileSize::Wide => (4, 2),
-            TileSize::Large => (4, 4),
-        }
-    }
-    /// The lowercase token (round-trips with [`TileSize::from_token`]).
-    pub fn token(self) -> &'static str {
-        match self {
-            TileSize::Small => "small",
-            TileSize::Medium => "medium",
-            TileSize::Wide => "wide",
-            TileSize::Large => "large",
-        }
-    }
-    /// Parse a size token; anything unrecognized falls back to `Medium`.
-    pub fn from_token(s: &str) -> TileSize {
-        match s.to_ascii_lowercase().as_str() {
-            "small" => TileSize::Small,
-            "wide" => TileSize::Wide,
-            "large" => TileSize::Large,
-            _ => TileSize::Medium,
-        }
-    }
-}
-
-/// One Windows 10 Start tile. Optional fields tolerate missing/garbage to sane
-/// defaults (§2.6).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct StartTile {
-    pub name: String,
-    pub command: String,
-    #[serde(default)]
-    pub icon: String,
-    #[serde(default)]
-    pub size: TileSize,
-    #[serde(default)]
-    pub group: String,
-}
-
 /// A saved Windows 10 theme bundle (Settings ▸ Personalization ▸ Themes, E7.7):
 /// a wallpaper + UI accent + light/dark, applied together on select.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -119,14 +63,6 @@ fn def_quick_actions() -> Vec<String> {
     .collect()
 }
 
-/// The Start-rail system folders shown by default (the pre-E7.8a hardcoded set).
-fn def_start_folders() -> Vec<String> {
-    ["documents", "pictures", "downloads"]
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
-}
-
 /// The persisted menu/shell state. `#[serde(default)]` on every field keeps old
 /// files loadable as new fields are added. The appearance fields default to the
 /// Carbon theme (dark, neutral icons) — see SPEC-carbon-theme.md — so explicit
@@ -155,11 +91,6 @@ pub struct MenuState {
     /// Icon accent hue: "neutral" (default), "blue", "orange", or "red".
     #[serde(default = "def_icon_color")]
     pub icon_color: String,
-    /// Windows 10 Start tiles (the right tile area). Empty on a fresh config;
-    /// the Win10 Start seeds it from `pinned` (see [`seed_start_tiles`]) so the
-    /// area is never blank. Garbage → empty (§2.6).
-    #[serde(default)]
-    pub start_tiles: Vec<StartTile>,
     /// Win10 Action Center quick-action tile order (E3.5).
     #[serde(default = "def_quick_actions")]
     pub quick_actions: Vec<String>,
@@ -181,24 +112,6 @@ pub struct MenuState {
     /// Saved Win10 theme bundles (Personalization ▸ Themes, E7.7).
     #[serde(default)]
     pub themes: Vec<SavedTheme>,
-    /// Win10 Start ▸ "Show more tiles" — widens the tile grid (E7.8).
-    #[serde(default)]
-    pub start_more_tiles: bool,
-    /// Win10 Start ▸ "Use Start full screen" — the opaque full-window Start layout
-    /// instead of the compact bottom-left panel (E7.8b).
-    #[serde(default)]
-    pub start_full_screen: bool,
-    /// Win10 Start ▸ "Show recently added apps" (E7.8). Default on.
-    #[serde(default = "def_true")]
-    pub start_show_recent: bool,
-    /// Win10 Start ▸ "Show most used apps" (the Suggested band, E7.8). Default on.
-    #[serde(default = "def_true")]
-    pub start_show_suggested: bool,
-    /// Win10 Start ▸ "Choose which folders appear on Start" (E7.8a): the system-
-    /// folder keys shown in the Start rail, in order (see `start_win10::START_FOLDERS`).
-    /// Unknown keys are ignored by the rail. Default = Documents, Pictures, Downloads.
-    #[serde(default = "def_start_folders")]
-    pub start_folders: Vec<String>,
     /// Win10 taskbar location: "bottom" (default) or "top" — drives the
     /// `panel.rs` layer anchor (E7.9). ("left"/"right" need a vertical bar, E7.9a.)
     #[serde(default = "def_taskbar_location")]
@@ -427,17 +340,11 @@ impl Default for MenuState {
             theme: def_theme(),
             theme_mode: def_theme_mode(),
             icon_color: def_icon_color(),
-            start_tiles: Vec::new(),
             quick_actions: def_quick_actions(),
             focus_assist: false,
             virtual_desktops: def_virtual_desktops(),
             win10_accent: 0,
             themes: Vec::new(),
-            start_more_tiles: false,
-            start_full_screen: false,
-            start_show_recent: true,
-            start_show_suggested: true,
-            start_folders: def_start_folders(),
             taskbar_location: def_taskbar_location(),
             win10_show_taskview: true,
             win10_accent_on_taskbar: true,
@@ -489,9 +396,6 @@ impl Default for MenuState {
     }
 }
 
-/// The Start tiles to show: the persisted `start_tiles` if any, else seeded from
-/// the pinned items (first-run) so the Win10 Start tile area is never blank.
-/// Pure — the caller persists if it wants the seed to stick.
 /// The seeded default state for a fresh config (E18.5): the base default plus a
 /// Quick-Launch / Start pin for the default browser. Consumed only under the Win10
 /// era (see [`effective_pinned`]), so the classic eras stay pin-free by default.
@@ -511,33 +415,6 @@ pub fn effective_pinned(state: &MenuState) -> Vec<PinnedItem> {
     } else {
         state.pinned.clone()
     }
-}
-
-pub fn seed_start_tiles(state: &MenuState) -> Vec<StartTile> {
-    if !state.start_tiles.is_empty() {
-        return state.start_tiles.clone();
-    }
-    // E6.1 — seed the "Manage Workstation" console tile first: it opens
-    // the Workbench's Manage-Your-Server role landing
-    // (`mde-workbench --page dashboard`), so the role console is
-    // reachable from the Win10 Start out of the box. `seed_start_tiles`
-    // is consumed only by the Win10 Start surface (`mde start-win10`),
-    // so this tile only ever renders there — no theme gate needed.
-    let mut tiles = vec![StartTile {
-        name: "Manage Workstation".to_string(),
-        command: "mde-workbench --page dashboard".to_string(),
-        icon: String::new(),
-        size: TileSize::Wide,
-        group: String::new(),
-    }];
-    tiles.extend(effective_pinned(state).iter().map(|p| StartTile {
-        name: p.name.clone(),
-        command: p.command.clone(),
-        icon: String::new(),
-        size: TileSize::Medium,
-        group: String::new(),
-    }));
-    tiles
 }
 
 /// `~/.config/mde/menu.json` (honouring `$XDG_CONFIG_HOME`).
@@ -601,13 +478,6 @@ mod tests {
             theme: "win2000".into(),
             theme_mode: "light".into(),
             icon_color: "blue".into(),
-            start_tiles: vec![StartTile {
-                name: "Firefox".into(),
-                command: "firefox".into(),
-                icon: "firefox".into(),
-                size: TileSize::Wide,
-                group: "Web".into(),
-            }],
             quick_actions: vec!["wifi".into(), "mute".into()],
             focus_assist: true,
             virtual_desktops: 6,
@@ -618,11 +488,6 @@ mod tests {
                 accent: 3,
                 dark: true,
             }],
-            start_more_tiles: true,
-            start_full_screen: true,
-            start_show_recent: false,
-            start_show_suggested: true,
-            start_folders: vec!["documents".into(), "music".into()],
             taskbar_location: "top".into(),
             win10_show_taskview: false,
             win10_accent_on_taskbar: false,
@@ -673,76 +538,6 @@ mod tests {
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);
-    }
-
-    #[test]
-    fn tile_size_token_round_trips() {
-        for sz in [
-            TileSize::Small,
-            TileSize::Medium,
-            TileSize::Wide,
-            TileSize::Large,
-        ] {
-            assert_eq!(TileSize::from_token(sz.token()), sz);
-        }
-        assert_eq!(TileSize::from_token("nonsense"), TileSize::Medium); // §2.6 garbage → default
-        assert_eq!(TileSize::default(), TileSize::Medium);
-    }
-
-    #[test]
-    fn start_tiles_seed_from_pinned_when_empty() {
-        // E1.7: a fresh config (no start_tiles) seeds the tile area from pinned;
-        // once tiles exist, the seed is ignored.
-        let mut st = MenuState {
-            pinned: vec![PinnedItem {
-                name: "Files".into(),
-                command: "mde files".into(),
-                ..Default::default()
-            }],
-            ..Default::default()
-        };
-        let seeded = seed_start_tiles(&st);
-        // E6.1 — the "Manage Workstation" console tile seeds first, then
-        // the pins (here: Files).
-        assert_eq!(seeded.len(), 2);
-        assert_eq!(seeded[0].name, "Manage Workstation");
-        assert_eq!(seeded[0].command, "mde-workbench --page dashboard");
-        assert_eq!(seeded[0].size, TileSize::Wide);
-        assert_eq!(seeded[1].name, "Files");
-        assert_eq!(seeded[1].size, TileSize::Medium);
-        st.start_tiles = vec![StartTile {
-            name: "Term".into(),
-            command: "foot".into(),
-            icon: String::new(),
-            size: TileSize::Small,
-            group: String::new(),
-        }];
-        assert_eq!(seed_start_tiles(&st), st.start_tiles); // non-empty → no seeding
-    }
-
-    #[test]
-    fn seed_includes_manage_workstation_console_tile_even_without_pins() {
-        // E6.1 — with no custom tiles and no pins, the Manage Workstation
-        // console tile still seeds so the Workbench role console is
-        // reachable from the Win10 Start out of the box.
-        let st = MenuState::default();
-        let seeded = seed_start_tiles(&st);
-        assert!(
-            seeded
-                .iter()
-                .any(|t| t.name == "Manage Workstation"
-                    && t.command == "mde-workbench --page dashboard"),
-            "Manage Workstation console tile must seed: {seeded:?}"
-        );
-    }
-
-    #[test]
-    fn tile_defaults_tolerate_partial_json() {
-        // §2.6: a tile with only name+command fills icon/size/group with defaults.
-        let st = parse(r#"{"start_tiles":[{"name":"X","command":"x"}]}"#);
-        assert_eq!(st.start_tiles.len(), 1);
-        assert_eq!(st.start_tiles[0].size, TileSize::Medium);
-        assert_eq!(st.start_tiles[0].group, "");
     }
 
     #[test]
