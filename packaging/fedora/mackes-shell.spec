@@ -17,7 +17,7 @@
 
 Name:           mde-core
 Version:        10.0.0
-Release:        3%{?dist}
+Release:        4%{?dist}
 Summary:        Mackes Workstation (MDE) — native-Rust mesh desktop environment
 
 License:        GPL-3.0-or-later
@@ -138,15 +138,13 @@ rm -rf %{buildroot}%{_datadir}/mde/dbus-1
 
 # 4b. Bug 3 (2026-06-06) — the per-user control plane. The E8.5 spec shipped this
 # unit only to the inert %{_datadir}/mde/systemd-user path, so nothing started
-# `mackesd serve`. Install it to the active %{_userunitdir} so it is available.
-# NOTE: it ships DISABLED (the preset below) pending Bug 6 — `serve` currently
-# spawns the full fabric worker set even per-user, and a couple of those workers
-# crash-loop off an enrolled box. An operator can start it manually meanwhile.
+# `mackesd serve`. Install it to the active %{_userunitdir} + an ENABLING preset
+# so it runs at every login and owns the per-user Bus surface. (Bug 6 resolved:
+# the fabric workers prereq-gate + self-skip on a non-enrolled box, so the daemon
+# starts clean — no crash-loop to auto-enable.)
 install -d %{buildroot}%{_userunitdir}
 install -m 0644 data/systemd-user/mackesd.service \
     %{buildroot}%{_userunitdir}/mackesd.service
-# The preset (currently `disable` — see the file + Bug 6). Flip to `enable` once
-# serve gains a per-user worker subset so auto-start doesn't ship a crash-loop.
 install -d %{buildroot}%{_userpresetdir}
 install -m 0644 data/systemd-user-preset/80-mde-mackesd.preset \
     %{buildroot}%{_userpresetdir}/80-mde-mackesd.preset
@@ -214,10 +212,9 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %{_userunitdir}/mackesd.service
 %{_userpresetdir}/80-mde-mackesd.preset
 
-# Bug 3 (2026-06-06) — register the per-user control-plane unit with systemd.
-# The post scriptlet applies the shipped preset (currently 'disable' — Bug 6),
-# so this installs the unit without auto-starting a crash-loop; the preun
-# scriptlet cleans up on erase. Flip the preset to 'enable' once Bug 6 lands.
+# Bug 3 (2026-06-06) — register + enable the per-user control-plane unit. The
+# post scriptlet applies the shipped enabling preset (Bug 6 is resolved, so the
+# daemon starts clean); the preun scriptlet cleans up on erase.
 %post
 %systemd_user_post mackesd.service
 
@@ -225,6 +222,15 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %systemd_user_preun mackesd.service
 
 %changelog
+* Sat Jun 06 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-4
+- fix (Bug 6): prereq-gate the mackesd workers that can't run off an enrolled
+  box so `mackesd serve` no longer crash-loops as a per-user daemon —
+  nebula_https_listener (skip without a relay cert), fs_sync (skip without the
+  retired Python mesh-gvfs module), voice_config (skip when the system voice dir
+  isn't writable), ansible-pull (skip without MDE_ANSIBLE_PULL_URL).
+- fix (Bug 3, completes -3): with the daemon now starting clean, flip the
+  mackesd.service user-preset from disable -> enable so the control plane runs
+  at every login by default.
 * Sat Jun 06 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-3
 - fix (Bug 3, partial): install the per-user mackesd.service to the active
   %{_userunitdir} (+ a user-preset). The control plane had only been cp -a'd to
