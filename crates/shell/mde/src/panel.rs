@@ -6,7 +6,6 @@
 //! Polls the foreign-toplevel list + the clock once a second.
 
 use std::process::{Child, Command, ExitCode};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use iced::mouse::ScrollDelta;
@@ -23,31 +22,6 @@ const CARBON_BAR_H: f32 = 32.0;
 /// the panel font-DB-free in the common (PNG-icon) case.
 const START_ICON: &[u8] = include_bytes!("start_icon.png");
 
-/// Height of the Windows 10 taskbar (px) — taller than the Win2000 bar, matching
-/// Win10's stock 40px bottom bar. E0 anchors it; the Win10-specific content
-/// (search box, Task View button, jump lists) layers on in E2.
-const WIN10_BAR_H: f32 = 40.0;
-/// Compact bar height (px) for Win10 "use small taskbar buttons" (E7.9a).
-const WIN10_BAR_H_SMALL: f32 = 30.0;
-/// Width of the Win10 vertical (left/right) taskbar (px), E7.9b — wide enough for
-/// the square icon buttons (`bar_h()`) plus breathing room, like Win10's stock
-/// vertical bar.
-const WIN10_BAR_W: f32 = 56.0;
-/// Is the Win10 taskbar docked to a side (left/right → vertical layout)? Set from
-/// `state.taskbar_location` at panel startup, read by [`view_win10`].
-static WIN10_VERTICAL: AtomicBool = AtomicBool::new(false);
-/// Whether the Win10 bar is in compact ("small buttons") mode — set from
-/// `state.win10_small_buttons` at panel startup, read by [`bar_h`].
-static WIN10_SMALL: AtomicBool = AtomicBool::new(false);
-/// The active Win10 bar height: the compact height when "use small buttons" is on,
-/// else the stock 40px. Drives both the bar's height and the square buttons' width.
-fn bar_h() -> f32 {
-    if WIN10_SMALL.load(Ordering::Relaxed) {
-        WIN10_BAR_H_SMALL
-    } else {
-        WIN10_BAR_H
-    }
-}
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::Anchor;
 use iced_layershell::settings::LayerShellSettings;
@@ -98,17 +72,6 @@ struct Panel {
     /// Other fire-and-forget children (popups, launched apps) we reap each tick
     /// to keep them from piling up as zombies.
     children: Vec<Child>,
-    /// Unread notification count for the Win10 Action Center badge (E2.7),
-    /// recomputed from the notifyd mirror each tick; 0 ⇒ no chip.
-    unread: usize,
-    /// Win10 taskbar config (E2.9): show the Task View button, and the search
-    /// affordance mode ("button"/"box"/"hidden").
-    show_taskview: bool,
-    search_mode: String,
-    /// Win10 auto-hide (E2.9a): the bar starts as a 1px reveal strip and expands
-    /// on hover. `revealed` tracks the current expanded/collapsed state.
-    autohide: bool,
-    revealed: bool,
 }
 
 /// Network connectivity, summarised for the tray glyph.
@@ -132,14 +95,7 @@ enum Message {
     Brightness(bool),
     Launch(String),
     TrayActivate(usize),
-    ActionCenter,
-    TaskView,
-    Search,
-    JumpList(String),          // app_id, for the Win10 right-click jump list (E2.6)
-    QuickLaunchContext(usize), // pin index, for the Win10 Quick-Launch right-click (E18.6)
-    NetFlyout,                 // Win10 network flyout (E15.3)
-    Reveal,                    // auto-hide: pointer entered the strip → expand (E2.9a)
-    Unreveal,                  // auto-hide: pointer left the bar → collapse to 1px
+    NetFlyout, // native network flyout (E15.3), universal Carbon
     UrgentAlert(crate::urgent_theater::UrgentAlert), // BUS-2.5 urgent-theater (E0.17)
 }
 
@@ -149,7 +105,7 @@ pub fn run(_args: &[String]) -> ExitCode {
     // personalization), Win2000/Carbon show "Properties (Display)" (→ mde display).
     // The shell restarts on a theme switch, so syncing here covers both login and
     // theme changes from a single call site (E7.10a).
-    sync_root_menu(mde_ui::palette::is_windows10());
+    sync_root_menu();
     match launch() {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -164,26 +120,12 @@ pub fn run(_args: &[String]) -> ExitCode {
 /// owns the file — `sync_root_menu` then leaves it untouched (E7.10b).
 const GENERATED_MARKER: &str = "mde:generated";
 
-/// The labwc root menu (the desktop right-click). Everything matches the shipped
-/// skel byte-for-byte except the era-aware "Display" entry, so a non-Win10 desktop
-/// regenerates identically (no file churn / reconfigure). Windows 10 swaps it to
-/// the Settings "Personalize" deep-link; Win2000/Carbon keep the classic Display
-/// Properties applet.
-fn root_menu_xml(win10: bool) -> String {
-    let display_item = if win10 {
-        "    <item label=\"Personalize\">\n      <action name=\"Execute\"><command>mde settings personalization</command></action>\n    </item>"
-    } else {
-        "    <item label=\"Properties (Display)\">\n      <action name=\"Execute\"><command>mde display</command></action>\n    </item>"
-    };
-    // Windows Security is a Win10-era surface (E14.10); the entry appears only
-    // there, so launching it from the classic eras is impossible (the classic menu
-    // stays byte-for-byte the skel). `mde security` itself also era-gates. The
-    // Win+Shift+S keybind is left for the authentic Snip shortcut (E16.4).
-    let security_item = if win10 {
-        "\n    <item label=\"Windows Security\">\n      <action name=\"Execute\"><command>mde security</command></action>\n    </item>"
-    } else {
-        ""
-    };
+/// The labwc root menu (the desktop right-click). Carbon-only identity (E9.7,
+/// operator 2026-06-06): the classic Control Panel surfaces are canonical, so the
+/// desktop menu uses the classic "Properties (Display)" applet on every theme (the
+/// Win10 "Personalize"/"Windows Security" deep-links are retired with the era).
+fn root_menu_xml() -> String {
+    let display_item = "    <item label=\"Properties (Display)\">\n      <action name=\"Execute\"><command>mde display</command></action>\n    </item>";
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!-- MDE-Retro labwc menus. The root menu is the desktop right-click (Win2000
@@ -206,7 +148,7 @@ fn root_menu_xml(win10: bool) -> String {
     <item label="Set Up MDE-Retro...">
       <action name="Execute"><command>mde setup</command></action>
     </item>
-{display_item}{security_item}
+{display_item}
     <separator/>
     <item label="Reconfigure">
       <action name="Reconfigure"/>
@@ -233,17 +175,17 @@ fn should_write_root_menu(existing: Option<&str>, want: &str) -> bool {
     }
 }
 
-/// Write the era-aware root menu to `~/.config/labwc/menu.xml` and reconfigure
-/// labwc — but only when the content actually changes AND the file is still
-/// mde-generated (see `should_write_root_menu`). This runs on every panel start
-/// and after every theme-switch restart, so a steady desktop is a no-op and a
-/// hand-customised menu is never clobbered (E7.10b).
-fn sync_root_menu(win10: bool) {
+/// Write the root menu to `~/.config/labwc/menu.xml` and reconfigure labwc — but
+/// only when the content actually changes AND the file is still mde-generated (see
+/// `should_write_root_menu`). This runs on every panel start and after every
+/// theme-switch restart, so a steady desktop is a no-op and a hand-customised menu
+/// is never clobbered (E7.10b).
+fn sync_root_menu() {
     let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) else {
         return;
     };
     let path = home.join(".config/labwc/menu.xml");
-    let want = root_menu_xml(win10);
+    let want = root_menu_xml();
     let existing = std::fs::read_to_string(&path).ok();
     if !should_write_root_menu(existing.as_deref(), &want) {
         // Either already current (silent no-op) or hand-customised. Announce only
@@ -302,71 +244,15 @@ fn launch() -> Result<(), iced_layershell::Error> {
     if let Some(bytes) = nerd_font_bytes() {
         app = app.font(bytes);
     }
-    // Carbon: a flat UI Shell bar anchored to the TOP edge. BeOS: a vertical
-    // Deskbar on the left. Windows 10: a taller bottom bar. Windows 2000: the
-    // horizontal taskbar along the bottom. Either way the bar reserves its strip
-    // via the exclusive zone.
-    let layer_settings = if palette::is_carbon() {
+    // Carbon (incl. the now-collapsed Windows 10 theme, E9.7): a flat UI Shell bar
+    // anchored to the TOP edge. Windows 2000: the horizontal taskbar along the
+    // bottom. Either way the bar reserves its strip via the exclusive zone.
+    let layer_settings = if palette::is_carbon() || palette::is_windows10() {
         LayerShellSettings {
             size: Some((0, CARBON_BAR_H as u32)),
             exclusive_zone: CARBON_BAR_H as i32,
             anchor: Anchor::Top | Anchor::Left | Anchor::Right,
             ..Default::default()
-        }
-    } else if palette::is_windows10() {
-        // The Win10 taskbar can sit at the bottom (default), top, or — E7.9b — the
-        // left/right edge as a vertical bar. The bar's *content* is the same set of
-        // surfaces; only the anchored edge + orientation change.
-        let st = crate::state::load();
-        // "Use small taskbar buttons" (E7.9a) shrinks the bar + its buttons.
-        WIN10_SMALL.store(st.win10_small_buttons, Ordering::Relaxed);
-        let vertical = st.taskbar_location == "left" || st.taskbar_location == "right";
-        WIN10_VERTICAL.store(vertical, Ordering::Relaxed);
-        if vertical {
-            // A vertical strip pinned to one side, spanning top↔bottom. Width is
-            // reserved via `size.0` + `exclusive_zone`; `view_win10` lays the bar out
-            // as a Column (E7.9b). Auto-hide collapses to a 1px reveal strip.
-            let edge = if st.taskbar_location == "left" {
-                Anchor::Left
-            } else {
-                Anchor::Right
-            };
-            let w = if st.win10_autohide {
-                1
-            } else {
-                WIN10_BAR_W as u32
-            };
-            LayerShellSettings {
-                size: Some((w, 0)),
-                exclusive_zone: if st.win10_autohide {
-                    0
-                } else {
-                    WIN10_BAR_W as i32
-                },
-                anchor: edge | Anchor::Top | Anchor::Bottom,
-                ..Default::default()
-            }
-        } else {
-            let top = st.taskbar_location == "top";
-            let edge = if top { Anchor::Top } else { Anchor::Bottom };
-            if st.win10_autohide {
-                // Auto-hide (E2.9a): reserve no space and start as a 1px reveal strip
-                // at the edge. Hovering it expands to full height via `SizeChange`
-                // (see `view_win10`'s reveal `mouse_area`); leaving collapses it back.
-                LayerShellSettings {
-                    size: Some((0, 1)),
-                    exclusive_zone: 0,
-                    anchor: edge | Anchor::Left | Anchor::Right,
-                    ..Default::default()
-                }
-            } else {
-                LayerShellSettings {
-                    size: Some((0, bar_h() as u32)),
-                    exclusive_zone: bar_h() as i32,
-                    anchor: edge | Anchor::Left | Anchor::Right,
-                    ..Default::default()
-                }
-            }
         }
     } else {
         LayerShellSettings {
@@ -382,12 +268,11 @@ fn launch() -> Result<(), iced_layershell::Error> {
     })
     .run_with(|| {
         // The shared freedesktop notification daemon is hosted in the long-lived
-        // panel process, Windows 10 era only (E3); it serves D-Bus + mirrors to
-        // notifications.json on its own thread. Detached: the action-center reads
-        // the mirror, so the panel needn't hold the store.
-        if palette::is_windows10() {
-            crate::notifyd::start();
-        }
+        // panel process (E3); it serves D-Bus + mirrors to notifications.json on its
+        // own thread. Universal Carbon feature (E9.7): notifications/Action Center
+        // are reachable on every theme, so the daemon runs regardless of theme. The
+        // action-center reads the mirror, so the panel needn't hold the store.
+        crate::notifyd::start();
         let st = crate::state::load();
         let panel = Panel {
             tray: Some(crate::tray::start()),
@@ -396,11 +281,7 @@ fn launch() -> Result<(), iced_layershell::Error> {
             wm: wlr::start(),
             has_backlight: backlight_dir().is_some(),
             clock_offset: utc_offset_secs(),
-            show_taskview: st.win10_show_taskview,
-            search_mode: st.win10_search_mode.clone(),
-            autohide: st.win10_autohide,
-            // Seeds the default-browser pin under Win10 when nothing is pinned yet
-            // (E18.5); the classic eras get `st.pinned` verbatim.
+            // Seeds the default-browser pin when nothing is pinned yet (E18.5).
             pinned: crate::state::effective_pinned(&st),
             ..Panel::default()
         };
@@ -446,10 +327,6 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
             // Mesh-status chip (PANEL-POLISH): copy the latest snapshot the
             // background poller wrote — a cheap shared-memory read.
             state.mesh_status = state.mesh.lock().ok().and_then(|g| *g);
-            // Win10 Action Center unread badge (E2.7): a cheap mirror-file read.
-            if palette::is_windows10() {
-                state.unread = crate::notifyd::unread_count();
-            }
             // The expensive indicators each fork a subprocess (date / wpctl /
             // nmcli). They only need ~minute precision and change rarely, so poll
             // them every 5th tick — cutting ~3 forks/sec to ~0.6/sec.
@@ -478,22 +355,6 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
                 crate::tray::activate(&it.service, &it.path);
             }
         }
-        // Open the Action Center pane; it stamps last_read, so the badge clears
-        // on the next tick (E2.7).
-        Message::ActionCenter => push_child(state, spawn_child(&["action-center"])),
-        // Open the Task View overlay (E2.3 — the same surface W-Tab binds).
-        Message::TaskView => push_child(state, spawn_child(&["task-view"])),
-        // Open the Search flyout (E2.9 search affordance — same surface as W-s).
-        Message::Search => push_child(state, spawn_child(&["search"])),
-        // Right-click jump list for a taskbar app button (E2.6).
-        Message::JumpList(app_id) => push_child(state, spawn_child(&["jumplist", &app_id])),
-        // Right-click a Win10 Quick-Launch pin → the browser jump list (E18.6). The
-        // seeded pin is the default browser; `--pin <idx>` identifies which pin. The
-        // child is reaped by the per-tick `try_wait` sweep above, like other popups.
-        Message::QuickLaunchContext(idx) => push_child(
-            state,
-            spawn_child(&["browser-jumplist", "--pin", &idx.to_string()]),
-        ),
         Message::NetFlyout => push_child(state, spawn_child(&["net-flyout"])),
         // Toggle the Start menu: open it if closed, close it if already open.
         // Owning the child (instead of fire-and-forget spawning) is what stops
@@ -558,27 +419,6 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
             if let Some(child) = step_brightness(up) {
                 state.children.push(child);
             }
-        }
-        // Auto-hide reveal (E2.9a): expand on edge-hover, collapse back to the 1px
-        // strip on leave, via the layer-shell SizeChange action. A side-docked bar
-        // (E7.9b) grows along width; the top/bottom bar grows along height.
-        Message::Reveal if state.autohide && !state.revealed => {
-            state.revealed = true;
-            let size = if WIN10_VERTICAL.load(Ordering::Relaxed) {
-                (WIN10_BAR_W as u32, 0)
-            } else {
-                (0, bar_h() as u32)
-            };
-            return Task::done(Message::SizeChange(size));
-        }
-        Message::Unreveal if state.autohide && state.revealed => {
-            state.revealed = false;
-            let size = if WIN10_VERTICAL.load(Ordering::Relaxed) {
-                (1, 0)
-            } else {
-                (0, 1)
-            };
-            return Task::done(Message::SizeChange(size));
         }
         Message::UrgentAlert(alert) => {
             // BUS-2.5 (E0.17) — raise the full-screen urgent takeover.
@@ -655,14 +495,9 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
                 .into(),
         );
     }
-    // Win10 opens the native network flyout (E15.3); other eras keep the GTK
-    // nm-connection-editor.
-    let net_action = if mde_ui::palette::is_windows10() {
-        Message::NetFlyout
-    } else {
-        Message::Launch("nm-connection-editor".into())
-    };
-    v.push(glyph_button(net_glyph(state.net), net_action));
+    // The native network flyout (E15.3) is a universal Carbon surface (un-gated in
+    // E9.7 slice 2a), so the tray opens it on every theme.
+    v.push(glyph_button(net_glyph(state.net), Message::NetFlyout));
     // Mesh-status chip (PANEL-POLISH, E5.5) — peer-count + online glyph; opens
     // the Workbench mesh view. Hidden until the first poll lands.
     if let Some(ms) = state.mesh_status {
@@ -682,13 +517,11 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
     v
 }
 
-/// Dispatch to the Carbon top bar, the vertical BeOS Deskbar, the Windows 10
-/// bottom bar, or the horizontal Windows-2000 taskbar.
+/// Dispatch to the Carbon top bar (incl. the collapsed Windows 10 theme, E9.7) or
+/// the horizontal Windows-2000 taskbar.
 fn view(state: &Panel) -> Element<'_, Message> {
-    if palette::is_carbon() {
+    if palette::is_carbon() || palette::is_windows10() {
         view_carbon(state)
-    } else if palette::is_windows10() {
-        view_win10(state)
     } else {
         view_horizontal(state)
     }
@@ -859,399 +692,6 @@ fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
     mouse_area(col)
         .on_press(Message::TaskButton(w.id))
         .on_right_press(Message::MinimizeToggle(w.id))
-        .into()
-}
-
-/// The Windows 10 taskbar: a flat dark bottom bar. Left: a square Start tile.
-/// Middle: running apps as icon-only buttons with a 2px accent underline on the
-/// focused one. Right: tray glyphs + clock. (Search box, Task View, jump lists,
-/// badges, and the Action Center button are later E2 stories.)
-/// The Windows 10 Start tile: a flat, icon-only square (the Windows-logo Nerd
-/// glyph, themeable light-on-dark; accent-tinted while Start is open). Raster-free
-/// and SVG-free, like the rest of the panel (§7).
-fn win10_start_tile(state: &Panel) -> Element<'_, Message> {
-    let c = if state.menu.is_some() {
-        palette::chrome_accent()
-    } else {
-        palette::color(palette::WINDOW_TEXT)
-    };
-    mouse_area(
-        container(
-            text("\u{f17a}")
-                .size(metrics::START_GLYPH_PX)
-                .font(mde_ui::font::NERD)
-                .color(c),
-        )
-        .height(Length::Fill)
-        .center_x(Length::Fixed(bar_h()))
-        .center_y(Length::Fill),
-    )
-    .on_press(Message::Start)
-    .on_right_press(Message::StartContext)
-    .into()
-}
-
-/// The Win10 Task View button (next to Start): overlapping-windows Nerd glyph;
-/// click opens the Task View overlay (E2.3, same surface as W-Tab).
-fn win10_taskview_button() -> Element<'static, Message> {
-    mouse_area(
-        container(
-            text("\u{f24d}") // nf-fa-clone (overlapping squares)
-                .size(metrics::BUTTON_GLYPH_PX)
-                .font(mde_ui::font::NERD)
-                .color(palette::color(palette::WINDOW_TEXT)),
-        )
-        .height(Length::Fill)
-        .center_x(Length::Fixed(bar_h()))
-        .center_y(Length::Fill),
-    )
-    .on_press(Message::TaskView)
-    .into()
-}
-
-/// The Win10 search affordance (E2.9), per `search_mode`: a magnifier button, a
-/// wider "Search" pill ("box"), or nothing ("hidden"). All open `mde search`.
-fn win10_search_affordance(mode: &str) -> Option<Element<'static, Message>> {
-    let glyph = text("\u{f002}") // nf-fa-search (magnifier)
-        .size(metrics::PANEL_GLYPH_PX)
-        .font(mde_ui::font::NERD)
-        .color(palette::color(palette::WINDOW_TEXT));
-    let inner: Element<Message> = match mode {
-        "hidden" => return None,
-        "box" => Row::new()
-            .spacing(6.0)
-            .align_y(iced::Alignment::Center)
-            .push(glyph)
-            .push(
-                text("Search")
-                    .size(metrics::UI_PX)
-                    .color(palette::color(palette::WINDOW_TEXT)),
-            )
-            .into(),
-        _ => glyph.into(), // "button"
-    };
-    let pad_x = if mode == "box" { 12.0 } else { 0.0 };
-    let w = if mode == "box" {
-        Length::Shrink
-    } else {
-        Length::Fixed(bar_h())
-    };
-    Some(
-        mouse_area(
-            container(inner)
-                .width(w)
-                .height(Length::Fill)
-                .center_x(w)
-                .center_y(Length::Fill)
-                .padding(Padding {
-                    top: 0.0,
-                    right: pad_x,
-                    bottom: 0.0,
-                    left: pad_x,
-                }),
-        )
-        .on_press(Message::Search)
-        .into(),
-    )
-}
-
-/// The Win10 Action Center button (far right): a speech-bubble Nerd glyph with a
-/// small accent unread-count chip when notifications are pending (E2.7). Click
-/// opens `mde action-center`, which stamps last_read so the chip clears.
-fn win10_ac_button(state: &Panel) -> Element<'_, Message> {
-    let glyph = text("\u{f075}") // nf-fa-comment
-        .size(metrics::BUTTON_GLYPH_PX)
-        .font(mde_ui::font::NERD)
-        .color(palette::color(palette::WINDOW_TEXT));
-    let inner: Element<Message> = if state.unread > 0 {
-        let badge = container(
-            text(state.unread.min(99).to_string())
-                .size(metrics::BADGE_PX)
-                .color(palette::color(palette::HIGHLIGHT_TEXT)),
-        )
-        .padding(Padding {
-            top: 0.0,
-            right: 3.0,
-            bottom: 0.0,
-            left: 3.0,
-        })
-        .style(|_| container::Style {
-            background: Some(iced::Background::Color(palette::chrome_accent())),
-            border: iced::Border {
-                radius: 6.0.into(),
-                ..Default::default()
-            },
-            ..container::Style::default()
-        });
-        Row::new()
-            .spacing(2.0)
-            .align_y(iced::Alignment::Center)
-            .push(glyph)
-            .push(badge)
-            .into()
-    } else {
-        glyph.into()
-    };
-    mouse_area(
-        container(inner)
-            .height(Length::Fill)
-            .center_y(Length::Fill)
-            .padding(Padding {
-                top: 0.0,
-                right: 4.0,
-                bottom: 0.0,
-                left: 4.0,
-            }),
-    )
-    .on_press(Message::ActionCenter)
-    .into()
-}
-
-/// The Win10 taskbar clock (E4.4): two lines — time over the short date — on the
-/// stock 40px bar, collapsing to time-only on the compact 30px ("small buttons")
-/// bar so the date line never overflows. Matches Win10, which also drops the date
-/// line on the small taskbar. Both lines are `palette::color()`-themed and sized
-/// from the metrics module (time `UI_PX`, date `BADGE_PX`).
-fn win10_clock(state: &Panel) -> Element<'_, Message> {
-    let text_c = palette::color(palette::WINDOW_TEXT);
-    let time = text(state.clock.clone()).size(metrics::UI_PX).color(text_c);
-    if WIN10_SMALL.load(Ordering::Relaxed) {
-        return time.into();
-    }
-    Column::new()
-        .align_x(iced::Alignment::Center)
-        .push(time)
-        .push(
-            text(state.date.clone())
-                .size(metrics::BADGE_PX)
-                .color(text_c),
-        )
-        .into()
-}
-
-fn view_win10(state: &Panel) -> Element<'_, Message> {
-    // Side-docked (left/right) → a vertical column layout (E7.9b).
-    if WIN10_VERTICAL.load(Ordering::Relaxed) {
-        return view_win10_vertical(state);
-    }
-    let mut bar = Row::new()
-        .spacing(0.0)
-        .height(Length::Fill)
-        .align_y(iced::Alignment::Center)
-        .push(win10_start_tile(state));
-    // Search affordance (E2.9): a magnifier button, a wider "Search" pill, or
-    // nothing — all open the search flyout.
-    if let Some(s) = win10_search_affordance(&state.search_mode) {
-        bar = bar.push(s);
-    }
-    // Task View button (E2.9: hideable).
-    if state.show_taskview {
-        bar = bar.push(win10_taskview_button());
-    }
-
-    // Quick Launch: pinned apps as icon buttons (E18.5; the default browser is
-    // seeded under Win10 via `effective_pinned`).
-    for (i, item) in state.pinned.iter().enumerate() {
-        bar = bar.push(win10_pin_button(i, item));
-    }
-
-    for w in &state.windows {
-        bar = bar.push(win10_task_button(w));
-    }
-
-    bar = bar.push(
-        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
-    );
-
-    let mut tray = Row::new().spacing(4.0).align_y(iced::Alignment::Center);
-    for g in tray_glyphs(state) {
-        tray = tray.push(g);
-    }
-    bar = bar.push(
-        container(
-            Row::new()
-                .spacing(8.0)
-                .align_y(iced::Alignment::Center)
-                .height(Length::Fill)
-                .push(tray)
-                .push(win10_clock(state))
-                .push(win10_ac_button(state)),
-        )
-        .height(Length::Fill)
-        .center_y(Length::Fill)
-        .padding(Padding {
-            top: 0.0,
-            right: 12.0,
-            bottom: 0.0,
-            left: 6.0,
-        }),
-    );
-
-    // Flat dark bar (Win10 SHELL_HEADER) with a 1px accent top edge.
-    let stack = Stack::new()
-        .push(
-            container(bar)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .style(|_| container::Style {
-                    background: Some(iced::Background::Color(palette::color(
-                        palette::SHELL_HEADER,
-                    ))),
-                    ..container::Style::default()
-                }),
-        )
-        .push(
-            Column::new()
-                .push(
-                    container(Space::new(Length::Fill, Length::Fixed(1.0)))
-                        .width(Length::Fill)
-                        .style(|_| container::Style {
-                            background: Some(iced::Background::Color(palette::chrome_accent())),
-                            ..container::Style::default()
-                        }),
-                )
-                .push(Space::new(Length::Fill, Length::Fill)),
-        );
-    // Auto-hide (E2.9a): a reveal mouse_area drives the expand/collapse — entering
-    // the 1px edge strip expands the bar, leaving it collapses back.
-    if state.autohide {
-        mouse_area(stack)
-            .on_enter(Message::Reveal)
-            .on_exit(Message::Unreveal)
-            .into()
-    } else {
-        stack.into()
-    }
-}
-
-/// The vertical (left/right-docked) Win10 taskbar layout (E7.9b): the same surfaces
-/// as the horizontal bar reflowed into a Column — Start at top, then search /
-/// Task View / Quick-Launch pins / window buttons stacked, a spacer, and the tray /
-/// clock / Action Center at the bottom. Reuses every `win10_*` button component
-/// (each is a square `bar_h()`-wide tile that stacks cleanly).
-fn view_win10_vertical(state: &Panel) -> Element<'_, Message> {
-    let text_c = palette::color(palette::WINDOW_TEXT);
-    let mut col = Column::new()
-        .spacing(2.0)
-        .width(Length::Fill)
-        .align_x(iced::Alignment::Center)
-        .push(win10_start_tile(state));
-    if let Some(s) = win10_search_affordance(&state.search_mode) {
-        col = col.push(s);
-    }
-    if state.show_taskview {
-        col = col.push(win10_taskview_button());
-    }
-    for (i, item) in state.pinned.iter().enumerate() {
-        col = col.push(win10_pin_button(i, item));
-    }
-    for w in &state.windows {
-        col = col.push(win10_task_button(w));
-    }
-    // Spacer doubles as the taskbar right-click target and pushes the tray/clock
-    // block to the bottom of the column.
-    col = col.push(
-        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
-    );
-    // Tray glyphs stacked, then the clock + Action Center, at the bottom.
-    let mut tray = Column::new().spacing(6.0).align_x(iced::Alignment::Center);
-    for g in tray_glyphs(state) {
-        tray = tray.push(g);
-    }
-    col = col
-        .push(tray)
-        .push(Space::new(Length::Fill, Length::Fixed(4.0)))
-        .push(
-            text(state.clock.clone())
-                .size(metrics::BADGE_PX)
-                .color(text_c),
-        )
-        .push(win10_ac_button(state))
-        .push(Space::new(Length::Fill, Length::Fixed(6.0)));
-
-    // Flat dark bar (SHELL_HEADER) with a 1px accent line along the top edge.
-    let stack = Stack::new()
-        .push(
-            container(col)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .style(|_| container::Style {
-                    background: Some(iced::Background::Color(palette::color(
-                        palette::SHELL_HEADER,
-                    ))),
-                    ..container::Style::default()
-                }),
-        )
-        .push(
-            Column::new()
-                .push(
-                    container(Space::new(Length::Fill, Length::Fixed(1.0)))
-                        .width(Length::Fill)
-                        .style(|_| container::Style {
-                            background: Some(iced::Background::Color(palette::chrome_accent())),
-                            ..container::Style::default()
-                        }),
-                )
-                .push(Space::new(Length::Fill, Length::Fill)),
-        );
-    if state.autohide {
-        mouse_area(stack)
-            .on_enter(Message::Reveal)
-            .on_exit(Message::Unreveal)
-            .into()
-    } else {
-        stack.into()
-    }
-}
-
-/// A Windows 10 taskbar app button: icon-only, with a 2px accent underline when
-/// focused. Left-click focuses/minimizes; right-click toggles minimize.
-fn win10_task_button(w: &wlr::Window) -> Element<'_, Message> {
-    let underline = if w.focused {
-        palette::chrome_accent()
-    } else {
-        Color::TRANSPARENT
-    };
-    let col = Column::new()
-        .width(Length::Fixed(bar_h()))
-        .height(Length::Fill)
-        .push(
-            container(crate::icons::icon_any(
-                &[w.app_id.as_str(), "application-x-executable"],
-                24,
-            ))
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill),
-        )
-        .push(
-            container(Space::new(Length::Fill, Length::Fixed(2.0))).style(move |_| {
-                container::Style {
-                    background: Some(iced::Background::Color(underline)),
-                    ..container::Style::default()
-                }
-            }),
-        );
-    mouse_area(col)
-        .on_press(Message::TaskButton(w.id))
-        .on_right_press(Message::JumpList(w.app_id.clone()))
-        .into()
-}
-
-/// A Win10 Quick-Launch pin: the app icon, launching the pinned command on click
-/// (E18.5). Right-click opens its jump list (E18.6); `idx` identifies the pin.
-fn win10_pin_button(idx: usize, item: &crate::state::PinnedItem) -> Element<'_, Message> {
-    let icon_id = item.command.split_whitespace().next().unwrap_or("");
-    let icon = container(crate::icons::icon_any(
-        &[icon_id, "application-x-executable"],
-        24,
-    ))
-    .height(Length::Fill)
-    .center_x(Length::Fixed(bar_h()))
-    .center_y(Length::Fill);
-    mouse_area(icon)
-        .on_press(Message::Launch(item.command.clone()))
-        .on_right_press(Message::QuickLaunchContext(idx))
         .into()
 }
 
@@ -1728,37 +1168,30 @@ mod tests {
     };
 
     #[test]
-    fn root_menu_matches_skel_for_classic_eras() {
-        // The non-Win10 menu must equal the shipped skel byte-for-byte: a
-        // Carbon/Win2000 desktop then regenerates identically (no churn / spurious
-        // labwc reconfigure), and the generator can't silently drift from the skel.
+    fn root_menu_matches_skel() {
+        // The generated menu must equal the shipped skel byte-for-byte: every
+        // desktop then regenerates identically (no churn / spurious labwc
+        // reconfigure), and the generator can't silently drift from the skel.
         let skel = include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/skel/.config/labwc/menu.xml"
         ));
-        assert_eq!(root_menu_xml(false), skel);
+        assert_eq!(root_menu_xml(), skel);
     }
 
     #[test]
-    fn root_menu_is_era_aware() {
-        let win10 = root_menu_xml(true);
-        assert!(win10.contains("<item label=\"Personalize\">"));
-        assert!(win10.contains("mde settings personalization"));
-        assert!(!win10.contains("mde display"));
+    fn root_menu_is_classic_only() {
+        // Carbon-only identity (E9.7): the classic Control Panel surfaces are
+        // canonical, so the desktop menu is always the classic "Properties (Display)"
+        // applet — no Win10 "Personalize"/"Windows Security" deep-links.
+        let menu = root_menu_xml();
+        assert!(menu.contains("<item label=\"Properties (Display)\">"));
+        assert!(menu.contains("mde display"));
+        assert!(!menu.contains("Personalize"));
+        assert!(!menu.contains("Windows Security"));
+        assert!(!menu.contains("mde security"));
 
-        // Windows Security is Win10-only (E14.10) — present under Win10, absent in
-        // the classic menu (which therefore stays byte-for-byte the skel).
-        assert!(win10.contains("<item label=\"Windows Security\">"));
-        assert!(win10.contains("mde security"));
-
-        let classic = root_menu_xml(false);
-        assert!(classic.contains("<item label=\"Properties (Display)\">"));
-        assert!(classic.contains("mde display"));
-        assert!(!classic.contains("Personalize"));
-        assert!(!classic.contains("Windows Security"));
-        assert!(!classic.contains("mde security"));
-
-        // The shared core of the menu is present in both eras.
+        // The shared core of the menu is present.
         for item in [
             "mde menu",
             "mde run",
@@ -1766,8 +1199,7 @@ mod tests {
             "mde setup",
             "mde logoff",
         ] {
-            assert!(win10.contains(item), "win10 menu missing {item}");
-            assert!(classic.contains(item), "classic menu missing {item}");
+            assert!(menu.contains(item), "menu missing {item}");
         }
     }
 
@@ -1775,19 +1207,19 @@ mod tests {
     fn generated_menu_carries_the_marker() {
         // The mde-generated menu (and the shipped skel, by the byte-exact test
         // above) must carry the marker, so a fresh install is regenerate-able.
-        assert!(root_menu_xml(false).contains(GENERATED_MARKER));
-        assert!(root_menu_xml(true).contains(GENERATED_MARKER));
+        assert!(root_menu_xml().contains(GENERATED_MARKER));
     }
 
     #[test]
     fn root_menu_write_respects_the_marker() {
-        let want = root_menu_xml(false);
+        let want = root_menu_xml();
         // Absent → seed it.
         assert!(should_write_root_menu(None, &want));
         // Already current → no churn (the steady-desktop no-op).
         assert!(!should_write_root_menu(Some(&want), &want));
-        // mde-generated but stale (e.g. a theme switch) → regenerate.
-        let stale = root_menu_xml(true);
+        // mde-generated but stale (e.g. an older generated menu) → regenerate.
+        let stale = want.replace("Properties (Display)", "Display Settings");
+        assert!(stale.contains(GENERATED_MARKER) && stale != want);
         assert!(should_write_root_menu(Some(&stale), &want));
         // Hand-customised (marker removed) → leave it strictly alone (E7.10b).
         let custom = "<?xml version=\"1.0\"?>\n<openbox_menu><menu id=\"root-menu\">\

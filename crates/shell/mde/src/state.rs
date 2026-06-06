@@ -112,24 +112,11 @@ pub struct MenuState {
     /// Saved Win10 theme bundles (Personalization ▸ Themes, E7.7).
     #[serde(default)]
     pub themes: Vec<SavedTheme>,
-    /// Win10 taskbar location: "bottom" (default) or "top" — drives the
-    /// `panel.rs` layer anchor (E7.9). ("left"/"right" need a vertical bar, E7.9a.)
-    #[serde(default = "def_taskbar_location")]
-    pub taskbar_location: String,
-    /// Win10 taskbar: show the Task View button (E2.9). Default on.
-    #[serde(default = "def_true")]
-    pub win10_show_taskview: bool,
-    /// Win10 "show accent color on Start & taskbar" (E7.5a). Default on; when off,
-    /// the panel chrome highlights use a neutral grey (`palette::chrome_accent`).
+    /// "Show accent color on the taskbar" (Personalization ▸ Colors, E7.5a). Default
+    /// on; when off, the panel chrome highlights use a neutral grey
+    /// (`palette::chrome_accent`). (Carbon top bar honours it on every theme.)
     #[serde(default = "def_true")]
     pub win10_accent_on_taskbar: bool,
-    /// Win10 "automatically hide the taskbar" (E2.9a). When on, the panel reserves
-    /// no space and sits as a 1px reveal strip until the edge is hovered.
-    #[serde(default)]
-    pub win10_autohide: bool,
-    /// Win10 "use small taskbar buttons" (E7.9a) — a compact 30px bar instead of 40px.
-    #[serde(default)]
-    pub win10_small_buttons: bool,
     /// Win10 Devices ▸ Printers "Let Windows manage my default printer" (E12.4).
     /// Default on (matches Win10); when on, the per-printer "Set as default" action
     /// is hidden — Windows defers the default to the last-used queue.
@@ -215,10 +202,6 @@ pub struct MenuState {
     pub backup_retention: String,
     #[serde(default)]
     pub backup_includes: Vec<String>,
-    /// Win10 taskbar search affordance: "button" (default), "box", or "hidden"
-    /// (E2.9). All open `mde search`; "box" is a wider labelled pill.
-    #[serde(default = "def_search_mode")]
-    pub win10_search_mode: String,
     /// Settings ▸ Update "Pause updates" until this Unix-seconds time (E13.4);
     /// 0 = not paused. While in the future the dnf-automatic timer is masked.
     #[serde(default)]
@@ -310,12 +293,6 @@ fn def_backup_retention() -> String {
 fn def_true() -> bool {
     true
 }
-fn def_taskbar_location() -> String {
-    "bottom".into()
-}
-fn def_search_mode() -> String {
-    "button".into()
-}
 /// Default mobile-hotspot SSID (E15.8).
 fn def_hotspot_name() -> String {
     "MackesDE".into()
@@ -345,11 +322,7 @@ impl Default for MenuState {
             virtual_desktops: def_virtual_desktops(),
             win10_accent: 0,
             themes: Vec::new(),
-            taskbar_location: def_taskbar_location(),
-            win10_show_taskview: true,
             win10_accent_on_taskbar: true,
-            win10_autohide: false,
-            win10_small_buttons: false,
             win10_manage_default_printer: true,
             mouse_left_handed: false,
             mouse_natural_scroll: false,
@@ -374,7 +347,6 @@ impl Default for MenuState {
             backup_schedule: def_backup_schedule(),
             backup_retention: def_backup_retention(),
             backup_includes: Vec::new(),
-            win10_search_mode: def_search_mode(),
             update_paused_until: 0,
             update_active_start: def_active_start(),
             update_active_end: def_active_end(),
@@ -488,11 +460,7 @@ mod tests {
                 accent: 3,
                 dark: true,
             }],
-            taskbar_location: "top".into(),
-            win10_show_taskview: false,
             win10_accent_on_taskbar: false,
-            win10_autohide: true,
-            win10_small_buttons: true,
             win10_manage_default_printer: false,
             mouse_left_handed: true,
             mouse_natural_scroll: true,
@@ -517,7 +485,6 @@ mod tests {
             backup_schedule: "weekly".into(),
             backup_retention: "last10".into(),
             backup_includes: vec!["/home/me/Documents".into()],
-            win10_search_mode: "box".into(),
             update_paused_until: 1_900_000_000,
             update_active_start: 9,
             update_active_end: 18,

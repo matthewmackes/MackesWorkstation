@@ -89,18 +89,16 @@ shot() {
 # §7 anchor table (CLAUDE.md §7 + panel.rs's anchor block), NOT magic numbers
 # inline per shot. The taskbar's anchored edge per era:
 #   Carbon    → TOP    (CARBON_BAR_H 32)              → top strip
+#   Windows10 → TOP    (collapsed to the Carbon top bar, E9.7) → top strip
 #   Win2000   → BOTTOM (TASKBAR_HEIGHT 28)            → bottom strip
-#   Windows10 → BOTTOM (WIN10_BAR_H 40, Win10 default)→ bottom strip
-#   BeOS      → LEFT   (~115px, vertical)             → left strip
-# (The worklist's "Win10 top" is a mislabel — the Win10 bar ships bottom; only the
-# opt-in Taskbar-location=top flips it. The crop targets the real anchored edge of
-# the 1280x960 headless output so the strip is never all desktop-color.)
+# (The Windows 10 theme renders the Carbon top bar since the E9.7 era collapse; its
+# crop matches Carbon. The crop targets the real anchored edge of the 1280x960
+# headless output so the strip is never all desktop-color.)
 panel_crop() {
     case "$1" in
         carbon)    echo "0,0 1280x40"  ;;
+        windows10) echo "0,0 1280x40"  ;;
         win2000)   echo "0,920 1280x40" ;;
-        windows10) echo "0,920 1280x40" ;;
-        beos)      echo "0,0 120x960"  ;;
         *)         echo "0,0 1280x40"  ;;
     esac
 }
@@ -228,7 +226,7 @@ dest="$out" # back to the gallery root for the montages below
 # Each era's panel now lives in its own subdir (E20.3): captures/gallery/<era>/panel.png.
 if command -v montage >/dev/null 2>&1; then
     montage "$out"/carbon/panel.png "$out"/win2000/panel.png \
-            "$out"/windows10/panel.png "$out"/beos/panel.png \
+            "$out"/windows10/panel.png \
             -tile 1x -geometry +0+4 -background '#222' -title "Mackes Workstation — taskbar per era" \
             "$out/_era-taskbars.png" 2>/dev/null && echo "    -> _era-taskbars.png" || true
 fi

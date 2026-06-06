@@ -98,16 +98,6 @@ pub fn save_file(f: &NotifFile) {
     }
 }
 
-/// The number of notifications newer than `last_read` — the panel's Action
-/// Center unread-badge count, computed cross-process from the mirror (E2.7).
-pub fn unread_count() -> usize {
-    let f = load_file();
-    f.notifications
-        .iter()
-        .filter(|n| n.timestamp > f.last_read)
-        .count()
-}
-
 /// Mark everything as read (stamp `last_read = now`), so the panel badge falls to
 /// 0 on its next tick. Called when the Action Center opens (E3.9).
 pub fn stamp_last_read() {

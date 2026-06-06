@@ -89,23 +89,12 @@ tol = 10
 # (`carbon_accent()` dark = #4589ff today). Bump that token in palette.rs and these
 # update with it; no magic hex to drift. The dark gallery seed (theme_mode=dark)
 # matches `dark = true`. Coordinates were located in the captured frames (the
-# accent's only solid blocks): the taskbar accent line, an "on" Action Center
-# quick-action tile, and the focused Settings nav entry's ring. (The Start rail and
-# Search box show the accent only on hover/focus/selection, so the static default
-# capture has no solid accent there — not asserted, to avoid a flaky point.)
-
-[capture.win10-taskbar]
-file = "gallery/windows10/panel.png"
-era = "windows10"
-dark = true
-# The 1px accent line along the top edge of the Win10 taskbar (accent-on-taskbar).
-
-[[capture.win10-taskbar.point]]
-label = "Win10 taskbar accent top line (HIGHLIGHT)"
-x = 640
-y = 0
-role = "HIGHLIGHT"
-tol = 12
+# accent's only solid blocks): an "on" Action Center quick-action tile and the
+# focused Settings nav entry's ring. (The Start rail and Search box show the accent
+# only on hover/focus/selection, so the static default capture has no solid accent
+# there — not asserted, to avoid a flaky point. The Win10-taskbar accent-top-line
+# point was retired in E9.7: the Win10 theme now renders the Carbon top bar, which
+# has no accent-on-taskbar line.)
 
 [capture.win10-action-center]
 file = "gallery/windows10/action-center.png"

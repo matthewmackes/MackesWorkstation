@@ -40,86 +40,6 @@ impl BgSource {
     const ALL: [BgSource; 3] = [BgSource::Picture, BgSource::Solid, BgSource::Slideshow];
 }
 
-/// Taskbar location (E7.9): the four edges the Win10 bar supports — Bottom/Top
-/// (horizontal) and Left/Right (the vertical bar, E7.9b).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TaskbarLoc {
-    Bottom,
-    Top,
-    Left,
-    Right,
-}
-impl TaskbarLoc {
-    const ALL: [TaskbarLoc; 4] = [
-        TaskbarLoc::Bottom,
-        TaskbarLoc::Top,
-        TaskbarLoc::Left,
-        TaskbarLoc::Right,
-    ];
-    fn key(self) -> &'static str {
-        match self {
-            TaskbarLoc::Bottom => "bottom",
-            TaskbarLoc::Top => "top",
-            TaskbarLoc::Left => "left",
-            TaskbarLoc::Right => "right",
-        }
-    }
-    fn from_key(k: &str) -> Self {
-        match k {
-            "top" => TaskbarLoc::Top,
-            "left" => TaskbarLoc::Left,
-            "right" => TaskbarLoc::Right,
-            _ => TaskbarLoc::Bottom,
-        }
-    }
-}
-impl std::fmt::Display for TaskbarLoc {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            TaskbarLoc::Bottom => "Bottom",
-            TaskbarLoc::Top => "Top",
-            TaskbarLoc::Left => "Left",
-            TaskbarLoc::Right => "Right",
-        })
-    }
-}
-
-/// Win10 taskbar search affordance (E7.9a): a magnifier button, a wider "Search"
-/// pill, or nothing — persisted as `win10_search_mode`, already consumed by
-/// `panel.rs` (`win10_search_affordance`, E2.9).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum SearchMode {
-    Button,
-    Box,
-    Hidden,
-}
-impl SearchMode {
-    const ALL: [SearchMode; 3] = [SearchMode::Button, SearchMode::Box, SearchMode::Hidden];
-    fn key(self) -> &'static str {
-        match self {
-            SearchMode::Button => "button",
-            SearchMode::Box => "box",
-            SearchMode::Hidden => "hidden",
-        }
-    }
-    fn from_key(k: &str) -> Self {
-        match k {
-            "box" => SearchMode::Box,
-            "hidden" => SearchMode::Hidden,
-            _ => SearchMode::Button,
-        }
-    }
-}
-impl std::fmt::Display for SearchMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            SearchMode::Button => "Search button",
-            SearchMode::Box => "Search box",
-            SearchMode::Hidden => "Hidden",
-        })
-    }
-}
-
 /// An hour of the day, for the active-hours pick-lists (E13.5) — renders `HH:00`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Hour(u8);
@@ -488,8 +408,6 @@ enum Kind {
     Themes,
     /// The native Personalization ▸ Lock screen page (E7.6).
     LockScreen,
-    /// The native Personalization ▸ Taskbar page (E7.9).
-    Taskbar,
     /// The native Update & Security ▸ Update page (E13.2): status card + Check.
     Update,
     /// The native Update & Security ▸ Update history page (E13.6).
@@ -753,10 +671,6 @@ const CATEGORIES: &[Category] = &[
                 title: "Themes",
                 kind: Kind::Themes,
             },
-            Page {
-                title: "Taskbar",
-                kind: Kind::Taskbar,
-            },
         ],
     },
     Category {
@@ -903,15 +817,6 @@ struct Settings {
     bg_mode: BgMode,
     /// Saved theme bundles (E7.7).
     themes: Vec<crate::state::SavedTheme>,
-    /// Taskbar location (E7.9), consumed by `panel.rs`'s Win10 anchor.
-    taskbar_loc: TaskbarLoc,
-    /// Win10 taskbar search affordance + Task-View button (E7.9a), consumed by panel.rs.
-    search_mode: SearchMode,
-    show_taskview: bool,
-    /// Win10 "automatically hide the taskbar" (E2.9a), consumed by panel.rs.
-    autohide: bool,
-    /// Win10 "use small taskbar buttons" (E7.9a), consumed by panel.rs.
-    small_buttons: bool,
     /// Lock screen (greeter) picture selection (E7.6).
     lock_selected: Option<usize>,
     /// Update page (E13.2): a `dnf check-update` is in flight.
@@ -1084,12 +989,6 @@ enum Message {
     // Themes page (E7.7).
     SaveTheme,
     ApplyTheme(usize),
-    // Taskbar page (E7.9).
-    SetTaskbarLoc(TaskbarLoc),
-    SetSearchMode(SearchMode),
-    SetShowTaskview(bool),
-    SetAutohide(bool),
-    SetSmallButtons(bool),
     // Lock screen page (E7.6).
     LockSelect(usize),
     LockBrowse,
@@ -1468,7 +1367,6 @@ fn list() -> ExitCode {
                 Kind::Colors => "(native: Colors)".to_string(),
                 Kind::Background => "(native: Background)".to_string(),
                 Kind::Themes => "(native: Themes)".to_string(),
-                Kind::Taskbar => "(native: Taskbar)".to_string(),
                 Kind::Update => "(native: Update)".to_string(),
                 Kind::UpdateHistory => "(native: Update history)".to_string(),
                 Kind::UpdateAdvanced => "(native: Advanced options)".to_string(),
@@ -1540,11 +1438,6 @@ fn gui(
                 bg_selected: None,
                 bg_mode: BgMode::Fill,
                 themes: st.themes.clone(),
-                taskbar_loc: TaskbarLoc::from_key(&st.taskbar_location),
-                search_mode: SearchMode::from_key(&st.win10_search_mode),
-                show_taskview: st.win10_show_taskview,
-                autohide: st.win10_autohide,
-                small_buttons: st.win10_small_buttons,
                 lock_selected: None,
                 update_checking: false,
                 update_status: None,
@@ -1711,26 +1604,6 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
         Message::BgApply => apply_background(state),
         Message::SaveTheme => save_theme(state),
         Message::ApplyTheme(i) => apply_theme(state, i),
-        Message::SetTaskbarLoc(loc) => {
-            state.taskbar_loc = loc;
-            persist(state);
-        }
-        Message::SetSearchMode(m) => {
-            state.search_mode = m;
-            persist(state);
-        }
-        Message::SetShowTaskview(v) => {
-            state.show_taskview = v;
-            persist(state);
-        }
-        Message::SetAutohide(v) => {
-            state.autohide = v;
-            persist(state);
-        }
-        Message::SetSmallButtons(v) => {
-            state.small_buttons = v;
-            persist(state);
-        }
         Message::LockSelect(i) => state.lock_selected = Some(i),
         Message::LockBrowse => {
             return Task::perform(async { wallpaper::browse() }, Message::LockBrowsed);
@@ -2945,7 +2818,6 @@ fn open_current(state: &mut Settings) {
         | Kind::Colors
         | Kind::Background
         | Kind::Themes
-        | Kind::Taskbar
         | Kind::Update
         | Kind::UpdateHistory
         | Kind::UpdateAdvanced
@@ -3014,11 +2886,6 @@ fn persist(state: &Settings) {
     st.theme_mode = if state.dark { "dark" } else { "light" }.to_string();
     st.win10_accent = state.win10_accent;
     st.win10_accent_on_taskbar = state.accent_on_taskbar;
-    st.taskbar_location = state.taskbar_loc.key().to_string();
-    st.win10_search_mode = state.search_mode.key().to_string();
-    st.win10_show_taskview = state.show_taskview;
-    st.win10_autohide = state.autohide;
-    st.win10_small_buttons = state.small_buttons;
     st.win10_manage_default_printer = state.manage_default;
     st.mouse_left_handed = state.mouse_left_handed;
     st.mouse_natural_scroll = state.mouse_natural_scroll;
@@ -3317,7 +3184,6 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
         Kind::Colors => colors_page(state),
         Kind::Background => background_page(state),
         Kind::Themes => themes_page(state),
-        Kind::Taskbar => taskbar_page(state),
         Kind::Update => update_page(state),
         Kind::UpdateHistory => update_history_page(state),
         Kind::UpdateAdvanced => update_advanced_page(state),
@@ -6275,94 +6141,6 @@ fn theme_tile(i: usize, t: &crate::state::SavedTheme) -> Element<'static, Messag
                 .color(palette::color(palette::WINDOW_TEXT)),
         );
     mouse_area(card).on_press(Message::ApplyTheme(i)).into()
-}
-
-/// Personalization ▸ Taskbar (E7.9): the location dropdown drives the panel
-/// anchor; lock / auto-hide are labwc-managed (greyed, present for fidelity).
-fn taskbar_page(state: &Settings) -> Element<'_, Message> {
-    let location = Row::new()
-        .spacing(8.0)
-        .align_y(iced::alignment::Vertical::Center)
-        .push(
-            text("Taskbar location on screen")
-                .size(metrics::UI_PX)
-                .color(palette::color(palette::WINDOW_TEXT)),
-        )
-        .push(
-            pick_list(
-                TaskbarLoc::ALL.to_vec(),
-                Some(state.taskbar_loc),
-                Message::SetTaskbarLoc,
-            )
-            .text_size(metrics::UI_PX),
-        );
-    // Search affordance picker (E7.9a) — drives panel.rs's win10_search_affordance.
-    let search = Row::new()
-        .spacing(8.0)
-        .align_y(iced::alignment::Vertical::Center)
-        .push(
-            text("Search on the taskbar")
-                .size(metrics::UI_PX)
-                .color(palette::color(palette::WINDOW_TEXT)),
-        )
-        .push(
-            pick_list(
-                SearchMode::ALL.to_vec(),
-                Some(state.search_mode),
-                Message::SetSearchMode,
-            )
-            .text_size(metrics::UI_PX),
-        );
-    // Greyed: labwc owns "Lock the taskbar", present for fidelity but not enforced
-    // here — like taskbar_properties.rs.
-    let greyed = |label: &'static str| {
-        checkbox(label, false)
-            .size(metrics::UI_PX)
-            .text_size(metrics::UI_PX)
-            .spacing(8.0)
-            .style(mde_ui::checkbox_style)
-    };
-    Column::new()
-        .spacing(10.0)
-        .push(location)
-        .push(search)
-        // Real toggle: panel.rs hides the Task View button when off (E2.9).
-        .push(
-            checkbox("Show the Task View button", state.show_taskview)
-                .on_toggle(Message::SetShowTaskview)
-                .size(metrics::UI_PX)
-                .text_size(metrics::UI_PX)
-                .spacing(8.0)
-                .style(mde_ui::checkbox_style),
-        )
-        // Real toggle (E2.9a): panel.rs starts as a 1px reveal strip when on.
-        .push(
-            checkbox("Automatically hide the taskbar", state.autohide)
-                .on_toggle(Message::SetAutohide)
-                .size(metrics::UI_PX)
-                .text_size(metrics::UI_PX)
-                .spacing(8.0)
-                .style(mde_ui::checkbox_style),
-        )
-        // Real toggle (E7.9a): panel.rs renders a compact 30px bar when on.
-        .push(
-            checkbox("Use small taskbar buttons", state.small_buttons)
-                .on_toggle(Message::SetSmallButtons)
-                .size(metrics::UI_PX)
-                .text_size(metrics::UI_PX)
-                .spacing(8.0)
-                .style(mde_ui::checkbox_style),
-        )
-        .push(greyed("Lock the taskbar"))
-        .push(
-            text(
-                "Lock the taskbar is labwc-managed. Left/right (vertical) location is a \
-                 later milestone.",
-            )
-            .size(metrics::UI_PX)
-            .color(palette::color(palette::GRAY_TEXT)),
-        )
-        .into()
 }
 
 /// Personalization ▸ Lock screen (E7.6): pick a Picture for the LightDM greeter
