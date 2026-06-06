@@ -266,7 +266,11 @@ fn sync_root_menu(win10: bool) {
         let _ = std::fs::create_dir_all(dir);
     }
     if std::fs::write(&path, &want).is_ok() {
-        let _ = Command::new("labwc").arg("--reconfigure").spawn();
+        // `.status()` (not `.spawn()`) so the short-lived `labwc --reconfigure`
+        // helper is reaped — a bare spawn leaves a `[labwc] <defunct>` zombie.
+        // Matches the sibling reconfigure call sites (mouse.rs, outputs.rs,
+        // display.rs).
+        let _ = Command::new("labwc").arg("--reconfigure").status();
     }
 }
 
