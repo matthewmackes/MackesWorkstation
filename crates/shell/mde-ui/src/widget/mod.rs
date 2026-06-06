@@ -1,17 +1,15 @@
-//! Win2000 Classic widgets for iced.
+//! Carbon widgets for iced.
 //!
-//! The bevel model ([`bevel`]) is implemented and unit-tested. The iced
-//! `Widget`/style wiring (3D button, sunken field, title bar, menubar, tree,
-//! column list) lands as the components are built — see tasks for mde-ui.
+//! Flat custom `Widget`/style wiring (the flat button, sunken field, title bar,
+//! menubar, tree, column list). (The Win2000 3D-bevel model was retired in the
+//! Carbon-only collapse, E9.7 — every control renders flat now.)
 
-pub mod bevel;
 pub mod button;
 pub mod frame;
 pub mod groupbox;
 pub mod infoband;
 pub mod tabs;
 
-pub use bevel::Bevel;
 pub use button::{button, Button};
 pub use frame::BevelFrame;
 pub use groupbox::group_box;
@@ -28,34 +26,18 @@ use crate::palette;
 /// bevel (a rail scroller is one color + one border), so this is the closest
 /// faithful approximation. Pass to `scrollable(...).style(mde_ui::scrollbar)`.
 pub fn scrollbar(_theme: &iced::Theme, _status: scrollable::Status) -> scrollable::Style {
-    // Flat eras (Carbon / Win10): a thin flat track with a gray thumb, no 3D edge
-    // / arrow buttons.
-    let rail = if palette::is_flat() {
-        scrollable::Rail {
-            background: Some(Background::Color(palette::color(palette::MENU))),
-            border: Border::default(),
-            scroller: scrollable::Scroller {
-                color: palette::color(palette::BUTTON_SHADOW),
-                border: Border {
-                    color: Color::TRANSPARENT,
-                    width: 0.0,
-                    radius: 0.0.into(),
-                },
+    // Carbon: a thin flat track with a gray thumb, no 3D edge / arrow buttons.
+    let rail = scrollable::Rail {
+        background: Some(Background::Color(palette::color(palette::MENU))),
+        border: Border::default(),
+        scroller: scrollable::Scroller {
+            color: palette::color(palette::BUTTON_SHADOW),
+            border: Border {
+                color: Color::TRANSPARENT,
+                width: 0.0,
+                radius: 0.0.into(),
             },
-        }
-    } else {
-        scrollable::Rail {
-            background: Some(Background::Color(palette::color(palette::BUTTON_LIGHT))),
-            border: Border::default(),
-            scroller: scrollable::Scroller {
-                color: palette::color(palette::BUTTON_FACE),
-                border: Border {
-                    color: palette::color(palette::BUTTON_SHADOW),
-                    width: 1.0,
-                    radius: 0.0.into(),
-                },
-            },
-        }
+        },
     };
     scrollable::Style {
         container: container::Style::default(),
@@ -65,14 +47,10 @@ pub fn scrollbar(_theme: &iced::Theme, _status: scrollable::Status) -> scrollabl
     }
 }
 
-/// Corner radius for fields/controls under the active theme (flat eras
-/// Carbon/Win10 = 2px, the 3D Win2000/BeOS = square).
+/// Corner radius for fields/controls — the flat Carbon 2px radius (the 3D Win2000
+/// square edge was retired in the Carbon-only collapse, E9.7).
 fn ctl_radius() -> iced::border::Radius {
-    if palette::is_flat() {
-        2.0.into()
-    } else {
-        0.0.into()
-    }
+    2.0.into()
 }
 
 /// The Win2000 sunken-white dropdown (closed `pick_list` control): `COLOR_WINDOW`
@@ -230,81 +208,25 @@ pub(crate) fn fill<R: renderer::Renderer>(r: &mut R, x: f32, y: f32, w: f32, h: 
     );
 }
 
-/// The Win2000 `DrawEdge`: optionally fill `face`, then lay the bevel's outer
-/// (and, when `thickness >= 2`, inner) 1px lines around `rect`. This is the
-/// single place a 1px edge can be wrong — [`Button`] and [`BevelFrame`] both
-/// call it, so the raised/sunken/pressed look is identical everywhere.
-pub(crate) fn draw_edge<R: renderer::Renderer>(
-    r: &mut R,
-    rect: Rectangle,
-    bevel: Bevel,
-    thickness: u16,
-    face: Option<Color>,
-) {
-    let (x, y, w, h) = (rect.x, rect.y, rect.width, rect.height);
-    // Flat eras (Carbon / Win10): no 3D bevel. One flat fill + a single 1px subtle
-    // border, 2px radius. Collapses raised/sunken/pressed into the same flat
-    // surface; the face color (and accent on active states, chosen by the caller)
-    // carries all the meaning. `bevel`/`thickness` are intentionally ignored here.
-    if palette::is_flat() {
-        let _ = (bevel, thickness);
-        r.fill_quad(
-            renderer::Quad {
-                bounds: rect,
-                border: Border {
-                    color: palette::color(palette::WINDOW_FRAME),
-                    width: 1.0,
-                    radius: 2.0.into(),
-                },
-                shadow: Shadow::default(),
+/// Draw a flat Carbon control edge: one flat `face` fill + a single 1px subtle
+/// border at a 2px radius. The single place a control edge is defined — [`Button`]
+/// and [`BevelFrame`] both call it, so the flat surface is identical everywhere.
+/// (The Win2000 raised/sunken/pressed 3D bevel was retired in the Carbon-only
+/// collapse, E9.7; the face color + the caller's accent on active states carry all
+/// the meaning now.)
+pub(crate) fn draw_edge<R: renderer::Renderer>(r: &mut R, rect: Rectangle, face: Option<Color>) {
+    r.fill_quad(
+        renderer::Quad {
+            bounds: rect,
+            border: Border {
+                color: palette::color(palette::WINDOW_FRAME),
+                width: 1.0,
+                radius: 2.0.into(),
             },
-            face.unwrap_or(Color::TRANSPARENT),
-        );
-        return;
-    }
-    if let Some(face) = face {
-        fill(r, x, y, w, h, face);
-    }
-    // Outer edge: top + left vs bottom + right.
-    fill(r, x, y, w, 1.0, palette::color(bevel.outer_tl));
-    fill(r, x, y, 1.0, h, palette::color(bevel.outer_tl));
-    fill(r, x, y + h - 1.0, w, 1.0, palette::color(bevel.outer_br));
-    fill(r, x + w - 1.0, y, 1.0, h, palette::color(bevel.outer_br));
-    if thickness >= 2 {
-        // Inner edge.
-        fill(
-            r,
-            x + 1.0,
-            y + 1.0,
-            w - 2.0,
-            1.0,
-            palette::color(bevel.inner_tl),
-        );
-        fill(
-            r,
-            x + 1.0,
-            y + 1.0,
-            1.0,
-            h - 2.0,
-            palette::color(bevel.inner_tl),
-        );
-        fill(
-            r,
-            x + 1.0,
-            y + h - 2.0,
-            w - 2.0,
-            1.0,
-            palette::color(bevel.inner_br),
-        );
-        fill(
-            r,
-            x + w - 2.0,
-            y + 1.0,
-            1.0,
-            h - 2.0,
-            palette::color(bevel.inner_br),
-        );
-    }
+            shadow: Shadow::default(),
+        },
+        face.unwrap_or(Color::TRANSPARENT),
+    );
 }
 
 #[cfg(test)]

@@ -1,9 +1,11 @@
-//! A childless 3D bevel frame widget for iced.
+//! A childless flat Carbon frame widget for iced.
 //!
-//! Fills its bounds with the Win2000 face color and draws the two-line
-//! raised/sunken/pressed bevel from [`crate::widget::bevel`]. Being childless
-//! it is trivially correct and composes as a background in a `stack!` or as a
-//! separator / group-box / clock-well frame.
+//! Fills its bounds with the face color and draws a single 1px subtle border at a
+//! 2px radius (via [`crate::widget::draw_edge`]). Being childless it is trivially
+//! correct and composes as a background in a `stack!` or as a separator /
+//! group-box / clock-well frame. (The Win2000 raised/sunken/pressed 3D bevel was
+//! retired in the Carbon-only collapse, E9.7; `raised`/`sunken` and `thickness` are
+//! kept as no-op-distinct builders so existing call sites are unchanged.)
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
@@ -12,35 +14,29 @@ use iced::mouse;
 use iced::{Color, Element, Length, Rectangle, Size};
 
 use crate::palette;
-use crate::widget::bevel::Bevel;
 use crate::widget::draw_edge;
 
-/// A 3D bevel frame. See [`raised`], [`sunken`], [`pressed`].
+/// A flat Carbon frame. See [`raised`], [`sunken`].
 pub struct BevelFrame {
-    bevel: Bevel,
     face: Option<Color>,
     width: Length,
     height: Length,
-    /// 2 = full two-line edge (default), 1 = a single thin line.
-    thickness: u16,
 }
 
-/// A raised frame: panels, the taskbar, buttons at rest.
+/// A frame for panels, the taskbar, buttons at rest. (Flat under Carbon.)
 pub fn raised() -> BevelFrame {
-    BevelFrame::new(Bevel::raised())
+    BevelFrame::new()
 }
-/// A sunken frame: text fields, list/tree views, the clock well.
+/// A frame for text fields, list/tree views, the clock well. (Flat under Carbon.)
 pub fn sunken() -> BevelFrame {
-    BevelFrame::new(Bevel::sunken())
+    BevelFrame::new()
 }
 impl BevelFrame {
-    fn new(bevel: Bevel) -> Self {
+    fn new() -> Self {
         Self {
-            bevel,
             face: Some(palette::color(palette::BUTTON_FACE)),
             width: Length::Fill,
             height: Length::Fill,
-            thickness: 2,
         }
     }
 
@@ -60,8 +56,9 @@ impl BevelFrame {
         self.height = height.into();
         self
     }
-    pub fn thickness(mut self, thickness: u16) -> Self {
-        self.thickness = thickness;
+    /// No-op kept for call-site compatibility: the flat Carbon edge is a single 1px
+    /// line regardless of thickness (the 3D two-line edge is gone, E9.7).
+    pub fn thickness(self, _thickness: u16) -> Self {
         self
     }
 }
@@ -94,13 +91,7 @@ where
         _cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
-        draw_edge(
-            renderer,
-            layout.bounds(),
-            self.bevel,
-            self.thickness,
-            self.face,
-        );
+        draw_edge(renderer, layout.bounds(), self.face);
     }
 }
 

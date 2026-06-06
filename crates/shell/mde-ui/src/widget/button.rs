@@ -12,7 +12,6 @@ use iced::{event, mouse};
 use iced::{Color, Element, Event, Length, Padding, Rectangle, Size, Vector};
 
 use crate::palette;
-use crate::widget::bevel::Bevel;
 use crate::widget::{draw_edge, fill};
 
 #[derive(Default)]
@@ -136,20 +135,12 @@ where
     ) {
         let state = tree.state.downcast_ref::<State>();
         let enabled = self.on_press.is_some();
+        // A pressed or toggled-on (active) control nudges its label 1px down-right —
+        // the flat Carbon press feedback (the 3D sunken bevel is gone, E9.7).
         let down = state.is_pressed || self.active;
-        // Win2000 distinguishes a momentary press (single sunken-outer edge)
-        // from a toggled-on / active control (full sunken edge, e.g. the
-        // focused window's taskbar button).
-        let bevel = if state.is_pressed {
-            Bevel::pressed()
-        } else if self.active {
-            Bevel::sunken()
-        } else {
-            Bevel::raised()
-        };
         let b = layout.bounds();
         if self.default {
-            // Classic default-button: a 1px black outline around the bevel.
+            // The default button: a 1px frame outline around the flat face.
             let black = palette::color(palette::WINDOW_FRAME);
             fill(renderer, b.x, b.y, b.width, 1.0, black);
             fill(renderer, b.x, b.y, 1.0, b.height, black);
@@ -163,12 +154,10 @@ where
                     width: b.width - 2.0,
                     height: b.height - 2.0,
                 },
-                bevel,
-                2,
                 Some(self.face),
             );
         } else {
-            draw_edge(renderer, b, bevel, 2, Some(self.face));
+            draw_edge(renderer, b, Some(self.face));
         }
 
         let content_layout = layout.children().next().expect("button has one child");
