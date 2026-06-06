@@ -1,84 +1,21 @@
-# Accuracy spot-check checklist (layer 2 of rust/ACCURACY.md).
+# Accuracy spot-check checklist (layer 2 of ACCURACY.md).
 #
-# Each [[point]] asserts that a captured frame paints a Windows 2000 ground-
-# truth color at a known location. The harness (mde/tests/accuracy.rs) decodes
-# the capture PNG and compares the pixel to `hex` within `tol` (max per-channel
-# absolute difference). Coordinates are resolution-independent:
+# Each [[point]] asserts that a captured frame paints a ground-truth color at a
+# known location — either a literal `hex`, or a `role` resolved through
+# `palette::color(role)` under the capture's `era`/`dark` (the live Carbon token).
+# The harness (mde/tests/accuracy.rs) decodes the capture PNG and compares the
+# pixel to the expected color within `tol` (max per-channel absolute difference).
+# Coordinates are resolution-independent:
 #
 #   x / y  >= 0  -> absolute pixels from the top-left
 #   x / y  <  0  -> pixels from the right / bottom edge  (e.g. y = -3 is the
 #                   3rd row up from the bottom, inside a bottom-anchored taskbar)
 #
-# Captures are produced by tests/accuracy/capture.sh into captures/ (gitignored).
+# Captures are produced by tests/accuracy/gallery.sh into captures/ (gitignored).
 # A point whose capture file is absent is reported as SKIPPED, not failed, so
 # the suite still runs on a box where only some components were captured.
-
-[capture.desktop]
-file = "desktop.png"
-# Bare desktop: just the sway background (COLOR_BACKGROUND). The taskbar is
-# verified separately in [capture.panel] — a bare desktop has no taskbar.
-
-[[capture.desktop.point]]
-label = "desktop background (COLOR_BACKGROUND)"
-x = 80
-y = 80
-hex = "3a6ea5"
-tol = 8
-
-[capture.panel]
-file = "panel.png"
-# Full-output grab while `mde panel` (the Rust layer-shell taskbar) is running.
-
-[[capture.panel.point]]
-label = "panel face, silver"
-x = -200
-y = -6
-hex = "d4d0c8"
-tol = 6
-
-[[capture.panel.point]]
-label = "panel top-edge highlight"
-x = 4
-y = -28
-hex = "ffffff"
-tol = 16
-
-# The window captures below are cropped to the toplevel's CONTENT rect by
-# capture.sh, so (0,0) is the client-area top-left and these points are
-# independent of where sway floats the window. Colors are grounded in the
-# render code (control_panel.rs BLUE = #1d5ca8; WINDOW = #ffffff).
-
-[capture.files]
-file = "files.png"
-# `mde files` — Explorer client area (menubar, toolbar, address bar, list).
-
-[[capture.files.point]]
-label = "Explorer list background, white (COLOR_WINDOW)"
-x = -12
-y = -40
-hex = "ffffff"
-tol = 12
-
-[capture.control-panel]
-file = "control-panel.png"
-# `mde control-panel` — blue info sidebar (left) + white tool grid (right).
-
-# Absolute (not from-edge) so they hold whether sway floats the window at its
-# natural size or maximizes it: the 190px info sidebar and the white grid both
-# start near the top-left, well inside the frame.
-[[capture.control-panel.point]]
-label = "info sidebar, Win2000 explorer blue"
-x = 40
-y = 120
-hex = "1d5ca8"
-tol = 10
-
-[[capture.control-panel.point]]
-label = "tool grid background, white (COLOR_WINDOW)"
-x = 400
-y = 120
-hex = "ffffff"
-tol = 10
+# (The Win2000-ground-truth literal-hex points for the bare desktop / panel /
+# files / control-panel were retired with the Win2000 theme, E9.7 slice 3.)
 
 # ---------------------------------------------------------------------------
 # Windows 10 era accent points (E20.5). These read the four-era gallery captures

@@ -138,13 +138,13 @@ fn main() -> ExitCode {
     // Select the shell look-and-feel from persisted state, once, up front, so
     // every subcommand's UI renders in the right theme. Each subcommand is its
     // own process, so this runs at every launch. Carbon (default) brings the IBM
-    // Carbon palette + Plex font with a light/dark mode and an icon accent hue;
-    // "win2000" keeps the classic look.
+    // Carbon palette + Plex font with a light/dark mode and an icon accent hue.
+    // (The Win2000 "Classic" theme was retired in the Carbon-only collapse, E9.7;
+    // a stale `theme=win2000` config now falls through to Carbon.)
     {
         use mde_ui::palette::{self, Theme};
         let st = state::load();
         match st.theme.as_str() {
-            "win2000" => palette::set_theme(Theme::Win2000),
             "windows10" => palette::set_theme(Theme::Windows10),
             _ => palette::set_theme(Theme::Carbon),
         }

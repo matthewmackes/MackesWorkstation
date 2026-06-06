@@ -1,10 +1,12 @@
-//! Static accuracy checklist (layer 1 of `rust/ACCURACY.md`).
+//! Static accuracy checklist (layer 1 of `ACCURACY.md`).
 //!
-//! These tests pin the Windows 2000 Classic ground truth — the exact palette
-//! values and UI metrics transcribed from
-//! `assets/reference/win2000-classic-colors.ini` and the classic `SM_*`
-//! system metrics. They have no Wayland or GUI dependency, so they gate every
-//! build: any accidental drift in a color or metric fails CI immediately.
+//! These tests pin the palette's role-constant ground truth (the exact tuple
+//! values, which are the `carbon()` remap's exact-match lookup keys until the
+//! deeper re-root, E9.7 slice 3c) plus the Carbon tokens and the UI metrics. They
+//! have no Wayland or GUI dependency, so they gate every build: any accidental
+//! drift in a color or metric fails CI immediately. (The Win2000 + BeOS themes
+//! were retired in the Carbon-only collapse, E9.7; metrics/font re-base to the
+//! Carbon type-scale + 8px grid is the E9.2 follow-on this unblocks.)
 //!
 //! The dynamic screenshot spot-check (layer 2) lives in the `mde` crate and
 //! validates that the *rendered* output actually paints these values.
@@ -16,7 +18,7 @@ use std::sync::Mutex;
 // The active theme/mode live in process-global atomics. cargo runs tests in
 // parallel threads of one process, so any test that switches the theme and any
 // test that reads `color()` expecting a specific theme must serialize through
-// this guard, and switchers must restore the Win2000 default before releasing.
+// this guard, and switchers must restore the Carbon default before releasing.
 static THEME_GUARD: Mutex<()> = Mutex::new(());
 
 /// An `iced::Color` channel back to its 0-255 byte, for remap assertions.
@@ -26,8 +28,11 @@ fn ch(v: f32) -> u8 {
 
 // --- Palette ---------------------------------------------------------------
 
+/// The role constants are the `carbon()` remap's exact-match lookup keys (still the
+/// Win2000 ground-truth values until the deeper re-root, E9.7 slice 3c), so pinning
+/// them by value keeps `carbon()` from silently missing a role if one ever drifts.
 #[test]
-fn desktop_background_is_win2000_blue() {
+fn background_lookup_key_is_pinned() {
     assert_eq!(palette::BACKGROUND, (0x3a, 0x6e, 0xa5));
 }
 
@@ -88,10 +93,10 @@ fn bevel_endpoints_match_checklist() {
 }
 
 /// D2 (E20.2): `draw_edge` (and the scrollbar track + control radius) flatten via
-/// the single `palette::is_flat()` predicate, which must fire for BOTH flat eras —
-/// Carbon and the Carbon-skinned Windows 10 — and NOT for the 3D Win2000/BeOS. So
-/// narrowing it back to `is_carbon()` (Win10 → 3D bevel) fails CI. The atomics are
-/// process-global, so hold the guard and restore the default at the end.
+/// the single `palette::is_flat()` predicate. Both surviving themes — Carbon and the
+/// Carbon-skinned Windows 10 — render flat (the 3D Win2000/BeOS eras were retired in
+/// the Carbon-only collapse, E9.7). The atomics are process-global, so hold the
+/// guard and restore the default at the end.
 #[test]
 fn flat_chrome_covers_carbon_and_windows10() {
     use mde_ui::palette::Theme;
@@ -100,19 +105,21 @@ fn flat_chrome_covers_carbon_and_windows10() {
     assert!(palette::is_flat(), "Carbon must use flat chrome");
     palette::set_theme(Theme::Windows10);
     assert!(palette::is_flat(), "Windows 10 must use flat chrome (D2)");
-    palette::set_theme(Theme::Win2000);
-    assert!(!palette::is_flat(), "Win2000 keeps the 3D bevel");
     palette::set_theme(Theme::Carbon); // restore the default
 }
 
-/// `color()` must round-trip an 8-bit channel exactly (no gamma surprises).
+/// `color()` must round-trip an 8-bit channel exactly (no gamma surprises). Since
+/// the Win2000 identity theme was retired (E9.7), `color()` always applies the
+/// `carbon()` remap; pin Carbon-dark `BACKGROUND` → Gray 100 (0x16,0x16,0x16) and
+/// check the bytes survive the `f32` round-trip exactly.
 #[test]
 fn color_conversion_is_exact_8bit() {
-    let _g = THEME_GUARD.lock().unwrap(); // pin the default theme for this read
+    use mde_ui::palette::Theme;
+    let _g = THEME_GUARD.lock().unwrap();
+    palette::set_theme(Theme::Carbon);
+    palette::set_dark(true);
     let c = palette::color(palette::BACKGROUND);
-    assert_eq!(ch(c.r), 0x3a);
-    assert_eq!(ch(c.g), 0x6e);
-    assert_eq!(ch(c.b), 0xa5);
+    assert_eq!((ch(c.r), ch(c.g), ch(c.b)), (0x16, 0x16, 0x16));
 }
 
 /// MackesDE rebrand (§2.2): the Windows 10 era now uses **Carbon's coloring
@@ -164,14 +171,14 @@ fn windows10_uses_carbon_coloring() {
         palette::carbon_accent()
     );
 
-    palette::set_theme(Theme::Win2000);
+    palette::set_theme(Theme::Carbon); // restore the default
     palette::set_dark(true);
 }
 
 /// E14.2: pin the security-status roles (OK / WARN / RISK) + the dashboard tile
 /// metric. Identity values are the classic-era green / amber / red; Carbon (and
 /// Win10, the Security era) repaint them to the IBM Carbon support palette. Holds
-/// THEME_GUARD and restores the Win2000 default before releasing.
+/// THEME_GUARD and restores the Carbon default before releasing.
 #[test]
 fn security_status_palette_pins() {
     use mde_ui::palette::Theme;
@@ -198,7 +205,7 @@ fn security_status_palette_pins() {
     palette::set_dark(true);
     assert_eq!(rgb(palette::color(palette::STATUS_OK)), (0x42, 0xbe, 0x65));
 
-    palette::set_theme(Theme::Win2000);
+    palette::set_theme(Theme::Carbon); // restore the default
     palette::set_dark(true);
 }
 
@@ -239,7 +246,7 @@ fn windows10_network_palette_pins() {
         palette::carbon_accent()
     );
 
-    palette::set_theme(Theme::Win2000);
+    palette::set_theme(Theme::Carbon); // restore the default
     palette::set_dark(true);
 }
 

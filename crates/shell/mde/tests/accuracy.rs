@@ -78,7 +78,6 @@ fn want_rgb(cap: &Capture, p: &Point) -> (u8, u8, u8) {
         match cap.era.as_deref() {
             Some("windows10") => palette::set_theme(Theme::Windows10),
             Some("carbon") => palette::set_theme(Theme::Carbon),
-            Some("win2000") => palette::set_theme(Theme::Win2000),
             other => panic!("accuracy: role point needs a known capture `era`, got {other:?}"),
         }
         palette::set_dark(cap.dark);
@@ -146,7 +145,7 @@ fn resolve(v: i32, extent: u32) -> u32 {
 }
 
 #[test]
-fn rendered_components_match_win2000_palette() {
+fn rendered_components_match_carbon_palette() {
     if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         eprintln!("accuracy: WAYLAND_DISPLAY unset — skipping dynamic screenshot checks");
         return;

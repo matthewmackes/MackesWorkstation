@@ -163,12 +163,11 @@ crates/shell/mde-popover/src/network.rs:976
 crates/shell/mde-popover/src/toasts.rs:371
 crates/shell/mde-popover/src/toasts.rs:372
 crates/shell/mde-popover/src/toasts.rs:373
-crates/shell/mde/src/display.rs:1353
-crates/shell/mde/src/display.rs:899
-crates/shell/mde/src/display.rs:900
-crates/shell/mde/src/display.rs:901
-crates/shell/mde/src/display.rs:944
-crates/shell/mde/src/display.rs:946
+crates/shell/mde/src/display.rs:1348
+crates/shell/mde/src/display.rs:895
+crates/shell/mde/src/display.rs:896
+crates/shell/mde/src/display.rs:939
+crates/shell/mde/src/display.rs:941
 crates/shell/mde/src/icons.rs:157
 crates/shell/mde/src/installer.rs:314
 crates/shell/mde/src/oobe.rs:873
@@ -179,7 +178,7 @@ crates/shell/mde/src/outputs.rs:419
 crates/shell/mde/src/outputs.rs:421
 crates/shell/mde/src/outputs.rs:423
 crates/shell/mde/src/outputs.rs:424
-crates/shell/mde-ui/tests/checklist.rs:83
+crates/shell/mde-ui/tests/checklist.rs:88
 crates/shell/mde-wizard/src/pages/preset.rs:12
 crates/shell/mde-wizard/src/pages/preset.rs:18
 crates/shell/mde-wizard/src/pages/preset.rs:24

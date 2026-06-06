@@ -206,21 +206,18 @@ impl std::fmt::Display for IconSet {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Theme {
     Carbon,
-    Win2000,
     Windows10,
 }
 impl Theme {
-    const ALL: [Theme; 3] = [Theme::Carbon, Theme::Win2000, Theme::Windows10];
+    const ALL: [Theme; 2] = [Theme::Carbon, Theme::Windows10];
     fn key(self) -> &'static str {
         match self {
             Theme::Carbon => "carbon",
-            Theme::Win2000 => "win2000",
             Theme::Windows10 => "windows10",
         }
     }
     fn from_key(k: &str) -> Self {
         match k {
-            "win2000" => Theme::Win2000,
             "windows10" => Theme::Windows10,
             _ => Theme::Carbon,
         }
@@ -230,7 +227,6 @@ impl std::fmt::Display for Theme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Theme::Carbon => "IBM Carbon",
-            Theme::Win2000 => "MackesDE 2000 (Classic)",
             Theme::Windows10 => "MackesDE 10",
         })
     }
@@ -890,15 +886,14 @@ fn apply_appearance(state: &Display) {
     st.theme_mode = state.theme_mode.key().to_string();
     st.icon_color = state.icon_color.key().to_string();
     let _ = crate::state::save(&st);
-    // Window-frame (labwc titlebar) color: Carbon uses a flat header (Gray 100
-    // dark / white light), Win2000 keeps navy. The MackesDE 10 era now shares
-    // Carbon's header verbatim (the rebrand makes it a Carbon-skinned layout).
-    // These are labwc themerc config strings, not iced colors — the same
-    // §2.1-exempt precedent as the arms above. Reuse the labwc themerc rewriter.
-    let (bg, fg) = match (state.theme, state.theme_mode) {
-        (Theme::Carbon | Theme::Windows10, ThemeMode::Dark) => ("#161616", "#f4f4f4"),
-        (Theme::Carbon | Theme::Windows10, ThemeMode::Light) => ("#ffffff", "#161616"),
-        (Theme::Win2000, _) => ("#0a246a", "#ffffff"),
+    // Window-frame (labwc titlebar) color: a flat Carbon header — Gray 100 (dark)
+    // / white (light). The MackesDE 10 era shares Carbon's header verbatim (a
+    // Carbon-skinned layout). These are labwc themerc config strings, not iced
+    // colors — the same §2.1-exempt precedent as the arms above. Reuse the labwc
+    // themerc rewriter.
+    let (bg, fg) = match state.theme_mode {
+        ThemeMode::Dark => ("#161616", "#f4f4f4"),
+        ThemeMode::Light => ("#ffffff", "#161616"),
     };
     set_labwc_title_colors(bg, fg);
     restart_shell();

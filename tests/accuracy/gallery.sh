@@ -85,21 +85,12 @@ shot() {
     sleep 0.4
 }
 
-# panel_crop ERA — the grim crop for an era's taskbar, derived from the single
-# §7 anchor table (CLAUDE.md §7 + panel.rs's anchor block), NOT magic numbers
-# inline per shot. The taskbar's anchored edge per era:
-#   Carbon    → TOP    (CARBON_BAR_H 32)              → top strip
-#   Windows10 → TOP    (collapsed to the Carbon top bar, E9.7) → top strip
-#   Win2000   → BOTTOM (TASKBAR_HEIGHT 28)            → bottom strip
-# (The Windows 10 theme renders the Carbon top bar since the E9.7 era collapse; its
-# crop matches Carbon. The crop targets the real anchored edge of the 1280x960
-# headless output so the strip is never all desktop-color.)
+# panel_crop ERA — the grim crop for an era's taskbar. Both surviving themes
+# (Carbon + the Carbon-skinned Windows 10 layout) anchor the bar to the TOP
+# (CARBON_BAR_H), so the crop is the top strip of the 1280x960 headless output.
 panel_crop() {
     case "$1" in
-        carbon)    echo "0,0 1280x40"  ;;
-        windows10) echo "0,0 1280x40"  ;;
-        win2000)   echo "0,920 1280x40" ;;
-        *)         echo "0,0 1280x40"  ;;
+        *) echo "0,0 1280x40" ;;
     esac
 }
 
@@ -130,19 +121,17 @@ shot log-off          logoff
 shot shut-down        shutdown
 shot setup            setup --gui
 
-# --- era parity: panel / menu / files under all four themes (E0.9) -----------
+# --- era parity: panel / menu / files under the surviving themes -------------
 # Sandbox the theme via XDG_CONFIG_HOME so we never touch the user's real
-# menu.json (state.rs::config_path honours it). BeOS is theme=win2000 + the Haiku
-# icon set (main.rs maps that pair to Theme::Beos); the rest are direct theme
-# keys. The taskbar's anchored edge differs per era, so the crop does too — that
-# mapping lives in panel_crop() (off the §7 anchor table), not inline here.
-echo "gallery: capturing era parity (carbon · win2000 · windows10 · beos)…"
+# menu.json (state.rs::config_path honours it). Carbon is the default; the
+# Windows 10 theme is a Carbon-skinned layout (the Win2000 + BeOS themes were
+# retired in the Carbon-only collapse, E9.7). The taskbar's anchored edge differs
+# per era, so the crop does too — that mapping lives in panel_crop().
+echo "gallery: capturing era parity (carbon · windows10)…"
 era_cfg="$(mktemp -d)"; mkdir -p "$era_cfg/mde"
 export XDG_CONFIG_HOME="$era_cfg"
 for era in "carbon:carbon:" \
-           "win2000:win2000:" \
-           "windows10:windows10:" \
-           "beos:win2000:haiku"; do
+           "windows10:windows10:"; do
     IFS=: read -r label theme iconset <<< "$era"
     # Each era's captures land in their own subdir: captures/gallery/<era>/ (E20.3).
     dest="$out/$label"
@@ -226,11 +215,10 @@ unset XDG_CONFIG_HOME
 rm -rf "$era_cfg"
 dest="$out" # back to the gallery root for the montages below
 
-# Era-comparison strip of the four taskbars (the Win10 accent is the tell).
-# Each era's panel now lives in its own subdir (E20.3): captures/gallery/<era>/panel.png.
+# Era-comparison strip of the surviving taskbars. Each era's panel lives in its
+# own subdir (E20.3): captures/gallery/<era>/panel.png.
 if command -v montage >/dev/null 2>&1; then
-    montage "$out"/carbon/panel.png "$out"/win2000/panel.png \
-            "$out"/windows10/panel.png \
+    montage "$out"/carbon/panel.png "$out"/windows10/panel.png \
             -tile 1x -geometry +0+4 -background '#222' -title "Mackes Workstation — taskbar per era" \
             "$out/_era-taskbars.png" 2>/dev/null && echo "    -> _era-taskbars.png" || true
 fi

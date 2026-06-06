@@ -101,18 +101,18 @@ pub const STATUS_RISK: Rgb = (0xc0, 0x00, 0x00);
 // Windows 10 (Carbon and Windows 10 share a light/dark mode + accent hue).
 use std::sync::atomic::{AtomicU8, Ordering};
 
-/// The active shell theme.
+/// The active shell theme. (The Win2000 "Classic" theme was retired in the
+/// Carbon-only collapse, E9.7 slice 3; `Windows10` remains as a Carbon-skinned
+/// layout until its files.rs branches are rewritten by E10.)
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Theme {
-    Win2000,
     Carbon,
     Windows10,
 }
 
 // Packed active theme + Carbon mode/accent in plain atomics (read on the draw
-// hot path, so lock-free). THEME stores `Theme as u8`: 0=Win2000 1=Carbon
-// 2=Windows10. DARK + ACCENT are shared (Carbon and Windows10 both honor
-// light/dark).
+// hot path, so lock-free). THEME stores `Theme as u8`: 0=Carbon 1=Windows10.
+// DARK + ACCENT are shared (Carbon and Windows10 both honor light/dark).
 static THEME: AtomicU8 = AtomicU8::new(0);
 static DARK: AtomicU8 = AtomicU8::new(1); // Carbon default mode = dark
 static ACCENT: AtomicU8 = AtomicU8::new(0); // 0=blue 1=orange 2=red 3=neutral (icon accent)
@@ -125,9 +125,8 @@ pub fn set_theme(theme: Theme) {
 /// The active theme.
 pub fn theme() -> Theme {
     match THEME.load(Ordering::Relaxed) {
-        1 => Theme::Carbon,
-        2 => Theme::Windows10,
-        _ => Theme::Win2000,
+        1 => Theme::Windows10,
+        _ => Theme::Carbon,
     }
 }
 
@@ -434,15 +433,12 @@ fn carbon(rgb: Rgb) -> Rgb {
     }
 }
 
-/// Convert a palette [`Rgb`] into an `iced::Color`, applying the active theme.
+/// Convert a palette [`Rgb`] into an `iced::Color`, applying the active theme. Both
+/// surviving themes (Carbon + the Carbon-skinned Windows 10 layout) remap the
+/// Win2000-keyed role constants through `carbon()` — the role tuples remain the
+/// `carbon()` lookup keys until the deeper constant re-root (E9.7 slice 3c).
 pub fn color(rgb: Rgb) -> iced::Color {
-    let rgb = match theme() {
-        Theme::Win2000 => rgb,
-        // The Windows 10 era shares Carbon's coloring + accent verbatim (a
-        // Carbon-skinned modern *layout*, not a distinct palette); its former blue
-        // accent + accent picker were retired in the MackesDE rebrand.
-        Theme::Carbon | Theme::Windows10 => carbon(rgb),
-    };
+    let rgb = carbon(rgb);
     iced::Color::from_rgb8(rgb.0, rgb.1, rgb.2)
 }
 
@@ -450,13 +446,7 @@ pub fn color(rgb: Rgb) -> iced::Color {
 /// color to an external tool that wants hex (e.g. `swaybg -c`), keeping the hex
 /// formatting on the palette edge (§2.1).
 pub fn hex(rgb: Rgb) -> String {
-    let rgb = match theme() {
-        Theme::Win2000 => rgb,
-        // The Windows 10 era shares Carbon's coloring + accent verbatim (a
-        // Carbon-skinned modern *layout*, not a distinct palette); its former blue
-        // accent + accent picker were retired in the MackesDE rebrand.
-        Theme::Carbon | Theme::Windows10 => carbon(rgb),
-    };
+    let rgb = carbon(rgb);
     format!("#{:02x}{:02x}{:02x}", rgb.0, rgb.1, rgb.2)
 }
 
