@@ -472,12 +472,14 @@ fn view(state: &SysProps) -> Element<'_, Message> {
             button(text("OK").size(metrics::UI_PX))
                 .on_press(Message::Close)
                 .default(true)
-                .width(Length::Fixed(80.0)),
+                .width(Length::Fixed(80.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         )
         .push(
             button(text("Cancel").size(metrics::UI_PX))
                 .on_press(Message::Close)
-                .width(Length::Fixed(80.0)),
+                .width(Length::Fixed(80.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         );
 
     let body = Column::new()

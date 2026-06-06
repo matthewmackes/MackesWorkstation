@@ -123,7 +123,8 @@ fn view(state: &About) -> Element<'_, Message> {
                 right: 18.0,
                 bottom: 2.0,
                 left: 18.0,
-            }),
+            })
+            .height(Length::Fixed(metrics::BUTTON_MD)),
     )
     .width(Length::Fill)
     .align_x(iced::alignment::Horizontal::Right);

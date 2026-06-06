@@ -385,12 +385,14 @@ fn view(state: &Setup) -> Element<'_, Msg> {
             mde_ui::button(text("Install").size(metrics::UI_PX))
                 .on_press(Msg::Install)
                 .default(true)
-                .width(Length::Fixed(96.0)),
+                .width(Length::Fixed(96.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         )
         .push(
             mde_ui::button(text("Cancel").size(metrics::UI_PX))
                 .on_press(Msg::Cancel)
-                .width(Length::Fixed(84.0)),
+                .width(Length::Fixed(84.0))
+                .height(Length::Fixed(metrics::BUTTON_MD)),
         );
 
     let body = Column::new()

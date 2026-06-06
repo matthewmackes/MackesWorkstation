@@ -131,6 +131,8 @@ shot run-dialog       run
 shot properties       properties "Command Prompt" "/usr/bin/foot"
 shot log-off          logoff
 shot shut-down        shutdown
+shot about            about
+shot taskbar-properties taskbar-properties
 shot setup            setup --gui
 
 # --- era parity: panel / menu / files under the surviving themes -------------
