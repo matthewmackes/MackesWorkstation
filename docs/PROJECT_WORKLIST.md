@@ -1138,7 +1138,12 @@ _Depends: E4 (reconciliation). **⚠️ SUPERSEDES the four-look lock** (CLAUDE.
 - [ ] **E9.6: E9 — Compliance enforcement** (token-pinning tests + a CI lint gate failing on raw values outside the token modules).
 - [>] **E9.7: E9 — Rip out era code as converted** (delete Win2000 ground-truth + carbon()/win10()/beos() remaps, the tiled Start, era-gated branches — no dormant dead code, §3). Done in one-era-per-commit slices:
   - **[✓] Slice 1 — BeOS (2026-06-06, `49a298cd` on main):** removed `Theme::Beos`, `is_beos()`, the `beos()` remap, the panel Deskbar (`view_vertical`/`vbar_sep`/`BEOS_BAR_W`), startup mapping, era test points. Fixed the enum-discriminant-shift bug the tests caught. Build+tests green.
-  - **[ ] Slice 2 — Windows10:** ~25 files (`is_windows10()` gates 17 surfaces + `Theme::Windows10` in 8 + the whole `start_win10.rs` + win10 `state.rs` fields + win10 settings). Atomic (won't compile until done) → a full-context session. Sub-slice: start_win10 surface → win10 panel layout → the `is_windows10`/`Theme::Windows10` gates.
+  - **[>] Slice 2 — Windows10** (7 of 17 `is_windows10` gate-files cleared, all on main):
+    - **[✓] 2a (`31ad0464`):** un-gate utilities → universal Carbon (snip, net-flyout, settings restore, clipboard Win+V history).
+    - **[✓] 2c (`218932a4`):** keep the PIN lock overlay as universal Carbon (PIN set → overlay; else classic logind).
+    - **[✓] 2d (`b357f50a`):** un-gate `mde project` + `mde security`; collapse `popup::bar_at_bottom` to the Carbon path.
+    - **[ ] 2-core (fresh context):** the coupled/intricate remainder — `view_win10` panel layout → Carbon top bar; **tiled Start removal** (7 files: `start_win10.rs` + `main` dispatch + `settings.rs` START_FOLDERS Personalization UI + `state.rs` StartTile/start_tiles/seed_start_tiles/start_folders + tests + role_gate + open_uri + Cargo symlink; KEEP `start_common.rs` — Carbon menu shares its `tile()`); `dialogs.rs`(×3)/`control_panel.rs`/`popup.rs:151`/`font.rs`/`start_common.rs` collapses; then the **`Theme::Windows10` variant finalize** + discriminant fix + era tests.
+    - **Deferred:** `settings.rs` modern-Settings-app-vs-Control-Panel fork = operator product decision (Settings-unification audit); `files.rs` win10 branches = subsumed by **E10** (don't collapse — E10 rewrites it). NOTE: the variant finalize is **blocked on `files.rs`**, so it lands with/after E10.
   - **[ ] Slice 3 — Win2000:** re-root the palette on Carbon identity (Win2000 is today's ground-truth key space) — then **E9.2 type-scale/8px-spacing** re-base is unblocked.
 
 ### E10 — Ultimate File Manager (operator epic, 2026-06-06)
