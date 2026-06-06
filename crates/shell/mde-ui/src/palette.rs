@@ -215,14 +215,51 @@ fn beos(rgb: Rgb) -> Rgb {
     }
 }
 
+// ───────────────────────────────────────────────────────────────────────────
+// IBM Carbon v11 design tokens (E9.2, 2026-06-06). The canonical Carbon palette
+// the Carbon theme remaps onto — the named source for the Gray 10 / Gray 90 /
+// Gray 100 themes the platform is collapsing to (E9, Carbon-only). Values are
+// the published Carbon tokens (carbondesignsystem.com/elements/color/tokens);
+// per §2.2 change one only with a spec reference + update `carbon_tokens_pinned`
+// in the same commit. These name the values the `carbon()` remap used inline.
+/// Carbon gray ramp.
+pub const GRAY_10: Rgb = (0xf4, 0xf4, 0xf4);
+pub const GRAY_50: Rgb = (0x8d, 0x8d, 0x8d);
+pub const GRAY_60: Rgb = (0x6f, 0x6f, 0x6f);
+pub const GRAY_70: Rgb = (0x52, 0x52, 0x52);
+pub const GRAY_80: Rgb = (0x39, 0x39, 0x39);
+pub const GRAY_90: Rgb = (0x26, 0x26, 0x26);
+pub const GRAY_100: Rgb = (0x16, 0x16, 0x16);
+pub const WHITE: Rgb = (0xff, 0xff, 0xff);
+/// Layer-hover tokens (the subtle lift on hover over a layer surface).
+pub const GRAY_80_HOVER: Rgb = (0x47, 0x47, 0x47); // dark layer-hover
+pub const GRAY_10_HOVER: Rgb = (0xe8, 0xe8, 0xe8); // light layer-hover
+/// Interactive — Carbon Blue ramp.
+pub const BLUE_30: Rgb = (0xa6, 0xc8, 0xff);
+pub const BLUE_40: Rgb = (0x78, 0xa9, 0xff);
+pub const BLUE_50: Rgb = (0x45, 0x89, 0xff);
+pub const BLUE_60: Rgb = (0x0f, 0x62, 0xfe);
+pub const BLUE_70: Rgb = (0x00, 0x43, 0xce);
+pub const BLUE_80: Rgb = (0x00, 0x2d, 0x9c);
+pub const BLUE_100: Rgb = (0x00, 0x11, 0x41);
+/// Support — status colors.
+pub const RED_50: Rgb = (0xfa, 0x4d, 0x56);
+pub const RED_60: Rgb = (0xda, 0x1e, 0x28);
+pub const GREEN_40: Rgb = (0x42, 0xbe, 0x65);
+pub const GREEN_50: Rgb = (0x24, 0xa1, 0x48);
+pub const YELLOW_30: Rgb = (0xf1, 0xc2, 0x1b);
+/// Icon accent — Carbon Orange ramp.
+pub const ORANGE_40: Rgb = (0xff, 0x83, 0x2b);
+pub const ORANGE_70: Rgb = (0xba, 0x4e, 0x00);
+
 /// The Carbon Blue 60 interactive accent for the active mode (UI accent — drives
 /// selection, focus, primary buttons, links). Always blue regardless of the
 /// separate *icon* accent hue.
 pub fn carbon_accent() -> Rgb {
     if is_dark() {
-        (0x45, 0x89, 0xff) // Blue 50/60 on dark
+        BLUE_50 // on dark
     } else {
-        (0x0f, 0x62, 0xfe) // Blue 60 on light
+        BLUE_60 // on light
     }
 }
 
@@ -233,30 +270,30 @@ pub fn icon_accent(idx: u8, dark: bool) -> Rgb {
     match idx {
         0 => {
             if dark {
-                (0x78, 0xa9, 0xff)
+                BLUE_40
             } else {
-                (0x0f, 0x62, 0xfe)
+                BLUE_60
             }
         } // blue
         1 => {
             if dark {
-                (0xff, 0x83, 0x2b)
+                ORANGE_40
             } else {
-                (0xba, 0x4e, 0x00)
+                ORANGE_70
             }
         } // orange
         2 => {
             if dark {
-                (0xfa, 0x4d, 0x56)
+                RED_50
             } else {
-                (0xda, 0x1e, 0x28)
+                RED_60
             }
         } // red
         _ => {
             if dark {
-                (0xf4, 0xf4, 0xf4)
+                GRAY_10
             } else {
-                (0x16, 0x16, 0x16)
+                GRAY_100
             }
         } // neutral
     }
@@ -279,71 +316,72 @@ fn carbon(rgb: Rgb) -> Rgb {
         // Window-frame / border (sentinel black) -> subtle border gray.
         (0x00, 0x00, 0x01) => {
             if dark {
-                (0x52, 0x52, 0x52)
+                GRAY_70
             } else {
-                (0x8d, 0x8d, 0x8d)
+                GRAY_50
             }
         }
         // Black text roles -> text-primary (invert in dark).
         (0x00, 0x00, 0x00) => {
             if dark {
-                (0xf4, 0xf4, 0xf4)
+                GRAY_10
             } else {
-                (0x16, 0x16, 0x16)
+                GRAY_100
             }
         }
         // White surfaces (WINDOW / BUTTON_HILIGHT) -> field / layer-01.
         (0xff, 0xff, 0xff) => {
             if dark {
-                (0x39, 0x39, 0x39)
+                GRAY_80
             } else {
-                (0xff, 0xff, 0xff)
+                WHITE
             }
         }
         // Silver panel / menu / button face / inactive title text -> layer.
         (0xd4, 0xd0, 0xc8) => {
             if dark {
-                (0x39, 0x39, 0x39)
+                GRAY_80
             } else {
-                (0xf4, 0xf4, 0xf4)
+                GRAY_10
             }
         }
         // Shell/UI-Shell header -> Gray 100 (dark) / white (light).
         (0xd4, 0xd0, 0xc7) => {
             if dark {
-                (0x16, 0x16, 0x16)
+                GRAY_100
             } else {
-                (0xff, 0xff, 0xff)
+                WHITE
             }
         }
         // Inner bevel light -> hover layer (mostly unused once flattened).
         (0xdf, 0xdf, 0xdf) => {
             if dark {
-                (0x47, 0x47, 0x47)
+                GRAY_80_HOVER
             } else {
-                (0xe8, 0xe8, 0xe8)
+                GRAY_10_HOVER
             }
         }
         // Bevel shadow / disabled / inactive -> text-secondary / border-strong.
         (0x80, 0x80, 0x80) => {
             if dark {
-                (0x6f, 0x6f, 0x6f)
+                GRAY_60
             } else {
-                (0x8d, 0x8d, 0x8d)
+                GRAY_50
             }
         }
         // Dark bevel -> border-subtle.
         (0x40, 0x40, 0x40) => {
             if dark {
-                (0x52, 0x52, 0x52)
+                GRAY_70
             } else {
-                (0x6f, 0x6f, 0x6f)
+                GRAY_60
             }
         }
         // Desktop background -> deepest gray (dark) / light gray (light).
+        // (light value is a custom mid-gray, not a Carbon ramp token.)
         (0x3a, 0x6e, 0xa5) => {
             if dark {
-                (0x16, 0x16, 0x16)
+                GRAY_100
             } else {
                 (0xd0, 0xd0, 0xd0)
             }
@@ -351,55 +389,56 @@ fn carbon(rgb: Rgb) -> Rgb {
         // Tooltip background -> layer.
         (0xff, 0xff, 0xe1) => {
             if dark {
-                (0x39, 0x39, 0x39)
+                GRAY_80
             } else {
-                (0xff, 0xff, 0xff)
+                WHITE
             }
         }
         // Urgent / error -> Carbon danger red.
         (0x80, 0x00, 0x00) => {
             if dark {
-                (0xfa, 0x4d, 0x56)
+                RED_50
             } else {
-                (0xda, 0x1e, 0x28)
+                RED_60
             }
         }
         // Setup-wizard blues -> accent family.
         (0x1c, 0x4a, 0x8f) => {
             if dark {
-                (0x00, 0x43, 0xce)
+                BLUE_70
             } else {
-                (0x0f, 0x62, 0xfe)
+                BLUE_60
             }
         }
         (0x08, 0x16, 0x40) => {
             if dark {
-                (0x00, 0x11, 0x41)
+                BLUE_100
             } else {
-                (0x00, 0x2d, 0x9c)
+                BLUE_80
             }
         }
         (0x16, 0x3a, 0xa8) => accent,
         (0x9e, 0xb2, 0xdb) => {
             if dark {
-                (0xa6, 0xc8, 0xff)
+                BLUE_30
             } else {
-                (0x52, 0x52, 0x52)
+                GRAY_70
             }
         }
         // Security status (E14.2) -> IBM Carbon support palette.
         (0x00, 0x80, 0x00) => {
             // STATUS_OK -> support-success (Green 40 dark / Green 50 light).
             if dark {
-                (0x42, 0xbe, 0x65)
+                GREEN_40
             } else {
-                (0x24, 0xa1, 0x48)
+                GREEN_50
             }
         }
         (0xc0, 0x60, 0x00) => {
             // STATUS_WARN -> support-warning (Yellow 30 dark / darker amber light).
+            // (light value is a custom darker amber, not a Carbon ramp token.)
             if dark {
-                (0xf1, 0xc2, 0x1b)
+                YELLOW_30
             } else {
                 (0xb2, 0x8a, 0x00)
             }
@@ -407,9 +446,9 @@ fn carbon(rgb: Rgb) -> Rgb {
         (0xc0, 0x00, 0x00) => {
             // STATUS_RISK -> support-error (Red 50 dark / Red 60 light).
             if dark {
-                (0xfa, 0x4d, 0x56)
+                RED_50
             } else {
-                (0xda, 0x1e, 0x28)
+                RED_60
             }
         }
         // Brand flag art and anything else -> unchanged.
@@ -478,4 +517,53 @@ pub fn iced_theme() -> iced::Theme {
             danger: color(URGENT),
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// E9.2 / §2.2 — pin the IBM Carbon v11 design tokens to their published
+    /// values (carbondesignsystem.com/elements/color/tokens). Change a token
+    /// only with a spec reference and update this assertion in the same commit.
+    #[test]
+    fn carbon_tokens_pinned() {
+        // Gray ramp.
+        assert_eq!(GRAY_10, (0xf4, 0xf4, 0xf4));
+        assert_eq!(GRAY_50, (0x8d, 0x8d, 0x8d));
+        assert_eq!(GRAY_60, (0x6f, 0x6f, 0x6f));
+        assert_eq!(GRAY_70, (0x52, 0x52, 0x52));
+        assert_eq!(GRAY_80, (0x39, 0x39, 0x39));
+        assert_eq!(GRAY_90, (0x26, 0x26, 0x26));
+        assert_eq!(GRAY_100, (0x16, 0x16, 0x16));
+        assert_eq!(WHITE, (0xff, 0xff, 0xff));
+        // Blue ramp (interactive).
+        assert_eq!(BLUE_30, (0xa6, 0xc8, 0xff));
+        assert_eq!(BLUE_40, (0x78, 0xa9, 0xff));
+        assert_eq!(BLUE_50, (0x45, 0x89, 0xff));
+        assert_eq!(BLUE_60, (0x0f, 0x62, 0xfe));
+        assert_eq!(BLUE_70, (0x00, 0x43, 0xce));
+        assert_eq!(BLUE_80, (0x00, 0x2d, 0x9c));
+        assert_eq!(BLUE_100, (0x00, 0x11, 0x41));
+        // Support.
+        assert_eq!(RED_50, (0xfa, 0x4d, 0x56));
+        assert_eq!(RED_60, (0xda, 0x1e, 0x28));
+        assert_eq!(GREEN_40, (0x42, 0xbe, 0x65));
+        assert_eq!(GREEN_50, (0x24, 0xa1, 0x48));
+        assert_eq!(YELLOW_30, (0xf1, 0xc2, 0x1b));
+        // Orange (icon accent).
+        assert_eq!(ORANGE_40, (0xff, 0x83, 0x2b));
+        assert_eq!(ORANGE_70, (0xba, 0x4e, 0x00));
+    }
+
+    /// The Carbon dark theme resolves its core roles onto the Gray 100 token set
+    /// (E9.2 — guards the remap against drift now that the values are named).
+    #[test]
+    fn carbon_dark_maps_core_roles_to_gray_100_tokens() {
+        set_theme(Theme::Carbon);
+        set_dark(true);
+        assert_eq!(carbon(WINDOW_TEXT), GRAY_10, "primary text -> Gray 10");
+        assert_eq!(carbon(WINDOW), GRAY_80, "field/layer -> Gray 80");
+        assert_eq!(carbon_accent(), BLUE_50, "dark accent -> Blue 50");
+    }
 }
