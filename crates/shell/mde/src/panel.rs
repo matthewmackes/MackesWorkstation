@@ -925,7 +925,7 @@ fn mesh_chip(ms: crate::mesh_status::MeshStatus) -> Element<'static, Message> {
         .spacing(2)
         .align_y(iced::Alignment::Center),
     )
-    .on_press(Message::Launch("mde workbench".into()))
+    .on_press(Message::Launch("mde-workbench".into()))
     .padding(Padding {
         top: 1.0,
         right: 3.0,
