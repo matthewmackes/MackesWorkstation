@@ -86,8 +86,12 @@ body**.
   pure-Rust stack — rustls (no OpenSSL), cosmic-text (no FreeType).
 - **Theme system — one edge.** `palette::color(rgb) -> iced::Color` remaps per the
   active `Theme` before producing a color, so call sites never change when the theme
-  switches. **Four switchable looks share the engine: Windows 2000 Classic, IBM
-  Carbon (default dark), Windows 10, BeOS.**
+  switches. **The GUI is strictly IBM Carbon (carbondesignsystem.com); the only
+  switchable themes are Carbon's gray themes — Gray 10 (light) / Gray 90 / Gray 100
+  (default dark).** *(E9, 2026-06-06 — Carbon-only supersedes the retired four-look
+  system: Windows 2000 Classic / Windows 10 / BeOS are being ripped out as each area
+  converts, E9.7. Carbon tokens — type scale, 8px spacing, components, motion, 2px
+  focus — are single-sourced in `mde-ui` and guarded by a lint gate, E9.6.)*
 - **Compositor: labwc** (Wayland/wlroots; MDE's sway-specific bits adapt to it).
   Window control via wlr-foreign-toplevel. **labwc draws title bars, frames, z-order;
   mde draws only client areas + its own layer-shell surfaces** — never make mde a
@@ -102,8 +106,11 @@ body**.
   through `palette::color()` (the one theme-remap edge). App-chrome colors live in
   `palette.rs` too.
 - **§2.2 Ground truth is pinned in tests.** The `mde-ui` checklist tests encode the
-  exact reference palette + metrics. Change a palette/metric value only with a
-  reference to back it, and update the matching assertion in the same commit.
+  exact **Carbon token set** (the Gray 10/90/100 palettes, the Carbon type scale +
+  8px spacing tokens, component metrics). Change a token only with a Carbon-spec
+  reference to back it, and update the matching assertion in the same commit. *(E9 —
+  these replace the retired four-look pinning tests; a lint gate fails on raw values
+  outside the token modules, E9.6.)*
 - **§2.3 Metrics are single-source** via the `metrics` module — never a scattered
   `.size(...)` literal.
 - **§2.4 Icons via the resolver** (`icon_any` / `icons.rs`): embedded SVGs first, then

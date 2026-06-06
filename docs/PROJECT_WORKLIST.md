@@ -1124,9 +1124,9 @@ _Depends: E4 (reconciliation). **⚠️ SUPERSEDES the four-look lock** (CLAUDE.
 
 **Reconciliation needed before bulk execution (operator-gated):** Carbon-only retires the Win2000/Win10/BeOS eras, which invalidates the era-gated portions of E4 (Win10 shell) + the era remaps woven through `palette.rs`. Rewriting CLAUDE.md §1/§2.2 + `AI_GOVERNANCE.md` to match is part of E9.1 and should be confirmed with the operator.
 
-- [ ] **E9.1: E9 — Governance reconciliation: rewrite the four-look lock to Carbon-only**
-  Update CLAUDE.md §1/§2.2, `AI_GOVERNANCE.md`, and the worklist premise ("four looks" → Carbon Gray 10/90/100). Re-point the §2.2 four-look pinning tests at the Carbon token set.
-  **Acceptance:** docs state Carbon-only; no remaining "four looks" claim; pinning tests reference Carbon tokens.
+- [✓] **E9.1: E9 — Governance reconciliation: rewrite the four-look lock to Carbon-only** *(DONE 2026-06-06)*
+  Rewrote CLAUDE.md §1 (theme-system bullet → strict Carbon, Gray 10/90/100 only) + §2.2 (pinning rule → Carbon token set), and the three four-look framings in `AI_GOVERNANCE.md` (the reconciliation banner row, the superseded-lock prose, the supersession table) → Carbon-only, each carrying an E9/2026-06-06 retired note. The worklist body's per-task era references (E4–E8 `Theme::Windows10` gating) are reconciled as E9.7 rips out era code, not here.
+  **Acceptance:** docs state Carbon-only; no four-look theme-lock claim remains without a retired/E9 note; §2.2 references Carbon tokens. ✓
 - [ ] **E9.2: E9 — Carbon token substrate in `mde-ui`** *(foundation — both E9 + E10 + the settings-unify audit build on this)*
   Single-source the Carbon **type scale** (exact sizes/line-heights/weights, IBM Plex Sans — already wired) and the **8px $spacing-01..13** tokens in `metrics` (pragmatic exceptions for dense chrome documented); Carbon **color tokens** for Gray 10/90/100 through the single `palette::color()` edge.
   **Acceptance:** every size/space/colour resolves from a Carbon token module; pinning tests assert the token values (§2.2-style); the lint gate (E9.6) fails on raw values.

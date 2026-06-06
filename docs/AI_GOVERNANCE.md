@@ -24,7 +24,7 @@ collaboration model. Read it after the root `CLAUDE.md`; consult the others on d
 > | This doc says | Monorepo reality (plan §0) | Where |
 > |---|---|---|
 > | Version `v5.0.0`; tag the v5 cut | **`v10.0.0`** ("MackesDE for Workgroups" = MDE = v10); one workspace version; tag `MackesWorkstation-v10.0.0` | §9.2 |
-> | Visual language = **ChromeOS Classic** + **Material Symbols** + Roboto | **Windows 10 shell**; one theme engine, **four looks: Win2000 / IBM Carbon (default dark) / Windows 10 / BeOS** via the single `palette::color()` edge; Workbench inherits that palette + icon theme — **no Material/ChromeOS-Classic** | §6 |
+> | Visual language = **ChromeOS Classic** + **Material Symbols** + Roboto | **Strict IBM Carbon** (carbondesignsystem.com); one theme engine, **Carbon gray themes only: Gray 10 / Gray 90 / Gray 100 (default dark)** via the single `palette::color()` edge; Workbench inherits that palette — **no Material/ChromeOS-Classic** *(E9, 2026-06-06 — Carbon-only; the former four-look Win2000/Win10/BeOS system is retired)* | §6 |
 > | Compositor = vanilla **sway** (§11 item 19) | **labwc** (Wayland/wlroots) — MDE-Retro's substrate is kept (plan Q8) | §11 |
 > | Gluster mesh-home (named in §3.1/§4) | **LizardFS** `mesh-storage`; Gluster fully retired, never ships (already swapped in §2/§11) | §3.1, §4 |
 > | Release roadmap = the `v5.0.0` cut gate (C1–C21 / master inventory) | the **E0–E8 epic sequence** (plan §11); E0 (merge) done; RPM held until every feature is §3-complete (E8); HW bench post-release | §11 |
@@ -196,9 +196,11 @@ raw when Iced is too heavy; GTK4/Qt only with explicit justification.
 
 > **[MONOREPO] SUPERSEDED by the fusion plan (§0 Q15/Q40).** The table below is the
 > original MDE **ChromeOS Classic + Material Symbols** lock. In `MackesWorkstation` the
-> daily-driver face is the **Windows 10 shell**, and the look is **one theme engine with
-> four switchable presets — Win2000 Classic, IBM Carbon (default dark), Windows 10,
-> BeOS — flipped at the single `palette::color()` edge** (root `CLAUDE.md` §1/§2). The
+> look is **strict IBM Carbon** (carbondesignsystem.com) — **one theme engine whose
+> only switchable themes are Carbon's Gray 10 / Gray 90 / Gray 100 (default dark)
+> presets, flipped at the single `palette::color()` edge** (root `CLAUDE.md` §1/§2).
+> *(E9, 2026-06-06 — Carbon-only supersedes the retired four-look Win2000/Win10/BeOS
+> system; the Windows 10 daily-driver framing is retired with it.)* The
 > Workbench re-skins to a Server-2003 "Manage Your Server" layout that **inherits the
 > platform palette + icon theme — there is no separate Material palette, and ChromeOS
 > Classic / Material Symbols are dropped.** Convention §2.1: **no raw hex outside
@@ -514,7 +516,7 @@ supersession; CLAUDE.md §0.7 and §0.8 need amendment per Q63 + Q64
 
 | Older lock (this doc) | Superseded by (MackesWorkstation) | Reason |
 |---|---|---|
-| §6 ChromeOS Classic visual language + Material Symbols + Roboto | **Windows 10 shell** + four-theme palette engine (Win2000 / Carbon-default / Win10 / BeOS) via `palette::color()`; Workbench inherits the platform palette + icon theme | Plan §0 Q15/Q40 — mirror Windows 10; one design system |
+| §6 ChromeOS Classic visual language + Material Symbols + Roboto | **Strict IBM Carbon** (carbondesignsystem.com) — Carbon gray-theme palette engine (Gray 10 / Gray 90 / Gray 100-default) via `palette::color()`; Workbench inherits the platform palette | Plan §0 Q15/Q40 + **E9 (2026-06-06): Carbon-only**, the four-look Win2000/Win10/BeOS system retired |
 | §9.2 `v5.0.0` version line | **`v10.0.0`** (one workspace version; tag `MackesWorkstation-v10.0.0`) | Plan §0 Q7 — MDE = v10.0.0 |
 | §11 `v5.0.0` cut gate (C1–C21 / master inventory) | the **E0–E8 epic sequence** (plan §11); RPM held until §3-complete (E8) | Fusion sequencing |
 | §11 item 19 vanilla **sway** compositor | **labwc** (Wayland/wlroots) | Plan §0 Q8 — keep MDE-Retro's labwc |
