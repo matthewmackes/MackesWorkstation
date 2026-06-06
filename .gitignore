@@ -13,3 +13,8 @@
 
 # Accuracy/preview harness output (generated screenshots; tests/accuracy/refs/ is committed)
 tests/accuracy/captures/
+
+# E3 LizardFS build artifacts — binaries built from the pinned tag by
+# install-helpers/build-lizardfs.sh (or the CI workflow); not source.
+lizardfs-binaries.tar.gz
+/rpmbuild/
