@@ -1127,8 +1127,10 @@ _Depends: E4 (reconciliation). **⚠️ SUPERSEDES the four-look lock** (CLAUDE.
 - [✓] **E9.1: E9 — Governance reconciliation: rewrite the four-look lock to Carbon-only** *(DONE 2026-06-06)*
   Rewrote CLAUDE.md §1 (theme-system bullet → strict Carbon, Gray 10/90/100 only) + §2.2 (pinning rule → Carbon token set), and the three four-look framings in `AI_GOVERNANCE.md` (the reconciliation banner row, the superseded-lock prose, the supersession table) → Carbon-only, each carrying an E9/2026-06-06 retired note. The worklist body's per-task era references (E4–E8 `Theme::Windows10` gating) are reconciled as E9.7 rips out era code, not here.
   **Acceptance:** docs state Carbon-only; no four-look theme-lock claim remains without a retired/E9 note; §2.2 references Carbon tokens. ✓
-- [ ] **E9.2: E9 — Carbon token substrate in `mde-ui`** *(foundation — both E9 + E10 + the settings-unify audit build on this)*
+- [>] **E9.2: E9 — Carbon token substrate in `mde-ui`** *(foundation — both E9 + E10 + the settings-unify audit build on this)* — branch `ux/carbon-tokens`
   Single-source the Carbon **type scale** (exact sizes/line-heights/weights, IBM Plex Sans — already wired) and the **8px $spacing-01..13** tokens in `metrics` (pragmatic exceptions for dense chrome documented); Carbon **color tokens** for Gray 10/90/100 through the single `palette::color()` edge.
+  - **[✓] Color tokens (2026-06-06):** named the Carbon v11 ramp (Gray/Blue/support/Orange) in `palette.rs`, refactored `carbon()`/`carbon_accent()`/`icon_accent()` onto them, added `carbon_tokens_pinned` (the §2.2 Carbon ground-truth assertion). Behavior-preserving; 28 mde-ui tests green.
+  - **[ ] Type scale + 8px spacing:** BLOCKED-ish — `metrics` is global across all themes, so re-basing it breaks the still-present four-look accuracy pins. Lands together with **E9.7** (era collapse), not standalone.
   **Acceptance:** every size/space/colour resolves from a Carbon token module; pinning tests assert the token values (§2.2-style); the lint gate (E9.6) fails on raw values.
 - [ ] **E9.3: E9 — Carbon components for core surfaces** (buttons 48/40/32, fields, lists, modals, tabs as shared `mde-ui` widgets; pragmatic for dense chrome/panel/tray).
 - [ ] **E9.4: E9 — Carbon interaction states** (strict 2px `$focus` ring + hover/active/selected/disabled tokens on every interactive element).
