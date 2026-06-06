@@ -245,13 +245,13 @@ _Depends: none_
   **Note (2026-06-03):** audit ran — found 7 subprocess-Python shims (mackesd workers mdns/remmina_sync/fs_sync/clipboard + Birthright in mde-wizard/mde-installer + Workbench service-publishing). Filed as **RETIRE-PY.1–7**. E0.11 closes when RETIRE-PY drains.
   **Status (2026-06-05): 5/7 drained, BLOCKED on the last worker-path survivor.** ✓ RETIRE-PY.1 (mdns relay, native), .2 (remmina sync), .3 (clipboard → mde-clipd), .6 (asset installer), .7 (workbench service-publishing). **Remaining:** **RETIRE-PY.4** — the `fs_sync` GVFS worker still spawns `python3 -m mackes.mesh_gvfs.daemon` and is the *only* python left in mackesd's **supervised-worker path** (acceptance #1/#2); it's retired *by* standing up E3 LizardFS as the mesh-storage backend, so **E0.11 is blocked on E3**. RETIRE-PY.5 (native Birthright) is the other survivor but lives in the **mde-wizard/mde-installer install-time path, not the mackesd worker path** — it's E7.2-coupled and does not gate E0.11's worker-supervision acceptance. So once E3 lands (RETIRE-PY.4), E0.11's worker-path acceptance is met and it closes; the installer-path Birthright tracks separately under E7.2/RETIRE-PY.5.
 
-- [ ] **E0.12: E0 — Archive the 3 predecessor repos read-only (operator-gated)**
+- [✓] **E0.12: E0 — Archive the 3 predecessor repos read-only (operator-gated)** *(DONE — operator confirmed 2026-06-07; verified already archived)*
   **As** the operator, **I want** the three predecessor repos archived read-only behind an explicit gate, **so that** the monorepo is the single origin and history is preserved without accidental writes.
   *Reuse:* new glue (provenance/{mde,mde-kdc,mde-retro} provenance snapshots). *Deps:* E0.1, E0.7, E0.9.
   **Acceptance** (runtime-observable):
-    - [ ] Each of the three predecessor repos is set archived/read-only via `gh` only after explicit operator confirmation (no auto-archive; the gate blocks until the operator approves).
-    - [ ] Pushing to an archived repo is rejected (read-only enforced at the remote).
-    - [ ] The monorepo README/MIGRATION points to the archived repos as the provenance of record and the single origin remote is the monorepo.
+    - [✓] All three predecessor repos are archived read-only — `gh repo view` reports `isArchived=true` for `matthewmackes/MDE`, `matthewmackes/mde-retro-workstation`, `matthewmackes/MDE-KDECnt-Rust` (operator-confirmed the gate 2026-06-07; they were already archived).
+    - [✓] Pushing to an archived repo is rejected (GitHub enforces read-only on archived repos).
+    - [✓] The monorepo MIGRATION.md documents the three as the provenance of record (table + §"archived read-only"); single origin remote is `matthewmackes/MackesWorkstation`.
 
 - [✓] **E0.13: E0 — Rename the runtime `mded` command → `mackesd` (mde-workbench panels + mesh-status applet)**
   **As** an operator, **I want** every `Command::new("mded")` call to invoke the canonical `mackesd` binary, **so that** fleet/mesh/health CLI calls work without a legacy `mded` alias on PATH.
@@ -878,7 +878,8 @@ _Depends: E0, E1, E3, E4, E5_
     - [ ] the 4-step VM wizard creates a real KVM/Podman instance (from a template), and "Open console" launches virt-viewer attached to it
     - [ ] a cold-migration action moves a stopped instance to another fleet host and the target host lists it after migration
     - [ ] themed only via `palette::color()` (no raw hex), icons via `icon_any`, metrics via `metrics::UI_PX`, reachable from an `mde workbench --page compute` path; degrades gracefully with no mesh / no peers (local-only view, Bus timeouts, never panic)
-- [ ] **E6.11: E6 — Preset / drift engine (Hashbang / Mackes / Daylight / Vanilla / Node variants)**
+- [✗] **E6.11: E6 — Preset / drift engine (Hashbang / Mackes / Daylight / Vanilla / Node variants)** *(REMOVED from scope — operator 2026-06-07: "remove all")*
+  **Operator decision (2026-06-07): drop the preset/drift engine + the 5 named variants entirely.** Not building it; the only follow-up is a §3 cleanup pass to remove the orphan preset scaffolding (the `data/presets/ableton-12-*` + `chromeos-classic-*` sample entries + any `drift.rs` preset-chooser stubs) if they have no live consumer — tracked as a small rescue-cleanup task, not a feature.
   **SCOPE (2026-06-05) — greenfield; the 5 presets are undefined.** `data/presets/` holds only `ableton-12-{dark,light}` + `chromeos-classic-{dark,light}` — **none of the five named variants** (Hashbang/Mackes/Daylight/Vanilla/Node) exist as data, and `drift.rs` has no preset chooser/apply. So this needs the **preset definitions themselves** (what each variant configures — a product-design decision, not derivable from code) + a chooser UI + an apply engine + drift compare/restore. Building name-only preset entries would be the §3 mockup anti-pattern (placeholder presets). **Blocked on the preset content spec** (a product decision); the engine/UI is buildable once the 5 variants are defined.
   **As** a power user, **I want** a preset/drift engine offering the Hashbang, Mackes, Daylight, Vanilla, and Node variants with drift detection against the chosen preset, **so that** I apply and restore a known desktop configuration from the Workbench.
   *Reuse:* `mde-workbench` `panels/drift.rs` + preset engine (§9 reskin / new glue on `mde-ui`); shares Fleet revisions state. *Deps:* E6.1, E6.5.
