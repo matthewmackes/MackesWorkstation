@@ -22,7 +22,7 @@
       <li>Rust-native top bar + bottom dock (single mackes-panel binary) with Plank-parity dock behavior: pinned launchers, window grouping, multi-window indicators, right-click context menus</li>
       <li>Live status cluster (mesh peers, clipboard items, volume, battery, unread notifications, sessions) refreshed every 2 s</li>
       <li>Apple-menu launcher with About / Settings / Software Update / Recent Items / Applications submenu (8 buckets) / Force Quit / Sleep / Restart / Shut Down / Lock / Sign Out</li>
-      <li>First-run setup wizard with curated presets (hashbang, mackes, daylight, vanilla)</li>
+      <li>First-run setup wizard (role chooser: Lighthouse / Server / Workstation)</li>
       <li>Notification Drawer with live data for Mesh, Bluetooth, Volume, Brightness, Battery, Hardware</li>
       <li>Mesh networking via Headscale + Tailscale — peers, shares, services as first-class dock items</li>
       <li>Remote desktop integration with auto-discovered SSH / RDP / VNC peers via Remmina</li>
