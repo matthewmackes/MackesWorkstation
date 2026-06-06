@@ -61,6 +61,10 @@ pub fn programs() -> Vec<(String, Vec<App>)> {
 fn app_dirs() -> Vec<PathBuf> {
     let mut v = vec![
         PathBuf::from("/usr/share/applications"),
+        // MDE installs its own launchers (Workbench, Virtual/compute, Files, …)
+        // to a private dir to keep them out of other DEs' menus — so the MDE
+        // menu must scan it explicitly; it is not on XDG_DATA_DIRS.
+        PathBuf::from("/usr/share/mde/applications"),
         PathBuf::from("/usr/local/share/applications"),
         PathBuf::from("/var/lib/flatpak/exports/share/applications"),
     ];
