@@ -17,7 +17,7 @@
 
 Name:           mde-core
 Version:        10.0.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Mackes Workstation (MDE) — native-Rust mesh desktop environment
 
 License:        GPL-3.0-or-later
@@ -130,6 +130,34 @@ fi
 # The single-source disclaimer alongside the data.
 install -m 0644 DISCLAIMER.md %{buildroot}%{_datadir}/mde/DISCLAIMER.md
 
+# 5. Wayland-session entry → the FHS path every greeter scans
+#    (%{_datadir}/wayland-sessions = /usr/share/wayland-sessions). Owning the
+#    file here is greeter-agnostic: lightdm-gtk-greeter, greetd, and regreet all
+#    read this dir, whereas the old /var/lib/mde/wayland-sessions plan only ever
+#    worked for regreet — which is why the "MDE" option vanished under lightdm.
+#    The session-name string ("MDE") is what shows in the greeter dropdown; Exec
+#    points at the /usr/bin/mde-session orchestrator installed in step 1.
+install -d %{buildroot}%{_datadir}/wayland-sessions
+install -m 0644 data/wayland-sessions/mde.desktop \
+    %{buildroot}%{_datadir}/wayland-sessions/mde.desktop
+
+# 6. labwc skel config (autostart + menu.xml + rc.xml + scripts + the Win2000-MDE
+#    Openbox theme). This IS what draws the shell on login: mde-session falls back
+#    to %{_datadir}/mde/skel/.config/labwc (its compiled-in SYSTEM_LABWC_CONFIG_DIR,
+#    passed to `labwc -C`) whenever the user has no ~/.config/labwc. The autostart
+#    file launches `mde panel`; menu.xml is the desktop right-click menu.
+#    The E8.5 spec rewrite dropped this tree (the retired cargo generate-rpm assets
+#    in crates/shell/mde/Cargo.toml shipped it) — so labwc came up against an EMPTY
+#    config dir: no autostart (black desktop, no panel/wallpaper) and labwc's
+#    compiled-in fallback root menu (the lone-item right-click menu). Restoring it
+#    here is the fix.
+install -d %{buildroot}%{_datadir}/mde/skel
+cp -a crates/shell/mde/skel/. %{buildroot}%{_datadir}/mde/skel/
+# The labwc autostart + brightness helper must stay executable.
+chmod 0755 %{buildroot}%{_datadir}/mde/skel/.config/labwc/autostart
+[ -f %{buildroot}%{_datadir}/mde/skel/.config/labwc/scripts/brightness.sh ] && \
+    chmod 0755 %{buildroot}%{_datadir}/mde/skel/.config/labwc/scripts/brightness.sh
+
 %files
 %doc DISCLAIMER.md
 %{_bindir}/mde
@@ -142,8 +170,19 @@ install -m 0644 DISCLAIMER.md %{buildroot}%{_datadir}/mde/DISCLAIMER.md
 %{_sbindir}/lizardfs
 %{_sbindir}/lizardfs-admin
 %{_datadir}/mde/
+%{_datadir}/wayland-sessions/mde.desktop
 
 %changelog
+* Sat Jun 06 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-2
+- packaging: install the Wayland-session entry into %{_datadir}/wayland-sessions
+  so the "MDE" option appears in the greeter. The session .desktop previously
+  only landed under %{_datadir}/mde/ (scanned by no greeter); the regreet-only
+  /var/lib/mde/wayland-sessions plan left it invisible under lightdm.
+- fix: install the labwc skel config (autostart/menu.xml/rc.xml + Win2000-MDE
+  Openbox theme) into %{_datadir}/mde/skel — mde-session's SYSTEM_LABWC_CONFIG_DIR
+  fallback. The E8.5 rewrite dropped it, so labwc launched against an empty config
+  dir: black desktop (autostart never ran `mde panel`) + labwc's built-in one-item
+  fallback root menu. This is what makes the shell actually come up on login.
 * Fri Jun 05 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-1
 - v10.0.0: the MackesWorkstation monorepo — native-Rust mesh desktop. Spec
   rewritten from the Python-era mackes-shell for the Rust workspace; bundles

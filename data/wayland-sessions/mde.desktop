@@ -1,11 +1,12 @@
 [Desktop Entry]
-# CB-2.1 — Wayland-session entry. regreet reads it from the MDE-curated
-# sessions dir (/var/lib/mde/wayland-sessions), into which the mde-desktop
-# %post symlinks this file at install time so the picker has it before
-# first login. The session-name string is what appears in the greeter's
-# dropdown; the Exec points at the unified `mde-session` orchestrator (the
-# v2.0.0 replacement for the v1.x `mackes-enforce-session` shim), which
-# defaults to sway (the permanent compositor — sway-native shell).
+# CB-2.1 — Wayland-session entry. The mde-core RPM (%install step 5) installs
+# this file into /usr/share/wayland-sessions — the FHS path every greeter
+# scans (lightdm-gtk-greeter, greetd, regreet), so the picker has it before
+# first login regardless of which greeter is live. (The earlier regreet-only
+# /var/lib/mde/wayland-sessions symlink plan left the option invisible under
+# lightdm.) The session-name string is what appears in the greeter's dropdown;
+# the Exec points at the unified `mde-session` orchestrator (the v2.0.0
+# replacement for the v1.x `mackes-enforce-session` shim).
 #
 # DesktopNames=MDE so XDG-aware desktop entries (`OnlyShowIn=MDE`) light
 # up under this session.
