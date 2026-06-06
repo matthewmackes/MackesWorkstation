@@ -9,25 +9,19 @@ use std::process::{Child, Command, ExitCode};
 use std::time::Duration;
 
 use iced::mouse::ScrollDelta;
-use iced::widget::{container, image, mouse_area, text, Column, Row, Space, Stack};
+use iced::widget::{container, mouse_area, text, Column, Row, Space, Stack};
 use iced::{Color, Element, Length, Padding, Task};
 
 /// Height of the Carbon UI Shell top bar (px) — a touch taller than the Win2000
 /// taskbar for the flatter product-header feel.
 const CARBON_BAR_H: f32 = 32.0;
 
-/// The Start-button icon (carbon "layout-grid") as a black PNG. Deliberately a
-/// raster, not SVG: iced loads the entire system font DB (~20 MB) the first time
-/// it renders any SVG, and this was the panel's only guaranteed SVG. A PNG keeps
-/// the panel font-DB-free in the common (PNG-icon) case.
-const START_ICON: &[u8] = include_bytes!("start_icon.png");
-
 use iced_layershell::build_pattern::{application, MainSettings};
 use iced_layershell::reexport::Anchor;
 use iced_layershell::settings::LayerShellSettings;
 use iced_layershell::{to_layer_message, Appearance};
 
-use mde_ui::{button, frame, metrics, palette};
+use mde_ui::{metrics, palette};
 
 use crate::wlr;
 
@@ -429,34 +423,6 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
     Task::none()
 }
 
-/// The Start button (carbon grid icon + "Start" label) at width `w` × height
-/// `h`, including the shared right-click (Start context menu). Used by both bars.
-fn start_button(state: &Panel, w: Length, h: Length) -> Element<'_, Message> {
-    mouse_area(
-        button(
-            Row::new()
-                .spacing(4.0)
-                .align_y(iced::Alignment::Center)
-                .push(
-                    image(image::Handle::from_bytes(START_ICON))
-                        .width(Length::Fixed(16.0))
-                        .height(Length::Fixed(16.0)),
-                )
-                .push(
-                    text("Start")
-                        .size(metrics::UI_PX)
-                        .font(mde_ui::font::ui_bold()),
-                ),
-        )
-        .on_press(Message::Start)
-        .active(state.menu.is_some())
-        .width(w)
-        .height(h),
-    )
-    .on_right_press(Message::StartContext)
-    .into()
-}
-
 /// The notification-area glyphs (SNI items + brightness/volume/network/battery),
 /// built once and arranged by either bar orientation.
 fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
@@ -517,14 +483,11 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
     v
 }
 
-/// Dispatch to the Carbon top bar (incl. the collapsed Windows 10 theme, E9.7) or
-/// the horizontal Windows-2000 taskbar.
+/// The panel is the Carbon UI Shell top bar on every theme (the Windows 10 theme is
+/// a Carbon-skinned layout; the Win2000 horizontal taskbar was retired in the
+/// Carbon-only collapse, E9.7 slice 3).
 fn view(state: &Panel) -> Element<'_, Message> {
-    if palette::is_carbon() || palette::is_windows10() {
-        view_carbon(state)
-    } else {
-        view_horizontal(state)
-    }
+    view_carbon(state)
 }
 
 /// The Carbon UI Shell header: a flat top bar. Left: a ≡ switcher button + the
@@ -692,96 +655,6 @@ fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
     mouse_area(col)
         .on_press(Message::TaskButton(w.id))
         .on_right_press(Message::MinimizeToggle(w.id))
-        .into()
-}
-
-fn view_horizontal(state: &Panel) -> Element<'_, Message> {
-    let mut bar = Row::new()
-        .spacing(2.0)
-        .height(Length::Fill)
-        .push(start_button(state, Length::Shrink, Length::Fill))
-        .push(Space::with_width(Length::Fixed(6.0)));
-
-    // Quick Launch: pinned apps (from menu.json), between Start and the windows.
-    if !state.pinned.is_empty() {
-        for item in &state.pinned {
-            bar = bar.push(
-                button(text(truncate(&item.name, 12)).size(metrics::UI_PX))
-                    .on_press(Message::Launch(item.command.clone()))
-                    .height(Length::Fill),
-            );
-        }
-        bar = bar.push(Space::with_width(Length::Fixed(6.0)));
-    }
-
-    for w in &state.windows {
-        // Left-click focuses (and restores a minimized window); right-click opens
-        // the window's system menu (Restore / Minimize / Maximize / Close).
-        let label = Row::new()
-            .spacing(4.0)
-            .align_y(iced::Alignment::Center)
-            .push(crate::icons::icon_any(
-                &[w.app_id.as_str(), "application-x-executable"],
-                16,
-            ))
-            .push(text(truncate(&w.title, 20)).size(metrics::UI_PX));
-        bar = bar.push(
-            mouse_area(
-                button(label)
-                    .on_press(Message::TaskButton(w.id))
-                    .active(w.focused)
-                    .width(Length::Fixed(metrics::TASKBAR_BUTTON_MIN as f32))
-                    .height(Length::Fill),
-            )
-            .on_right_press(Message::MinimizeToggle(w.id)),
-        );
-    }
-
-    // The empty stretch of bar: right-click opens the taskbar context menu.
-    bar = bar.push(
-        mouse_area(Space::new(Length::Fill, Length::Fill)).on_right_press(Message::TaskbarContext),
-    );
-
-    // The notification area: tray glyphs then the clock, in one sunken well.
-    let mut tray = Row::new().spacing(3.0).align_y(iced::Alignment::Center);
-    for g in tray_glyphs(state) {
-        tray = tray.push(g);
-    }
-    // The Win2000 notification area: a single sunken well holding the tray
-    // glyphs on the left and the clock on the right. The content is the stack's
-    // *base* (so the well shrinks to fit it — a Fill frame as base would stretch
-    // the well across the whole right end of the bar); the sunken bevel is a
-    // faceless overlay drawn at that size over the silver bar.
-    let notification = Stack::new()
-        .push(
-            container(
-                Row::new()
-                    .align_y(iced::Alignment::Center)
-                    .height(Length::Fill)
-                    .push(tray)
-                    .push(Space::with_width(Length::Fixed(6.0)))
-                    .push(text(state.clock.clone()).size(metrics::UI_PX)),
-            )
-            .center_y(Length::Fill)
-            .padding(Padding {
-                top: 0.0,
-                right: 8.0,
-                bottom: 0.0,
-                left: 6.0,
-            }),
-        )
-        .push(frame::sunken().no_face())
-        .width(Length::Shrink);
-    bar = bar.push(container(notification).height(Length::Fill).padding(2.0));
-
-    Stack::new()
-        .push(frame::raised())
-        .push(
-            container(bar)
-                .padding(2.0)
-                .width(Length::Fill)
-                .height(Length::Fill),
-        )
         .into()
 }
 
