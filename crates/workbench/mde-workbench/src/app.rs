@@ -19,13 +19,13 @@ use crate::keyboard::{KeyAction, Pane};
 use crate::model::{resolve_panel_label, view_from_focus_slug, Group, View};
 use crate::panels::{
     apps_install as apps_install_panel, apps_installed as apps_installed_panel,
-    apps_remove as apps_remove_panel, apps_sources as apps_sources_panel, connect as connect_panel,
-    datetime as datetime_panel, default_apps as default_apps_panel, displays as displays_panel,
-    drift as drift_panel, firewall as firewall_panel, fleet_revisions as fleet_revisions_panel,
-    fleet_settings as fleet_settings_panel, fonts as fonts_panel,
-    health_check as health_check_panel, help_index as help_index_panel, home as home_panel,
-    hub as hub_panel, inventory as inventory_panel, keyboard as keyboard_panel, logs as logs_panel,
-    mesh_bus as mesh_bus_panel, mesh_control as mesh_control_panel,
+    apps_remove as apps_remove_panel, apps_sources as apps_sources_panel, compute as compute_panel,
+    connect as connect_panel, datetime as datetime_panel, default_apps as default_apps_panel,
+    displays as displays_panel, drift as drift_panel, firewall as firewall_panel,
+    fleet_revisions as fleet_revisions_panel, fleet_settings as fleet_settings_panel,
+    fonts as fonts_panel, health_check as health_check_panel, help_index as help_index_panel,
+    home as home_panel, hub as hub_panel, inventory as inventory_panel, keyboard as keyboard_panel,
+    logs as logs_panel, mesh_bus as mesh_bus_panel, mesh_control as mesh_control_panel,
     mesh_federation as mesh_federation_panel, mesh_history as mesh_history_panel,
     mesh_join as mesh_join_panel, mesh_pending as mesh_pending_panel,
     mesh_services as mesh_services_panel, mesh_storage as mesh_storage_panel,
@@ -156,6 +156,8 @@ pub enum Message {
     Logs(logs_panel::Message),
     /// CB-1.7 partial — Maintain resources panel sub-message.
     Resources(resources_panel::Message),
+    /// E6.10 — Compute group instance-list sub-message.
+    Compute(compute_panel::Message),
     /// CB-1.7 partial — Maintain system-update panel sub-message.
     SystemUpdate(system_update_panel::Message),
     /// CB-1.7 partial — Maintain repair panel sub-message.
@@ -250,6 +252,7 @@ pub struct App {
     snapshots: snapshots_panel::SnapshotsPanel,
     logs: logs_panel::LogsPanel,
     resources: resources_panel::ResourcesPanel,
+    compute: compute_panel::ComputePanel,
     system_update: system_update_panel::SystemUpdatePanel,
     repair: repair_panel::RepairPanel,
     apps_installed: apps_installed_panel::AppsInstalledPanel,
@@ -353,6 +356,7 @@ impl App {
             snapshots: snapshots_panel::SnapshotsPanel::new(),
             logs: logs_panel::LogsPanel::new(),
             resources: resources_panel::ResourcesPanel::new(),
+            compute: compute_panel::ComputePanel::new(),
             system_update: system_update_panel::SystemUpdatePanel::new(),
             repair: repair_panel::RepairPanel::new(),
             apps_installed: apps_installed_panel::AppsInstalledPanel::new(),
@@ -677,7 +681,7 @@ impl App {
             Message::SelectGroup(group) => {
                 self.view = View::Group(group);
                 self.focused_pane = Pane::Main;
-                Task::none()
+                self.on_group_navigated(group)
             }
             Message::SelectPanel { group, panel } => {
                 self.view = View::Panel { group, panel };
@@ -755,6 +759,7 @@ impl App {
             Message::Snapshots(msg) => self.snapshots.update(msg),
             Message::Logs(msg) => self.logs.update(msg),
             Message::Resources(msg) => self.resources.update(msg),
+            Message::Compute(msg) => self.compute.update(msg),
             Message::SystemUpdate(msg) => self.system_update.update(msg),
             Message::Repair(msg) => self.repair.update(msg),
             Message::AppsInstalled(msg) => self.apps_installed.update(msg),
@@ -889,6 +894,18 @@ impl App {
         }
     }
 
+    /// Group-root navigation side effects. Most group roots are static
+    /// (the role card) or carry their own live subscription (Dashboard);
+    /// the Compute root enumerates local VMs/pods on entry (E6.10), so a
+    /// jump to it — sidebar click, `--page compute`, See-also link — lands
+    /// the instance list already populated.
+    fn on_group_navigated(&self, group: Group) -> Task<Message> {
+        match group {
+            Group::Compute => compute_panel::ComputePanel::load(),
+            _ => Task::none(),
+        }
+    }
+
     fn apply_focus_request(&mut self, slug: &str) -> Task<Message> {
         if slug.is_empty() {
             // Empty slug = "raise only, no view change" — the
@@ -908,7 +925,7 @@ impl App {
         if let View::Panel { group, panel } = view {
             self.on_panel_navigated(group, panel)
         } else {
-            Task::none()
+            self.on_group_navigated(view.group())
         }
     }
 
@@ -1262,6 +1279,15 @@ impl App {
                 group: Group::Fleet,
                 panel: "revisions",
             } => self.fleet_revisions.view(),
+            // E6.10 — the Compute group root (and its "Instances"
+            // sub-panel) render the bespoke local + fleet VM/pod list,
+            // not the generic role card: `--page compute` lands directly
+            // on the instance enumeration per the E6.10 acceptance.
+            View::Group(Group::Compute)
+            | View::Panel {
+                group: Group::Compute,
+                panel: "instances",
+            } => self.compute.view(),
             // E6.1 — any group-root view without a bespoke landing
             // (Apps / Devices / Fleet / Look & Feel / System, plus
             // Network when deep-linked) renders the "Manage Your Server"

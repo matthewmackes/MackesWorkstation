@@ -278,6 +278,6 @@ crates/shared/mde-theme/src/palette.rs:66
 crates/shared/mde-theme/src/palette.rs:139
 crates/shared/mde-theme/src/palette.rs:152
 crates/shared/mde-theme/src/palette.rs:153
-crates/workbench/mde-workbench/src/app.rs:1635
-crates/workbench/mde-workbench/src/app.rs:1636
-crates/workbench/mde-workbench/src/app.rs:1670
+crates/workbench/mde-workbench/src/app.rs:1661
+crates/workbench/mde-workbench/src/app.rs:1662
+crates/workbench/mde-workbench/src/app.rs:1696

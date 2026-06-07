@@ -30,6 +30,7 @@ const fn role_icon(group: Group) -> Icon {
         Group::Apps => Icon::Apps,
         Group::Devices => Icon::Devices,
         Group::Fleet => Icon::Fleet,
+        Group::Compute => Icon::Compute,
         Group::LookAndFeel => Icon::LookAndFeel,
         Group::Maintain => Icon::Maintain,
         Group::Network => Icon::Network,
@@ -54,6 +55,9 @@ const fn role_description(group: Group) -> &'static str {
         Group::Fleet => {
             "Drive multi-host deployment — inventory, playbooks, run history, and config revisions."
         }
+        Group::Compute => {
+            "Run local and fleet VMs and containers — create, start, stop, migrate, and open consoles."
+        }
         Group::LookAndFeel => {
             "Restyle the desktop — themes, fonts, wallpaper, and panel sync status."
         }
@@ -77,7 +81,8 @@ const fn see_also(group: Group) -> &'static [Group] {
         Group::Dashboard => &[Group::Maintain, Group::System, Group::Fleet],
         Group::Apps => &[Group::System, Group::Maintain],
         Group::Devices => &[Group::LookAndFeel, Group::System],
-        Group::Fleet => &[Group::Network, Group::Maintain],
+        Group::Fleet => &[Group::Compute, Group::Network, Group::Maintain],
+        Group::Compute => &[Group::Fleet, Group::System],
         Group::LookAndFeel => &[Group::Devices, Group::System],
         Group::Maintain => &[Group::System, Group::Fleet],
         Group::Network => &[Group::Fleet, Group::System],

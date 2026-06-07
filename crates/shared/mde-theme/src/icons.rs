@@ -168,6 +168,8 @@ pub enum Icon {
     Maintain,
     /// Fleet group + mesh panels.
     Fleet,
+    /// Compute group — local + fleet VMs / pods (E6.10).
+    Compute,
     /// Help group.
     Help,
 
@@ -301,6 +303,7 @@ impl Icon {
             Icon::System => "settings",
             Icon::Maintain => "build",
             Icon::Fleet => "public",
+            Icon::Compute => "memory",
             Icon::Help => "help",
 
             Icon::Snapshot => "save",
@@ -374,6 +377,7 @@ impl Icon {
             Icon::System => "\u{2699}",
             Icon::Maintain => "\u{1F527}",
             Icon::Fleet => "\u{29C9}",
+            Icon::Compute => "\u{25A5}",
             Icon::Help => "?",
 
             Icon::Snapshot => "\u{29C7}",
@@ -458,6 +462,7 @@ impl Icon {
             | Icon::System
             | Icon::Maintain
             | Icon::Fleet
+            | Icon::Compute
             | Icon::Help
             | Icon::Files => FillMode::OnActive,
 
@@ -735,6 +740,12 @@ fn material_svg_bytes(icon: Icon, svg_size: u32, filled: bool) -> &'static [u8] 
             }
             _ => include_bytes!("../../../../assets/icons/material-symbols/public_24px.svg"),
         },
+        Icon::Compute => pick_3(
+            svg_size,
+            include_bytes!("../../../../assets/icons/material-symbols/memory_20px.svg"),
+            include_bytes!("../../../../assets/icons/material-symbols/memory_24px.svg"),
+            include_bytes!("../../../../assets/icons/material-symbols/memory_40px.svg"),
+        ),
         Icon::Help | Icon::StatusUnknown => match (svg_size, filled) {
             // Both Help (OnActive) + StatusUnknown (AlwaysFill)
             // map to `help`.
@@ -1267,6 +1278,7 @@ mod tests {
             Icon::System,
             Icon::Maintain,
             Icon::Fleet,
+            Icon::Compute,
             Icon::Help,
             Icon::Files,
         ] {
@@ -1361,6 +1373,7 @@ mod tests {
             Icon::System,
             Icon::Maintain,
             Icon::Fleet,
+            Icon::Compute,
             Icon::Help,
             Icon::Snapshot,
             Icon::Peer,

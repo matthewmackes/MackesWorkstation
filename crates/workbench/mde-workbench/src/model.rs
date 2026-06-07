@@ -7,18 +7,20 @@
 
 use std::fmt;
 
-/// One of the nine top-level sidebar groups per
-/// `.claude/CLAUDE.md` §4 Index ("Sidebar shell" row) and the
-/// CB-1.2 lock ("9 groups (Dashboard / Apps / Devices / Fleet /
-/// Look & Feel / Maintain / Network / System / Help)"). Order is
-/// load-bearing — it drives the Ctrl+1..9 keyboard hotkey
-/// dispatch (CB-1.2 keyboard nav lock).
+/// One of the top-level sidebar groups per `.claude/CLAUDE.md`
+/// §4 Index ("Sidebar shell" row) and the CB-1.2 lock ("9 groups
+/// (Dashboard / Apps / Devices / Fleet / Look & Feel / Maintain /
+/// Network / System / Help)"), extended by **Compute** (E6.10 —
+/// local + fleet VMs / pods, placed next to Fleet as a sibling
+/// infra-ops domain). Order is load-bearing — it drives the
+/// Ctrl+digit keyboard hotkey dispatch (CB-1.2 keyboard nav lock).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Group {
     Dashboard,
     Apps,
     Devices,
     Fleet,
+    Compute,
     LookAndFeel,
     Maintain,
     Network,
@@ -36,6 +38,7 @@ impl Group {
             Self::Apps => "apps",
             Self::Devices => "devices",
             Self::Fleet => "fleet",
+            Self::Compute => "compute",
             Self::LookAndFeel => "look_and_feel",
             Self::Maintain => "maintain",
             Self::Network => "network",
@@ -52,6 +55,7 @@ impl Group {
             Self::Apps => "Apps",
             Self::Devices => "Devices",
             Self::Fleet => "Fleet",
+            Self::Compute => "Compute",
             Self::LookAndFeel => "Look & Feel",
             Self::Maintain => "Maintain",
             Self::Network => "Network",
@@ -62,12 +66,13 @@ impl Group {
 
     /// Stable display order (drives the Ctrl+1..9 hotkey dispatch).
     #[must_use]
-    pub const fn all() -> [Self; 9] {
+    pub const fn all() -> [Self; 10] {
         [
             Self::Dashboard,
             Self::Apps,
             Self::Devices,
             Self::Fleet,
+            Self::Compute,
             Self::LookAndFeel,
             Self::Maintain,
             Self::Network,
@@ -238,6 +243,14 @@ pub fn nav_model() -> Vec<NavEntry> {
             ],
         },
         NavEntry {
+            group: Group::Compute,
+            // E6.10 — the Compute group root renders the bespoke instance
+            // list (local + fleet VMs / pods); "Instances" is its sidebar
+            // sub-entry of the same view. Templates / wizard / migration
+            // surfaces land as further panels in later E6.10 slices.
+            panels: vec![Panel::new("instances", "Instances")],
+        },
+        NavEntry {
             group: Group::LookAndFeel,
             panels: vec![
                 Panel::new("themes", "Themes"),
@@ -381,9 +394,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nav_model_has_nine_groups_in_locked_order() {
+    fn nav_model_has_all_groups_in_locked_order() {
         let nav = nav_model();
-        assert_eq!(nav.len(), 9);
+        // 10 groups since E6.10 added Compute next to Fleet.
+        assert_eq!(nav.len(), 10);
         let order: Vec<Group> = nav.iter().map(|e| e.group).collect();
         assert_eq!(order, Group::all().to_vec());
     }
