@@ -202,7 +202,7 @@ pub fn run(dry_run: bool, packages: Option<Vec<String>>) -> ExitCode {
                 done: false,
             },
             Step {
-                label: "Applying MDE Retro branding",
+                label: "Applying Mackes Workstation branding",
                 done: false,
             },
         ],
@@ -374,7 +374,7 @@ fn run_step(i: usize, dry_run: bool, selection: &[String]) -> Result<(), String>
             }
         }
         6 => {
-            // Rebrand the install as MDE Retro Workstation (os-release, Plymouth,
+            // Rebrand the install as Mackes Workstation (os-release, Plymouth,
             // GRUB, console, fastfetch, wallpaper, LightDM login). Switches the
             // display manager greetd -> LightDM, so it runs after step 5. Skip if
             // the boot one-shot (mde-activate-branding.service) already applied it

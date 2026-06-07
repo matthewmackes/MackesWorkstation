@@ -1,4 +1,4 @@
-//! `mde about` — the winver-style "About MDE Retro Workstation" dialog.
+//! `mde about` — the winver-style "About Mackes Workstation" dialog.
 //!
 //! A small Win2000 System-Properties-flavored box: the brand logo + product,
 //! the MDE version over the Fedora base line, who it's registered to, and live
@@ -15,7 +15,7 @@ use crate::sysinfo;
 
 /// The brand logo (carbon grid on the black/blue tile).
 const LOGO: &[u8] = include_bytes!("../../assets/branding/mde-logo.svg");
-const PRODUCT: &str = "MDE Retro Workstation";
+const PRODUCT: &str = "Mackes Workstation";
 
 #[derive(Debug, Clone)]
 enum Message {

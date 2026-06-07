@@ -236,7 +236,7 @@ fn build_root() -> Vec<Node> {
         Node::Sub("Search".into(), search_tree()),
         Node::Sub("System Tools".into(), system_tools_tree()),
         Node::Leaf("Help".into(), Act::Help),
-        Node::Leaf("About MDE Retro Workstation".into(), Act::Mde("about")),
+        Node::Leaf("About Mackes Workstation".into(), Act::Mde("about")),
         Node::Leaf("Run...".into(), Act::Run),
         Node::Sep,
         Node::Leaf("Log Off...".into(), Act::LogOff),
@@ -783,7 +783,7 @@ const BANNER_W: f32 = 28.0;
 fn banner<'a>(height: f32) -> Element<'a, Message> {
     // The classic Windows side banner (à la Windows Me): a black strip with a
     // blue glow at the foot and the product name rotated 90°, reading
-    // bottom-to-top — "MDE Retro" white, "Workstation" light blue, bold italic.
+    // bottom-to-top — "Mackes" white, "Workstation" light blue, bold italic.
     // Rendered as an SVG because iced has no text rotation but its svg widget
     // rasterises <text> with the system fonts (Droid Sans).
     let w = BANNER_W;
@@ -806,7 +806,7 @@ fn banner<'a>(height: f32) -> Element<'a, Message> {
 <rect width="{w}" height="{h}" fill="{bg}"/>
 <rect width="{w}" height="{h}" fill="url(#g)"/>
 <text transform="translate(20,{ty}) rotate(-90)" font-family="Droid Sans" font-style="italic" font-weight="bold" text-anchor="start">
-<tspan font-size="15" fill="{name}">MDE Retro </tspan><tspan font-size="12" fill="{accent}">Workstation</tspan>
+<tspan font-size="15" fill="{name}">Mackes </tspan><tspan font-size="12" fill="{accent}">Workstation</tspan>
 </text></svg>"##
     );
     iced::widget::svg(iced::widget::svg::Handle::from_memory(svg.into_bytes()))
