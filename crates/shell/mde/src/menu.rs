@@ -726,7 +726,7 @@ fn render_item<'a>(
         Node::Leaf(label, _) => mouse_area(
             button(
                 Row::new()
-                    .spacing(6.0)
+                    .spacing(metrics::SPACING_03)
                     .align_y(iced::Alignment::Center)
                     .push(crate::icons::icon_any(menu_icon(label), icon_px))
                     .push(text(label).size(metrics::UI_PX)),
@@ -741,7 +741,7 @@ fn render_item<'a>(
         .into(),
         Node::Sub(label, _) => button(
             Row::new()
-                .spacing(6.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(crate::icons::icon_any(menu_icon(label), icon_px))
                 .push(text(label).size(metrics::UI_PX).width(Length::Fill))

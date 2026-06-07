@@ -248,7 +248,7 @@ fn view(state: &Flyout) -> Element<'_, Message> {
         if state.selected.as_deref() == Some(w.ssid.as_str()) {
             list = list.push(
                 Row::new()
-                    .spacing(6.0)
+                    .spacing(metrics::SPACING_03)
                     .padding(pad(2.0, 6.0, 6.0, 18.0))
                     .push(
                         text_input("Password", &state.password)
@@ -283,7 +283,7 @@ fn view(state: &Flyout) -> Element<'_, Message> {
 
     let panel = container(
         Column::new()
-            .spacing(10.0)
+            .spacing(metrics::SPACING_04)
             .padding(metrics::SPACING_04)
             .push(
                 text("Network")

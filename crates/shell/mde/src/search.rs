@@ -480,7 +480,7 @@ fn view(state: &Search) -> Element<'_, Message> {
         .padding(metrics::SPACING_04)
         .into()
     } else {
-        let mut col = Column::new().spacing(1.0);
+        let mut col = Column::new().spacing(metrics::SPACING_01);
         for (i, hit) in hits.iter().enumerate() {
             let ids: Vec<&str> = hit.icon.iter().map(String::as_str).collect();
             let row = Row::new()
@@ -500,7 +500,7 @@ fn view(state: &Search) -> Element<'_, Message> {
     };
 
     let body = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .padding(metrics::SPACING_03)
         .push(field)
         .push(tabs)
