@@ -1270,19 +1270,11 @@ pub fn run(args: &[String]) -> ExitCode {
         print!("{}", lock_script());
         return ExitCode::SUCCESS;
     }
-    // Era gate (E10.7): the Settings app is the Windows 10 modern config surface;
-    // the classic eras (Win2000 / Carbon) use the Control Panel. Under any non-Win10
-    // theme, exit without drawing rather than render a modern app in a classic shell.
-    // (main.rs has already set the palette from menu.json by now; the headless
-    // --list/--lock-script debug paths above stay theme-independent for tests.)
-    if !palette::is_windows10() {
-        // D4: the Win+I "settings" target is era-gated. The Settings app is the
-        // Win10 modern surface; the classic eras (Win2000 / Carbon) use the Control
-        // Panel — so route there in-process rather than no-op, making the one Win+I
-        // bind correct in every era (E20.6). The headless --list/--lock-script debug
-        // paths above already returned, so this only affects the GUI launch.
-        return crate::control_panel::run(&[]);
-    }
+    // E9.7 (modern identity, operator 2026-06-07): the modern Settings app is the
+    // canonical Carbon config surface — `mde settings` / Win+I renders it directly
+    // (the former Win2000/classic "route to Control Panel" gate is removed; the
+    // Control Panel stays reachable via `mde control-panel`). The headless
+    // --list/--lock-script debug paths above already returned.
     // Parse a positional category name plus an optional `--page <name>` deep-link
     // (E7.3): `mde settings personalization --page taskbar`. A positional that
     // isn't a category pre-fills the Home search box instead (`mde settings

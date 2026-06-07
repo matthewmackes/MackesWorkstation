@@ -369,8 +369,9 @@ impl Default for MenuState {
 }
 
 /// The seeded default state for a fresh config (E18.5): the base default plus a
-/// Quick-Launch / Start pin for the default browser. Consumed only under the Win10
-/// era (see [`effective_pinned`]), so the classic eras stay pin-free by default.
+/// Quick-Launch / Start pin for the default browser. Seeded universally when
+/// nothing is pinned yet (see [`effective_pinned`]) — E9.7 collapsed the former
+/// Win10-only gate into the universal Carbon behaviour.
 pub fn default_state() -> MenuState {
     MenuState {
         pinned: vec![crate::browser::default_pin()],
@@ -378,11 +379,11 @@ pub fn default_state() -> MenuState {
     }
 }
 
-/// The pins to show: the persisted `pinned`, or — **only under the Win10 era and
-/// only when nothing is pinned yet** — the seeded default-browser pin (E18.5). The
-/// classic eras always use `pinned` verbatim, so they're unchanged.
+/// The pins to show: the persisted `pinned`, or — when nothing is pinned yet —
+/// the seeded default-browser pin (E18.5). E9.7 collapsed the former Win10-only
+/// gate: the seed is now the universal Carbon default for a fresh config.
 pub fn effective_pinned(state: &MenuState) -> Vec<PinnedItem> {
-    if state.pinned.is_empty() && mde_ui::palette::is_windows10() {
+    if state.pinned.is_empty() {
         default_state().pinned
     } else {
         state.pinned.clone()

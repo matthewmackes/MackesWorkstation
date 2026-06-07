@@ -133,6 +133,9 @@ printf 'loser\n'  > "$conflict_dir/report.md.conflict-laptop-1717800000"
 shot files-meshfs-conflict files "$conflict_dir"
 rm -rf "$conflict_dir"
 shot control-panel    control-panel
+# E9.7 (modern identity): `mde settings` renders the modern Settings app as the
+# canonical Carbon config surface (was era-gated to route to the Control Panel).
+shot settings         --wait 3.0 settings
 shot add-remove       --wait 3.0 add-remove
 shot add-remove-updates --wait 3.0 add-remove --updates
 shot system-properties --wait 3.0 system-properties

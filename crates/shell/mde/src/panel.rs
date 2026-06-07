@@ -239,22 +239,13 @@ fn launch() -> Result<(), iced_layershell::Error> {
         app = app.font(bytes);
     }
     // Carbon (incl. the now-collapsed Windows 10 theme, E9.7): a flat UI Shell bar
-    // anchored to the TOP edge. Windows 2000: the horizontal taskbar along the
-    // bottom. Either way the bar reserves its strip via the exclusive zone.
-    let layer_settings = if palette::is_carbon() || palette::is_windows10() {
-        LayerShellSettings {
-            size: Some((0, CARBON_BAR_H as u32)),
-            exclusive_zone: CARBON_BAR_H as i32,
-            anchor: Anchor::Top | Anchor::Left | Anchor::Right,
-            ..Default::default()
-        }
-    } else {
-        LayerShellSettings {
-            size: Some((0, metrics::TASKBAR_HEIGHT as u32)),
-            exclusive_zone: metrics::TASKBAR_HEIGHT as i32,
-            anchor: Anchor::Bottom | Anchor::Left | Anchor::Right,
-            ..Default::default()
-        }
+    // anchored to the TOP edge, reserving its strip via the exclusive zone. (The
+    // old Windows 2000 bottom-taskbar branch was retired with the Win2000 theme.)
+    let layer_settings = LayerShellSettings {
+        size: Some((0, CARBON_BAR_H as u32)),
+        exclusive_zone: CARBON_BAR_H as i32,
+        anchor: Anchor::Top | Anchor::Left | Anchor::Right,
+        ..Default::default()
     };
     app.settings(MainSettings {
         layer_settings,
