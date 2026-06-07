@@ -937,7 +937,7 @@ fn frame<'a>(
     actions: Element<'a, Msg>,
 ) -> Element<'a, Msg> {
     let header = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .padding(pad(28.0, 28.0, 8.0, 28.0))
         .push(
             text(heading)
@@ -988,7 +988,7 @@ fn privacy_row<'a>(on: bool, which: u8, label: &'a str, desc: &'a str) -> Elemen
         ..Default::default()
     });
     Row::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .align_y(iced::alignment::Vertical::Center)
         .push(container(pill).width(Length::Fixed(70.0)))
         .push(
@@ -1060,7 +1060,7 @@ fn swatch(i: usize, selected: bool) -> Element<'static, Msg> {
 }
 
 fn personalize_body(state: &Oobe) -> Element<'_, Msg> {
-    let mut swatches = Row::new().spacing(10.0);
+    let mut swatches = Row::new().spacing(metrics::SPACING_04);
     for (i, _) in ACCENTS.iter().enumerate() {
         swatches = swatches.push(swatch(i, i == state.accent));
     }
@@ -1079,7 +1079,7 @@ fn personalize_body(state: &Oobe) -> Element<'_, Msg> {
                 .width(Length::Fixed(96.0)),
         );
     Column::new()
-        .spacing(18.0)
+        .spacing(metrics::SPACING_05)
         .padding(pad(16.0, 8.0, 0.0, 8.0))
         .push(text("Accent color").size(metrics::UI_PX).color(dim()))
         .push(swatches)
@@ -1107,7 +1107,7 @@ fn network_body(state: &Oobe) -> Element<'_, Msg> {
         Msg::SelectWifi,
     );
     // Show a password field for the selected secured network.
-    let mut col = Column::new().spacing(10.0).push(list);
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(list);
     if let Some(i) = state.wifi_sel {
         if state.wifis[i].secured {
             col = col.push(
@@ -1310,7 +1310,7 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
         ),
         Stage::Pin => {
             let body = Column::new()
-                .spacing(10.0)
+                .spacing(metrics::SPACING_04)
                 .padding(pad(20.0, 0.0, 0.0, 0.0))
                 .push(
                     text("A PIN is a quick, secure way to sign in to your device.")
@@ -1349,7 +1349,7 @@ fn view(state: &Oobe) -> Element<'_, Msg> {
         ),
         Stage::Finalize => {
             let body = Column::new()
-                .spacing(10.0)
+                .spacing(metrics::SPACING_04)
                 .padding(pad(20.0, 0.0, 0.0, 0.0))
                 .push(
                     text("This might take a few minutes.")

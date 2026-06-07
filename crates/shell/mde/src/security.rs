@@ -236,7 +236,7 @@ fn tile_card<'a>(icon: &'static str, t: &Tile) -> Element<'a, Message> {
         );
     container(
         Column::new()
-            .spacing(6.0)
+            .spacing(metrics::SPACING_03)
             .push(head)
             .push(
                 text(t.title.clone())
@@ -319,7 +319,7 @@ fn view(state: &Security) -> Element<'_, Message> {
 /// A back-button header for a detail page.
 fn detail_header(title: &'static str) -> Column<'static, Message> {
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(
             button(text("← Back").size(metrics::UI_PX))
                 .on_press(Message::Back)
@@ -456,7 +456,7 @@ fn home_view(s: &SecurityStatus) -> Element<'_, Message> {
     }
 
     Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .padding(Padding::from(16.0))
         .push(heading)
         .push(grid)
@@ -473,7 +473,7 @@ fn firewall_view(fw: Option<&FirewallDetail>) -> Element<'_, Message> {
         .size(metrics::INFO_TITLE_PX)
         .color(palette::color(palette::WINDOW_TEXT));
 
-    let mut col = Column::new().spacing(10.0).push(back).push(heading);
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(back).push(heading);
 
     if let Some(fw) = fw {
         let (mark, role) = level_mark(if fw.running { Level::Ok } else { Level::Risk });
@@ -541,7 +541,7 @@ fn encryption_view(state: &Security) -> Element<'_, Message> {
         .on_press(Message::Back)
         .padding(Padding::from([4.0, 12.0]))
         .style(mde_ui::button_ghost);
-    let mut col = Column::new().spacing(10.0).push(back).push(
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(back).push(
         text("Device encryption")
             .size(metrics::INFO_TITLE_PX)
             .color(palette::color(palette::WINDOW_TEXT)),
@@ -552,7 +552,7 @@ fn encryption_view(state: &Security) -> Element<'_, Message> {
         col = col.push(
             container(
                 Column::new()
-                    .spacing(6.0)
+                    .spacing(metrics::SPACING_03)
                     .push(
                         text(format!(
                             "Encrypting /dev/{dev} ERASES it. Run this as root from a terminal:"
@@ -573,7 +573,7 @@ fn encryption_view(state: &Security) -> Element<'_, Message> {
                             .style(mde_ui::button_ghost),
                     ),
             )
-            .padding(10.0)
+            .padding(metrics::SPACING_04)
             .style(|_| container::Style {
                 border: iced::Border {
                     color: palette::accent(),
@@ -616,7 +616,7 @@ fn encryption_view(state: &Security) -> Element<'_, Message> {
             .style(mde_ui::button_ghost);
             col = col.push(
                 Row::new()
-                    .spacing(10.0)
+                    .spacing(metrics::SPACING_04)
                     .align_y(iced::alignment::Vertical::Center)
                     .push(
                         text(glyph)
@@ -653,7 +653,7 @@ fn antivirus_view(av: Option<&Option<String>>) -> Element<'_, Message> {
         .on_press(Message::Back)
         .padding(Padding::from([4.0, 12.0]))
         .style(mde_ui::button_ghost);
-    let mut col = Column::new().spacing(10.0).push(back).push(
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(back).push(
         text("Virus & threat protection")
             .size(metrics::INFO_TITLE_PX)
             .color(palette::color(palette::WINDOW_TEXT)),

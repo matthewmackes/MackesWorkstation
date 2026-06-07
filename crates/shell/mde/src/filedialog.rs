@@ -505,7 +505,7 @@ fn entry_row<'a>(state: &FileDialog, i: usize, e: &'a Entry) -> Element<'a, Mess
         &["text-x-generic", "application-x-executable"][..]
     };
     let mut row = Row::new()
-        .spacing(5.0)
+        .spacing(metrics::SPACING_02)
         .align_y(iced::Alignment::Center)
         .push(crate::icons::icon_any(icon, 16))
         .push(
@@ -544,7 +544,7 @@ fn is_image(name: &str) -> bool {
 fn view(state: &FileDialog) -> Element<'_, Message> {
     // Look in: dropdown + toolbar.
     let look_in = Row::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(text("Look in:").size(metrics::UI_PX))
         .push(
@@ -575,12 +575,12 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
     .width(Length::Fill)
     .height(Length::Fill);
 
-    let middle = Row::new().spacing(6.0).push(places_bar()).push(well);
+    let middle = Row::new().spacing(metrics::SPACING_03).push(places_bar()).push(well);
 
     // Filename row + Open/Save button.
     let accept_label = if state.save { "Save" } else { "Open" };
     let name_row = Row::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(
             text("File name:")
@@ -616,7 +616,7 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
         })
         .collect();
     let type_row = Row::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(
             text("Files of type:")
@@ -637,7 +637,7 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
 
     let body = Column::new()
         .spacing(metrics::SPACING_03)
-        .padding(10.0)
+        .padding(metrics::SPACING_04)
         .push(look_in)
         .push(container(middle).height(Length::Fill))
         .push(name_row)

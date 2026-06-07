@@ -243,7 +243,7 @@ fn view(state: &TaskView) -> Element<'_, Message> {
                 .height(Length::Fill)
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
-                .padding(40.0),
+                .padding(metrics::SPACING_08),
         );
     iced::widget::stack![
         mouse_area(Space::new(Length::Fill, Length::Fill)).on_press(Message::Close),
@@ -286,7 +286,7 @@ fn snap_assist_view(state: &TaskView, side: Side) -> Element<'_, Message> {
         .height(Length::Fill)
         .center_x(Length::Fill)
         .center_y(Length::Fill)
-        .padding(40.0);
+        .padding(metrics::SPACING_08);
     // Place the picker in the empty half; the snapped window shows through the
     // scrim on the other half.
     let spacer = Space::new(Length::Fill, Length::Fill);
@@ -324,7 +324,7 @@ fn band(state: &TaskView) -> Element<'_, Message> {
 /// switching is the labwc `W-C-Left/Right` binds (E4.6). No fake active state and
 /// no dead click: the chips are plain labels, not buttons.
 fn fixed_desktop_band<'a>(n: u32) -> Element<'a, Message> {
-    let mut row = Row::new().spacing(10.0).align_y(Vertical::Center);
+    let mut row = Row::new().spacing(metrics::SPACING_04).align_y(Vertical::Center);
     for i in 1..=n {
         let label = text(format!("Desktop {i}"))
             .size(metrics::UI_PX)
@@ -349,7 +349,7 @@ fn fixed_desktop_band<'a>(n: u32) -> Element<'a, Message> {
         .size(metrics::UI_PX)
         .color(palette::color(palette::GRAY_TEXT));
     let col = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .align_x(Horizontal::Center)
         .push(row)
         .push(hint);
@@ -367,7 +367,7 @@ fn desktop_band(workspaces: &[workspace::Workspace], can_create: bool) -> Elemen
     if workspaces.is_empty() {
         return Space::new(Length::Fill, Length::Shrink).into();
     }
-    let mut row = Row::new().spacing(10.0).align_y(Vertical::Center);
+    let mut row = Row::new().spacing(metrics::SPACING_04).align_y(Vertical::Center);
     for w in workspaces {
         row = row.push(ws_chip(w));
     }
@@ -473,7 +473,7 @@ fn tile(w: &wlr::Window) -> Element<'_, Message> {
             .height(Length::Fixed(metrics::TASKVIEW_TILE * 0.7))
             .align_x(Horizontal::Center)
             .align_y(Vertical::Center)
-            .padding(10.0)
+            .padding(metrics::SPACING_04)
             .style(move |_| container::Style {
                 background: Some(Background::Color(palette::color(palette::MENU))),
                 border: Border {

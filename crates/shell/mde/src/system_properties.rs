@@ -158,7 +158,7 @@ fn tab_strip(current: usize) -> Element<'static, Message> {
 /// A "Label: value" line.
 fn field<'a>(label: &'a str, value: String) -> Element<'a, Message> {
     Row::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text(label)
                 .size(metrics::UI_PX)
@@ -275,7 +275,7 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
     }
     let well = iced::widget::stack![
         frame::sunken().face(palette::color(palette::WINDOW)),
-        container(scrollable(tree).style(mde_ui::scrollbar)).padding(3.0),
+        container(scrollable(tree).style(mde_ui::scrollbar)).padding(metrics::SPACING_02),
     ];
     Column::new()
         .spacing(metrics::SPACING_03)
@@ -307,15 +307,15 @@ fn advanced_tab(state: &SysProps) -> Element<'static, Message> {
     }
     let a = &state.advanced;
     let perf = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(field("Swappiness", a.swappiness.clone()))
         .push(field("zram device", a.zram.clone()));
     let boot = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(field("Default boot entry", a.grub_default.clone()))
         .push(field("Boot menu timeout", format!("{} s", a.grub_timeout)));
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(group_box("Performance", perf))
         .push(group_box("Startup and Recovery", boot))
         .push(field(
@@ -379,11 +379,11 @@ fn updates_tab(state: &SysProps) -> Element<'static, Message> {
             Message::SetAuto,
         )
         .style(mde_ui::radio_style)
-        .size(13.0)
+        .size(metrics::TYPE_BODY_01)
         .text_size(metrics::UI_PX)
     };
     let group = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(opt("Turn off automatic updates", AutoMode::Off))
         .push(opt(
             "Download updates automatically, notify before installing",
@@ -394,7 +394,7 @@ fn updates_tab(state: &SysProps) -> Element<'static, Message> {
     // automatic.conf's apply_updates, so Download-only vs Install actually differ
     // (shared with the Win10 Update page, E13.1).
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(group_box("Keep my computer up to date", group))
         .push(
             Row::new()
@@ -483,7 +483,7 @@ fn view(state: &SysProps) -> Element<'_, Message> {
         );
 
     let body = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .padding(pad(6.0, 10.0, 10.0, 10.0))
         .push(tab_strip(state.current))
         .push(container(panel).height(Length::Fill))

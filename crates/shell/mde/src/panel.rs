@@ -491,7 +491,7 @@ fn view_carbon(state: &Panel) -> Element<'_, Message> {
     let start = mouse_area(
         container(
             Row::new()
-                .spacing(6.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(
                     text("\u{f0c9}")
@@ -557,14 +557,14 @@ fn view_carbon(state: &Panel) -> Element<'_, Message> {
     );
 
     // Tray glyphs then the clock, flat at the right (no sunken well).
-    let mut tray = Row::new().spacing(4.0).align_y(iced::Alignment::Center);
+    let mut tray = Row::new().spacing(metrics::SPACING_02).align_y(iced::Alignment::Center);
     for g in tray_glyphs(state) {
         tray = tray.push(g);
     }
     bar = bar.push(
         container(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .height(Length::Fill)
                 .push(tray)
@@ -605,7 +605,7 @@ fn view_carbon(state: &Panel) -> Element<'_, Message> {
 /// minimize (same rules as the Win2000 taskbar button).
 fn carbon_task_button(w: &wlr::Window, text_c: Color) -> Element<'_, Message> {
     let label = Row::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(crate::icons::icon_any(
             &[w.app_id.as_str(), "application-x-executable"],
@@ -913,7 +913,7 @@ fn mesh_chip(ms: crate::mesh_status::MeshStatus) -> Element<'static, Message> {
                 .size(metrics::PANEL_GLYPH_PX - 2.0)
                 .color(color),
         ]
-        .spacing(2)
+        .spacing(metrics::SPACING_01)
         .align_y(iced::Alignment::Center),
     )
     .on_press(Message::Launch("mde-workbench".into()))

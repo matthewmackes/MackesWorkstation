@@ -413,8 +413,8 @@ fn view(state: &Center) -> Element<'_, Message> {
     // The flat dark pane: history (fills) over the quick-action tile grid.
     let pane = container(
         Column::new()
-            .padding(10.0)
-            .spacing(10.0)
+            .padding(metrics::SPACING_04)
+            .spacing(metrics::SPACING_04)
             .push(container(body).height(Length::Fill))
             .push(tile_grid(state))
             .push(brightness_slider(state))
@@ -611,13 +611,13 @@ fn tile_grid(state: &Center) -> Element<'_, Message> {
     } else {
         state.tiles.len().min(COLLAPSED)
     };
-    let mut grid = Column::new().spacing(6.0).width(Length::Fill);
-    let mut r = Row::new().spacing(6.0);
+    let mut grid = Column::new().spacing(metrics::SPACING_03).width(Length::Fill);
+    let mut r = Row::new().spacing(metrics::SPACING_03);
     for (i, (id, on)) in state.tiles.iter().take(shown).enumerate() {
         r = r.push(quick_tile(id, *on));
         if (i + 1) % 4 == 0 {
             grid = grid.push(r);
-            r = Row::new().spacing(6.0);
+            r = Row::new().spacing(metrics::SPACING_03);
         }
     }
     grid = grid.push(r);
@@ -848,7 +848,7 @@ fn toast_view(state: &Toast) -> Element<'_, ToastMsg> {
         )
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(10.0)
+        .padding(metrics::SPACING_04)
         .style(move |_| container::Style {
             background: Some(Background::Color(palette::color(palette::MENU))),
             border: Border {

@@ -137,7 +137,7 @@ fn taskbar_preview() -> Element<'static, Message> {
 
 fn general_tab(state: &TaskbarProps) -> Element<'_, Message> {
     let taskbar = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(cbox_disabled(
             "Always keep the taskbar on top of other windows",
             state.always_on_top,
@@ -147,7 +147,7 @@ fn general_tab(state: &TaskbarProps) -> Element<'_, Message> {
         .push(cbox_disabled("Show clock", true));
 
     let start_menu = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(cbox(
             "Show small icons in Start menu",
             state.small_icons,
@@ -157,7 +157,7 @@ fn general_tab(state: &TaskbarProps) -> Element<'_, Message> {
         .push(cbox_disabled("Use Personalized Menus", true));
 
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(container(taskbar_preview()).width(Length::Fill).center_x(Length::Fill).padding(pad(4.0, 0.0, 4.0, 0.0)))
         .push(group_box("Taskbar", taskbar))
         .push(group_box("Start menu", start_menu))
@@ -170,13 +170,13 @@ fn general_tab(state: &TaskbarProps) -> Element<'_, Message> {
 
 fn advanced_tab(_state: &TaskbarProps) -> Element<'static, Message> {
     let settings = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(cbox_disabled("Display Administrative Tools", false))
         .push(cbox_disabled("Expand Control Panel", false))
         .push(cbox_disabled("Expand My Documents", false))
         .push(cbox_disabled("Scroll the Programs menu", false));
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(group_box("Start menu settings", settings))
         .push(text("These Advanced options are shown for fidelity; the labwc-based shell does not enforce them yet.").size(metrics::UI_PX - 1.0))
         .into()
@@ -222,7 +222,7 @@ fn view(state: &TaskbarProps) -> Element<'_, Message> {
         );
 
     let body = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .padding(pad(6.0, 10.0, 10.0, 10.0))
         .push(mde_ui::tab_strip(TABS, state.tab, Message::SelectTab))
         .push(container(panel).height(Length::Fill))
