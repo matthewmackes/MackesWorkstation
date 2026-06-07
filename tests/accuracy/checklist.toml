@@ -64,6 +64,6 @@ tol = 12
 [[capture.win10-settings-nav.point]]
 label = "Settings nav selected-entry accent ring, top edge (HIGHLIGHT)"
 x = 250
-y = 244
+y = 245
 role = "HIGHLIGHT"
 tol = 12
