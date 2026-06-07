@@ -32,6 +32,12 @@ struct Entry {
     path: PathBuf,
     is_dir: bool,
     size: u64,
+    /// `true` when this entry is a meshfs conflict sibling
+    /// (`<name>.conflict-<host>-<ts>`, written by the LizardFS LWW replay,
+    /// E3.3). The row shows a Carbon conflict chip and the right-click menu
+    /// offers Resolve, which archives this loser via the `mackesd`
+    /// `action/meshfs/resolve-conflict` Bus responder.
+    conflict: bool,
 }
 
 /// Which view the main area shows. `Folder` is the directory listing (every
@@ -209,6 +215,10 @@ enum Message {
     CtxCopy,
     CtxPaste,
     CtxDelete,
+    /// Resolve the right-clicked meshfs conflict sibling: archive it via the
+    /// `mackesd` `action/meshfs/resolve-conflict` Bus responder, then reload
+    /// the folder (E3.3 conflict UI).
+    CtxResolveConflict,
     CtxProperties,
     Noop,
 }
@@ -312,6 +322,65 @@ fn home() -> Option<PathBuf> {
     std::env::var_os("HOME").map(PathBuf::from)
 }
 
+/// Parse a meshfs conflict-sibling file name. The LizardFS last-writer-wins
+/// replay (E3.3, `mackesd::workers::meshfs_worker::replay_file_lww`) renames the
+/// losing copy to `<name>.conflict-<host>-<ts>`. Returns the base name `<name>`
+/// when `s` matches that exact shape (non-empty base + non-empty host + an
+/// all-digit unix-seconds `ts`), else `None`.
+fn meshfs_conflict_base(s: &str) -> Option<&str> {
+    let (base, tail) = s.rsplit_once(".conflict-")?;
+    // `tail` is `<host>-<ts>`; the ts is the final dash-segment and is all digits
+    // (a host may itself contain dashes, so split on the LAST dash).
+    let (host, ts) = tail.rsplit_once('-')?;
+    if base.is_empty()
+        || host.is_empty()
+        || ts.is_empty()
+        || !ts.bytes().all(|b| b.is_ascii_digit())
+    {
+        return None;
+    }
+    Some(base)
+}
+
+/// Publish a meshfs `resolve-conflict` request to `mackesd` over `mde-bus`
+/// (`action/meshfs/resolve-conflict`), which archives the conflict sibling at
+/// `path` into `~/Local/conflict-archive/<ts>/` (the responder lives in
+/// `meshfs_worker::dispatch_resolve_conflict`). Mirrors `connect::devices()`'
+/// own-runtime block (this runs on the synchronous `mde files` update path,
+/// outside any async runtime). `Ok(())` on `{"ok":true}`; otherwise the
+/// responder error, or a transport error when mackesd is unreachable.
+fn publish_resolve_conflict(path: &Path) -> Result<(), String> {
+    let bus_dir = mde_bus::default_data_dir().ok_or("mesh bus unavailable")?;
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| e.to_string())?;
+    let body = serde_json::json!({ "path": path.to_string_lossy() }).to_string();
+    let reply = rt.block_on(async {
+        let persist = mde_bus::persist::Persist::open(bus_dir).map_err(|e| e.to_string())?;
+        mde_bus::rpc::request(
+            &persist,
+            "action/meshfs/resolve-conflict",
+            mde_bus::hooks::config::Priority::Default,
+            None,
+            Some(&body),
+            Duration::from_secs(5),
+        )
+        .await
+        .map_err(|e| format!("mackesd not reachable over the Bus: {e}"))
+    })?;
+    let raw = reply.body.unwrap_or_default();
+    let parsed: serde_json::Value = serde_json::from_str(&raw).unwrap_or_default();
+    if parsed["ok"].as_bool().unwrap_or(false) {
+        Ok(())
+    } else {
+        Err(parsed["error"]
+            .as_str()
+            .map(String::from)
+            .unwrap_or_else(|| "resolve failed".to_string()))
+    }
+}
+
 fn title(state: &Files) -> String {
     let name = state
         .cwd
@@ -331,11 +400,14 @@ impl Files {
                     let md = e.metadata().ok();
                     let is_dir = md.as_ref().map(|m| m.is_dir()).unwrap_or(false);
                     let size = md.as_ref().map(|m| m.len()).unwrap_or(0);
+                    let name = e.file_name().to_string_lossy().to_string();
+                    let conflict = !is_dir && meshfs_conflict_base(&name).is_some();
                     entries.push(Entry {
-                        name: e.file_name().to_string_lossy().to_string(),
+                        name,
                         path,
                         is_dir,
                         size,
+                        conflict,
                     });
                 }
                 self.error = None;
@@ -411,6 +483,23 @@ impl Files {
                 Ok(s) if s.success() => self.load(),
                 Ok(_) | Err(_) => self.error = Some(format!("Could not delete '{name}'.")),
             }
+        }
+    }
+
+    /// Resolve meshfs conflict sibling `i`: archive the losing copy via the
+    /// `mackesd` Bus responder, then reload so the chip clears (E3.3). A no-op
+    /// (with a surfaced error) on a non-conflict entry or an unreachable mesh.
+    fn resolve_conflict(&mut self, i: usize) {
+        let Some(entry) = self.entries.get(i) else {
+            return;
+        };
+        if !entry.conflict {
+            return;
+        }
+        let (path, name) = (entry.path.clone(), entry.name.clone());
+        match publish_resolve_conflict(&path) {
+            Ok(()) => self.load(),
+            Err(e) => self.error = Some(format!("Could not resolve '{name}': {e}")),
         }
     }
 
@@ -874,6 +963,13 @@ fn update(state: &mut Files, message: Message) -> Task<Message> {
                 state.trash(i);
             }
         }
+        Message::CtxResolveConflict => {
+            let target = state.ctx.or(state.selected);
+            state.ctx = None;
+            if let Some(i) = target {
+                state.resolve_conflict(i);
+            }
+        }
         Message::CtxProperties => {
             if let Some(e) = state
                 .ctx
@@ -906,6 +1002,28 @@ fn pad(top: f32, right: f32, bottom: f32, left: f32) -> Padding {
         bottom,
         left,
     }
+}
+
+/// A small Carbon status chip flagging a meshfs conflict sibling in the listing
+/// (E3.3). Amber `STATUS_WARN` fill, light text — purely a visual marker; the
+/// Resolve action lives in the row's right-click menu.
+fn conflict_chip() -> Element<'static, Message> {
+    container(
+        text("Conflict")
+            .size(metrics::UI_PX - 1.0)
+            .color(palette::color(palette::HIGHLIGHT_TEXT)),
+    )
+    .padding(pad(0.0, 5.0, 0.0, 5.0))
+    .style(|_: &iced::Theme| container::Style {
+        background: Some(Background::Color(palette::color(palette::STATUS_WARN))),
+        border: Border {
+            radius: 2.0.into(),
+            ..Default::default()
+        },
+        text_color: Some(palette::color(palette::HIGHLIGHT_TEXT)),
+        ..Default::default()
+    })
+    .into()
 }
 
 /// Flat item that highlights navy on hover (menubar entries).
@@ -1105,6 +1223,11 @@ fn context_menu(state: &Files) -> Element<'static, Message> {
             items.push(("", Message::Noop, false));
             items.push((label, Message::TogglePin(e.path.clone()), true));
         }
+        // A meshfs conflict sibling (E3.3) offers Resolve — archive the loser.
+        if e.conflict {
+            items.push(("", Message::Noop, false));
+            items.push(("Resolve conflict", Message::CtxResolveConflict, true));
+        }
     }
     items.push(("", Message::Noop, false));
     items.push(("Properties", Message::CtxProperties, true));
@@ -1258,12 +1381,15 @@ fn list(state: &Files) -> Element<'_, Message> {
             continue;
         }
         // A 16px shell icon leads the name cell, like Win2000's list view.
-        let name_cell = Row::new()
+        let mut name_cell = Row::new()
             .spacing(4.0)
             .align_y(iced::Alignment::Center)
             .push(crate::icons::icon_any(icon_names(e), 16))
-            .push(text(e.name.clone()).size(metrics::UI_PX))
-            .width(name_w);
+            .push(text(e.name.clone()).size(metrics::UI_PX));
+        if e.conflict {
+            name_cell = name_cell.push(conflict_chip());
+        }
+        let name_cell = name_cell.width(name_w);
         let row = Row::new()
             .push(name_cell)
             .push(
@@ -1612,6 +1738,7 @@ fn quick_row(p: &Path, is_folder: bool) -> Element<'static, Message> {
             path: p.to_path_buf(),
             is_dir: false,
             size: 0,
+            conflict: false,
         };
         crate::icons::icon_any(icon_names(&e), 16)
     };
@@ -2634,6 +2761,38 @@ fn view(state: &Files) -> Element<'_, Message> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn meshfs_conflict_base_parses_canonical_sibling() {
+        // The exact shape `meshfs_worker::replay_file_lww` writes.
+        assert_eq!(
+            meshfs_conflict_base("report.md.conflict-laptop-1717800000"),
+            Some("report.md")
+        );
+    }
+
+    #[test]
+    fn meshfs_conflict_base_handles_dashed_host() {
+        // A host with dashes: the ts is the LAST dash-segment, host is the rest.
+        assert_eq!(
+            meshfs_conflict_base("notes.txt.conflict-my-work-box-42"),
+            Some("notes.txt")
+        );
+    }
+
+    #[test]
+    fn meshfs_conflict_base_rejects_non_conflicts() {
+        for s in [
+            "report.md",                     // plain file
+            "report.md.conflict-laptop-",    // empty ts
+            "report.md.conflict-laptop-abc", // non-digit ts
+            "report.md.conflict-1717800000", // no host segment
+            ".conflict-laptop-1717800000",   // empty base
+            "report.conflictlaptop-12",      // missing the `.conflict-` marker
+        ] {
+            assert_eq!(meshfs_conflict_base(s), None, "{s} must not parse");
+        }
+    }
 
     #[test]
     fn roster_to_cloud_maps_id_name_with_empty_bench_address() {

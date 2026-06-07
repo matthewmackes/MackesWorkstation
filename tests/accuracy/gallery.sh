@@ -123,6 +123,15 @@ echo "gallery: capturing components…"
 shot panel            --crop "0,0 1280x40" panel
 shot start-menu       menu
 shot files            files "$HOME"
+# E3.3 — the meshfs conflict chip: a folder holding a normal file plus a
+# `<name>.conflict-<host>-<ts>` sibling (the LizardFS LWW loser) renders the
+# amber "Conflict" chip on the sibling's row (Resolve lives in its right-click
+# menu). Seed a throwaway fixture folder so the chip is always exercised.
+conflict_dir="$(mktemp -d /tmp/mde-gallery-conflict.XXXXXX)"
+printf 'winner\n' > "$conflict_dir/report.md"
+printf 'loser\n'  > "$conflict_dir/report.md.conflict-laptop-1717800000"
+shot files-meshfs-conflict files "$conflict_dir"
+rm -rf "$conflict_dir"
 shot control-panel    control-panel
 shot add-remove       --wait 3.0 add-remove
 shot add-remove-updates --wait 3.0 add-remove --updates
