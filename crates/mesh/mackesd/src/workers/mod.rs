@@ -85,7 +85,6 @@ pub mod ansible_pull;
 // (Sublime Music / Delfin). Replaces the retired `media_sync`
 // subprocess worker + the Python `media_sync_daemon.py` it drove.
 pub mod app_sync;
-pub mod fs_sync;
 pub mod heartbeat;
 // OV-7.a (v2.6) — Health reconciler. Reads each known peer's
 // QNM-Shared heartbeat.json on a 5 s tick, applies the

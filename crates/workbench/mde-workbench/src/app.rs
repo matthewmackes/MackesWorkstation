@@ -298,7 +298,7 @@ impl Default for App {
     /// `~/.config/mde/workbench-settings.toml` AND pushes to
     /// `dev.mackes.MDE.Settings.Set` on the session bus
     /// (best-effort; the local write always succeeds even
-    /// when mackesd is offline). mackesd's fs_sync worker
+    /// when mackesd is offline). mackesd's mesh settings sync
     /// propagates the bus-side write to peers, so changing
     /// a font in Workbench surfaces on a peer within ~5 s.
     fn default() -> Self {

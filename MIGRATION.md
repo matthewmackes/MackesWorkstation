@@ -95,7 +95,9 @@ once this repo builds and is pushed — they live on as the history merged here.
 - **E0 — merge + foundation: ✅ done** (bar operator-gated items). mde-bus migration
   (E0.3) largely complete; sway→labwc surface retirement (E0.16) done; the standalone
   applet/panel ecosystem retired (E0.17/E5.5). *Open:* E0.12 (archive old repos —
-  operator-gated), E0.11 (no-supervised-Python audit — blocked on E3's `fs_sync`).
+  operator-gated). E0.11 (no-supervised-Python audit) worker-path is **drained** —
+  the dead `fs_sync` GVFS worker was retired (RETIRE-PY.4, 2026-06-07); zero python
+  in the mackesd supervised-worker path (install-path Birthright tracks under E7.2).
   **E0.3.7 ✅ (2026-06-05)** — closed by the E2.2 KDC convergence: the last
   MDE-internal D-Bus interface is gone, the lint-dbus-shape allowlist is empty,
   only FDO interop (`org.freedesktop`/`org.kde.StatusNotifier`/`org.mpris`) remains.

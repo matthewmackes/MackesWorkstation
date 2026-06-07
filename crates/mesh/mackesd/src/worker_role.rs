@@ -37,7 +37,6 @@ const WORKER_TIERS: &[(&str, u8)] = &[
     ("sshd_overlay_bind", 0),
     ("reconcile", 0),
     // ── Server (rank 1) — adds fleet + mesh storage.
-    ("fs_sync", 1),
     ("ansible-pull", 1),
     ("app-sync", 1),
     // ── Workstation (rank 2) — adds voice + media + the whole sway/desktop
@@ -109,20 +108,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_table_is_the_full_30_worker_census() {
+    fn the_table_is_the_full_29_worker_census() {
         // Guards against a worker added to run_serve without a deliberate tier
         // (it would silently default to Lighthouse). 31 originally; -1 redundant
         // python `clipboard` (RETIRE-PY.3, mde-clipd is sole), -1 broken python
         // `mdns` relay (RETIRE-PY.1), +1 native `mdns_relay` (MESH-MDNS-RELAY,
-        // the real Rust cross-segment relay).
-        assert_eq!(WORKER_TIERS.len(), 30);
+        // the real Rust cross-segment relay), -1 dead python `fs_sync` GVFS
+        // worker (RETIRE-PY.4, mesh storage is LizardFS/E3).
+        assert_eq!(WORKER_TIERS.len(), 29);
     }
 
     #[test]
     fn tier_counts_match_the_plan_12_split() {
         let count = |rank: u8| WORKER_TIERS.iter().filter(|(_, r)| *r == rank).count();
         assert_eq!(count(0), 11, "Lighthouse control plane");
-        assert_eq!(count(1), 3, "Server adds fleet + meshfs");
+        assert_eq!(
+            count(1),
+            2,
+            "Server adds fleet (meshfs is LizardFS/E3, not a worker)"
+        );
         assert_eq!(count(2), 16, "Workstation adds voice/media/desktop");
     }
 
@@ -139,8 +143,8 @@ mod tests {
             assert!(runs(w, r), "Lighthouse must run {w}");
         }
         for w in [
-            "fs_sync",
             "ansible-pull",
+            "app-sync",
             "voice_config",
             "kdc_host",
             "workspace_namer",
@@ -152,13 +156,7 @@ mod tests {
     #[test]
     fn server_adds_fleet_and_meshfs_but_no_desktop() {
         let r = Role::Server.rank();
-        for w in [
-            "fs_sync",
-            "ansible-pull",
-            "app-sync",
-            "nebula_supervisor",
-            "heartbeat",
-        ] {
+        for w in ["ansible-pull", "app-sync", "nebula_supervisor", "heartbeat"] {
             assert!(runs(w, r), "Server must run {w}");
         }
         for w in [
@@ -191,8 +189,8 @@ mod tests {
         let srv = workers_for_rank(Role::Server.rank());
         let ws = workers_for_rank(Role::Workstation.rank());
         assert_eq!(lh.len(), 11);
-        assert_eq!(srv.len(), 14);
-        assert_eq!(ws.len(), 30);
+        assert_eq!(srv.len(), 13);
+        assert_eq!(ws.len(), 29);
         // Strict superset: every lower-tier worker is in the higher tier.
         assert!(lh.iter().all(|w| srv.contains(w)));
         assert!(srv.iter().all(|w| ws.contains(w)));

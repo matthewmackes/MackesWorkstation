@@ -226,7 +226,7 @@ mod tests {
         let names_shared = Arc::new(std::sync::Mutex::new(vec![
             "clipboard".to_string(),
             "mdns".into(),
-            "fs_sync".into(),
+            "app_sync".into(),
             "heartbeat".into(),
             "mesh_router".into(),
         ]));
@@ -240,7 +240,7 @@ mod tests {
             vec![
                 "clipboard".to_string(),
                 "mdns".into(),
-                "fs_sync".into(),
+                "app_sync".into(),
                 "heartbeat".into(),
                 "mesh_router".into(),
             ]

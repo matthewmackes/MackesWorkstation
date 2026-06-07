@@ -573,7 +573,7 @@ enum Cmd {
     /// SIGTERM/SIGINT.
     ///
     /// Phase A.2 ships the supervisor surface; Phase B fills in the
-    /// individual workers (`clipboard`, `mdns`, `fs_sync`, ...).
+    /// individual workers (`heartbeat`, `mesh_router`, ...).
     /// Today `serve` registers the existing reconcile loop as the
     /// single worker so the unit's behavior matches the current
     /// `mackesd reconcile` invocation while the rest of Phase B lands.
@@ -3127,9 +3127,9 @@ fn print_revisions_table(rows: &[serde_json::Value]) {
 /// only when the `async-services` feature is active so the default
 /// build stays sync.
 ///
-/// v3.0.3 — wires the 5 Phase B workers (clipboard, mdns, fs_sync,
-/// heartbeat, mesh_router; notification_relay retired in BUS-4.2)
-/// into the
+/// v3.0.3 — wires the Phase B workers (heartbeat, mesh_router, …;
+/// notification_relay retired in BUS-4.2, clipboard/mdns/fs_sync
+/// retired in RETIRE-PY.1/.3/.4) into the
 /// `Supervisor` alongside the legacy reconcile worker. Audit-2
 /// caught all 6 as dead code: `impl Worker for X` shipped, no
 /// spawn. Each worker gets a `RestartPolicy::OnFailure` so a
@@ -3147,7 +3147,7 @@ fn run_serve(
     db_path: PathBuf,
 ) -> anyhow::Result<()> {
     use mackesd_core::workers::{
-        firewall_preset::FirewallPresetWorker, fs_sync::FsSyncWorker, heartbeat::HeartbeatWorker,
+        firewall_preset::FirewallPresetWorker, heartbeat::HeartbeatWorker,
         mdns_relay::MdnsRelayWorker, mesh_router::MeshRouterWorker,
         sshd_overlay_bind::SshdOverlayBindWorker, voice_config::VoiceConfigWorker, RestartPolicy,
         Spawn, Supervisor,
@@ -3275,27 +3275,11 @@ fn run_serve(
             sup.spawn(Spawn::new(MdnsRelayWorker::new(), RestartPolicy::OnFailure));
             worker_names.lock().expect("worker_names mutex").push("mdns_relay".into());
         }
-        // Bug 6 (2026-06-06) — fs_sync supervises `python3 -m mackes.mesh_gvfs.daemon`,
-        // a module from the retired Python MDE that is absent in the Rust monorepo,
-        // so the child exits 1 immediately and OnFailure respins it in a tight loop.
-        // Gate on the module actually being importable; skip (don't storm) when absent.
-        if mackesd_core::worker_role::runs("fs_sync", role_rank) {
-            let fs_sync_available = std::process::Command::new("python3")
-                .args(["-c", "import mackes.mesh_gvfs.daemon"])
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .map(|s| s.success())
-                .unwrap_or(false);
-            if fs_sync_available {
-                sup.spawn(Spawn::new(FsSyncWorker::new(), RestartPolicy::OnFailure));
-                worker_names.lock().expect("worker_names mutex").push("fs_sync".into());
-            } else {
-                tracing::info!(
-                    "fs_sync: mesh_gvfs daemon module unavailable (retired Python MDE); worker skipped"
-                );
-            }
-        }
+        // RETIRE-PY.4 (2026-06-07) — the GVFS `fs_sync` worker (supervised
+        // `python3 -m mackes.mesh_gvfs.daemon`, a retired Python MDE module
+        // absent in the monorepo) is removed. Mesh storage is served by
+        // LizardFS (E3); per-peer share access is via the Bus file-ops, so
+        // the second FUSE substrate is retired rather than rebuilt.
         if mackesd_core::worker_role::runs("heartbeat", role_rank) {
             sup.spawn(Spawn::new(
                 HeartbeatWorker::new(workgroup_root.clone(), node_id.clone())

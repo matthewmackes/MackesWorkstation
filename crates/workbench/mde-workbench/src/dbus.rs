@@ -103,7 +103,7 @@ pub fn action_request_with_body(
 /// `body` and return WITHOUT awaiting a reply. For best-effort
 /// propagation pushes — e.g. `RemoteBackend`'s settings write-through
 /// to mackesd's Settings responder, where the change rides onward via
-/// the `fs_sync` worker and the caller never consumes the reply.
+/// the mesh settings sync and the caller never consumes the reply.
 /// Synchronous + cheap (a single `Persist` write), so an absent
 /// responder costs one db write, not a timeout. Returns `true` on a
 /// successful enqueue.

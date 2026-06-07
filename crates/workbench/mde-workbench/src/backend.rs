@@ -263,7 +263,7 @@ pub fn serialize_settings(values: &HashMap<String, String>) -> String {
 /// Settings store on the mesh **Bus** (`action/settings/set`). Reads
 /// fall through to the local FileBackend (canonical for the local
 /// node; the Bus push is for downstream propagation to peers via
-/// mackesd's `fs_sync` worker, not for canonicality).
+/// mackesd's mesh settings sync, not for canonicality).
 ///
 /// E0.3.4: the push is now a **fire-and-forget** Bus publish (it was
 /// a `dev.mackes.MDE.Settings.Set` D-Bus call). Because propagation
@@ -318,7 +318,7 @@ impl Backend for RemoteBackend {
         // local error propagates.
         self.local.set(key, value_json).await?;
         // Best-effort, fire-and-forget propagation to mackesd's
-        // Settings responder so its `fs_sync` worker can push the
+        // Settings responder so the mesh settings sync can push the
         // change to peers. No reply is awaited.
         let body = serde_json::json!({ "key": key, "value_json": value_json }).to_string();
         let pushed = tokio::task::spawn_blocking(move || {

@@ -474,7 +474,7 @@ mod tests {
         let mut w = MeshRouterWorker::new(state, registry).with_tick(Duration::from_secs(60));
 
         // Build a fresh shutdown-token pair the same way every
-        // other worker test does (clipboard.rs, fs_sync.rs).
+        // other worker test does (heartbeat.rs, app_sync.rs).
         let (tx, rx) = tokio::sync::watch::channel(false);
         let token = super::super::ShutdownToken::from_receiver(rx);
 
