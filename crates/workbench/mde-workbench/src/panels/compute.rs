@@ -19,7 +19,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::time::Duration;
 
-use iced::widget::{column, row, text, Space};
+use iced::widget::{column, row, text, text_input, Space};
 use iced::{Element, Length, Subscription, Task};
 use mde_theme::{spacing, FontSize, Palette, TypeRole};
 
@@ -107,6 +107,15 @@ pub struct ComputePanel {
     loaded: bool,
     /// The 4-step VM creation wizard, open when `Some` (E6.10 slice 4).
     wizard: Option<WizardState>,
+    /// The cold-migration target sheet, open when `Some` (E6.10 slice 6).
+    migrate: Option<MigrateSheet>,
+}
+
+/// The cold-migration target prompt: which VM, and the host to move it to.
+#[derive(Debug, Clone, Default)]
+pub struct MigrateSheet {
+    pub domain: String,
+    pub host: String,
 }
 
 /// A lifecycle verb applied to an instance. Slice 2 ships the two
@@ -153,6 +162,16 @@ pub enum Message {
     Console {
         name: String,
     },
+    /// Open the cold-migration sheet for a stopped VM.
+    OpenMigrate {
+        name: String,
+    },
+    /// Edit the migration target host.
+    MigrateHostInput(String),
+    /// Submit the cold migration to the entered host, then re-enumerate.
+    MigrateConfirm,
+    /// Close the migration sheet without submitting.
+    MigrateCancel,
 }
 
 impl ComputePanel {
@@ -248,6 +267,42 @@ impl ComputePanel {
                 // detached-launch pattern). HW round-trip is bench.
                 launch_console(&name);
                 Task::none()
+            }
+            Message::OpenMigrate { name } => {
+                self.migrate = Some(MigrateSheet {
+                    domain: name,
+                    host: String::new(),
+                });
+                Task::none()
+            }
+            Message::MigrateHostInput(h) => {
+                if let Some(sheet) = self.migrate.as_mut() {
+                    sheet.host = h;
+                }
+                Task::none()
+            }
+            Message::MigrateCancel => {
+                self.migrate = None;
+                Task::none()
+            }
+            Message::MigrateConfirm => {
+                let Some(sheet) = self.migrate.take() else {
+                    return Task::none();
+                };
+                if sheet.host.trim().is_empty() {
+                    // Nothing to migrate to — reopen the sheet unchanged.
+                    self.migrate = Some(sheet);
+                    return Task::none();
+                }
+                let (program, args) = migrate_command(&sheet.domain, sheet.host.trim());
+                let program = program.to_string();
+                Task::perform(
+                    async move {
+                        run_action(&program, &args).await;
+                        enumerate().await
+                    },
+                    |e| crate::Message::Compute(Message::Loaded(e)),
+                )
             }
             Message::Wizard(msg) => {
                 let Some(w) = self.wizard.as_mut() else {
@@ -384,6 +439,18 @@ impl ComputePanel {
             .into();
         }
 
+        // The cold-migration sheet likewise owns the body while open.
+        if let Some(sheet) = &self.migrate {
+            return column![
+                header,
+                Space::new().height(Length::Fixed(f32::from(spacing::BASE[4]))),
+                migrate_sheet_view(sheet, palette),
+            ]
+            .padding(f32::from(spacing::BASE[2]))
+            .width(Length::Fill)
+            .into();
+        }
+
         let body: Element<'_, crate::Message> = if self.instances.is_empty() {
             // Honest empty-state: distinguish "nothing running" from
             // "no hypervisor" via the status line set at load time.
@@ -476,6 +543,42 @@ fn metric_cell<'a>(
     .into()
 }
 
+/// The cold-migration sheet: a target-host field + Migrate / Cancel.
+fn migrate_sheet_view<'a>(sheet: &MigrateSheet, palette: Palette) -> Element<'a, crate::Message> {
+    let sizes = FontSize::defaults();
+    let title = text(format!("Migrate {} to another host", sheet.domain))
+        .size(TypeRole::Subheading.size_in(sizes))
+        .color(palette.text.into_iced_color());
+    let hint = text(
+        "Cold migration moves the powered-off VM's definition to the target host over SSH; \
+         the disk rides shared mesh storage.",
+    )
+    .size(TypeRole::Caption.size_in(sizes))
+    .color(palette.text_muted.into_iced_color());
+    let input = text_input("target host (e.g. peer2.mesh)", &sheet.host)
+        .on_input(|h| crate::Message::Compute(Message::MigrateHostInput(h)))
+        .padding(f32::from(spacing::BASE[0]))
+        .size(TypeRole::Body.size_in(sizes));
+    let confirm = variant_button(
+        "Migrate",
+        ButtonVariant::Primary,
+        (!sheet.host.trim().is_empty()).then_some(crate::Message::Compute(Message::MigrateConfirm)),
+        palette,
+    );
+    let cancel = variant_button(
+        "Cancel",
+        ButtonVariant::Ghost,
+        Some(crate::Message::Compute(Message::MigrateCancel)),
+        palette,
+    );
+    let nav = row![cancel, Space::new().width(Length::Fill), confirm]
+        .spacing(f32::from(spacing::BASE[1]));
+    column![title, hint, input, nav]
+        .spacing(f32::from(spacing::BASE[2]))
+        .width(Length::Fill)
+        .into()
+}
+
 /// One instance row: name / kind / state (coloured by liveness) + a
 /// single context-appropriate lifecycle button — Start when stopped,
 /// Stop when running, nothing when paused (suspend/resume live in the
@@ -513,6 +616,21 @@ fn instance_row<'a>(
             "Console",
             ButtonVariant::Ghost,
             Some(crate::Message::Compute(Message::Console {
+                name: inst.name.clone(),
+            })),
+            palette,
+        ));
+    }
+    // Cold migration moves a *stopped* VM to another host (the disk rides
+    // shared mesh storage); offer it only for a powered-off VM.
+    if inst.kind == InstanceKind::Vm
+        && !state_is_running(&inst.state)
+        && !state_is_paused(&inst.state)
+    {
+        actions = actions.push(variant_button(
+            "Migrate",
+            ButtonVariant::Ghost,
+            Some(crate::Message::Compute(Message::OpenMigrate {
                 name: inst.name.clone(),
             })),
             palette,
@@ -635,6 +753,26 @@ pub fn console_command(name: &str) -> (&'static str, Vec<String>) {
             "--connect".to_string(),
             "qemu:///system".to_string(),
             name.to_string(),
+        ],
+    )
+}
+
+/// Resolve `(program, argv)` for a cold migration of a stopped domain to
+/// `target_host` over libvirt's SSH transport. `--offline` migrates the
+/// persisted domain definition (the disk rides shared mesh storage), so
+/// the target host lists the domain afterward. Pure.
+#[must_use]
+pub fn migrate_command(domain: &str, target_host: &str) -> (&'static str, Vec<String>) {
+    (
+        "virsh",
+        vec![
+            "-c".to_string(),
+            "qemu:///system".to_string(),
+            "migrate".to_string(),
+            "--offline".to_string(),
+            "--persistent".to_string(),
+            domain.to_string(),
+            format!("qemu+ssh://{target_host}/system"),
         ],
     )
 }
@@ -1204,5 +1342,61 @@ mod tests {
         };
         let _: Element<'_, crate::Message> = instance_row(&running_vm, None, Palette::dark());
         let _: Element<'_, crate::Message> = instance_row(&container, None, Palette::dark());
+    }
+
+    #[test]
+    fn migrate_command_builds_offline_ssh_argv() {
+        let (prog, args) = migrate_command("fedora-vm", "peer2.mesh");
+        assert_eq!(prog, "virsh");
+        assert_eq!(
+            args,
+            vec![
+                "-c",
+                "qemu:///system",
+                "migrate",
+                "--offline",
+                "--persistent",
+                "fedora-vm",
+                "qemu+ssh://peer2.mesh/system",
+            ]
+        );
+    }
+
+    #[test]
+    fn migrate_sheet_open_input_and_cancel() {
+        let mut panel = ComputePanel::new();
+        let _ = panel.update(Message::OpenMigrate { name: "vm".into() });
+        assert_eq!(
+            panel.migrate.as_ref().map(|s| s.domain.as_str()),
+            Some("vm")
+        );
+        let _ = panel.update(Message::MigrateHostInput("peer2".into()));
+        assert_eq!(
+            panel.migrate.as_ref().map(|s| s.host.as_str()),
+            Some("peer2")
+        );
+        // The sheet renders without panic.
+        let _: Element<'_, crate::Message> = panel.view();
+        let _ = panel.update(Message::MigrateCancel);
+        assert!(panel.migrate.is_none());
+    }
+
+    #[test]
+    fn migrate_confirm_with_blank_host_reopens_sheet() {
+        let mut panel = ComputePanel::new();
+        let _ = panel.update(Message::OpenMigrate { name: "vm".into() });
+        // Empty host → confirm is a no-op that keeps the sheet open.
+        let _ = panel.update(Message::MigrateConfirm);
+        assert!(panel.migrate.is_some(), "blank host keeps the sheet open");
+    }
+
+    #[test]
+    fn stopped_vm_row_offers_migrate() {
+        let stopped_vm = Instance {
+            name: "vm".into(),
+            kind: InstanceKind::Vm,
+            state: "shut off".into(),
+        };
+        let _: Element<'_, crate::Message> = instance_row(&stopped_vm, None, Palette::dark());
     }
 }
