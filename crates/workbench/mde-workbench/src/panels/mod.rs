@@ -57,6 +57,7 @@ pub mod sparkline;
 pub mod sync_status;
 pub mod system_update;
 pub mod themes;
+pub mod vm_wizard;
 pub mod vpn;
 pub mod wallpaper;
 pub mod wifi;

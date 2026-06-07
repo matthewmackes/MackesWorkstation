@@ -25,6 +25,7 @@ use mde_theme::{spacing, FontSize, Palette, TypeRole};
 
 use crate::controls::{variant_button, ButtonVariant};
 use crate::panels::sparkline::{push_sample, sparkline};
+use crate::panels::vm_wizard::{WizardAction, WizardMsg, WizardState};
 
 /// Live-metric sample cadence. Also the nominal interval used to turn a
 /// VM's cumulative `cpu.time` (nanoseconds) into a percentage.
@@ -104,6 +105,8 @@ pub struct ComputePanel {
     metrics: HashMap<String, InstanceMetrics>,
     status: String,
     loaded: bool,
+    /// The 4-step VM creation wizard, open when `Some` (E6.10 slice 4).
+    wizard: Option<WizardState>,
 }
 
 /// A lifecycle verb applied to an instance. Slice 2 ships the two
@@ -142,6 +145,10 @@ pub enum Message {
     /// Sampled CPU/mem for the current instances — pushed into the rolling
     /// per-instance buffers that feed the sparklines.
     Sampled(Vec<InstanceSample>),
+    /// Open the 4-step VM creation wizard.
+    OpenWizard,
+    /// A message from the open wizard.
+    Wizard(WizardMsg),
 }
 
 impl ComputePanel {
@@ -227,6 +234,36 @@ impl ComputePanel {
                 }
                 Task::none()
             }
+            Message::OpenWizard => {
+                self.wizard = Some(WizardState::new());
+                Task::none()
+            }
+            Message::Wizard(msg) => {
+                let Some(w) = self.wizard.as_mut() else {
+                    return Task::none();
+                };
+                match w.update(msg) {
+                    WizardAction::None => Task::none(),
+                    WizardAction::Cancel => {
+                        self.wizard = None;
+                        Task::none()
+                    }
+                    WizardAction::Create(req) => {
+                        self.wizard = None;
+                        let (program, args) = req.virt_install_command();
+                        let program = program.to_string();
+                        // Issue the real virt-install, then re-enumerate so
+                        // the new domain appears once libvirt defines it.
+                        Task::perform(
+                            async move {
+                                run_action(&program, &args).await;
+                                enumerate().await
+                            },
+                            |e| crate::Message::Compute(Message::Loaded(e)),
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -303,16 +340,38 @@ impl ComputePanel {
             any_stoppable.then_some(crate::Message::Compute(Message::Bulk(Verb::Stop))),
             palette,
         );
+        let new_vm = variant_button(
+            "+ Add VM",
+            ButtonVariant::Primary,
+            (self.wizard.is_none()).then_some(crate::Message::Compute(Message::OpenWizard)),
+            palette,
+        );
         let header = row![
             column![title, subtitle]
                 .spacing(f32::from(spacing::BASE[0]))
                 .width(Length::Fill),
+            new_vm,
             start_all,
             stop_all,
             refresh,
         ]
         .spacing(f32::from(spacing::BASE[1]))
         .align_y(iced::alignment::Vertical::Center);
+
+        // When the wizard is open it owns the body (a focused create flow).
+        if let Some(w) = &self.wizard {
+            let wizard_view = w
+                .view(palette)
+                .map(|m| crate::Message::Compute(Message::Wizard(m)));
+            return column![
+                header,
+                Space::new().height(Length::Fixed(f32::from(spacing::BASE[4]))),
+                wizard_view,
+            ]
+            .padding(f32::from(spacing::BASE[2]))
+            .width(Length::Fill)
+            .into();
+        }
 
         let body: Element<'_, crate::Message> = if self.instances.is_empty() {
             // Honest empty-state: distinguish "nothing running" from
@@ -1056,5 +1115,18 @@ mod tests {
         let m = panel.metrics.get(&key).expect("metrics recorded");
         assert_eq!(m.cpu.back().copied(), Some(3.0));
         assert_eq!(m.mem.back().copied(), Some(1.0));
+    }
+
+    #[test]
+    fn open_wizard_then_cancel_round_trips() {
+        let mut panel = ComputePanel::new();
+        assert!(panel.wizard.is_none());
+        let _ = panel.update(Message::OpenWizard);
+        assert!(panel.wizard.is_some(), "wizard opens");
+        // The Compute view renders the wizard body without panic.
+        let _: Element<'_, crate::Message> = panel.view();
+        // Cancel closes it.
+        let _ = panel.update(Message::Wizard(WizardMsg::Cancel));
+        assert!(panel.wizard.is_none(), "cancel closes the wizard");
     }
 }
