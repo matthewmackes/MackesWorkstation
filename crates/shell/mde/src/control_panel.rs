@@ -457,7 +457,7 @@ fn grid_list(state: &ControlPanel) -> Element<'_, Message> {
                 continue;
             }
             let row = Row::new()
-                .spacing(5.0)
+                .spacing(metrics::SPACING_02)
                 .align_y(iced::Alignment::Center)
                 .push(crate::icons::icon_any(tool.icons, 16))
                 .push(dim_missing(
@@ -509,7 +509,7 @@ fn grid_large(state: &ControlPanel) -> Element<'_, Message> {
 fn large_cell<'a>(state: &ControlPanel, i: usize, tool: &'a fedora::Tool) -> Element<'a, Message> {
     let cell = Column::new()
         .align_x(iced::Alignment::Center)
-        .spacing(3.0)
+        .spacing(metrics::SPACING_02)
         .width(Length::Fixed(82.0))
         .push(crate::icons::icon_any(tool.icons, 32))
         .push(dim_missing(
@@ -563,7 +563,7 @@ fn grid_details(state: &ControlPanel) -> Element<'_, Message> {
             "Not installed"
         };
         let name = Row::new()
-            .spacing(5.0)
+            .spacing(metrics::SPACING_02)
             .align_y(iced::Alignment::Center)
             .width(Length::Fill)
             .push(crate::icons::icon_any(tool.icons, 16))

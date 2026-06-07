@@ -212,7 +212,7 @@ fn content(state: &Phone) -> Element<'_, Message> {
     }
     let Some(d) = state.devices.get(state.selected) else {
         return Column::new()
-            .spacing(6.0)
+            .spacing(metrics::SPACING_03)
             .push(
                 text("No paired devices")
                     .size(metrics::INFO_TITLE_PX)

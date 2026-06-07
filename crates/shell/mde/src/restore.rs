@@ -173,7 +173,7 @@ fn view(state: &Restore) -> Element<'_, Message> {
     .style(mde_ui::button_ghost);
 
     let toolbar = Row::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::alignment::Vertical::Center)
         .push(header)
         .push(iced::widget::horizontal_space())
@@ -287,7 +287,7 @@ fn view(state: &Restore) -> Element<'_, Message> {
     )
     .width(Length::Fill)
     .height(Length::Fill)
-    .padding(14.0)
+    .padding(metrics::SPACING_05)
     .style(|_: &iced::Theme| container::Style {
         background: Some(palette::color(palette::WINDOW).into()),
         text_color: Some(palette::color(palette::WINDOW_TEXT)),
@@ -338,7 +338,7 @@ fn snap_label(s: &Snapshot) -> String {
 }
 
 fn details_list(state: &Restore) -> Column<'_, Message> {
-    let mut col = Column::new().spacing(1.0);
+    let mut col = Column::new().spacing(metrics::SPACING_01);
     for (i, s) in state.snaps.iter().enumerate() {
         let sel = i == state.selected;
         let fg = if sel {
@@ -403,7 +403,7 @@ fn large_grid(state: &Restore) -> Column<'_, Message> {
             )
             .on_press(Message::Select(i))
             .width(Length::Fixed(140.0))
-            .padding(10.0)
+            .padding(metrics::SPACING_04)
             .style(move |_: &iced::Theme, _| iced::widget::button::Style {
                 background: Some(bg.into()),
                 text_color: palette::color(fg),

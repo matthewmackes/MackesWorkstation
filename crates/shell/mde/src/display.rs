@@ -1378,7 +1378,7 @@ fn view(state: &Display) -> Element<'_, Message> {
         );
 
     let body = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .padding(pad(6.0, 10.0, 10.0, 10.0))
         .push(tab_strip(state.tab))
         .push(container(panel).height(Length::Fill))
@@ -1402,7 +1402,7 @@ fn view(state: &Display) -> Element<'_, Message> {
 /// The modal "Keep these settings?" confirm with its countdown.
 fn revert_dialog(secs: u32) -> Element<'static, Message> {
     let body = Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .align_x(iced::Alignment::Center)
         .padding(pad(16.0, 16.0, 12.0, 16.0))
         .push(bold("Display Settings"))

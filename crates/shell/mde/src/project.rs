@@ -228,7 +228,7 @@ fn view(state: &Project) -> Element<'_, Message> {
         col = col.push(mode_button(mode));
     }
 
-    let card = container(col.spacing(6.0).padding(metrics::SPACING_05))
+    let card = container(col.spacing(metrics::SPACING_03).padding(metrics::SPACING_05))
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_: &iced::Theme| container::Style {

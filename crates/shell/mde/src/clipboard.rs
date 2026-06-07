@@ -411,7 +411,7 @@ mod popup {
     }
 
     fn view(state: &Clip) -> Element<'_, Message> {
-        let mut list = Column::new().spacing(6.0);
+        let mut list = Column::new().spacing(metrics::SPACING_03);
         if state.entries.is_empty() {
             list = list.push(
                 text("Clipboard history is empty. Copy something to see it here.")
@@ -432,7 +432,7 @@ mod popup {
                     .spacing(metrics::SPACING_02)
                     .align_y(iced::alignment::Vertical::Center)
                     .push(
-                        mouse_area(container(body).width(Length::Fill).padding(6.0))
+                        mouse_area(container(body).width(Length::Fill).padding(metrics::SPACING_03))
                             .on_press(Message::Copy(i)),
                     )
                     .push(glyph_btn("\u{f08d}", e.pinned, Message::TogglePin(i))) // thumbtack
@@ -470,7 +470,7 @@ mod popup {
                 ),
         )
         .width(Length::Fixed(320.0))
-        .padding(10.0)
+        .padding(metrics::SPACING_04)
         .style(|_| container::Style {
             background: Some(Background::Color(palette::color(palette::WINDOW))),
             border: Border {

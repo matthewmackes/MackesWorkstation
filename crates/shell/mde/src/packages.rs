@@ -558,7 +558,7 @@ fn updates_view(state: &AddRemove) -> (Element<'_, Message>, String) {
     };
 
     let body = Column::new()
-        .spacing(6.0)
+        .spacing(metrics::SPACING_03)
         .push(controls)
         .push(container(boxed_list(list)).height(Length::Fill));
     (body.into(), body_status)
@@ -635,7 +635,7 @@ fn view(state: &AddRemove) -> Element<'_, Message> {
 
     container(
         Column::new()
-            .spacing(6.0)
+            .spacing(metrics::SPACING_03)
             .padding(metrics::SPACING_03)
             .push(header)
             .push(container(body).height(Length::Fill))
