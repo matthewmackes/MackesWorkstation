@@ -149,6 +149,10 @@ pub enum Message {
     OpenWizard,
     /// A message from the open wizard.
     Wizard(WizardMsg),
+    /// Launch the graphical console (virt-viewer) for a running VM.
+    Console {
+        name: String,
+    },
 }
 
 impl ComputePanel {
@@ -236,6 +240,13 @@ impl ComputePanel {
             }
             Message::OpenWizard => {
                 self.wizard = Some(WizardState::new());
+                Task::none()
+            }
+            Message::Console { name } => {
+                // virt-viewer is a long-running GUI; spawn it detached so
+                // the workbench doesn't block on it (mirrors the shell's
+                // detached-launch pattern). HW round-trip is bench.
+                launch_console(&name);
                 Task::none()
             }
             Message::Wizard(msg) => {
@@ -482,8 +493,9 @@ fn instance_row<'a>(
     } else {
         palette.text_muted
     };
-    let action_cell: Element<'a, crate::Message> = if let Some(verb) = row_action(&inst.state) {
-        variant_button(
+    let mut actions = row![].spacing(f32::from(spacing::BASE[1]));
+    if let Some(verb) = row_action(&inst.state) {
+        actions = actions.push(variant_button(
             verb.label(),
             ButtonVariant::Ghost,
             Some(crate::Message::Compute(Message::Action {
@@ -492,10 +504,21 @@ fn instance_row<'a>(
                 verb,
             })),
             palette,
-        )
-    } else {
-        Space::new().width(Length::FillPortion(2)).into()
-    };
+        ));
+    }
+    // Running VMs get a "Console" button (virt-viewer); containers don't
+    // have a graphical console in this model.
+    if inst.kind == InstanceKind::Vm && state_is_running(&inst.state) {
+        actions = actions.push(variant_button(
+            "Console",
+            ButtonVariant::Ghost,
+            Some(crate::Message::Compute(Message::Console {
+                name: inst.name.clone(),
+            })),
+            palette,
+        ));
+    }
+    let action_cell: Element<'a, crate::Message> = actions.into();
     row![
         text(inst.name.clone())
             .size(body)
@@ -600,6 +623,34 @@ pub fn command_for(kind: InstanceKind, verb: Verb, name: &str) -> (&'static str,
             ("podman", vec![v.to_string(), name.to_string()])
         }
     }
+}
+
+/// Resolve `(program, argv)` for launching a VM's graphical console.
+/// Ported from `mde-virtual::app::console_command`.
+#[must_use]
+pub fn console_command(name: &str) -> (&'static str, Vec<String>) {
+    (
+        "virt-viewer",
+        vec![
+            "--connect".to_string(),
+            "qemu:///system".to_string(),
+            name.to_string(),
+        ],
+    )
+}
+
+/// Launch the graphical console for `name`, detached. virt-viewer is a
+/// long-running GUI, so it's spawned fire-and-forget (the workbench must
+/// not block on it); a missing binary just fails silently here and the
+/// operator sees no window (never a panic).
+fn launch_console(name: &str) {
+    let (program, args) = console_command(name);
+    let _ = std::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 }
 
 /// Turn two cumulative `cpu.time` readings (nanoseconds) `elapsed_secs`
@@ -1128,5 +1179,30 @@ mod tests {
         // Cancel closes it.
         let _ = panel.update(Message::Wizard(WizardMsg::Cancel));
         assert!(panel.wizard.is_none(), "cancel closes the wizard");
+    }
+
+    #[test]
+    fn console_command_targets_system_libvirt() {
+        let (prog, args) = console_command("fedora-vm");
+        assert_eq!(prog, "virt-viewer");
+        assert_eq!(args, vec!["--connect", "qemu:///system", "fedora-vm"]);
+    }
+
+    #[test]
+    fn running_vm_row_offers_console() {
+        // A running VM row builds with both Stop + Console; a container
+        // and a stopped VM build without panic too.
+        let running_vm = Instance {
+            name: "vm".into(),
+            kind: InstanceKind::Vm,
+            state: "running".into(),
+        };
+        let container = Instance {
+            name: "web".into(),
+            kind: InstanceKind::Container,
+            state: "running".into(),
+        };
+        let _: Element<'_, crate::Message> = instance_row(&running_vm, None, Palette::dark());
+        let _: Element<'_, crate::Message> = instance_row(&container, None, Palette::dark());
     }
 }

@@ -85,6 +85,8 @@ pub enum WizardMsg {
     NameInput(String),
     ApplyTemplate(usize),
     DeleteTemplate(usize),
+    /// Add the current form to the template store (review step).
+    SaveTemplate,
     VcpusDelta(i64),
     RamDelta(i64),
     DiskDelta(i64),
@@ -168,6 +170,11 @@ impl WizardState {
                 self.templates = list_templates();
                 WizardAction::None
             }
+            WizardMsg::SaveTemplate => {
+                let _ = save_template(&self.current_template());
+                self.templates = list_templates();
+                WizardAction::None
+            }
             WizardMsg::VcpusDelta(d) => {
                 self.vcpus = clamp_i64(i64::from(self.vcpus) + d, 1, 16) as u32;
                 WizardAction::None
@@ -220,6 +227,18 @@ impl WizardState {
             name_valid(&self.name)
         } else {
             true
+        }
+    }
+
+    /// The current form as a reusable [`Template`] (the base name, no
+    /// ULID suffix — that's added at create time).
+    fn current_template(&self) -> Template {
+        Template {
+            name: self.name.clone(),
+            vcpus: self.vcpus,
+            ram_mb: self.ram_mb,
+            disk_gb: self.disk_gb,
+            share_meshfs: self.share_meshfs,
         }
     }
 
@@ -400,6 +419,9 @@ impl WizardState {
 
     fn step_review(&self, palette: Palette) -> Element<'_, WizardMsg> {
         let iso = self.effective_iso().unwrap_or_else(|| "none".to_string());
+        // "Add template" is enabled once the name is valid (the template
+        // store keys on a usable name).
+        let save = name_valid(&self.name).then_some(WizardMsg::SaveTemplate);
         column![
             kv(palette, "Name", &self.name),
             kv(palette, "vCPUs", &self.vcpus.to_string()),
@@ -411,6 +433,7 @@ impl WizardState {
                 "MeshFS",
                 if self.share_meshfs { "shared" } else { "off" },
             ),
+            secondary(palette, "Add template", save),
         ]
         .spacing(sp(0))
         .width(Length::Fill)
@@ -498,6 +521,22 @@ fn list_templates() -> Vec<(PathBuf, Template)> {
     }
     out.sort_by(|a, b| a.1.name.cmp(&b.1.name));
     out
+}
+
+/// Persist a template to `templates_dir()/<unique>.json`. Returns the
+/// written path, or `None` if the store dir can't be resolved/created.
+fn save_template(t: &Template) -> Option<PathBuf> {
+    save_template_to(&templates_dir()?, t)
+}
+
+/// Write a template into `dir` as `<unique>.json` (creating `dir`). Split
+/// out so it's testable without mutating the process environment.
+fn save_template_to(dir: &Path, t: &Template) -> Option<PathBuf> {
+    std::fs::create_dir_all(dir).ok()?;
+    let path = dir.join(format!("{}.json", unique_id()));
+    let body = serde_json::to_string_pretty(t).ok()?;
+    std::fs::write(&path, body).ok()?;
+    Some(path)
 }
 
 fn clamp_i64(v: i64, lo: i64, hi: i64) -> i64 {
@@ -726,6 +765,36 @@ mod tests {
         .virt_install_command();
         assert!(no_iso.iter().any(|a| a == "--import"));
         assert!(!no_iso.iter().any(|a| a == "--cdrom"));
+    }
+
+    #[test]
+    fn current_template_captures_form_spec() {
+        let mut w = WizardState::new();
+        w.update(WizardMsg::NameInput("web".into()));
+        w.update(WizardMsg::VcpusDelta(1)); // 2 -> 3
+        let t = w.current_template();
+        assert_eq!(t.name, "web");
+        assert_eq!(t.vcpus, 3);
+        assert_eq!(t.ram_mb, 2048);
+        assert_eq!(t.disk_gb, 20);
+        assert!(t.share_meshfs);
+    }
+
+    #[test]
+    fn save_template_writes_readable_json() {
+        let dir = std::env::temp_dir().join(format!("mde-wiz-tmpl-{}", unique_id()));
+        let t = Template {
+            name: "web".into(),
+            vcpus: 4,
+            ram_mb: 4096,
+            disk_gb: 40,
+            share_meshfs: true,
+        };
+        let path = save_template_to(&dir, &t).expect("template written");
+        let body = std::fs::read_to_string(&path).expect("read back");
+        let back: Template = serde_json::from_str(&body).expect("parse");
+        assert_eq!(back, t);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
