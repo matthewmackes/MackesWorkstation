@@ -21,7 +21,7 @@ pub use mde_disclaimer::TEXT;
 pub fn view<'a, M: 'a>() -> Element<'a, M> {
     let (title, body) = mde_disclaimer::split();
     let inner = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text(title)
                 .size(metrics::UI_PX)
@@ -34,7 +34,7 @@ pub fn view<'a, M: 'a>() -> Element<'a, M> {
                 .color(palette::color(palette::WINDOW_TEXT)),
         )
         .push(Space::with_height(Length::Fixed(4.0)));
-    scrollable(container(inner).padding(8.0))
+    scrollable(container(inner).padding(metrics::SPACING_03))
         .height(Length::Fill)
         .style(mde_ui::scrollbar)
         .into()

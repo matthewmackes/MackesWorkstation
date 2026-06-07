@@ -859,7 +859,9 @@ fn picker<'a>(
     selected: usize,
     on_pick: fn(usize) -> Msg,
 ) -> Element<'a, Msg> {
-    let mut col = Column::new().spacing(2.0).padding(pad(0.0, 8.0, 0.0, 8.0));
+    let mut col = Column::new()
+        .spacing(metrics::SPACING_01)
+        .padding(pad(0.0, 8.0, 0.0, 8.0));
     for (i, label) in items {
         let sel = i == selected;
         let row = ibutton(text(label).size(metrics::UI_PX).color(white()))
@@ -900,7 +902,9 @@ fn actions_full<'a>(
     primary: &'a str,
     on_primary: Msg,
 ) -> Element<'a, Msg> {
-    let mut row = Row::new().spacing(8.0).padding(pad(8.0, 24.0, 16.0, 24.0));
+    let mut row = Row::new()
+        .spacing(metrics::SPACING_03)
+        .padding(pad(8.0, 24.0, 16.0, 24.0));
     if back {
         row = row.push(
             mde_ui::button(text("Back").size(metrics::UI_PX))
@@ -998,7 +1002,7 @@ fn privacy_row<'a>(on: bool, which: u8, label: &'a str, desc: &'a str) -> Elemen
 fn privacy_body(state: &Oobe) -> Element<'_, Msg> {
     scrollable(
         Column::new()
-            .spacing(12.0)
+            .spacing(metrics::SPACING_04)
             .padding(pad(12.0, 8.0, 0.0, 8.0))
             .push(privacy_row(
                 state.p_location,
@@ -1061,7 +1065,7 @@ fn personalize_body(state: &Oobe) -> Element<'_, Msg> {
         swatches = swatches.push(swatch(i, i == state.accent));
     }
     let mode = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             mde_ui::button(text("Light").size(metrics::UI_PX))
                 .on_press(Msg::SetMode(true))
@@ -1129,7 +1133,7 @@ fn account_body(state: &Oobe) -> Element<'_, Msg> {
             .width(Length::Fixed(280.0))
     };
     let mut col = Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .padding(pad(16.0, 8.0, 0.0, 8.0))
         .push(text("User name").size(metrics::UI_PX).color(dim()))
         .push(field("User name", &state.username, Msg::Username, false))
@@ -1159,7 +1163,7 @@ fn account_body(state: &Oobe) -> Element<'_, Msg> {
 fn disclaimer_body(state: &Oobe) -> Element<'_, Msg> {
     use iced::widget::{checkbox, scrollable};
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .padding(pad(20.0, 8.0, 0.0, 8.0))
         .push(
             scrollable(
@@ -1182,7 +1186,7 @@ fn disclaimer_body(state: &Oobe) -> Element<'_, Msg> {
 /// non-`mesh:` value means "skip" — the stage proceeds without enrolling.
 fn mesh_enroll_body(state: &Oobe) -> Element<'_, Msg> {
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .padding(pad(20.0, 8.0, 0.0, 8.0))
         .push(text("Mesh join token").size(metrics::UI_PX).color(dim()))
         .push(
@@ -1210,7 +1214,7 @@ fn your_phone_body(_state: &Oobe) -> Element<'_, Msg> {
     // Skipping leaves setup complete; pairing is re-runnable any time (E7.2 #3 —
     // the live handshake + persist is the 2-device bench).
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .padding(pad(20.0, 8.0, 0.0, 8.0))
         .push(
             text(

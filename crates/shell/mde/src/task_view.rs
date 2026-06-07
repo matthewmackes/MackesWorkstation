@@ -215,13 +215,13 @@ fn view(state: &TaskView) -> Element<'_, Message> {
             .color(palette::color(palette::TITLE_TEXT))
             .into()
     } else {
-        let mut grid = Column::new().spacing(16.0);
-        let mut row = Row::new().spacing(16.0);
+        let mut grid = Column::new().spacing(metrics::SPACING_05);
+        let mut row = Row::new().spacing(metrics::SPACING_05);
         for (i, w) in state.windows.iter().enumerate() {
             row = row.push(tile(w));
             if (i + 1) % COLS == 0 {
                 grid = grid.push(row);
-                row = Row::new().spacing(16.0);
+                row = Row::new().spacing(metrics::SPACING_05);
             }
         }
         grid = grid.push(row);
@@ -267,13 +267,13 @@ fn snap_assist_view(state: &TaskView, side: Side) -> Element<'_, Message> {
     } else {
         // Two columns fit a half-screen comfortably.
         const HALF_COLS: usize = 2;
-        let mut grid = Column::new().spacing(16.0);
-        let mut row = Row::new().spacing(16.0);
+        let mut grid = Column::new().spacing(metrics::SPACING_05);
+        let mut row = Row::new().spacing(metrics::SPACING_05);
         for (i, w) in others.iter().enumerate() {
             row = row.push(tile(w));
             if (i + 1) % HALF_COLS == 0 {
                 grid = grid.push(row);
-                row = Row::new().spacing(16.0);
+                row = Row::new().spacing(metrics::SPACING_05);
             }
         }
         grid = grid.push(row);
@@ -356,7 +356,7 @@ fn fixed_desktop_band<'a>(n: u32) -> Element<'a, Message> {
     container(col)
         .width(Length::Fill)
         .align_x(Horizontal::Center)
-        .padding(16.0)
+        .padding(metrics::SPACING_05)
         .into()
 }
 
@@ -377,7 +377,7 @@ fn desktop_band(workspaces: &[workspace::Workspace], can_create: bool) -> Elemen
     container(row)
         .width(Length::Fill)
         .align_x(Horizontal::Center)
-        .padding(16.0)
+        .padding(metrics::SPACING_05)
         .into()
 }
 
@@ -396,7 +396,7 @@ fn ws_chip(w: &workspace::Workspace) -> Element<'_, Message> {
     };
     let label = text(w.name.clone()).size(metrics::UI_PX).color(fg);
     let mut inner = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(Vertical::Center)
         .push(label);
     if w.removable {
@@ -453,7 +453,7 @@ fn tile(w: &wlr::Window) -> Element<'_, Message> {
         palette::color(palette::WINDOW_FRAME)
     };
     let inner = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_x(Horizontal::Center)
         .push(Space::with_height(Length::Fill))
         .push(crate::icons::icon_any(

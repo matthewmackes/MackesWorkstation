@@ -419,7 +419,7 @@ fn pkg_row(p: &Pkg, busy: bool) -> Element<'static, Message> {
     };
 
     Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(name)
         .push(pkg)
@@ -431,7 +431,7 @@ fn pkg_row(p: &Pkg, busy: bool) -> Element<'static, Message> {
 /// One pending-update row: package id + the candidate version (B.2c).
 fn update_row(u: &Update) -> Element<'static, Message> {
     Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(
             text(u.package.clone())
@@ -511,7 +511,7 @@ fn updates_view(state: &AddRemove) -> (Element<'_, Message>, String) {
     let check_msg = (!state.checking && !busy).then_some(Message::CheckUpdates);
     let update_msg = (!state.checking && !busy && has_updates).then_some(Message::UpdateAll);
     let controls = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(
             button(text("Check for updates").size(metrics::UI_PX))
@@ -567,7 +567,7 @@ fn updates_view(state: &AddRemove) -> (Element<'_, Message>, String) {
 /// The Feature-update row: a downloaded Fedora release upgrade + an install action.
 fn feature_row(n: u32) -> Element<'static, Message> {
     Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(
             text(format!(
@@ -619,7 +619,7 @@ fn view(state: &AddRemove) -> Element<'_, Message> {
 
     // Tab strip on the left; on the Programs tab a live search box on the right.
     let mut header = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(tab_button("Programs", Tab::Programs, state.tab))
         .push(tab_button("Updates", Tab::Updates, state.tab))
@@ -636,7 +636,7 @@ fn view(state: &AddRemove) -> Element<'_, Message> {
     container(
         Column::new()
             .spacing(6.0)
-            .padding(8.0)
+            .padding(metrics::SPACING_03)
             .push(header)
             .push(container(body).height(Length::Fill))
             .push(status),

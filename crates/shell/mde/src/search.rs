@@ -460,7 +460,7 @@ fn view(state: &Search) -> Element<'_, Message> {
     let field = text_input("Type here to search", &state.query)
         .id(text_input::Id::new(QUERY_ID))
         .on_input(Message::Query)
-        .padding(8.0)
+        .padding(metrics::SPACING_03)
         .size(metrics::UI_PX);
 
     let tabs = mde_ui::tab_strip(FILTERS, state.filter.index(), Message::Pick);
@@ -477,14 +477,14 @@ fn view(state: &Search) -> Element<'_, Message> {
                 .size(metrics::UI_PX)
                 .color(palette::color(palette::GRAY_TEXT)),
         )
-        .padding(12.0)
+        .padding(metrics::SPACING_04)
         .into()
     } else {
         let mut col = Column::new().spacing(1.0);
         for (i, hit) in hits.iter().enumerate() {
             let ids: Vec<&str> = hit.icon.iter().map(String::as_str).collect();
             let row = Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(crate::icons::icon_any(&ids, 22))
                 .push(text(hit.label.clone()).size(metrics::UI_PX));
@@ -501,7 +501,7 @@ fn view(state: &Search) -> Element<'_, Message> {
 
     let body = Column::new()
         .spacing(6.0)
-        .padding(8.0)
+        .padding(metrics::SPACING_03)
         .push(field)
         .push(tabs)
         .push(container(results).height(Length::Fill));

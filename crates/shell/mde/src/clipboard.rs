@@ -429,7 +429,7 @@ mod popup {
                 };
                 // Content (click to re-copy) + pin toggle + delete.
                 let row = Row::new()
-                    .spacing(4.0)
+                    .spacing(metrics::SPACING_02)
                     .align_y(iced::alignment::Vertical::Center)
                     .push(
                         mouse_area(container(body).width(Length::Fill).padding(6.0))
@@ -460,9 +460,15 @@ mod popup {
                     .style(mde_ui::button_ghost),
             );
 
-        let card = container(Column::new().spacing(8.0).push(header).push(
-            container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fixed(360.0)),
-        ))
+        let card = container(
+            Column::new()
+                .spacing(metrics::SPACING_03)
+                .push(header)
+                .push(
+                    container(scrollable(list).style(mde_ui::scrollbar))
+                        .height(Length::Fixed(360.0)),
+                ),
+        )
         .width(Length::Fixed(320.0))
         .padding(10.0)
         .style(|_| container::Style {

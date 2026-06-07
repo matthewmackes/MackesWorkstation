@@ -251,7 +251,7 @@ fn tile_card<'a>(icon: &'static str, t: &Tile) -> Element<'a, Message> {
     )
     .width(Length::Fixed(metrics::SECURITY_TILE))
     .height(Length::Fixed(metrics::SECURITY_TILE))
-    .padding(12.0)
+    .padding(metrics::SPACING_04)
     .style(|_| container::Style {
         border: iced::Border {
             color: palette::color(palette::WINDOW_FRAME),
@@ -282,8 +282,8 @@ fn view(state: &Security) -> Element<'_, Message> {
                 .size(metrics::UI_PX)
                 .color(palette::color(palette::GRAY_TEXT)),
         ]
-        .spacing(12.0)
-        .padding(16.0)
+        .spacing(metrics::SPACING_04)
+        .padding(metrics::SPACING_05)
         .into();
     };
     match state.pane {
@@ -337,7 +337,7 @@ fn detail_header(title: &'static str) -> Column<'static, Message> {
 fn ro_row<'a>(t: &Tile) -> Element<'a, Message> {
     let (mark, role) = level_mark(t.level);
     Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text(mark)
@@ -441,9 +441,9 @@ fn home_view(s: &SecurityStatus) -> Element<'_, Message> {
         ("\u{f0c0}", &family, Some(Pane::Family)),
     ];
 
-    let mut grid = Column::new().spacing(12.0);
+    let mut grid = Column::new().spacing(metrics::SPACING_04);
     for chunk in tiles.chunks(3) {
-        let mut r = Row::new().spacing(12.0);
+        let mut r = Row::new().spacing(metrics::SPACING_04);
         for (icon, t, nav) in chunk {
             let card = tile_card(icon, t);
             let cell: Element<Message> = match nav {
@@ -479,7 +479,7 @@ fn firewall_view(fw: Option<&FirewallDetail>) -> Element<'_, Message> {
         let (mark, role) = level_mark(if fw.running { Level::Ok } else { Level::Risk });
         col = col.push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(
                     text(mark)
@@ -662,7 +662,7 @@ fn antivirus_view(av: Option<&Option<String>>) -> Element<'_, Message> {
     let status_row = |level: Level, msg: String| {
         let (mark, role) = level_mark(level);
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text(mark)

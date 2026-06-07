@@ -179,7 +179,7 @@ fn view(state: &Lock) -> Element<'_, Message> {
 
     let content = Column::new()
         .align_x(iced::alignment::Horizontal::Center)
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text(state.time.clone())
                 .size(metrics::LOCK_CLOCK_PX)

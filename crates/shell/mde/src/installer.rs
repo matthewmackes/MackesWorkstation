@@ -320,7 +320,7 @@ fn status_bar<'a>() -> Element<'a, Msg> {
 /// The scrollable category tree of component rows.
 fn tree(state: &Setup) -> Element<'_, Msg> {
     let mut col = Column::new()
-        .spacing(2.0)
+        .spacing(metrics::SPACING_01)
         .padding(pad(0.0, 24.0, 0.0, 24.0));
     let mut last_cat = "";
     for (i, c) in state.cat.iter().enumerate() {
@@ -358,7 +358,7 @@ fn tree(state: &Setup) -> Element<'_, Msg> {
 
 fn view(state: &Setup) -> Element<'_, Msg> {
     let mut header = Column::new()
-        .spacing(4.0)
+        .spacing(metrics::SPACING_02)
         .padding(pad(16.0, 24.0, 8.0, 24.0));
     header = header.push(
         text("Choose Components")
@@ -373,13 +373,13 @@ fn view(state: &Setup) -> Element<'_, Msg> {
     );
 
     let presets = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(mde_ui::button(text("Minimal").size(metrics::UI_PX)).on_press(Msg::Preset(0)))
         .push(mde_ui::button(text("Standard").size(metrics::UI_PX)).on_press(Msg::Preset(1)))
         .push(mde_ui::button(text("Everything").size(metrics::UI_PX)).on_press(Msg::Preset(2)));
 
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(Space::with_width(Length::Fill))
         .push(
             mde_ui::button(text("Install").size(metrics::UI_PX))

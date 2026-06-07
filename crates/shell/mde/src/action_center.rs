@@ -355,7 +355,9 @@ fn view(state: &Center) -> Element<'_, Message> {
         .center_y(Length::Fill)
         .into()
     } else {
-        let mut col = Column::new().spacing(8.0).width(Length::Fill);
+        let mut col = Column::new()
+            .spacing(metrics::SPACING_03)
+            .width(Length::Fill);
         // Group by app, preserving first-seen order; newest cards first within.
         let mut groups: Vec<(String, Vec<&Notif>)> = Vec::new();
         for n in state.notes.iter().rev() {
@@ -466,7 +468,10 @@ fn card(n: &Notif) -> Element<'static, Message> {
                 .color(palette::color(palette::GRAY_TEXT)),
         )
         .push(clear_x(Message::Clear(n.id)));
-    let mut inner = Column::new().spacing(2.0).width(Length::Fill).push(head);
+    let mut inner = Column::new()
+        .spacing(metrics::SPACING_01)
+        .width(Length::Fill)
+        .push(head);
     if !n.body.is_empty() {
         inner = inner.push(
             text(n.body.clone())
@@ -475,19 +480,23 @@ fn card(n: &Notif) -> Element<'static, Message> {
         );
     }
     let icon = crate::icons::icon_any(&[n.app_icon.as_str(), "dialog-information"], 24);
-    container(row![icon, inner].spacing(8.0).align_y(Vertical::Top))
-        .width(Length::Fill)
-        .padding(8.0)
-        .style(|_| container::Style {
-            background: Some(Background::Color(palette::color(palette::WINDOW))),
-            border: Border {
-                color: palette::color(palette::WINDOW_FRAME),
-                width: 1.0,
-                radius: 2.0.into(),
-            },
-            ..container::Style::default()
-        })
-        .into()
+    container(
+        row![icon, inner]
+            .spacing(metrics::SPACING_03)
+            .align_y(Vertical::Top),
+    )
+    .width(Length::Fill)
+    .padding(metrics::SPACING_03)
+    .style(|_| container::Style {
+        background: Some(Background::Color(palette::color(palette::WINDOW))),
+        border: Border {
+            color: palette::color(palette::WINDOW_FRAME),
+            width: 1.0,
+            radius: 2.0.into(),
+        },
+        ..container::Style::default()
+    })
+    .into()
 }
 
 /// A coarse "Nm ago" / "Nh ago" / "now" relative timestamp.
@@ -518,7 +527,7 @@ fn brightness_slider(state: &Center) -> Element<'_, Message> {
         return Space::new(Length::Shrink, Length::Shrink).into();
     };
     Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(Vertical::Center)
         .push(
             text("\u{f185}") // fa-sun
@@ -561,7 +570,7 @@ fn all_settings_link() -> Element<'static, Message> {
     mouse_area(
         container(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(Vertical::Center)
                 .push(
                     text("\u{f013}") // fa-gear
@@ -631,7 +640,7 @@ fn quick_tile(id: &str, on: bool) -> Element<'static, Message> {
         palette::color(palette::WINDOW_TEXT)
     };
     let content = Column::new()
-        .spacing(4.0)
+        .spacing(metrics::SPACING_02)
         .align_x(Horizontal::Center)
         .width(Length::Fill)
         .push(
@@ -818,7 +827,10 @@ fn toast_view(state: &Toast) -> Element<'_, ToastMsg> {
             )
             .on_press(ToastMsg::Close),
         );
-    let mut inner = Column::new().spacing(2.0).width(Length::Fill).push(head);
+    let mut inner = Column::new()
+        .spacing(metrics::SPACING_01)
+        .width(Length::Fill)
+        .push(head);
     if !n.body.is_empty() {
         inner = inner.push(
             text(n.body.clone())
@@ -829,31 +841,35 @@ fn toast_view(state: &Toast) -> Element<'_, ToastMsg> {
     let icon = crate::icons::icon_any(&[n.app_icon.as_str(), "dialog-information"], 24);
     // Click the body to dismiss; the toast itself is the whole surface.
     mouse_area(
-        container(row![icon, inner].spacing(8.0).align_y(Vertical::Top))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .padding(10.0)
-            .style(move |_| container::Style {
-                background: Some(Background::Color(palette::color(palette::MENU))),
-                border: Border {
-                    color: if critical {
-                        palette::color(palette::URGENT)
-                    } else {
-                        palette::color(palette::WINDOW_FRAME)
-                    },
-                    width: if critical { 2.0 } else { 1.0 },
-                    radius: 2.0.into(),
+        container(
+            row![icon, inner]
+                .spacing(metrics::SPACING_03)
+                .align_y(Vertical::Top),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(10.0)
+        .style(move |_| container::Style {
+            background: Some(Background::Color(palette::color(palette::MENU))),
+            border: Border {
+                color: if critical {
+                    palette::color(palette::URGENT)
+                } else {
+                    palette::color(palette::WINDOW_FRAME)
                 },
-                shadow: Shadow {
-                    color: Color {
-                        a: 0.4,
-                        ..Color::BLACK
-                    },
-                    offset: iced::Vector::new(-2.0, -2.0),
-                    blur_radius: 14.0,
+                width: if critical { 2.0 } else { 1.0 },
+                radius: 2.0.into(),
+            },
+            shadow: Shadow {
+                color: Color {
+                    a: 0.4,
+                    ..Color::BLACK
                 },
-                ..container::Style::default()
-            }),
+                offset: iced::Vector::new(-2.0, -2.0),
+                blur_radius: 14.0,
+            },
+            ..container::Style::default()
+        }),
     )
     .on_press(ToastMsg::Close)
     .into()

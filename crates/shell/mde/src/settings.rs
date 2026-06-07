@@ -2962,7 +2962,7 @@ fn view(state: &Settings) -> Element<'_, Message> {
     container(body)
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(16.0)
+        .padding(metrics::SPACING_05)
         .style(bg)
         .into()
 }
@@ -2973,7 +2973,7 @@ fn home(state: &Settings) -> Element<'_, Message> {
         .color(palette::color(palette::WINDOW_TEXT));
     let find = text_input("Find a setting", &state.search)
         .on_input(Message::Search)
-        .padding(8.0)
+        .padding(metrics::SPACING_03)
         .size(metrics::UI_PX)
         .width(Length::Fixed(360.0));
 
@@ -2981,13 +2981,13 @@ fn home(state: &Settings) -> Element<'_, Message> {
     // category tile grid shows.
     let q = state.search.trim().to_lowercase();
     let content: Element<Message> = if q.is_empty() {
-        let mut grid = Column::new().spacing(12.0);
-        let mut r = Row::new().spacing(12.0);
+        let mut grid = Column::new().spacing(metrics::SPACING_04);
+        let mut r = Row::new().spacing(metrics::SPACING_04);
         for (i, cat) in CATEGORIES.iter().enumerate() {
             r = r.push(home_tile(i, cat));
             if (i + 1) % COLS == 0 {
                 grid = grid.push(r);
-                r = Row::new().spacing(12.0);
+                r = Row::new().spacing(metrics::SPACING_04);
             }
         }
         grid = grid.push(r);
@@ -2997,7 +2997,7 @@ fn home(state: &Settings) -> Element<'_, Message> {
     };
 
     Column::new()
-        .spacing(16.0)
+        .spacing(metrics::SPACING_05)
         .push(title)
         .push(find)
         .push(content)
@@ -3054,7 +3054,7 @@ fn home_tile(i: usize, cat: &'static Category) -> Element<'static, Message> {
         .push(crate::icons::icon_any(cat.icons, 32))
         .push(
             Column::new()
-                .spacing(2.0)
+                .spacing(metrics::SPACING_01)
                 .push(
                     text(cat.title)
                         .size(metrics::UI_PX)
@@ -3069,7 +3069,7 @@ fn home_tile(i: usize, cat: &'static Category) -> Element<'static, Message> {
     button(inner)
         .on_press(Message::OpenCategory(i))
         .width(Length::Fixed(210.0))
-        .padding(12.0)
+        .padding(metrics::SPACING_04)
         .style(tile_style)
         .into()
 }
@@ -3100,7 +3100,7 @@ fn category(state: &Settings, c: usize) -> Element<'_, Message> {
         .padding(Padding::from([2.0, 10.0]))
         .style(tile_style);
     let header = Row::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::alignment::Vertical::Center)
         .push(back)
         .push(
@@ -3123,14 +3123,18 @@ fn category(state: &Settings, c: usize) -> Element<'_, Message> {
     let pane = container(content_pane(state, cat))
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(16.0);
+        .padding(metrics::SPACING_05);
 
     let cols = Row::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(scrollable(rail).style(mde_ui::scrollbar))
         .push(pane);
 
-    Column::new().spacing(16.0).push(header).push(cols).into()
+    Column::new()
+        .spacing(metrics::SPACING_05)
+        .push(header)
+        .push(cols)
+        .into()
 }
 
 fn rail_entry(i: usize, p: &Page, selected: bool) -> Element<'static, Message> {
@@ -3212,7 +3216,11 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
             open_button(page.title, present)
         }
     };
-    Column::new().spacing(16.0).push(heading).push(inner).into()
+    Column::new()
+        .spacing(metrics::SPACING_05)
+        .push(heading)
+        .push(inner)
+        .into()
 }
 
 /// A page that just launches an external backend: a single Open button (or
@@ -3290,7 +3298,7 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
             ),
         }
     };
-    let mut lines = Column::new().spacing(2.0).push(
+    let mut lines = Column::new().spacing(metrics::SPACING_01).push(
         text(headline)
             .size(metrics::INFO_TITLE_PX)
             .color(palette::color(palette::WINDOW_TEXT)),
@@ -3303,7 +3311,7 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
         );
     }
     let card = Row::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text(glyph)
@@ -3312,7 +3320,7 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
                 .color(palette::color(palette::WINDOW_TEXT)),
         )
         .push(lines);
-    let mut buttons = Row::new().spacing(8.0).push(
+    let mut buttons = Row::new().spacing(metrics::SPACING_03).push(
         button(text("Check for updates").size(metrics::UI_PX))
             .on_press_maybe((!busy).then_some(Message::CheckUpdates))
             .padding(Padding::from([6.0, 16.0]))
@@ -3326,14 +3334,17 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
                 .style(tile_style),
         );
     }
-    let mut col = Column::new().spacing(16.0).push(card).push(buttons);
+    let mut col = Column::new()
+        .spacing(metrics::SPACING_05)
+        .push(card)
+        .push(buttons);
     // Pause / Resume updates (E13.4): a flat accent link. While paused the
     // dnf-automatic timer is masked; show the days remaining + a Resume flip.
     let now = now_secs();
     let pause: Element<Message> = if state.update_paused_until > now {
         let days = (state.update_paused_until - now).div_ceil(86_400);
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text(format!(
@@ -3366,7 +3377,7 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
     // Save, which writes the dnf-automatic timer OnCalendar override.
     let hours: Vec<Hour> = (0..24u8).map(Hour).collect();
     let active = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text("Active hours")
@@ -3403,7 +3414,7 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
         for u in pending {
             list = list.push(
                 Row::new()
-                    .spacing(8.0)
+                    .spacing(metrics::SPACING_03)
                     .push(
                         text(u.package.clone())
                             .size(metrics::UI_PX)
@@ -3463,7 +3474,7 @@ fn update_history_page(state: &Settings) -> Element<'_, Message> {
                     list = list.push(
                         mouse_area(
                             Row::new()
-                                .spacing(8.0)
+                                .spacing(metrics::SPACING_03)
                                 .push(cell(h.id.to_string(), 1, false))
                                 .push(cell(h.command.clone(), 4, false))
                                 .push(cell(h.date.clone(), 3, true))
@@ -3481,7 +3492,7 @@ fn update_history_page(state: &Settings) -> Element<'_, Message> {
         }
     };
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             button(text("Uninstall selected").size(metrics::UI_PX))
                 .on_press_maybe(state.history_selected.map(|_| Message::UninstallHistory))
@@ -3495,7 +3506,7 @@ fn update_history_page(state: &Settings) -> Element<'_, Message> {
                 .style(tile_style),
         );
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(buttons)
         .push(container(body).height(Length::Fill))
         .into()
@@ -3511,20 +3522,20 @@ fn update_advanced_page(state: &Settings) -> Element<'_, Message> {
             .on_toggle(msg)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style)
     };
     let greyed = |label: &'static str| {
         checkbox(label, false)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style)
     };
     // Automatic-updates posture (E13.8) — reads/writes the same dnf-automatic
     // timer + config the System Properties radios use, so the two surfaces agree.
     let posture = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text("Automatic updates")
@@ -3624,7 +3635,7 @@ fn account_info_page(state: &Settings) -> Element<'_, Message> {
         )
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(
                     text("Display name")
@@ -3651,7 +3662,7 @@ fn account_info_page(state: &Settings) -> Element<'_, Message> {
 fn family_users_page(state: &Settings) -> Element<'_, Message> {
     let me = std::env::var("USER").unwrap_or_default();
     let admins = crate::sysinfo::admin_count(&state.accounts);
-    let mut list = Column::new().spacing(4.0);
+    let mut list = Column::new().spacing(metrics::SPACING_02);
     for a in &state.accounts {
         let (badge, badge_col) = if a.admin {
             ("Administrator", palette::accent())
@@ -3744,7 +3755,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
         col = col.push(
             container(
                 Column::new()
-                    .spacing(8.0)
+                    .spacing(metrics::SPACING_03)
                     .push(
                         text(format!("Delete {name} and all of their data?"))
                             .size(metrics::UI_PX)
@@ -3752,7 +3763,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
                     )
                     .push(
                         Row::new()
-                            .spacing(8.0)
+                            .spacing(metrics::SPACING_03)
                             .push(
                                 button(text("Delete account").size(metrics::UI_PX))
                                     .on_press(Message::ConfirmRemove(name.clone()))
@@ -3782,7 +3793,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
     col.push(container(body).height(Length::Fill))
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(
                     text_input("Add a user…", &state.new_user)
@@ -3829,7 +3840,7 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
     } else {
         "No PIN is set."
     };
-    let mut pin_buttons = Row::new().spacing(8.0).push(
+    let mut pin_buttons = Row::new().spacing(metrics::SPACING_03).push(
         button(
             text(if state.pin_set {
                 "Change PIN"
@@ -3851,7 +3862,7 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
         );
     }
     let mut pin_section = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text("PIN")
                 .size(metrics::UI_PX)
@@ -3887,7 +3898,7 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
     }
 
     let password_section = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text("Password")
                 .size(metrics::UI_PX)
@@ -3931,12 +3942,12 @@ fn bluetooth_page(state: &Settings) -> Element<'_, Message> {
             .into();
     }
 
-    let mut col = Column::new().spacing(12.0).push(
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(
         checkbox("Bluetooth", bt.powered)
             .on_toggle(Message::BtPowered)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style),
     );
 
@@ -3974,7 +3985,7 @@ fn bluetooth_page(state: &Settings) -> Element<'_, Message> {
             .into();
     }
 
-    let mut list = Column::new().spacing(4.0);
+    let mut list = Column::new().spacing(metrics::SPACING_02);
     for d in &bt.devices {
         let status = if d.connected {
             "Connected"
@@ -4060,7 +4071,7 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
             .into();
     }
 
-    let mut col = Column::new().spacing(12.0).push(
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(
         button(
             text(if cups.discovered.is_empty() && !state.printers_scanned {
                 "+ Add a printer or scanner"
@@ -4076,7 +4087,7 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
 
     // Discovered devices (after a scan) — each addable as a driverless queue.
     if !cups.discovered.is_empty() {
-        let mut found = Column::new().spacing(4.0).push(
+        let mut found = Column::new().spacing(metrics::SPACING_02).push(
             text("Found these printers")
                 .size(metrics::BADGE_PX)
                 .color(palette::color(palette::GRAY_TEXT)),
@@ -4122,7 +4133,7 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
     // is always shown (like Win10's Microsoft Print to PDF), whether or not the
     // cups-pdf queue is actually set up yet.
     let mut list = Column::new()
-        .spacing(4.0)
+        .spacing(metrics::SPACING_02)
         .push(print_to_pdf_row(state, cups));
     let real: Vec<&crate::cups::Printer> = cups.printers.iter().filter(|p| !p.is_pdf).collect();
     if real.is_empty() {
@@ -4202,7 +4213,7 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
         .on_toggle(Message::SetManageDefaultPrinter)
         .size(metrics::UI_PX)
         .text_size(metrics::UI_PX)
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .style(mde_ui::checkbox_style),
     )
     .into()
@@ -4294,7 +4305,7 @@ fn mouse_page(state: &Settings) -> Element<'_, Message> {
     };
 
     let primary_row = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(label("Select your primary button"))
         .push(
@@ -4308,7 +4319,7 @@ fn mouse_page(state: &Settings) -> Element<'_, Message> {
 
     let line_items: Vec<Lines> = (1u8..=10).map(Lines).collect();
     let scroll_row = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(label("Lines to scroll each time"))
         .push(
@@ -4324,11 +4335,11 @@ fn mouse_page(state: &Settings) -> Element<'_, Message> {
         .on_toggle(Message::SetMouseNatural)
         .size(metrics::UI_PX)
         .text_size(metrics::UI_PX)
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .style(mde_ui::checkbox_style);
 
     let inactive = Column::new()
-        .spacing(2.0)
+        .spacing(metrics::SPACING_01)
         .push(
             checkbox(
                 "Scroll inactive windows when I hover over them",
@@ -4337,7 +4348,7 @@ fn mouse_page(state: &Settings) -> Element<'_, Message> {
             .on_toggle(Message::SetScrollInactive)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style),
         )
         .push(
@@ -4366,13 +4377,13 @@ fn touchpad_page(state: &Settings) -> Element<'_, Message> {
             .on_toggle(msg)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style)
     };
 
     let speed_items: Vec<u8> = (1u8..=10).collect();
     let speed_row = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text("Cursor speed")
@@ -4427,14 +4438,14 @@ fn typing_page(state: &Settings) -> Element<'_, Message> {
     };
     let row = |lbl: &'static str, control: Element<'static, Message>| {
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             .push(label(lbl))
             .push(control)
     };
 
     let layout_row = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(label("Keyboard layout"))
         .push(
@@ -4469,7 +4480,7 @@ fn typing_page(state: &Settings) -> Element<'_, Message> {
             .on_toggle(msg)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style)
     };
 
@@ -4512,7 +4523,7 @@ fn autoplay_page(state: &Settings) -> Element<'_, Message> {
     .on_toggle(Message::SetAutoplayEnabled)
     .size(metrics::UI_PX)
     .text_size(metrics::UI_PX)
-    .spacing(8.0)
+    .spacing(metrics::SPACING_03)
     .style(mde_ui::checkbox_style);
 
     let pick = |label_text: &'static str,
@@ -4520,7 +4531,7 @@ fn autoplay_page(state: &Settings) -> Element<'_, Message> {
                 msg: fn(AutoAction) -> Message|
      -> Element<'_, Message> {
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text(label_text)
@@ -4605,7 +4616,7 @@ fn default_apps_page(state: &Settings) -> Element<'_, Message> {
     };
 
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             text("Choose default apps")
                 .size(metrics::UI_PX)
@@ -4657,7 +4668,7 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
     // in use — Win10 shows the breakdown of used storage, not of empty capacity).
     let root_used = root.map(|m| m.used).unwrap_or(1).max(1);
 
-    let mut col = Column::new().spacing(12.0);
+    let mut col = Column::new().spacing(metrics::SPACING_04);
     if let Some(r) = root {
         col = col.push(
             text(format!(
@@ -4671,7 +4682,7 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
     }
 
     // Per-category bars.
-    let mut bars = Column::new().spacing(8.0);
+    let mut bars = Column::new().spacing(metrics::SPACING_03);
     for (cat, bytes) in &u.categories {
         let frac = *bytes as f32 / root_used as f32;
         bars = bars.push(
@@ -4711,7 +4722,7 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
                 .on_toggle(Message::SetStorageSense)
                 .size(metrics::UI_PX)
                 .text_size(metrics::UI_PX)
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .style(mde_ui::checkbox_style),
         )
         .push(
@@ -4759,7 +4770,7 @@ fn apps_drill_in(state: &Settings) -> Element<'_, Message> {
         .padding(Padding::from([3.0, 10.0]))
         .style(mde_ui::button_ghost);
 
-    let mut list = Column::new().spacing(2.0);
+    let mut list = Column::new().spacing(metrics::SPACING_01);
     if state.packages.is_empty() {
         list = list.push(
             text("Reading installed apps…")
@@ -4822,7 +4833,7 @@ fn apps_drill_in(state: &Settings) -> Element<'_, Message> {
                 )
                 .push(
                     Row::new()
-                        .spacing(8.0)
+                        .spacing(metrics::SPACING_03)
                         .push(
                             button(text("Uninstall").size(metrics::UI_PX))
                                 .on_press(Message::ConfirmUninstall(name.clone()))
@@ -4851,7 +4862,7 @@ fn clean_drill_in(state: &Settings) -> Element<'_, Message> {
         .style(mde_ui::button_ghost);
 
     let mut col = Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(back)
         .push(
             text("Free up space now")
@@ -4875,7 +4886,7 @@ fn clean_drill_in(state: &Settings) -> Element<'_, Message> {
     if state.confirm_clean {
         col = col.push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .push(
                     text("Clean now? This empties the Trash.")
                         .size(metrics::UI_PX)
@@ -4919,7 +4930,7 @@ fn backup_page(state: &Settings) -> Element<'_, Message> {
     }
 
     let mut col = Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             text("Back up using Timeshift")
                 .size(metrics::INFO_TITLE_PX)
@@ -4943,12 +4954,12 @@ fn backup_page(state: &Settings) -> Element<'_, Message> {
                     .on_toggle(Message::SetAutoBackup)
                     .size(metrics::UI_PX)
                     .text_size(metrics::UI_PX)
-                    .spacing(8.0)
+                    .spacing(metrics::SPACING_03)
                     .style(mde_ui::checkbox_style),
             )
             .push(
                 Row::new()
-                    .spacing(8.0)
+                    .spacing(metrics::SPACING_03)
                     .push(
                         button(text("More options").size(metrics::UI_PX))
                             .on_press(Message::ShowBackupMore)
@@ -5020,7 +5031,7 @@ fn backup_more_page(state: &Settings) -> Element<'_, Message> {
 
     let row = |lbl: &'static str, control: Element<'static, Message>| {
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text(lbl)
@@ -5034,7 +5045,7 @@ fn backup_more_page(state: &Settings) -> Element<'_, Message> {
     // Back up now (confirm → pkexec timeshift --create).
     let backup_now: Element<'_, Message> = if state.confirm_backup {
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .push(
                 text("Create a snapshot now?")
                     .size(metrics::UI_PX)
@@ -5062,7 +5073,7 @@ fn backup_more_page(state: &Settings) -> Element<'_, Message> {
     };
 
     let mut col = Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(back)
         .push(
             text("More options")
@@ -5161,7 +5172,7 @@ fn recovery_page(state: &Settings) -> Element<'_, Message> {
     };
 
     let col = Column::new()
-        .spacing(16.0)
+        .spacing(metrics::SPACING_05)
         .push(
             text("Reset this PC")
                 .size(metrics::INFO_TITLE_PX)
@@ -5229,7 +5240,7 @@ fn usb_wizard(state: &Settings) -> Element<'_, Message> {
         .style(mde_ui::button_ghost);
 
     let mut col = Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(back)
         .push(
             text("Create a recovery drive")
@@ -5296,7 +5307,7 @@ fn usb_wizard(state: &Settings) -> Element<'_, Message> {
             .on_toggle(Message::ToggleUsbBackup)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style),
     );
 
@@ -5321,7 +5332,7 @@ fn usb_wizard(state: &Settings) -> Element<'_, Message> {
             )
             .push(
                 Row::new()
-                    .spacing(8.0)
+                    .spacing(metrics::SPACING_03)
                     .push(
                         button(text("Erase and create").size(metrics::UI_PX))
                             .on_press(Message::ConfirmCreateUsb)
@@ -5408,7 +5419,7 @@ fn recovery_confirm(state: &Settings, a: RecoveryAction) -> Element<'_, Message>
             .width(Length::Fixed(220.0)),
     )
     .push(
-        Row::new().spacing(8.0).push(confirm).push(
+        Row::new().spacing(metrics::SPACING_03).push(confirm).push(
             button(text("Cancel").size(metrics::UI_PX))
                 .on_press(Message::CancelRecovery)
                 .padding(Padding::from([4.0, 12.0]))
@@ -5429,7 +5440,7 @@ fn cellular_page() -> Element<'static, Message> {
             checkbox("Cellular", false)
                 .size(metrics::UI_PX)
                 .text_size(metrics::UI_PX)
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .style(mde_ui::checkbox_style),
         )
         .push(
@@ -5488,7 +5499,7 @@ fn data_usage_page(state: &Settings) -> Element<'_, Message> {
             ));
         list = list.push(
             Column::new()
-                .spacing(2.0)
+                .spacing(metrics::SPACING_01)
                 .push(
                     Row::new()
                         .push(
@@ -5507,7 +5518,7 @@ fn data_usage_page(state: &Settings) -> Element<'_, Message> {
         );
     }
     let limit = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text("Monthly limit (MB)")
@@ -5541,7 +5552,7 @@ fn airplane_page(state: &Settings) -> Element<'_, Message> {
         checkbox(label, on)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style)
     };
     // Wi-Fi reads off while airplane mode is on, and is disabled then (no on_toggle).
@@ -5550,7 +5561,7 @@ fn airplane_page(state: &Settings) -> Element<'_, Message> {
         wifi = wifi.on_toggle(Message::SetWifiRadio);
     }
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(cb("Airplane mode", state.airplane).on_toggle(Message::SetAirplane))
         .push(
             text("Wireless devices")
@@ -5567,7 +5578,7 @@ fn airplane_page(state: &Settings) -> Element<'_, Message> {
 /// gsettings. Read live at settings start.
 fn proxy_page(state: &Settings) -> Element<'_, Message> {
     let mode = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text("Use a proxy server")
@@ -5583,11 +5594,11 @@ fn proxy_page(state: &Settings) -> Element<'_, Message> {
             )
             .text_size(metrics::UI_PX),
         );
-    let mut col = Column::new().spacing(12.0).push(mode);
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(mode);
     if state.proxy_mode == ProxyMode::Manual {
         let field = |label: &'static str, value: &str, msg: fn(String) -> Message, w: f32| {
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(
                     text(label)
@@ -5633,7 +5644,7 @@ fn hotspot_page(state: &Settings) -> Element<'_, Message> {
         .any(|c| c.name == "Hotspot" && c.state == "activated");
     let field = |label: &'static str, value: &str, msg: fn(String) -> Message, secure: bool| {
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text(label)
@@ -5650,13 +5661,13 @@ fn hotspot_page(state: &Settings) -> Element<'_, Message> {
             )
     };
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             checkbox("Share my Internet connection with other devices", on)
                 .on_toggle(Message::SetHotspotOn)
                 .size(metrics::UI_PX)
                 .text_size(metrics::UI_PX)
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .style(mde_ui::checkbox_style),
         )
         .push(field(
@@ -5689,7 +5700,7 @@ fn ethernet_page(state: &Settings) -> Element<'_, Message> {
             .into();
     };
     let card = Column::new()
-        .spacing(2.0)
+        .spacing(metrics::SPACING_01)
         .push(
             text(format!("Connected — {}", c.name))
                 .size(metrics::INFO_TITLE_PX)
@@ -5702,14 +5713,14 @@ fn ethernet_page(state: &Settings) -> Element<'_, Message> {
         );
     let is_private = state.net_zone != "public";
     Column::new()
-        .spacing(16.0)
+        .spacing(metrics::SPACING_05)
         .push(card)
         .push(
             checkbox("Make this a private (trusted) network", is_private)
                 .on_toggle(Message::SetNetPrivate)
                 .size(metrics::UI_PX)
                 .text_size(metrics::UI_PX)
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .style(mde_ui::checkbox_style),
         )
         .into()
@@ -5729,12 +5740,12 @@ fn vpn_page(state: &Settings) -> Element<'_, Message> {
             .color(palette::color(palette::GRAY_TEXT))
             .into()
     } else {
-        let mut col = Column::new().spacing(4.0);
+        let mut col = Column::new().spacing(metrics::SPACING_02);
         for v in &state.vpns {
             let active = v.state == "activated";
             col = col.push(
                 Row::new()
-                    .spacing(8.0)
+                    .spacing(metrics::SPACING_03)
                     .align_y(iced::alignment::Vertical::Center)
                     .push(
                         text(v.name.clone())
@@ -5759,7 +5770,7 @@ fn vpn_page(state: &Settings) -> Element<'_, Message> {
             .into()
     };
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(add)
         .push(container(body).height(Length::Fill))
         .into()
@@ -5776,7 +5787,7 @@ fn wifi_page(state: &Settings) -> Element<'_, Message> {
     .on_toggle(Message::SetWifiAutoconnect)
     .size(metrics::UI_PX)
     .text_size(metrics::UI_PX)
-    .spacing(8.0)
+    .spacing(metrics::SPACING_03)
     .style(mde_ui::checkbox_style);
     let body: Element<Message> = if state.wifi_scanning || state.wifis.is_none() {
         text("Scanning for networks…")
@@ -5799,7 +5810,7 @@ fn wifi_page(state: &Settings) -> Element<'_, Message> {
                     };
                     col = col.push(
                         Row::new()
-                            .spacing(8.0)
+                            .spacing(metrics::SPACING_03)
                             .align_y(iced::alignment::Vertical::Center)
                             .push(
                                 text(w.ssid.clone())
@@ -5833,7 +5844,7 @@ fn wifi_page(state: &Settings) -> Element<'_, Message> {
         }
     };
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(toggle)
         .push(container(body).height(Length::Fill))
         .into()
@@ -5852,7 +5863,7 @@ fn network_status_page(state: &Settings) -> Element<'_, Message> {
         ),
         None => ("\u{f071}", "Not connected".to_string(), String::new()), // nf-fa-warning
     };
-    let mut lines = Column::new().spacing(2.0).push(
+    let mut lines = Column::new().spacing(metrics::SPACING_01).push(
         text(head)
             .size(metrics::INFO_TITLE_PX)
             .color(palette::color(palette::WINDOW_TEXT)),
@@ -5865,7 +5876,7 @@ fn network_status_page(state: &Settings) -> Element<'_, Message> {
         );
     }
     let card = Row::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text(glyph)
@@ -5874,7 +5885,7 @@ fn network_status_page(state: &Settings) -> Element<'_, Message> {
                 .color(palette::color(palette::WINDOW_TEXT)),
         )
         .push(lines);
-    let mut col = Column::new().spacing(16.0).push(card);
+    let mut col = Column::new().spacing(metrics::SPACING_05).push(card);
     if active.is_some() {
         let is_private = state.net_zone != "public";
         col = col.push(
@@ -5882,7 +5893,7 @@ fn network_status_page(state: &Settings) -> Element<'_, Message> {
                 .on_toggle(Message::SetNetPrivate)
                 .size(metrics::UI_PX)
                 .text_size(metrics::UI_PX)
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .style(mde_ui::checkbox_style),
         );
     }
@@ -5904,7 +5915,10 @@ fn colors_page(state: &Settings) -> Element<'_, Message> {
         .color(palette::color(palette::WINDOW_TEXT));
     let light = mode_button("Light", !state.dark, Message::SetDark(false));
     let dark = mode_button("Dark", state.dark, Message::SetDark(true));
-    let modes = Row::new().spacing(8.0).push(light).push(dark);
+    let modes = Row::new()
+        .spacing(metrics::SPACING_03)
+        .push(light)
+        .push(dark);
 
     // E7.5a: "Show accent color on Start & taskbar" — gates the panel chrome's
     // accent tint (palette::chrome_accent). The companion "on title bars" option is
@@ -5917,7 +5931,7 @@ fn colors_page(state: &Settings) -> Element<'_, Message> {
     .on_toggle(Message::SetAccentOnTaskbar)
     .size(metrics::UI_PX)
     .text_size(metrics::UI_PX)
-    .spacing(8.0)
+    .spacing(metrics::SPACING_03)
     .style(mde_ui::checkbox_style);
 
     column![mode_label, modes, accent_chrome]
@@ -5953,7 +5967,7 @@ fn background_page(state: &Settings) -> Element<'_, Message> {
         });
 
     let source = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text("Background")
@@ -5969,11 +5983,14 @@ fn background_page(state: &Settings) -> Element<'_, Message> {
             .text_size(metrics::UI_PX),
         );
 
-    let mut col = Column::new().spacing(12.0).push(preview).push(source);
+    let mut col = Column::new()
+        .spacing(metrics::SPACING_04)
+        .push(preview)
+        .push(source);
 
     match state.bg_source {
         BgSource::Picture => {
-            let mut strip = Row::new().spacing(8.0);
+            let mut strip = Row::new().spacing(metrics::SPACING_03);
             for (i, wp) in state.bg_wallpapers.iter().enumerate().take(24) {
                 strip = strip.push(thumb(
                     wp,
@@ -6024,7 +6041,7 @@ fn background_page(state: &Settings) -> Element<'_, Message> {
 /// `browse` controls whether the Browse button shows.
 fn fit_row<'a>(browse_label: &str, mode: BgMode, browse: bool) -> Element<'a, Message> {
     let mut row = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center);
     if browse {
         row = row.push(
@@ -6076,7 +6093,7 @@ fn themes_page(state: &Settings) -> Element<'_, Message> {
             .color(palette::color(palette::GRAY_TEXT))
             .into()
     } else {
-        let mut row = Row::new().spacing(12.0);
+        let mut row = Row::new().spacing(metrics::SPACING_04);
         for (i, t) in state.themes.iter().enumerate() {
             row = row.push(theme_tile(i, t));
         }
@@ -6086,7 +6103,11 @@ fn themes_page(state: &Settings) -> Element<'_, Message> {
         .on_press(Message::SaveTheme)
         .padding(Padding::from([6.0, 18.0]))
         .style(tile_style);
-    Column::new().spacing(16.0).push(gallery).push(save).into()
+    Column::new()
+        .spacing(metrics::SPACING_05)
+        .push(gallery)
+        .push(save)
+        .into()
 }
 
 /// One theme tile: the saved wallpaper thumbnail (or the accent swatch when the
@@ -6124,7 +6145,7 @@ fn theme_tile(i: usize, t: &crate::state::SavedTheme) -> Element<'static, Messag
         .into()
     };
     let card = Column::new()
-        .spacing(4.0)
+        .spacing(metrics::SPACING_02)
         .align_x(iced::alignment::Horizontal::Center)
         .push(preview)
         .push(
@@ -6154,7 +6175,7 @@ fn lock_page(state: &Settings) -> Element<'_, Message> {
             },
             ..container::Style::default()
         });
-    let mut strip = Row::new().spacing(8.0);
+    let mut strip = Row::new().spacing(metrics::SPACING_03);
     for (i, wp) in state.bg_wallpapers.iter().enumerate().take(24) {
         strip = strip.push(thumb(
             wp,
@@ -6166,11 +6187,11 @@ fn lock_page(state: &Settings) -> Element<'_, Message> {
         checkbox(label, true)
             .size(metrics::UI_PX)
             .text_size(metrics::UI_PX)
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .style(mde_ui::checkbox_style)
     };
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(preview)
         .push(
             text("Background")
@@ -6180,7 +6201,7 @@ fn lock_page(state: &Settings) -> Element<'_, Message> {
         .push(scrollable(strip).style(mde_ui::scrollbar))
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .push(
                     button(text("Browse").size(metrics::UI_PX))
                         .on_press(Message::LockBrowse)

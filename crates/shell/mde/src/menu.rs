@@ -826,7 +826,7 @@ fn render_column<'a>(
     let panel = iced::widget::stack![
         frame::raised().thickness(2),
         container(scrollable(item_list(nodes, col, open, 16, ITEM_H)).style(mde_ui::scrollbar))
-            .padding(2.0),
+            .padding(metrics::SPACING_01),
     ];
     container(panel)
         .width(Length::Fixed(width))
@@ -850,7 +850,7 @@ fn render_root_column<'a>(
     let inner = Row::new().push(banner(h)).push(
         container(scrollable(item_list(nodes, 0, open, icon_px, row_h)).style(mde_ui::scrollbar))
             .width(Length::Fixed(inner_w))
-            .padding(2.0),
+            .padding(metrics::SPACING_01),
     );
     container(iced::widget::stack![frame::raised().thickness(2), inner])
         .width(Length::Fixed(total_w))
@@ -1005,15 +1005,15 @@ fn view_carbon(menu: &Menu) -> Element<'_, Message> {
     }
 
     // Arrange tiles into rows of COLS.
-    let mut grid = Column::new().spacing(2.0);
-    let mut row = Row::new().spacing(2.0);
+    let mut grid = Column::new().spacing(metrics::SPACING_01);
+    let mut row = Row::new().spacing(metrics::SPACING_01);
     let mut n = 0;
     for tile in tiles {
         row = row.push(tile);
         n += 1;
         if n % COLS == 0 {
             grid = grid.push(row);
-            row = Row::new().spacing(2.0);
+            row = Row::new().spacing(metrics::SPACING_01);
         }
     }
     if n % COLS != 0 {
@@ -1027,26 +1027,28 @@ fn view_carbon(menu: &Menu) -> Element<'_, Message> {
     // The flat panel: a Carbon layer surface, 1px border, 2px radius, soft
     // overlay shadow. Width fits COLS tiles; height caps and scrolls.
     let panel_w = COLS as f32 * TILE_W + (COLS as f32 - 1.0) * 2.0 + 16.0;
-    let panel = container(scrollable(container(grid).padding(8.0)).style(mde_ui::scrollbar))
-        .width(Length::Fixed(panel_w))
-        .max_height(MAX_COL_H + 8.0)
-        .style(|_| container::Style {
-            background: Some(Background::Color(palette::color(palette::MENU))),
-            border: Border {
-                color: palette::color(palette::WINDOW_FRAME),
-                width: 1.0,
-                radius: 2.0.into(),
+    let panel = container(
+        scrollable(container(grid).padding(metrics::SPACING_03)).style(mde_ui::scrollbar),
+    )
+    .width(Length::Fixed(panel_w))
+    .max_height(MAX_COL_H + 8.0)
+    .style(|_| container::Style {
+        background: Some(Background::Color(palette::color(palette::MENU))),
+        border: Border {
+            color: palette::color(palette::WINDOW_FRAME),
+            width: 1.0,
+            radius: 2.0.into(),
+        },
+        shadow: Shadow {
+            color: Color {
+                a: 0.35,
+                ..Color::BLACK
             },
-            shadow: Shadow {
-                color: Color {
-                    a: 0.35,
-                    ..Color::BLACK
-                },
-                offset: iced::Vector::new(0.0, 2.0),
-                blur_radius: 12.0,
-            },
-            ..container::Style::default()
-        });
+            offset: iced::Vector::new(0.0, 2.0),
+            blur_radius: 12.0,
+        },
+        ..container::Style::default()
+    });
 
     // Backdrop click-catcher closes the menu; the panel drops from the top-left.
     let mut layers = iced::widget::stack![
@@ -1105,7 +1107,7 @@ fn context_menu(pinned: bool) -> Element<'static, Message> {
         .push(item("Properties", Message::CtxProperties));
     container(iced::widget::stack![
         frame::raised().thickness(2),
-        container(col).padding(2.0)
+        container(col).padding(metrics::SPACING_01)
     ])
     .width(Length::Fixed(168.0))
     .height(Length::Fixed(3.0 * ITEM_H + 6.0))

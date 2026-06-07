@@ -419,7 +419,7 @@ fn view(state: &Popup) -> Element<'_, Message> {
         + 6.0;
     let menu = container(iced::widget::stack![
         frame::raised(),
-        container(col).padding(2.0)
+        container(col).padding(metrics::SPACING_01)
     ])
     .width(Length::Fixed(220.0))
     .height(Length::Fixed(h));

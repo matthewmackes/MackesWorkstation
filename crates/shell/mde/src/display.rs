@@ -716,7 +716,7 @@ fn monitor_graphic<'a>(
     let inner = container(screen)
         .width(Length::Fixed(180.0))
         .height(Length::Fixed(135.0))
-        .padding(2.0);
+        .padding(metrics::SPACING_01);
     let mut screen_stack =
         Stack::new().push(iced::widget::stack![frame::sunken().thickness(2), inner]);
     if let Some(n) = number {
@@ -735,7 +735,7 @@ fn monitor_graphic<'a>(
     }
     let bezel = container(iced::widget::stack![
         frame::raised().thickness(2),
-        container(screen_stack).padding(8.0)
+        container(screen_stack).padding(metrics::SPACING_03)
     ])
     .style(|_| container::Style {
         background: Some(Background::Color(palette::color(palette::BUTTON_FACE))),
@@ -798,18 +798,18 @@ fn background_tab(state: &Display) -> Element<'_, Message> {
     }
     let well = iced::widget::stack![
         frame::sunken().face(palette::color(palette::WINDOW)),
-        container(scrollable(list).style(mde_ui::scrollbar)).padding(2.0),
+        container(scrollable(list).style(mde_ui::scrollbar)).padding(metrics::SPACING_01),
     ];
 
     let controls = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(bold(
             "Select a background picture or HTML document as Wallpaper:",
         ))
         .push(container(well).height(Length::Fixed(150.0)))
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(button(text("Browse\u{2026}").size(metrics::UI_PX)).on_press(Message::Browse))
                 .push(Space::with_width(Length::Fill))
@@ -826,7 +826,7 @@ fn background_tab(state: &Display) -> Element<'_, Message> {
         );
 
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             container(preview)
                 .width(Length::Fill)
@@ -839,10 +839,10 @@ fn background_tab(state: &Display) -> Element<'_, Message> {
 fn screensaver_tab(state: &Display) -> Element<'_, Message> {
     let preview = monitor_graphic(screen_preview(state), None);
     let group = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Wait:"))
                 .push(
@@ -864,7 +864,7 @@ fn screensaver_tab(state: &Display) -> Element<'_, Message> {
         }));
 
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             container(preview)
                 .width(Length::Fill)
@@ -1059,45 +1059,45 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
         frame::raised().thickness(2),
         Column::new()
             .push(title)
-            .push(container(label("Window Text")).padding(8.0))
+            .push(container(label("Window Text")).padding(metrics::SPACING_03))
     ];
     let preview = container(mock)
         .width(Length::Fixed(220.0))
         .height(Length::Fixed(90.0));
 
     let group = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Scheme:"))
                 .push(pick_list(Scheme::ALL.to_vec(), Some(state.scheme), Message::SetScheme).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
         )
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Icon set:"))
                 .push(pick_list(IconSet::ALL.to_vec(), Some(state.icon_set), Message::SetIconSet).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
         )
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Theme:"))
                 .push(pick_list(Theme::ALL.to_vec(), Some(state.theme), Message::SetTheme).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
         )
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Mode:"))
                 .push(pick_list(ThemeMode::ALL.to_vec(), Some(state.theme_mode), Message::SetThemeMode).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
         )
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Icon colour:"))
                 .push(pick_list(IconColor::ALL.to_vec(), Some(state.icon_color), Message::SetIconColor).style(mde_ui::sunken_picklist).text_size(metrics::UI_PX)),
@@ -1105,7 +1105,7 @@ fn appearance_tab(state: &Display) -> Element<'_, Message> {
         .push(label("Theme sets the look-and-feel: IBM Carbon (flat, Plex font, light/dark) or MackesDE 2000 (classic 3D). Mode picks Carbon's light/dark. Icon colour tints the shell icons (each hue auto-shades for the mode). Changing any of these restarts the shell. The Scheme/Icon set above pair with the classic theme."));
 
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             container(preview)
                 .width(Length::Fill)
@@ -1125,13 +1125,13 @@ fn effects_tab(_state: &Display) -> Element<'_, Message> {
             .text_size(metrics::UI_PX)
     };
     let group = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(fx("Use transition effects for menus and tooltips", true))
         .push(fx("Show window contents while dragging", true))
         .push(fx("Use large icons", false))
         .push(label("Note: labwc has no compositor effect engine, so these are shown greyed for fidelity — no live visual effect."));
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(group_box("Visual effects", group))
         .into()
 }
@@ -1143,10 +1143,10 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
     );
 
     // Output picker (the "Display:" dropdown), when more than one.
-    let mut head = Column::new().spacing(8.0);
+    let mut head = Column::new().spacing(metrics::SPACING_03);
     if state.desired.len() > 1 {
         let mut row = Row::new()
-            .spacing(4.0)
+            .spacing(metrics::SPACING_02)
             .align_y(iced::Alignment::Center)
             .push(label("Display:"));
         for (i, o) in state.live.iter().enumerate() {
@@ -1177,7 +1177,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                 .collect();
 
             let area = Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Screen area:"))
                 .push(
@@ -1187,7 +1187,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                 );
 
             let refresh = Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Refresh rate:"))
                 .push(
@@ -1201,7 +1201,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                 );
 
             let orient = Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Orientation:"))
                 .push(
@@ -1225,7 +1225,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                 (d.width, d.height)
             };
             let scale = Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Scale:"))
                 .push(
@@ -1241,7 +1241,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
 
             // Colors: present but fixed at True Color (Wayland is always 32-bit).
             let colors = Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(label("Colors:"))
                 .push(
@@ -1262,7 +1262,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
                 );
 
             let mut col = Column::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .push(area)
                 .push(refresh)
                 .push(orient)
@@ -1273,7 +1273,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
             if state.desired.len() > 1 && !o.focused {
                 col = col.push(
                     Row::new()
-                        .spacing(8.0)
+                        .spacing(metrics::SPACING_03)
                         .align_y(iced::Alignment::Center)
                         .push(label("Position:"))
                         .push(
@@ -1291,7 +1291,7 @@ fn settings_tab(state: &Display) -> Element<'_, Message> {
     let identify = button(text("Identify").size(metrics::UI_PX)).on_press(Message::Identify);
 
     Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             container(preview)
                 .width(Length::Fill)
@@ -1352,13 +1352,13 @@ fn view(state: &Display) -> Element<'_, Message> {
     let panel = iced::widget::stack![
         frame::raised(),
         container(tab_content(state))
-            .padding(12.0)
+            .padding(metrics::SPACING_04)
             .width(Length::Fill)
             .height(Length::Fill),
     ];
 
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(Space::with_width(Length::Fill))
         .push(
             button(text("OK").size(metrics::UI_PX))
@@ -1412,7 +1412,7 @@ fn revert_dialog(secs: u32) -> Element<'static, Message> {
         )))
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .push(
                     button(text("Yes").size(metrics::UI_PX))
                         .on_press(Message::KeepSettings)

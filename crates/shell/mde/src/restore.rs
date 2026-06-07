@@ -194,7 +194,7 @@ fn view(state: &Restore) -> Element<'_, Message> {
 
     // Bottom bar: Older/Newer time-nav + the restore action (or confirm).
     let nav = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             button(text("< Older").size(metrics::UI_PX))
@@ -222,7 +222,7 @@ fn view(state: &Restore) -> Element<'_, Message> {
             )
         };
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text(prompt)
@@ -249,7 +249,7 @@ fn view(state: &Restore) -> Element<'_, Message> {
             format!("Restore to {}", state.target)
         };
         Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .align_y(iced::alignment::Vertical::Center)
             // Options "Restore to…" — pick the original location or a target device.
             .push(
@@ -283,7 +283,7 @@ fn view(state: &Restore) -> Element<'_, Message> {
                 .height(Length::Fill),
             bottom,
         ]
-        .spacing(12.0),
+        .spacing(metrics::SPACING_04),
     )
     .width(Length::Fill)
     .height(Length::Fill)
@@ -372,8 +372,8 @@ fn details_list(state: &Restore) -> Column<'_, Message> {
 
 fn large_grid(state: &Restore) -> Column<'_, Message> {
     // A simple wrapped grid of date tiles.
-    let mut col = Column::new().spacing(8.0);
-    let mut r = Row::new().spacing(8.0);
+    let mut col = Column::new().spacing(metrics::SPACING_03);
+    let mut r = Row::new().spacing(metrics::SPACING_03);
     for (i, s) in state.snaps.iter().enumerate() {
         let sel = i == state.selected;
         let bg = if sel {
@@ -398,7 +398,7 @@ fn large_grid(state: &Restore) -> Column<'_, Message> {
                     text(date).size(metrics::UI_PX).color(palette::color(fg)),
                     text(sub).size(metrics::BADGE_PX).color(palette::color(fg)),
                 ]
-                .spacing(4.0)
+                .spacing(metrics::SPACING_02)
                 .align_x(iced::alignment::Horizontal::Center),
             )
             .on_press(Message::Select(i))
@@ -416,7 +416,7 @@ fn large_grid(state: &Restore) -> Column<'_, Message> {
         );
         if (i + 1) % 4 == 0 {
             col = col.push(r);
-            r = Row::new().spacing(8.0);
+            r = Row::new().spacing(metrics::SPACING_03);
         }
     }
     col.push(r)

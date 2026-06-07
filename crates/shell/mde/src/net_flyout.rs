@@ -224,7 +224,7 @@ fn view(state: &Flyout) -> Element<'_, Message> {
     let mut list = Column::new().spacing(0.0);
     for w in &state.wifis {
         let row = Row::new()
-            .spacing(8.0)
+            .spacing(metrics::SPACING_03)
             .push(
                 text(w.ssid.clone())
                     .size(metrics::UI_PX)
@@ -267,7 +267,7 @@ fn view(state: &Flyout) -> Element<'_, Message> {
         }
     }
     let pills = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(pill("Wi-Fi", state.wifi_on, Message::ToggleWifi))
         .push(pill(
             "Airplane mode",
@@ -284,7 +284,7 @@ fn view(state: &Flyout) -> Element<'_, Message> {
     let panel = container(
         Column::new()
             .spacing(10.0)
-            .padding(12.0)
+            .padding(metrics::SPACING_04)
             .push(
                 text("Network")
                     .size(metrics::INFO_TITLE_PX)

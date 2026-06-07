@@ -133,7 +133,9 @@ fn view(state: &Phone) -> Element<'_, Message> {
 
 /// The left rail: a device picker over the (reserved) view nav, plus Refresh.
 fn rail(state: &Phone) -> Element<'_, Message> {
-    let mut col = Column::new().spacing(2.0).width(Length::Fill);
+    let mut col = Column::new()
+        .spacing(metrics::SPACING_01)
+        .width(Length::Fill);
 
     col = col.push(text("Devices").size(metrics::UI_PX).font(font::ui_bold()));
     if state.devices.is_empty() {
@@ -234,7 +236,7 @@ fn content(state: &Phone) -> Element<'_, Message> {
     };
 
     let card = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text(d.name.clone())
                 .size(metrics::INFO_TITLE_PX)

@@ -76,7 +76,7 @@ pub fn tile<'a, M: Clone + 'a>(
     height: f32,
 ) -> Element<'a, M> {
     let content = Column::new()
-        .spacing(4.0)
+        .spacing(metrics::SPACING_02)
         .align_x(Horizontal::Center)
         .width(Length::Fill)
         .push(container(icon).center_x(Length::Fill))

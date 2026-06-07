@@ -212,7 +212,7 @@ fn mode_button(mode: Mode) -> Element<'static, Message> {
 }
 
 fn view(state: &Project) -> Element<'_, Message> {
-    let mut col = Column::new().spacing(2.0).push(
+    let mut col = Column::new().spacing(metrics::SPACING_01).push(
         text("Project")
             .size(metrics::INFO_TITLE_PX)
             .color(palette::color(palette::WINDOW_TEXT)),
@@ -228,7 +228,7 @@ fn view(state: &Project) -> Element<'_, Message> {
         col = col.push(mode_button(mode));
     }
 
-    let card = container(col.spacing(6.0).padding(16.0))
+    let card = container(col.spacing(6.0).padding(metrics::SPACING_05))
         .width(Length::Fill)
         .height(Length::Fill)
         .style(|_: &iced::Theme| container::Style {

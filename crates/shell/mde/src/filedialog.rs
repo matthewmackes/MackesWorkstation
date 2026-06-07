@@ -454,7 +454,7 @@ fn toolbar() -> Element<'static, Message> {
             .padding(pad(2.0, 4.0, 2.0, 4.0))
     };
     Row::new()
-        .spacing(2.0)
+        .spacing(metrics::SPACING_01)
         .push(btn(&["go-up", "up"], Message::Up))
         .push(btn(
             &["folder-new", "folder-new-symbolic"],
@@ -468,13 +468,15 @@ fn toolbar() -> Element<'static, Message> {
 }
 
 fn places_bar() -> Element<'static, Message> {
-    let mut col = Column::new().spacing(2.0).padding(4.0);
+    let mut col = Column::new()
+        .spacing(metrics::SPACING_01)
+        .padding(metrics::SPACING_02);
     for (i, (label, icon, _)) in places().into_iter().enumerate() {
         col = col.push(
             iced::widget::button(
                 Column::new()
                     .align_x(iced::Alignment::Center)
-                    .spacing(2.0)
+                    .spacing(metrics::SPACING_01)
                     .push(crate::icons::icon_any(&[icon], 24))
                     .push(text(label.to_string()).size(metrics::UI_PX - 1.0)),
             )
@@ -568,7 +570,7 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
     }
     let well = container(iced::widget::stack![
         frame::sunken().face(palette::color(palette::WINDOW)),
-        container(scrollable(list).style(mde_ui::scrollbar)).padding(2.0),
+        container(scrollable(list).style(mde_ui::scrollbar)).padding(metrics::SPACING_01),
     ])
     .width(Length::Fill)
     .height(Length::Fill);
@@ -634,7 +636,7 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
         );
 
     let body = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .padding(10.0)
         .push(look_in)
         .push(container(middle).height(Length::Fill))
