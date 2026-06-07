@@ -119,7 +119,7 @@ fn cbox_disabled<'a>(label: &str, on: bool) -> Element<'a, Message> {
 /// A small mock of the taskbar (Start button + clock), the General-tab preview.
 fn taskbar_preview() -> Element<'static, Message> {
     let bar = Row::new()
-        .spacing(4.0)
+        .spacing(metrics::SPACING_02)
         .align_y(iced::Alignment::Center)
         .padding(pad(2.0, 4.0, 2.0, 4.0))
         .push(button(
@@ -193,13 +193,13 @@ fn view(state: &TaskbarProps) -> Element<'_, Message> {
     let panel = iced::widget::stack![
         frame::raised(),
         container(tab_content(state))
-            .padding(12.0)
+            .padding(metrics::SPACING_04)
             .width(Length::Fill)
             .height(Length::Fill),
     ];
 
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(Space::with_width(Length::Fill))
         .push(
             button(text("OK").size(metrics::UI_PX))

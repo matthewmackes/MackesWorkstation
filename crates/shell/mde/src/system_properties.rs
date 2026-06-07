@@ -171,7 +171,7 @@ fn field<'a>(label: &'a str, value: String) -> Element<'a, Message> {
 
 fn general_tab(g: &General) -> Element<'static, Message> {
     Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text("System:")
                 .size(metrics::UI_PX)
@@ -204,7 +204,7 @@ fn general_tab(g: &General) -> Element<'static, Message> {
 
 fn computer_name_tab(g: &General) -> Element<'static, Message> {
     Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text(
                 "MackesDE uses the following information to identify your computer on the network.",
@@ -278,7 +278,7 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
         container(scrollable(tree).style(mde_ui::scrollbar)).padding(3.0),
     ];
     Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text("Device Manager lists the hardware devices installed on your computer.")
                 .size(metrics::UI_PX),
@@ -342,7 +342,7 @@ fn restore_tab(state: &SysProps) -> Element<'static, Message> {
     let status =
         checkbox("Timeshift snapshot tool is installed", installed).style(mde_ui::checkbox_style);
     let body = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text("System Restore rolls the system back using Timeshift snapshots.")
                 .size(metrics::UI_PX),
@@ -421,7 +421,7 @@ fn remote_tab(state: &SysProps) -> Element<'static, Message> {
         "pkill -x wayvnc".to_string()
     };
     let body = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text("Remote Desktop lets you connect to this computer over VNC (wayvnc).")
                 .size(metrics::UI_PX),
@@ -460,13 +460,13 @@ fn view(state: &SysProps) -> Element<'_, Message> {
     let panel = iced::widget::stack![
         frame::raised(),
         container(tab_content(state))
-            .padding(12.0)
+            .padding(metrics::SPACING_04)
             .width(Length::Fill)
             .height(Length::Fill),
     ];
 
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(Space::with_width(Length::Fill))
         .push(
             button(text("OK").size(metrics::UI_PX))

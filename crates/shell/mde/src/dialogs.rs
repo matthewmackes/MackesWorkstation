@@ -130,7 +130,7 @@ fn logoff_view(_: &LogOff) -> Element<'_, M> {
     // Carbon-only identity (E9.7, operator 2026-06-06): the classic centered Yes/No
     // dialog is canonical for every theme (the Win10 account flyout is retired).
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(Space::with_width(Length::Fill))
         .push(
             button(text("Yes").size(metrics::UI_PX))
@@ -147,7 +147,7 @@ fn logoff_view(_: &LogOff) -> Element<'_, M> {
         );
 
     let body = Column::new()
-        .spacing(16.0)
+        .spacing(metrics::SPACING_05)
         .push(text("Are you sure you want to log off?").size(metrics::UI_PX))
         .push(buttons);
 
@@ -281,7 +281,7 @@ fn shutdown_view(state: &Shutdown) -> Element<'_, M> {
         .style(mde_ui::sunken_picklist);
 
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(Space::with_width(Length::Fill))
         .push(
             button(text("OK").size(metrics::UI_PX))
@@ -298,7 +298,7 @@ fn shutdown_view(state: &Shutdown) -> Element<'_, M> {
         );
 
     let body = Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .push(text("What do you want the computer to do?").size(metrics::UI_PX))
         .push(drop)
         .push(buttons);
@@ -370,7 +370,7 @@ fn run_view(state: &Run) -> Element<'_, RunMsg> {
         .style(mde_ui::sunken_field);
 
     let buttons = Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(Space::with_width(Length::Fill))
         .push(
             button(text("OK").size(metrics::UI_PX))
@@ -387,14 +387,14 @@ fn run_view(state: &Run) -> Element<'_, RunMsg> {
         );
 
     let body = Column::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .push(
             text("Type the name of a program, folder, or document, and MackesDE will open it for you.")
                 .size(metrics::UI_PX),
         )
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(text("Open:").size(metrics::UI_PX))
                 .push(field),
@@ -451,7 +451,7 @@ fn prop_update(_: &mut Properties, m: PropMsg) -> Task<PropMsg> {
 
 fn prop_field<'a>(label: &'a str, value: String) -> Element<'a, PropMsg> {
     Row::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .push(
             text(label)
                 .size(metrics::UI_PX)
@@ -469,7 +469,7 @@ fn prop_view(state: &Properties) -> Element<'_, PropMsg> {
         "Item"
     };
     let body = Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(
             text(format!("{} — General", state.name))
                 .size(metrics::UI_PX)
@@ -481,7 +481,7 @@ fn prop_view(state: &Properties) -> Element<'_, PropMsg> {
         .push(Space::new(Length::Fill, Length::Fill))
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .push(Space::with_width(Length::Fill))
                 .push(
                     button(text("OK").size(metrics::UI_PX))

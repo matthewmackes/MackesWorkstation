@@ -83,7 +83,7 @@ fn view(state: &About) -> Element<'_, Message> {
 
     // Header: logo + product / version / Fedora base.
     let header = Row::new()
-        .spacing(12.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::Alignment::Center)
         .push(
             iced::widget::svg(iced::widget::svg::Handle::from_memory(LOGO))
@@ -92,7 +92,7 @@ fn view(state: &About) -> Element<'_, Message> {
         )
         .push(
             Column::new()
-                .spacing(2.0)
+                .spacing(metrics::SPACING_01)
                 .push(text(PRODUCT).size(metrics::INFO_TITLE_PX).font(bold))
                 .push(label(format!("Version {}", env!("CARGO_PKG_VERSION"))))
                 .push(label(format!(
@@ -131,7 +131,7 @@ fn view(state: &About) -> Element<'_, Message> {
 
     let body = Column::new()
         .spacing(10.0)
-        .padding(16.0)
+        .padding(metrics::SPACING_05)
         .push(header)
         .push(rule())
         .push(specs)

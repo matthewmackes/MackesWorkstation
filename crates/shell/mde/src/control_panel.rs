@@ -282,7 +282,7 @@ fn dropdown(i: usize, view: CpView) -> Element<'static, Message> {
     }
     let panel = container(iced::widget::stack![
         frame::raised().thickness(2),
-        container(col).padding(2.0)
+        container(col).padding(metrics::SPACING_01)
     ])
     .width(Length::Fixed(168.0))
     .height(Length::Fixed(items.len() as f32 * 20.0 + 6.0));
@@ -311,7 +311,7 @@ fn disabled_item(_t: &iced::Theme, _s: button::Status) -> button::Style {
 fn about_box() -> Element<'static, Message> {
     let bold = mde_ui::font::ui_bold();
     let body = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .align_x(iced::Alignment::Center)
         .padding(pad(16.0, 20.0, 12.0, 20.0))
         .push(
@@ -342,11 +342,11 @@ fn sidebar<'a>() -> Element<'a, Message> {
     let bold = mde_ui::font::ui_bold();
     let accent = mde_ui::infoband::accent();
     let col = Column::new()
-        .spacing(8.0)
+        .spacing(metrics::SPACING_03)
         .padding(pad(10.0, 12.0, 10.0, 12.0))
         .push(
             Row::new()
-                .spacing(8.0)
+                .spacing(metrics::SPACING_03)
                 .align_y(iced::Alignment::Center)
                 .push(crate::icons::icon_any(
                     &["preferences-system", "gnome-control-center", "computer"],
@@ -405,7 +405,7 @@ fn grid(state: &ControlPanel) -> Element<'_, Message> {
         )
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(2.0),
+        .padding(metrics::SPACING_01),
     ]
     .into()
 }
@@ -484,7 +484,7 @@ const LARGE_COLS: usize = 4;
 /// each category heading (the classic Control Panel default).
 fn grid_large(state: &ControlPanel) -> Element<'_, Message> {
     let mut col = Column::new()
-        .spacing(2.0)
+        .spacing(metrics::SPACING_01)
         .padding(pad(4.0, 4.0, 4.0, 6.0))
         .width(Length::Fill);
     for category in fedora::categories() {
@@ -495,7 +495,7 @@ fn grid_large(state: &ControlPanel) -> Element<'_, Message> {
             .filter(|(_, t)| t.category == category)
             .collect();
         for chunk in items.chunks(LARGE_COLS) {
-            let mut row = Row::new().spacing(4.0);
+            let mut row = Row::new().spacing(metrics::SPACING_02);
             for (i, tool) in chunk {
                 row = row.push(large_cell(state, *i, tool));
             }
@@ -610,7 +610,7 @@ fn view(state: &ControlPanel) -> Element<'_, Message> {
         container(grid(state))
             .width(Length::Fill)
             .height(Length::Fill)
-            .padding(2.0),
+            .padding(metrics::SPACING_01),
     );
 
     let content = Column::new()
