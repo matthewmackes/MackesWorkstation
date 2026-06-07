@@ -255,12 +255,12 @@ mod tests {
 
     #[test]
     fn tween_from_motion_round_trip() {
-        // Plumbing test: building a Tween from
-        // `Motion::panel_mount()` produces the locked 180 ms
-        // duration without drift.
+        // Plumbing test: building a Tween from `Motion::panel_mount()` carries
+        // its Carbon `moderate-02` (240 ms) duration through without drift
+        // (E9.5 — reconciled from the former UX-9 180 ms).
         let m = Motion::panel_mount();
         let tw = Tween::starting_at(Instant::now(), m.duration);
-        assert_eq!(tw.duration(), Duration::from_millis(180));
+        assert_eq!(tw.duration(), Duration::from_millis(240));
     }
 
     // ── Q99 reduce-motion static-render assertions ────────────────────────

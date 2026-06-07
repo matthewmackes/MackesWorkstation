@@ -1,16 +1,18 @@
-//! UX-9 — motion + dialog timing tokens.
+//! Motion + dialog timing tokens — IBM Carbon v11 motion (E9.5).
 //!
-//! Centralizes every "how long does this take" constant in the
-//! design system so animations across the workspace stay
-//! coherent. Locks (UX-9 spec):
-//!   * sidebar / panel mount transition — 180 ms ease-out
-//!   * notification bell pulse — 2 s ease-in-out, max scale 1.15
-//!   * tooltip fade-in delay — 120 ms
-//!   * dialog mount fade — 180 ms (same easing as panel mount)
+//! Centralizes every "how long does this take" constant so animations across
+//! the workspace stay coherent. The canonical grid is Carbon's duration scale
+//! (`DURATION_FAST_01 … DURATION_SLOW_02`) + easing curves
+//! (`EASING_STANDARD`/`ENTRANCE`/`EXIT`); the named [`Motion`] presets snap to
+//! it:
+//!   * panel / dialog mount — Carbon `moderate-02` (240 ms) entrance
+//!   * tooltip fade-in — Carbon `fast-02` (110 ms) entrance
+//!   * notification bell pulse — 2 s ease-in-out, looping (off-grid: a
+//!     continuous loop, not a transition), max scale 1.15
 //!
-//! The actual easing / interpolation lives in the consumer
-//! (Iced subscription, GTK CSS, etc.); this module is the
-//! durable contract for the *durations* + *parameters*.
+//! The actual interpolation lives in the consumer (Iced subscription, GTK CSS,
+//! etc.) — [`Easing::carbon_bezier`] gives the exact Carbon curve; this module
+//! is the durable contract for the *durations* + *parameters*.
 
 use std::time::Duration;
 
@@ -31,6 +33,42 @@ pub enum Easing {
     EaseInOut,
 }
 
+impl Easing {
+    /// The IBM Carbon v11 productive cubic-bézier control points
+    /// `(x1, y1, x2, y2)` for this curve. Entrances use Carbon's entrance
+    /// easing, exits the exit easing, and continuous/standard motion the
+    /// standard productive easing. Consumers translate to their renderer's
+    /// `cubic-bezier`. (E9.5 — Carbon motion tokens.)
+    #[must_use]
+    pub const fn carbon_bezier(self) -> (f32, f32, f32, f32) {
+        match self {
+            Self::Linear => (0.0, 0.0, 1.0, 1.0),
+            Self::EaseOut => EASING_ENTRANCE,
+            Self::EaseIn => EASING_EXIT,
+            Self::EaseInOut => EASING_STANDARD,
+        }
+    }
+}
+
+/// IBM Carbon v11 motion **duration** scale (`$duration-fast-01 … $duration-slow-02`).
+/// The canonical timing grid every animation snaps to: **fast** for
+/// micro-interactions (button press, toggle), **moderate** for standard state
+/// changes + expansions, **slow** for large / expressive movement. (E9.5.)
+pub const DURATION_FAST_01: Duration = Duration::from_millis(70);
+pub const DURATION_FAST_02: Duration = Duration::from_millis(110);
+pub const DURATION_MODERATE_01: Duration = Duration::from_millis(150);
+pub const DURATION_MODERATE_02: Duration = Duration::from_millis(240);
+pub const DURATION_SLOW_01: Duration = Duration::from_millis(400);
+pub const DURATION_SLOW_02: Duration = Duration::from_millis(700);
+
+/// IBM Carbon v11 motion **easing** curves as cubic-bézier control points
+/// `(x1, y1, x2, y2)` — the *productive* (functional-UI) set. `standard` for
+/// state changes that start + end on screen, `entrance` for elements appearing,
+/// `exit` for elements leaving. (E9.5.)
+pub const EASING_STANDARD: (f32, f32, f32, f32) = (0.2, 0.0, 0.38, 0.9);
+pub const EASING_ENTRANCE: (f32, f32, f32, f32) = (0.0, 0.0, 0.38, 0.9);
+pub const EASING_EXIT: (f32, f32, f32, f32) = (0.2, 0.0, 1.0, 0.9);
+
 /// A single motion spec — duration + easing + optional
 /// looping flag.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,23 +83,25 @@ pub struct Motion {
 }
 
 impl Motion {
-    /// UX-9 (a) — sidebar panel mount transition. 180 ms
-    /// ease-out, opacity 0→1 + translate-Y(4px→0).
+    /// Sidebar panel mount transition — an expansion, so Carbon
+    /// `moderate-02` (240 ms) entrance easing, opacity 0→1 +
+    /// translate-Y(4px→0). (E9.5 — reconciled from the UX-9 180 ms to the
+    /// Carbon duration grid.)
     #[must_use]
     pub const fn panel_mount() -> Self {
         Self {
-            duration: Duration::from_millis(180),
+            duration: DURATION_MODERATE_02,
             easing: Easing::EaseOut,
             looping: false,
         }
     }
 
-    /// UX-9 (c) — dialog mount fade. Same 180 ms ease-out as
-    /// panel mount so the system reads as one motion vocabulary.
+    /// Dialog mount fade — the same Carbon `moderate-02` expansion as panel
+    /// mount so the system reads as one motion vocabulary. (E9.5.)
     #[must_use]
     pub const fn dialog_mount() -> Self {
         Self {
-            duration: Duration::from_millis(180),
+            duration: DURATION_MODERATE_02,
             easing: Easing::EaseOut,
             looping: false,
         }
@@ -78,11 +118,12 @@ impl Motion {
         }
     }
 
-    /// UX-9 (d) — tooltip fade-in delay. 120 ms.
+    /// Tooltip fade-in — a micro-interaction, so Carbon `fast-02` (110 ms)
+    /// entrance easing. (E9.5 — reconciled from the UX-9 120 ms.)
     #[must_use]
     pub const fn tooltip_fade() -> Self {
         Self {
-            duration: Duration::from_millis(120),
+            duration: DURATION_FAST_02,
             easing: Easing::EaseOut,
             looping: false,
         }
@@ -229,11 +270,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn panel_mount_is_180_ms_ease_out() {
+    fn panel_mount_is_carbon_moderate_02_ease_out() {
         let m = Motion::panel_mount();
-        assert_eq!(m.duration, Duration::from_millis(180));
+        assert_eq!(m.duration, DURATION_MODERATE_02); // Carbon 240 ms
+        assert_eq!(m.duration, Duration::from_millis(240));
         assert_eq!(m.easing, Easing::EaseOut);
         assert!(!m.looping);
+    }
+
+    #[test]
+    fn carbon_duration_scale_is_pinned() {
+        // IBM Carbon v11 $duration-* grid (E9.5 ground truth).
+        assert_eq!(DURATION_FAST_01, Duration::from_millis(70));
+        assert_eq!(DURATION_FAST_02, Duration::from_millis(110));
+        assert_eq!(DURATION_MODERATE_01, Duration::from_millis(150));
+        assert_eq!(DURATION_MODERATE_02, Duration::from_millis(240));
+        assert_eq!(DURATION_SLOW_01, Duration::from_millis(400));
+        assert_eq!(DURATION_SLOW_02, Duration::from_millis(700));
+    }
+
+    #[test]
+    fn carbon_easing_curves_and_mapping_are_pinned() {
+        assert_eq!(EASING_STANDARD, (0.2, 0.0, 0.38, 0.9));
+        assert_eq!(EASING_ENTRANCE, (0.0, 0.0, 0.38, 0.9));
+        assert_eq!(EASING_EXIT, (0.2, 0.0, 1.0, 0.9));
+        // The abstract Easing enum maps onto the Carbon productive curves.
+        assert_eq!(Easing::EaseOut.carbon_bezier(), EASING_ENTRANCE);
+        assert_eq!(Easing::EaseIn.carbon_bezier(), EASING_EXIT);
+        assert_eq!(Easing::EaseInOut.carbon_bezier(), EASING_STANDARD);
     }
 
     #[test]
@@ -244,9 +308,10 @@ mod tests {
     }
 
     #[test]
-    fn tooltip_fade_is_120_ms() {
+    fn tooltip_fade_is_carbon_fast_02() {
         let m = Motion::tooltip_fade();
-        assert_eq!(m.duration, Duration::from_millis(120));
+        assert_eq!(m.duration, DURATION_FAST_02); // Carbon 110 ms
+        assert_eq!(m.duration, Duration::from_millis(110));
     }
 
     #[test]
