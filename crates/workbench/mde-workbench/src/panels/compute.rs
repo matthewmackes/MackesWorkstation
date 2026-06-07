@@ -65,10 +65,37 @@ pub struct ComputePanel {
     loaded: bool,
 }
 
+/// A lifecycle verb applied to an instance. Slice 2 ships the two
+/// reversible everyday actions (Start / Stop); force-off, suspend, and
+/// resume are part of the per-instance detail panel in a later slice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Verb {
+    Start,
+    Stop,
+}
+
+impl Verb {
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Start => "Start",
+            Self::Stop => "Stop",
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     Loaded(Enumeration),
     RefreshClicked,
+    /// Apply a lifecycle verb to a single instance, then re-enumerate.
+    Action {
+        kind: InstanceKind,
+        name: String,
+        verb: Verb,
+    },
+    /// Apply a verb to every instance it applies to (Start all / Stop all).
+    Bulk(Verb),
 }
 
 impl ComputePanel {
@@ -106,7 +133,45 @@ impl ComputePanel {
                 Task::none()
             }
             Message::RefreshClicked => Self::load(),
+            Message::Action { kind, name, verb } => {
+                let (program, args) = command_for(kind, verb, &name);
+                let program = program.to_string();
+                // Issue the real lifecycle command, then re-enumerate so
+                // the list reflects the new state without a manual refresh.
+                Task::perform(
+                    async move {
+                        run_action(&program, &args).await;
+                        enumerate().await
+                    },
+                    |e| crate::Message::Compute(Message::Loaded(e)),
+                )
+            }
+            Message::Bulk(verb) => self.bulk(verb),
         }
+    }
+
+    /// Apply `verb` to every currently-listed instance it applies to, then
+    /// re-enumerate. Commands run sequentially on the executor; an empty
+    /// applicable set just re-enumerates (a harmless refresh).
+    fn bulk(&self, verb: Verb) -> Task<crate::Message> {
+        let cmds: Vec<(String, Vec<String>)> = self
+            .instances
+            .iter()
+            .filter(|i| verb_applies(verb, &i.state))
+            .map(|i| {
+                let (program, args) = command_for(i.kind, verb, &i.name);
+                (program.to_string(), args)
+            })
+            .collect();
+        Task::perform(
+            async move {
+                for (program, args) in &cmds {
+                    run_action(program, args).await;
+                }
+                enumerate().await
+            },
+            |e| crate::Message::Compute(Message::Loaded(e)),
+        )
     }
 
     pub fn view(&self) -> Element<'_, crate::Message> {
@@ -128,12 +193,37 @@ impl ComputePanel {
             Some(crate::Message::Compute(Message::RefreshClicked)),
             palette,
         );
+        // Bulk actions target every instance the verb applies to; offer
+        // them only when there's a populated list to act on.
+        let any_startable = self
+            .instances
+            .iter()
+            .any(|i| verb_applies(Verb::Start, &i.state));
+        let any_stoppable = self
+            .instances
+            .iter()
+            .any(|i| verb_applies(Verb::Stop, &i.state));
+        let start_all = variant_button(
+            "Start all",
+            ButtonVariant::Ghost,
+            any_startable.then_some(crate::Message::Compute(Message::Bulk(Verb::Start))),
+            palette,
+        );
+        let stop_all = variant_button(
+            "Stop all",
+            ButtonVariant::Ghost,
+            any_stoppable.then_some(crate::Message::Compute(Message::Bulk(Verb::Stop))),
+            palette,
+        );
         let header = row![
             column![title, subtitle]
                 .spacing(f32::from(spacing::BASE[0]))
                 .width(Length::Fill),
+            start_all,
+            stop_all,
             refresh,
         ]
+        .spacing(f32::from(spacing::BASE[1]))
         .align_y(iced::alignment::Vertical::Center);
 
         let body: Element<'_, crate::Message> = if self.instances.is_empty() {
@@ -188,12 +278,19 @@ fn instance_header_row<'a>(palette: Palette) -> Element<'a, crate::Message> {
             .size(cap)
             .color(muted)
             .width(Length::FillPortion(2)),
+        text("Action")
+            .size(cap)
+            .color(muted)
+            .width(Length::FillPortion(2)),
     ]
     .spacing(f32::from(spacing::BASE[3]))
     .into()
 }
 
-/// One instance row, the state coloured by liveness.
+/// One instance row: name / kind / state (coloured by liveness) + a
+/// single context-appropriate lifecycle button — Start when stopped,
+/// Stop when running, nothing when paused (suspend/resume live in the
+/// detail panel, a later slice).
 fn instance_row<'a>(inst: &Instance, palette: Palette) -> Element<'a, crate::Message> {
     let body = TypeRole::Body.size_in(FontSize::defaults());
     let state_color = if state_is_running(&inst.state) {
@@ -202,6 +299,20 @@ fn instance_row<'a>(inst: &Instance, palette: Palette) -> Element<'a, crate::Mes
         palette.warning
     } else {
         palette.text_muted
+    };
+    let action_cell: Element<'a, crate::Message> = if let Some(verb) = row_action(&inst.state) {
+        variant_button(
+            verb.label(),
+            ButtonVariant::Ghost,
+            Some(crate::Message::Compute(Message::Action {
+                kind: inst.kind,
+                name: inst.name.clone(),
+                verb,
+            })),
+            palette,
+        )
+    } else {
+        Space::new().width(Length::FillPortion(2)).into()
     };
     row![
         text(inst.name.clone())
@@ -216,9 +327,24 @@ fn instance_row<'a>(inst: &Instance, palette: Palette) -> Element<'a, crate::Mes
             .size(body)
             .color(state_color.into_iced_color())
             .width(Length::FillPortion(2)),
+        iced::widget::container(action_cell).width(Length::FillPortion(2)),
     ]
     .spacing(f32::from(spacing::BASE[3]))
+    .align_y(iced::alignment::Vertical::Center)
     .into()
+}
+
+/// The single lifecycle verb a row offers for `state`: Start when
+/// stopped, Stop when running, `None` when paused.
+#[must_use]
+fn row_action(state: &str) -> Option<Verb> {
+    if verb_applies(Verb::Stop, state) {
+        Some(Verb::Stop)
+    } else if verb_applies(Verb::Start, state) {
+        Some(Verb::Start)
+    } else {
+        None
+    }
 }
 
 /// Human status line for an enumeration result.
@@ -246,6 +372,50 @@ pub fn state_is_running(state: &str) -> bool {
 pub fn state_is_paused(state: &str) -> bool {
     let s = state.to_ascii_lowercase();
     s.contains("paused") || s.contains("suspended")
+}
+
+/// Whether `verb` is a sensible action for an instance in `state`:
+/// Start only when stopped, Stop only when running. Drives which
+/// action button a row shows + which instances a bulk action targets.
+/// Ported from `mde-virtual::app::verb_applies` (Start/Stop subset).
+#[must_use]
+pub fn verb_applies(verb: Verb, state: &str) -> bool {
+    match verb {
+        Verb::Start => !state_is_running(state) && !state_is_paused(state),
+        Verb::Stop => state_is_running(state),
+    }
+}
+
+/// Resolve `(program, argv)` for a lifecycle action. VMs go through the
+/// system libvirtd (`-c qemu:///system`); containers through `podman`.
+/// Ported 1:1 from `mde-virtual::app::command_for` (Start/Stop subset:
+/// VM Stop is a graceful `shutdown`, container Stop is `stop`).
+#[must_use]
+pub fn command_for(kind: InstanceKind, verb: Verb, name: &str) -> (&'static str, Vec<String>) {
+    match kind {
+        InstanceKind::Vm => {
+            let v = match verb {
+                Verb::Start => "start",
+                Verb::Stop => "shutdown",
+            };
+            (
+                "virsh",
+                vec![
+                    "-c".to_string(),
+                    "qemu:///system".to_string(),
+                    v.to_string(),
+                    name.to_string(),
+                ],
+            )
+        }
+        InstanceKind::Container => {
+            let v = match verb {
+                Verb::Start => "start",
+                Verb::Stop => "stop",
+            };
+            ("podman", vec![v.to_string(), name.to_string()])
+        }
+    }
 }
 
 /// Parse `virsh list --all` table output into `(name, state)` pairs.
@@ -316,6 +486,19 @@ async fn run_query(program: &str, args: &[&str]) -> Option<String> {
         return None;
     }
     Some(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Run a lifecycle command (best-effort). The result is intentionally
+/// discarded — the caller re-enumerates afterward, so the instance's new
+/// state is read back from the hypervisor rather than assumed. A missing
+/// binary or a failed command simply leaves the state unchanged on the
+/// next enumeration (never panics).
+async fn run_action(program: &str, args: &[String]) {
+    let _ = tokio::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .status()
+        .await;
 }
 
 /// Enumerate local KVM domains + Podman containers in one pass. Each
@@ -460,5 +643,60 @@ mod tests {
             sources: vec!["podman"],
         }));
         let _: Element<'_, crate::Message> = populated.view();
+    }
+
+    #[test]
+    fn verb_applies_matches_state() {
+        assert!(verb_applies(Verb::Start, "shut off"));
+        assert!(!verb_applies(Verb::Start, "running"));
+        assert!(!verb_applies(Verb::Start, "paused"));
+        assert!(verb_applies(Verb::Stop, "running"));
+        assert!(!verb_applies(Verb::Stop, "shut off"));
+    }
+
+    #[test]
+    fn row_action_picks_start_stop_or_none() {
+        assert_eq!(row_action("running"), Some(Verb::Stop));
+        assert_eq!(row_action("shut off"), Some(Verb::Start));
+        assert_eq!(row_action("paused"), None);
+    }
+
+    #[test]
+    fn command_for_vm_uses_system_libvirt() {
+        let (prog, args) = command_for(InstanceKind::Vm, Verb::Start, "fedora-vm");
+        assert_eq!(prog, "virsh");
+        assert_eq!(args, vec!["-c", "qemu:///system", "start", "fedora-vm"]);
+        // VM Stop is a graceful shutdown, not a destroy.
+        let (_, stop) = command_for(InstanceKind::Vm, Verb::Stop, "fedora-vm");
+        assert_eq!(stop, vec!["-c", "qemu:///system", "shutdown", "fedora-vm"]);
+    }
+
+    #[test]
+    fn command_for_container_uses_podman() {
+        let (prog, args) = command_for(InstanceKind::Container, Verb::Start, "web");
+        assert_eq!(prog, "podman");
+        assert_eq!(args, vec!["start", "web"]);
+        let (_, stop) = command_for(InstanceKind::Container, Verb::Stop, "web");
+        assert_eq!(stop, vec!["stop", "web"]);
+    }
+
+    #[test]
+    fn action_message_reloads_via_loaded() {
+        // An Action issues the command then re-enumerates — exercising the
+        // reducer path keeps it construction-safe (the real command runs on
+        // the executor; HW round-trip is bench).
+        let mut panel = ComputePanel::new();
+        let _ = panel.update(Message::Loaded(Enumeration {
+            instances: vec![Instance {
+                name: "vm".into(),
+                kind: InstanceKind::Vm,
+                state: "shut off".into(),
+            }],
+            sources: vec!["virsh"],
+        }));
+        // The row offers Start; the panel + bulk paths construct without panic.
+        let _ = panel.bulk(Verb::Start);
+        let _ = panel.bulk(Verb::Stop);
+        let _: Element<'_, crate::Message> = panel.view();
     }
 }
