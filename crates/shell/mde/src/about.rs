@@ -102,7 +102,7 @@ fn view(state: &About) -> Element<'_, Message> {
         );
 
     let specs = Column::new()
-        .spacing(3.0)
+        .spacing(metrics::SPACING_02)
         .push(label("This product is registered to:".into()))
         .push(
             text(state.registered.clone())
@@ -130,7 +130,7 @@ fn view(state: &About) -> Element<'_, Message> {
     .align_x(iced::alignment::Horizontal::Right);
 
     let body = Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .padding(metrics::SPACING_05)
         .push(header)
         .push(rule())

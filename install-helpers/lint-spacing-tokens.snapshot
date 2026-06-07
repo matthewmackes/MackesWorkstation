@@ -23,7 +23,7 @@ crates/shell/mde-popover/src/start_menu.rs 12
 crates/shell/mde-popover/src/status.rs 11
 crates/shell/mde-popover/src/toasts.rs 2
 crates/shell/mde-popover/src/urgent.rs 6
-crates/shell/mde/src/about.rs 2
+crates/shell/mde/src/about.rs 0
 crates/shell/mde/src/action_center.rs 6
 crates/shell/mde/src/clipboard.rs 3
 crates/shell/mde/src/control_panel.rs 3
