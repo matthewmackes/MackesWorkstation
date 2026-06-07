@@ -192,7 +192,7 @@ impl Notifyd {
     fn get_server_information(&self) -> (String, String, String, String) {
         (
             "MDE Action Center".into(),
-            "MDE-Retro".into(),
+            "Mackes Workstation".into(),
             env!("CARGO_PKG_VERSION").into(),
             "1.2".into(),
         )

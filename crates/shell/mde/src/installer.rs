@@ -1,4 +1,4 @@
-//! MDE-Retro installer (`mde setup`) — styled after the Windows 2000 GUI Setup
+//! Mackes Workstation installer (`mde setup`) — styled after the Windows 2000 GUI Setup
 //! screen: deep-blue gradient background, a "Choose Components" picker, and a
 //! bottom status strip, all in Tahoma/white. The GUI *collects* the component
 //! selection; the real install runs through the hardened TUI engine (it relaunches
@@ -165,7 +165,7 @@ fn launch_tui_terminal(dry: bool, packages: Option<Vec<String>>) -> ExitCode {
     let status = std::process::Command::new("foot")
         .args([
             "--title",
-            "MDE-Retro Setup",
+            "Mackes Workstation Setup",
             "-o",
             "colors.background=0a246a",
         ])
@@ -209,7 +209,7 @@ fn handoff(packages: &[String]) {
         "pkexec '{exe}' setup --tui --packages='{}'",
         packages.join(",")
     );
-    spawn_terminal("MDE-Retro Setup", "0a246a", &inner);
+    spawn_terminal("Mackes Workstation Setup", "0a246a", &inner);
 }
 
 pub fn run(_args: &[String]) -> ExitCode {
@@ -229,25 +229,29 @@ pub fn run(_args: &[String]) -> ExitCode {
         checked[i] = c.mandatory || installed || (c.default_on && avail[i]);
     }
 
-    let r = iced::application(|_: &Setup| "MDE-Retro Setup".to_string(), update, view)
-        .window_size(iced::Size::new(640.0, 480.0))
-        .resizable(false)
-        .font(font::REGULAR_BYTES)
-        .font(font::BOLD_BYTES)
-        .font(font::PLEX_REGULAR_BYTES)
-        .font(font::PLEX_BOLD_BYTES)
-        .default_font(font::ui())
-        .run_with(move || {
-            (
-                Setup {
-                    cat,
-                    checked,
-                    locked,
-                    avail,
-                },
-                Task::none(),
-            )
-        });
+    let r = iced::application(
+        |_: &Setup| "Mackes Workstation Setup".to_string(),
+        update,
+        view,
+    )
+    .window_size(iced::Size::new(640.0, 480.0))
+    .resizable(false)
+    .font(font::REGULAR_BYTES)
+    .font(font::BOLD_BYTES)
+    .font(font::PLEX_REGULAR_BYTES)
+    .font(font::PLEX_BOLD_BYTES)
+    .default_font(font::ui())
+    .run_with(move || {
+        (
+            Setup {
+                cat,
+                checked,
+                locked,
+                avail,
+            },
+            Task::none(),
+        )
+    });
     match r {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
@@ -304,7 +308,7 @@ fn bg_gradient() -> Background {
 
 fn status_bar<'a>() -> Element<'a, Msg> {
     container(
-        text("MDE-Retro Professional Setup")
+        text("Mackes Workstation Professional Setup")
             .size(metrics::WIZARD_STATUS_PX)
             .color(dim()),
     )

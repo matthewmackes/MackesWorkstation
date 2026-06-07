@@ -340,15 +340,19 @@ pub fn run(args: &[String]) -> ExitCode {
             .unwrap_or(0),
         light: st.theme_mode == "light",
     };
-    let r = iced::application(|_: &Oobe| "MDE-Retro Setup".to_string(), update, view)
-        .window_size(iced::Size::new(720.0, 540.0))
-        .resizable(false)
-        .font(font::REGULAR_BYTES)
-        .font(font::BOLD_BYTES)
-        .font(font::PLEX_REGULAR_BYTES)
-        .font(font::PLEX_BOLD_BYTES)
-        .default_font(font::ui())
-        .run_with(move || (init, Task::none()));
+    let r = iced::application(
+        |_: &Oobe| "Mackes Workstation Setup".to_string(),
+        update,
+        view,
+    )
+    .window_size(iced::Size::new(720.0, 540.0))
+    .resizable(false)
+    .font(font::REGULAR_BYTES)
+    .font(font::BOLD_BYTES)
+    .font(font::PLEX_REGULAR_BYTES)
+    .font(font::PLEX_BOLD_BYTES)
+    .default_font(font::ui())
+    .run_with(move || (init, Task::none()));
     match r {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
@@ -361,7 +365,7 @@ pub fn run(args: &[String]) -> ExitCode {
 fn headless(dry: bool) -> ExitCode {
     let region = detected_region();
     let layout = detected_layout();
-    println!("MDE-Retro Windows 10 setup (headless)");
+    println!("Mackes Workstation setup (headless)");
     // E7.2 — the "read before proceeding" disclaimer. In the
     // non-interactive walkthrough it can't block on a keypress, so note
     // that it was presented (the GUI stage gates Next on acknowledgement).
@@ -628,7 +632,7 @@ fn commit_privacy(state: &Oobe) {
 /// Create (opt-out on) or remove (opt-out off) a marker file.
 fn write_optout(path: &std::path::Path, present: bool) {
     if present {
-        let _ = std::fs::write(path, b"opted out by MDE-Retro OOBE\n");
+        let _ = std::fs::write(path, b"opted out by Mackes Workstation OOBE\n");
     } else {
         let _ = std::fs::remove_file(path);
     }

@@ -14,7 +14,7 @@ use ratatui::widgets::{Block, Paragraph, Wrap};
 use ratatui::Frame;
 
 const BLUE: Color = Color::Indexed(18); // deep NT setup blue
-const TITLE: &str = "MDE-Retro Professional Setup";
+const TITLE: &str = "Mackes Workstation Professional Setup";
 
 // The package set is now the unified `catalogue` (base session + apps + Control
 // Panel tools + Xen/XCP-ng guest tools). Step 1 installs the user's selection
@@ -393,7 +393,7 @@ fn run_step(i: usize, dry_run: bool, selection: &[String]) -> Result<(), String>
 
 fn register_session() -> Result<(), String> {
     let e = |x: std::io::Error| x.to_string();
-    let session = "[Desktop Entry]\nName=MDE-Retro\nComment=MackesDE 2000 desktop\nExec=labwc\nType=Application\n";
+    let session = "[Desktop Entry]\nName=Mackes Workstation\nComment=MackesDE 2000 desktop\nExec=labwc\nType=Application\n";
     std::fs::create_dir_all("/usr/share/wayland-sessions").map_err(e)?;
     std::fs::write("/usr/share/wayland-sessions/mde-retro.desktop", session).map_err(e)?;
     let greetd = "[terminal]\nvt = 1\n\n[default_session]\ncommand = \"tuigreet --remember --sessions /usr/share/wayland-sessions\"\nuser = \"greetd\"\n";
@@ -531,15 +531,15 @@ fn centered(area: Rect, width: u16, height: u16) -> Rect {
 }
 
 fn not_root_body() -> ratatui::text::Text<'static> {
-    "Setup cannot continue.\n\nMDE-Retro Setup must be run with administrator (root) privileges.\n\n    Please run:   sudo mde setup\n".into()
+    "Setup cannot continue.\n\nMackes Workstation Setup must be run with administrator (root) privileges.\n\n    Please run:   sudo mde setup\n".into()
 }
 
 fn welcome_body() -> ratatui::text::Text<'static> {
-    "Welcome to Setup.\n\nThis portion of Setup prepares MDE-Retro -- a MackesDE 2000 desktop for Fedora -- to run on your computer.\n\n  - To set up MDE-Retro now, press ENTER.\n  - To quit Setup without installing, press F3.".into()
+    "Welcome to Setup.\n\nThis portion of Setup prepares Mackes Workstation -- a MackesDE 2000 desktop for Fedora -- to run on your computer.\n\n  - To set up Mackes Workstation now, press ENTER.\n  - To quit Setup without installing, press F3.".into()
 }
 
 fn summary_body() -> ratatui::text::Text<'static> {
-    "Setup will perform the following on this computer:\n\n  - Install the components you choose (desktop, apps, system tools, and\n    Xen/XCP-ng guest tools when running in a VM)\n  - Deploy the MDE-Retro configuration (system-wide and per user)\n  - Install the MackesDE 2000 icons, cursors, sounds and fonts\n  - Register the MDE-Retro session and the login manager\n  - Switch the system to graphical startup\n\n  To choose which components to install, press ENTER.".into()
+    "Setup will perform the following on this computer:\n\n  - Install the components you choose (desktop, apps, system tools, and\n    Xen/XCP-ng guest tools when running in a VM)\n  - Deploy the Mackes Workstation configuration (system-wide and per user)\n  - Install the MackesDE 2000 icons, cursors, sounds and fonts\n  - Register the Mackes Workstation session and the login manager\n  - Switch the system to graphical startup\n\n  To choose which components to install, press ENTER.".into()
 }
 
 fn progress_body(app: &App) -> ratatui::text::Text<'static> {
@@ -559,7 +559,7 @@ fn progress_body(app: &App) -> ratatui::text::Text<'static> {
 
 fn finish_body(app: &App) -> ratatui::text::Text<'static> {
     if app.failed.is_empty() {
-        return "MDE-Retro has been installed on this computer.\n\nThe graphical environment (greetd) will now start, and the MDE-Retro logon screen will appear.\n\n  Press ENTER to start the graphical environment.".into();
+        return "Mackes Workstation has been installed on this computer.\n\nThe graphical environment (greetd) will now start, and the Mackes Workstation logon screen will appear.\n\n  Press ENTER to start the graphical environment.".into();
     }
     // A failed step must not masquerade as success.
     let mut lines = vec![

@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 const USAGE: &str = "\
-mde install — fetch the MDE-Retro visual assets (per user)
+mde install — fetch the Mackes Workstation visual assets (per user)
 
 USAGE:
     mde install [--assets] [--only chicago95|win2k] [--dry-run]

@@ -133,7 +133,7 @@ pub fn debug_recent(args: &[String]) {
                     "CREATE TABLE IF NOT EXISTS moz_places(id INTEGER PRIMARY KEY, url TEXT, title TEXT, last_visit_date INTEGER);\n\
                      DELETE FROM moz_places;\n\
                      INSERT INTO moz_places(url,title,last_visit_date) VALUES\n\
-                      ('https://github.com/matthewmackes/mde-retro-workstation','MDE-Retro on GitHub',1780000000000000),\n\
+                      ('https://github.com/matthewmackes/MackesWorkstation','Mackes Workstation on GitHub',1780000000000000),\n\
                       ('https://www.rust-lang.org/','Rust Programming Language',1779000000000000),\n\
                       ('https://docs.rs/iced','iced — Rust GUI',1778000000000000),\n\
                       ('https://en.wikipedia.org/wiki/Windows_2000','Windows 2000 - Wikipedia',1777000000000000);",

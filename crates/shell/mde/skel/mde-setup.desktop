@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Set Up MDE-Retro
-GenericName=MDE-Retro Setup
-Comment=Install and configure MDE Retro Workstation (packages, assets, branding)
+Name=Set Up Mackes Workstation
+GenericName=Mackes Workstation Setup
+Comment=Install and configure Mackes Workstation (packages, assets, branding)
 Exec=mde setup
 Icon=mde-retro
 Terminal=false
