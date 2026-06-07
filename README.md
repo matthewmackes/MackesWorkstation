@@ -6,7 +6,7 @@
 
 **One cohesive IBM Carbon desktop, drawn natively in Rust — desktop and fleet platform in a single binary tree.**
 
-[![License: GPL‑3.0](https://img.shields.io/badge/license-GPL--3.0-2762e8.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![License: GPL‑3.0](https://img.shields.io/badge/license-GPL--3.0-2762e8.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust%201.94-dea584.svg?logo=rust&logoColor=white)](rust-toolchain.toml)
 [![Compositor: labwc](https://img.shields.io/badge/wayland-labwc-1746a0.svg)](#)
 [![Toolkit: iced](https://img.shields.io/badge/gui-iced%200.13-0f62fe.svg)](#)
