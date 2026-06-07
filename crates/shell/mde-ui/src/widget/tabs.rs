@@ -87,6 +87,12 @@ where
         if !self.active {
             fill(renderer, b.x, b.y + b.height - 1.0, b.width, 1.0, sh);
         }
+        // E9.4 — Carbon selected-tab cue: a strict 2px accent bar along the top
+        // of the active tab, the Carbon "selected" indicator, atop the classic
+        // seam. Inactive tabs carry no accent.
+        if self.active {
+            fill(renderer, b.x, b.y, b.width, 2.0, palette::accent());
+        }
     }
 }
 

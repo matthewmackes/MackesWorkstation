@@ -140,14 +140,24 @@ pub fn checkbox_style(_theme: &iced::Theme, status: checkbox::Status) -> checkbo
     }
 }
 
-/// The Win2000 radio button: a sunken white circle with a black dot. Pass to
-/// `radio(...).style(mde_ui::radio_style)`.
-pub fn radio_style(_theme: &iced::Theme, _status: radio::Status) -> radio::Style {
+/// The Carbon radio button (E9.4 interaction states): a **selected** radio shows a
+/// strict 2px accent ring + accent dot; an **unselected** one is the field surface
+/// with a 1px border-strong edge. Pass to `radio(...).style(mde_ui::radio_style)`.
+pub fn radio_style(_theme: &iced::Theme, status: radio::Status) -> radio::Style {
+    let selected = matches!(
+        status,
+        radio::Status::Active { is_selected: true } | radio::Status::Hovered { is_selected: true }
+    );
+    let (border_width, border_color) = if selected {
+        (2.0, palette::accent())
+    } else {
+        (1.0, palette::color(palette::BUTTON_SHADOW))
+    };
     radio::Style {
         background: Background::Color(palette::color(palette::WINDOW)),
-        dot_color: palette::color(palette::WINDOW_TEXT),
-        border_width: 1.0,
-        border_color: palette::color(palette::BUTTON_SHADOW),
+        dot_color: palette::accent(), // the dot is only drawn when selected
+        border_width,
+        border_color,
         text_color: Some(palette::color(palette::WINDOW_TEXT)),
     }
 }
@@ -358,6 +368,26 @@ mod tests {
         assert_eq!(
             disabled.text_color,
             Some(palette::color(palette::GRAY_TEXT))
+        );
+    }
+
+    /// E9.4 — a selected radio shows a strict 2px accent ring + accent dot;
+    /// an unselected one keeps the 1px border-strong edge.
+    #[test]
+    fn radio_selected_is_2px_accent() {
+        use iced::widget::radio::Status as Rb;
+        palette::set_theme(palette::Theme::Carbon);
+
+        let selected = super::radio_style(&iced::Theme::Dark, Rb::Active { is_selected: true });
+        assert_eq!(selected.border_width, 2.0);
+        assert_eq!(selected.border_color, palette::accent());
+        assert_eq!(selected.dot_color, palette::accent());
+
+        let unselected = super::radio_style(&iced::Theme::Dark, Rb::Active { is_selected: false });
+        assert_eq!(unselected.border_width, 1.0);
+        assert_eq!(
+            unselected.border_color,
+            palette::color(palette::BUTTON_SHADOW)
         );
     }
 }
