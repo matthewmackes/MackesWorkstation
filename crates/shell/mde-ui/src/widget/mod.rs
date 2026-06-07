@@ -56,35 +56,51 @@ fn ctl_radius() -> iced::border::Radius {
 /// The Win2000 sunken-white dropdown (closed `pick_list` control): `COLOR_WINDOW`
 /// fill, a recessed 1px edge, navy selection text. Pass to
 /// `pick_list(...).style(mde_ui::sunken_picklist)`.
-pub fn sunken_picklist(_theme: &iced::Theme, _status: pick_list::Status) -> pick_list::Style {
+pub fn sunken_picklist(_theme: &iced::Theme, status: pick_list::Status) -> pick_list::Style {
+    // Carbon interaction state (E9.4): the open (focused) dropdown shows the 2px
+    // `$focus` ring; closed/hovered keep the 1px border-strong edge.
     pick_list::Style {
         text_color: palette::color(palette::WINDOW_TEXT),
         placeholder_color: palette::color(palette::GRAY_TEXT),
         handle_color: palette::color(palette::WINDOW_TEXT),
         background: Background::Color(palette::color(palette::WINDOW)),
-        border: Border {
-            color: palette::color(palette::BUTTON_SHADOW),
-            width: 1.0,
-            radius: ctl_radius(),
-        },
+        border: focus_border(matches!(status, pick_list::Status::Opened)),
     }
 }
 
 /// The Win2000 sunken-white text field: `COLOR_WINDOW` fill with a recessed 1px
 /// edge. Pass to `text_input(...).style(mde_ui::sunken_field)` so form fields
 /// obey the rule for their kind instead of shipping the iced default.
-pub fn sunken_field(_theme: &iced::Theme, _status: text_input::Status) -> text_input::Style {
+pub fn sunken_field(_theme: &iced::Theme, status: text_input::Status) -> text_input::Style {
+    // Carbon interaction state (E9.4): a focused field shows the strict 2px `$focus`
+    // ring (the accent); every other state keeps the 1px border-strong edge.
+    let border = focus_border(matches!(status, text_input::Status::Focused));
     text_input::Style {
         background: Background::Color(palette::color(palette::WINDOW)),
-        border: Border {
-            color: palette::color(palette::BUTTON_SHADOW),
-            width: 1.0,
-            radius: ctl_radius(),
-        },
+        border,
         icon: palette::color(palette::WINDOW_TEXT),
         placeholder: palette::color(palette::GRAY_TEXT),
         value: palette::color(palette::WINDOW_TEXT),
         selection: palette::color(palette::HIGHLIGHT),
+    }
+}
+
+/// The shared control edge for the active interaction state (E9.4): the strict 2px
+/// Carbon `$focus` ring (accent) when focused, else the 1px border-strong edge. One
+/// source so every field/dropdown's focus ring is identical and can't drift.
+fn focus_border(focused: bool) -> Border {
+    if focused {
+        Border {
+            color: palette::accent(),
+            width: 2.0,
+            radius: ctl_radius(),
+        }
+    } else {
+        Border {
+            color: palette::color(palette::BUTTON_SHADOW),
+            width: 1.0,
+            radius: ctl_radius(),
+        }
     }
 }
 
@@ -269,5 +285,25 @@ mod tests {
         assert!(button_ghost(&iced::Theme::Dark, Status::Hovered)
             .background
             .is_some());
+    }
+
+    /// E9.4 — a focused field / open dropdown shows the strict 2px Carbon `$focus`
+    /// ring (the accent); the resting state keeps the 1px border-strong edge.
+    #[test]
+    fn focus_ring_is_2px_accent_on_fields() {
+        use iced::widget::{pick_list, text_input};
+        palette::set_theme(palette::Theme::Carbon);
+
+        let focused = super::sunken_field(&iced::Theme::Dark, text_input::Status::Focused);
+        assert_eq!(focused.border.width, 2.0);
+        assert_eq!(focused.border.color, palette::accent());
+
+        let resting = super::sunken_field(&iced::Theme::Dark, text_input::Status::Active);
+        assert_eq!(resting.border.width, 1.0);
+        assert_eq!(resting.border.color, palette::color(palette::BUTTON_SHADOW));
+
+        let open = super::sunken_picklist(&iced::Theme::Dark, pick_list::Status::Opened);
+        assert_eq!(open.border.width, 2.0);
+        assert_eq!(open.border.color, palette::accent());
     }
 }
