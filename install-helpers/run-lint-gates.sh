@@ -49,6 +49,7 @@ fi
 if [ "$RS" -eq 1 ] || [ "$CSS" -eq 1 ]; then
     run lint-design-tokens
     run lint-motion-tokens
+    run lint-spacing-tokens
 fi
 
 # Module graph touched → the (slow) whole-repo reachability sweep.
