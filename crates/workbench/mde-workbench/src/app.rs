@@ -120,6 +120,11 @@ pub enum Message {
     /// app) at the given deep-link slug (`""` = the Settings home).
     /// Fired by the Dashboard role's See-also links.
     OpenSettings(&'static str),
+    /// E0.15 — deep-link the shell's `mde settings <category> --page
+    /// <page>` (the canonical labwc-native config surface). Fired by the
+    /// Devices launcher panels (mouse/keyboard/displays) that delegate
+    /// to Settings instead of duplicating the libinput controls.
+    OpenSettingsPage(&'static str, &'static str),
     /// CB-1.4.b — Devices sound panel Refresh button. Re-runs
     /// the panel's Load so a freshly-plugged speaker shows up
     /// in the picker without the user having to navigate
@@ -717,6 +722,21 @@ impl App {
                     cmd.arg(slug);
                 }
                 let _ = cmd
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+                Task::none()
+            }
+            Message::OpenSettingsPage(category, page) => {
+                // E0.15 — bridge to `mde settings <category> --page <page>`,
+                // the canonical labwc-native config surface. Detached spawn,
+                // mirrors OpenSettings above.
+                let _ = std::process::Command::new("mde")
+                    .arg("settings")
+                    .arg(category)
+                    .arg("--page")
+                    .arg(page)
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
