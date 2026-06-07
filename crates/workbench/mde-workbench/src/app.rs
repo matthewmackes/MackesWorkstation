@@ -1658,23 +1658,20 @@ mod tests {
         assert!(app.title().starts_with("MDE Workbench"));
     }
 
-    // UX-3 — theme() now returns a custom Iced theme derived
-    // from mde_theme::Palette::dark(). The next three tests
-    // guard against accidental drift from the Q-locked values.
+    // UX-3 — theme() returns a custom Iced theme derived from
+    // mde_theme::Palette::dark(). E9 (2026-06-07) moved that palette to
+    // Carbon-only; the next two tests guard the resulting Carbon values.
 
     #[test]
-    fn workbench_iced_theme_background_matches_chromeos_classic() {
-        // CR-1 (2026-05-25) swapped the Q3 Apple-charcoal
-        // #1d1d1f page surface for the Classic ChromeOS
-        // #202124 page surface per
-        // `docs/design/chromeos-classic-spec.md`. Q3
-        // grandfathered in source comments only.
+    fn workbench_iced_theme_background_matches_carbon_gray_100() {
+        // E9: the workbench renders on Carbon Gray 100 (the mde-theme
+        // dark palette; carbondesignsystem.com gray ramp).
         let theme = mde_workbench_iced_theme();
         let bg = theme.palette().background;
         let expected = (
-            0x20 as f32 / 255.0,
-            0x21 as f32 / 255.0,
-            0x24 as f32 / 255.0,
+            0x16 as f32 / 255.0,
+            0x16 as f32 / 255.0,
+            0x16 as f32 / 255.0,
         );
         assert!(
             (bg.r - expected.0).abs() < 1e-4,
@@ -1697,14 +1694,14 @@ mod tests {
     }
 
     #[test]
-    fn workbench_iced_theme_primary_matches_q2_indigo() {
+    fn workbench_iced_theme_primary_matches_carbon_blue_60() {
         let theme = mde_workbench_iced_theme();
         let primary = theme.palette().primary;
-        // Q2 lock — indigo #5b6af5.
+        // E9: Carbon Blue 60 interactive accent.
         let expected = (
-            0x5b as f32 / 255.0,
-            0x6a as f32 / 255.0,
-            0xf5 as f32 / 255.0,
+            0x0f as f32 / 255.0,
+            0x62 as f32 / 255.0,
+            0xfe as f32 / 255.0,
         );
         assert!((primary.r - expected.0).abs() < 1e-4);
         assert!((primary.g - expected.1).abs() < 1e-4);

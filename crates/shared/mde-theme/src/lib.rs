@@ -115,15 +115,13 @@ mod tests {
     fn both_themes_resolve_with_full_palette() {
         let d = Tokens::resolve(Theme::Dark, Density::Comfortable);
         let l = Tokens::resolve(Theme::Light, Density::Comfortable);
-        // CR-1 (2026-05-25): Classic ChromeOS uses a per-theme
-        // accent (Q2 "same accent across themes" grandfathered).
-        // Both stay in the indigo family.
-        assert_ne!(d.palette.accent, l.palette.accent);
+        // E9 (2026-06-07): Carbon uses one uniform interactive blue
+        // (Blue 60) across both gray themes — the ChromeOS per-theme
+        // accent shift is retired.
+        assert_eq!(d.palette.accent, l.palette.accent);
         let da = d.palette.accent;
-        let la = l.palette.accent;
-        assert!(da.b > da.r && da.b > da.g, "dark accent reads as indigo");
-        assert!(la.b > la.r && la.b > la.g, "light accent reads as indigo");
-        // Background diverges between themes.
+        assert!(da.b > da.r && da.b > da.g, "accent reads as Carbon blue");
+        // Background diverges between themes (Gray 100 vs Gray 10).
         assert_ne!(d.palette.background, l.palette.background);
     }
 }

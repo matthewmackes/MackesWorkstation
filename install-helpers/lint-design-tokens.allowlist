@@ -270,14 +270,6 @@ data/css/greeter.css:76
 data/css/greeter.css:81
 data/css/greeter.css:82
 data/css/greeter.css:83
-crates/shared/mde-theme/src/palette.rs:14
-crates/shared/mde-theme/src/palette.rs:15
-crates/shared/mde-theme/src/palette.rs:23
-crates/shared/mde-theme/src/palette.rs:36
-crates/shared/mde-theme/src/palette.rs:66
-crates/shared/mde-theme/src/palette.rs:139
-crates/shared/mde-theme/src/palette.rs:152
-crates/shared/mde-theme/src/palette.rs:153
-crates/workbench/mde-workbench/src/app.rs:1668
-crates/workbench/mde-workbench/src/app.rs:1669
-crates/workbench/mde-workbench/src/app.rs:1703
+# (mde-theme/src/palette.rs + mde-workbench/src/app.rs ChromeOS hex-in-
+#  comment entries removed E9 2026-06-07 — both files are now Carbon and
+#  carry no raw #hex in comments.)

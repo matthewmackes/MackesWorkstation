@@ -11,17 +11,17 @@ use crate::theme::Theme;
 /// adjust at survey time, not at call sites.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Palette {
-    /// Lowest surface in the elevation stack. Dark: `#1d1d1f`
-    /// (Q3 Apple-charcoal). Light: `#f5f5f7`.
+    /// Lowest surface in the elevation stack. Carbon Gray 100 (dark) /
+    /// Gray 10 (light).
     pub background: Rgba,
-    /// Standard surface — cards, panels, sidebars.
+    /// Standard surface — cards, panels, sidebars (Carbon layer-01).
     pub surface: Rgba,
-    /// Raised surface — modals, popovers, command palette.
+    /// Raised surface — modals, popovers, command palette (layer-02).
     pub raised: Rgba,
     /// Overlay surface — tooltips, dropdown menus.
     pub overlay: Rgba,
-    /// Single accent — indigo `#5b6af5` (Q2). Same in both
-    /// themes by design (single restrained accent).
+    /// Single interactive accent — Carbon Blue 60. Same in both themes
+    /// by design (one restrained accent).
     pub accent: Rgba,
     /// Hairline border in dark mode; 1 px solid border in light
     /// mode (Q7 adaptive).
@@ -33,7 +33,7 @@ pub struct Palette {
     /// Semantic success (green) — confirmations, healthy status.
     /// These three semantic roles are the only named colors aside from
     /// the single accent (E5.3: centralized here so every surface reads
-    /// them from one place instead of hardcoding `Color::from_rgb`).
+    /// them from one place instead of hardcoding the raw color).
     pub success: Rgba,
     /// Semantic danger (red) — errors, destructive actions.
     pub danger: Rgba,
@@ -50,62 +50,62 @@ impl Palette {
         }
     }
 
-    /// Dark-theme palette — Classic ChromeOS (pre-2022) tokens
-    /// per CR-1 (2026-05-25). Source: `docs/design/
-    /// chromeos-classic-spec.md` § Palette (dark mode default).
+    /// Dark-theme palette — **IBM Carbon Gray 100** (E9, Carbon-only,
+    /// 2026-06-07; supersedes the Classic-ChromeOS CR-1 set). Tokens are
+    /// the published Carbon values (carbondesignsystem.com/elements/
+    /// color/tokens) — the same Gray ramp + Blue 60 the shell's `mde-ui`
+    /// single-sources; per §2.2 change one only with a spec reference +
+    /// update the pinning tests in the same commit.
     pub const fn dark() -> Self {
         Self {
-            // Page surface.
-            background: Rgba::rgb(0x20, 0x21, 0x24),
-            // Cards, popovers, hover surfaces.
-            surface: Rgba::rgb(0x2d, 0x2e, 0x30),
-            // Same as surface — the spec only carries 3 surface
-            // tiers (background / raised / active). The `raised`
-            // slot in this struct is the popover/modal tier,
-            // which Classic ChromeOS draws at the same elevation
-            // as cards. Keep both at #2d2e30 for now; a future
-            // CR-* polish task can split them if needed.
-            raised: Rgba::rgb(0x2d, 0x2e, 0x30),
-            // Active/pressed surface, also the 1px divider color.
-            overlay: Rgba::rgb(0x3c, 0x40, 0x43),
-            // Q2 indigo — unchanged across the CR-1 swap.
-            accent: Rgba::rgb(0x5b, 0x6a, 0xf5),
-            // 1 px sharp divider per Classic ChromeOS — same hex
-            // as the active-surface token (no alpha blending).
-            border: Rgba::rgb(0x3c, 0x40, 0x43),
-            // Text primary.
-            text: Rgba::rgb(0xe8, 0xea, 0xed),
-            // Text muted.
-            text_muted: Rgba::rgb(0x9a, 0xa0, 0xa6),
-            // Semantic roles (the UX-3 originals, single-sourced here).
-            success: Rgba::rgb(0x3f, 0xb9, 0x50),
-            danger: Rgba::rgb(0xe5, 0x53, 0x4b),
-            warning: Rgba::rgb(0xf5, 0xa6, 0x23),
+            // Carbon background — Gray 100.
+            background: Rgba::rgb(0x16, 0x16, 0x16),
+            // Layer-01 (cards, panels, sidebars) — Gray 90.
+            surface: Rgba::rgb(0x26, 0x26, 0x26),
+            // Layer-02 (modals, popovers, raised surfaces) — Gray 80.
+            raised: Rgba::rgb(0x39, 0x39, 0x39),
+            // Overlay tier (tooltips, dropdowns, heavier divider) — Gray 70.
+            overlay: Rgba::rgb(0x52, 0x52, 0x52),
+            // Interactive accent — Carbon Blue 60.
+            accent: Rgba::rgb(0x0f, 0x62, 0xfe),
+            // Border-subtle on Gray 100 — Gray 80.
+            border: Rgba::rgb(0x39, 0x39, 0x39),
+            // Text primary on dark — Gray 10.
+            text: Rgba::rgb(0xf4, 0xf4, 0xf4),
+            // Text secondary / helper — Gray 50.
+            text_muted: Rgba::rgb(0x8d, 0x8d, 0x8d),
+            // Support roles — Carbon Green 50 / Red 60 / Yellow 30.
+            success: Rgba::rgb(0x24, 0xa1, 0x48),
+            danger: Rgba::rgb(0xda, 0x1e, 0x28),
+            warning: Rgba::rgb(0xf1, 0xc2, 0x1b),
         }
     }
 
-    /// Light-theme palette — Classic ChromeOS pair per CR-1.
-    /// Reserved for compile-time consumption; the light retrofit
-    /// epic toggles the live binding once it ships. Source:
-    /// `docs/design/chromeos-classic-spec.md` § Palette (light).
+    /// Light-theme palette — **IBM Carbon Gray 10** (E9, Carbon-only).
+    /// The Gray-10 counterpart to [`Self::dark`]; the same Carbon Blue 60
+    /// interactive accent + support ramp, inverted gray surfaces.
     pub const fn light() -> Self {
         Self {
-            background: Rgba::rgb(0xf7, 0xf7, 0xf7),
+            // Carbon background — Gray 10.
+            background: Rgba::rgb(0xf4, 0xf4, 0xf4),
+            // Layer-01 — White.
             surface: Rgba::rgb(0xff, 0xff, 0xff),
+            // Layer-02 — White (Carbon layers white-on-Gray-10).
             raised: Rgba::rgb(0xff, 0xff, 0xff),
-            overlay: Rgba::rgb(0xe8, 0xea, 0xed),
-            // Darker indigo pair for light mode (Classic ChromeOS
-            // shifts the accent for AA contrast against white).
-            accent: Rgba::rgb(0x40, 0x51, 0xd3),
-            // Hard 1 px divider (no alpha) per Classic ChromeOS.
-            border: Rgba::rgb(0xda, 0xdc, 0xe0),
-            text: Rgba::rgb(0x1d, 0x1d, 0x1f),
-            text_muted: Rgba::rgb(0x5f, 0x63, 0x68),
-            // Semantic roles — shared with dark for now (a future
-            // light-mode polish can tune them for AA on white).
-            success: Rgba::rgb(0x3f, 0xb9, 0x50),
-            danger: Rgba::rgb(0xe5, 0x53, 0x4b),
-            warning: Rgba::rgb(0xf5, 0xa6, 0x23),
+            // Overlay / layer-hover — Gray 10 hover.
+            overlay: Rgba::rgb(0xe8, 0xe8, 0xe8),
+            // Interactive accent — Carbon Blue 60 (same as dark).
+            accent: Rgba::rgb(0x0f, 0x62, 0xfe),
+            // Border-subtle-01 (light) — Gray 20.
+            border: Rgba::rgb(0xe0, 0xe0, 0xe0),
+            // Text primary on light — Gray 100.
+            text: Rgba::rgb(0x16, 0x16, 0x16),
+            // Text secondary — Gray 70.
+            text_muted: Rgba::rgb(0x52, 0x52, 0x52),
+            // Support roles — Carbon Green 50 / Red 60 / Yellow 30.
+            success: Rgba::rgb(0x24, 0xa1, 0x48),
+            danger: Rgba::rgb(0xda, 0x1e, 0x28),
+            warning: Rgba::rgb(0xf1, 0xc2, 0x1b),
         }
     }
 
@@ -126,46 +126,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn accent_matches_q2_lock() {
+    fn accent_is_carbon_blue_60() {
+        // E9 (2026-06-07): Carbon-only — the interactive accent is
+        // Carbon Blue 60 (carbondesignsystem.com), replacing the retired
+        // Q2 indigo. Same value in both themes.
         let p = Palette::dark();
-        assert_eq!(p.accent.r, 0x5b);
-        assert_eq!(p.accent.g, 0x6a);
-        assert_eq!(p.accent.b, 0xf5);
+        assert_eq!((p.accent.r, p.accent.g, p.accent.b), (0x0f, 0x62, 0xfe));
     }
 
     #[test]
-    fn accent_differs_between_themes_per_chromeos() {
-        // CR-1 (2026-05-25): Classic ChromeOS shifts the accent
-        // for light mode (#4051d3) to keep AA contrast against
-        // white. Q2's "same accent across themes" rule is
-        // grandfathered; live lock is per-theme.
-        assert_ne!(Palette::dark().accent, Palette::light().accent);
-        // Both stay in the indigo family.
+    fn accent_is_uniform_carbon_blue_across_themes() {
+        // Carbon uses one interactive blue regardless of gray theme — the
+        // ChromeOS per-theme accent shift is retired.
+        assert_eq!(Palette::dark().accent, Palette::light().accent);
         let d = Palette::dark().accent;
-        let l = Palette::light().accent;
-        assert!(d.b > d.r && d.b > d.g, "dark accent reads as indigo");
-        assert!(l.b > l.r && l.b > l.g, "light accent reads as indigo");
+        assert!(d.b > d.r && d.b > d.g, "accent reads as blue");
     }
 
     #[test]
-    fn dark_background_matches_chromeos_classic() {
-        // CR-1 (2026-05-25): #202124 — Classic ChromeOS page
-        // surface. Q3 charcoal #1d1d1f grandfathered.
+    fn dark_background_matches_carbon_gray_100() {
+        // E9: Carbon Gray 100 is the dark page surface
+        // (carbondesignsystem.com gray ramp).
         let bg = Palette::dark().background;
-        assert_eq!((bg.r, bg.g, bg.b), (0x20, 0x21, 0x24));
+        assert_eq!((bg.r, bg.g, bg.b), (0x16, 0x16, 0x16));
     }
 
     #[test]
-    fn border_is_hard_1px_divider_per_chromeos() {
-        // CR-1: Classic ChromeOS uses hard 1 px dividers in
-        // both themes — no alpha hairline. The token resolves
-        // to the same value as `overlay` in dark mode (the
-        // "surface active" tier).
+    fn surfaces_follow_carbon_gray_ramp() {
+        // E9: dark layers walk the Carbon ramp — Gray 90 (layer-01) for
+        // surface, Gray 80 (layer-02) for raised, both above Gray 100 bg.
         let d = Palette::dark();
-        assert_eq!(d.border, d.overlay);
+        assert_eq!((d.surface.r, d.surface.g, d.surface.b), (0x26, 0x26, 0x26));
+        assert_eq!((d.raised.r, d.raised.g, d.raised.b), (0x39, 0x39, 0x39));
+    }
+
+    #[test]
+    fn border_is_solid_carbon_subtle() {
+        // E9: Carbon border-subtle — Gray 80 on dark, Gray 20 on light;
+        // solid (no alpha hairline).
+        let d = Palette::dark();
+        assert_eq!((d.border.r, d.border.g, d.border.b), (0x39, 0x39, 0x39));
         let l = Palette::light();
-        assert_eq!((l.border.r, l.border.g, l.border.b), (0xda, 0xdc, 0xe0));
-        // Borders are solid (alpha 1.0), not hairline.
+        assert_eq!((l.border.r, l.border.g, l.border.b), (0xe0, 0xe0, 0xe0));
         assert!(d.border.a >= 0.95);
         assert!(l.border.a >= 0.95);
     }
