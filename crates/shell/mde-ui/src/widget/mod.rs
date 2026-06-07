@@ -104,18 +104,39 @@ fn focus_border(focused: bool) -> Border {
     }
 }
 
-/// The Win2000 check box: a sunken white box with a black check, label in
-/// window text. Pass to `checkbox(label, checked).style(mde_ui::checkbox_style)`.
-pub fn checkbox_style(_theme: &iced::Theme, _status: checkbox::Status) -> checkbox::Style {
+/// The Carbon check box (E9.4 interaction states): a **checked** box fills with the
+/// accent and shows a light check; an **unchecked** box is the field surface with a
+/// 1px border-strong edge; a **disabled** box mutes its label. Pass to
+/// `checkbox(label, checked).style(mde_ui::checkbox_style)`.
+pub fn checkbox_style(_theme: &iced::Theme, status: checkbox::Status) -> checkbox::Style {
+    let is_checked = matches!(
+        status,
+        checkbox::Status::Active { is_checked: true }
+            | checkbox::Status::Hovered { is_checked: true }
+            | checkbox::Status::Disabled { is_checked: true }
+    );
+    let disabled = matches!(status, checkbox::Status::Disabled { .. });
+    let (background, border_color) = if is_checked {
+        (palette::accent(), palette::accent())
+    } else {
+        (
+            palette::color(palette::WINDOW),
+            palette::color(palette::BUTTON_SHADOW),
+        )
+    };
     checkbox::Style {
-        background: Background::Color(palette::color(palette::WINDOW)),
-        icon_color: palette::color(palette::WINDOW_TEXT),
+        background: Background::Color(background),
+        icon_color: palette::color(palette::HIGHLIGHT_TEXT), // light check on the accent fill
         border: Border {
-            color: palette::color(palette::BUTTON_SHADOW),
+            color: border_color,
             width: 1.0,
             radius: ctl_radius(),
         },
-        text_color: Some(palette::color(palette::WINDOW_TEXT)),
+        text_color: Some(palette::color(if disabled {
+            palette::GRAY_TEXT
+        } else {
+            palette::WINDOW_TEXT
+        })),
     }
 }
 
@@ -305,5 +326,38 @@ mod tests {
         let open = super::sunken_picklist(&iced::Theme::Dark, pick_list::Status::Opened);
         assert_eq!(open.border.width, 2.0);
         assert_eq!(open.border.color, palette::accent());
+    }
+
+    /// E9.4 — a checked checkbox fills with the accent (light check); unchecked is
+    /// the field surface + border-strong edge; disabled mutes the label.
+    #[test]
+    fn checkbox_checked_is_accent_filled() {
+        use iced::widget::checkbox::Status as Cb;
+        palette::set_theme(palette::Theme::Carbon);
+
+        let checked = super::checkbox_style(&iced::Theme::Dark, Cb::Active { is_checked: true });
+        assert_eq!(
+            checked.background,
+            Background::Color(palette::accent()),
+            "checked box fills with the accent"
+        );
+        assert_eq!(checked.icon_color, palette::color(palette::HIGHLIGHT_TEXT));
+
+        let unchecked = super::checkbox_style(&iced::Theme::Dark, Cb::Active { is_checked: false });
+        assert_eq!(
+            unchecked.background,
+            Background::Color(palette::color(palette::WINDOW))
+        );
+        assert_eq!(
+            unchecked.border.color,
+            palette::color(palette::BUTTON_SHADOW)
+        );
+
+        let disabled =
+            super::checkbox_style(&iced::Theme::Dark, Cb::Disabled { is_checked: false });
+        assert_eq!(
+            disabled.text_color,
+            Some(palette::color(palette::GRAY_TEXT))
+        );
     }
 }
