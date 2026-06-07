@@ -3007,7 +3007,7 @@ fn home(state: &Settings) -> Element<'_, Message> {
 /// In-memory filter of every (category, page) by title; clicking a row jumps to
 /// that page. No indexer — just a flat scan of the static model (E6.6).
 fn search_results(q: &str) -> Element<'static, Message> {
-    let mut col = Column::new().spacing(1.0);
+    let mut col = Column::new().spacing(metrics::SPACING_01);
     let mut any = false;
     for (ci, cat) in CATEGORIES.iter().enumerate() {
         for (pi, p) in cat.pages.iter().enumerate() {
@@ -3049,7 +3049,7 @@ fn search_results(q: &str) -> Element<'static, Message> {
 
 fn home_tile(i: usize, cat: &'static Category) -> Element<'static, Message> {
     let inner = Row::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::alignment::Vertical::Center)
         .push(crate::icons::icon_any(cat.icons, 32))
         .push(
@@ -3112,7 +3112,7 @@ fn category(state: &Settings, c: usize) -> Element<'_, Message> {
     // Left rail: one entry per page (deferred greyed). The Touchpad page is
     // conditional — hidden from the rail when no touchpad is attached (E12.7);
     // its page index stays stable for the others since we only skip the push.
-    let mut rail = Column::new().spacing(1.0).width(Length::Fixed(220.0));
+    let mut rail = Column::new().spacing(metrics::SPACING_01).width(Length::Fixed(220.0));
     for (i, p) in cat.pages.iter().enumerate() {
         if matches!(p.kind, Kind::Touchpad) && !state.touchpad_present {
             continue;
@@ -3232,7 +3232,7 @@ fn open_button<'a>(title: &str, present: bool) -> Element<'a, Message> {
         format!("Install & Open {title}")
     };
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(
             text(format!("Opens {title} in its own window."))
                 .size(metrics::UI_PX)
@@ -3551,7 +3551,7 @@ fn update_advanced_page(state: &Settings) -> Element<'_, Message> {
             .text_size(metrics::UI_PX),
         );
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(posture)
         .push(greyed("Download updates over metered connections"))
         .push(live(
@@ -3625,7 +3625,7 @@ fn account_info_page(state: &Settings) -> Element<'_, Message> {
     };
     let user = std::env::var("USER").unwrap_or_else(|_| "User".into());
     Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .push(avatar)
         .push(
             button(text("Browse for one…").size(metrics::UI_PX))
@@ -3676,7 +3676,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
             a.name.clone()
         };
         let mut row = Row::new()
-            .spacing(10.0)
+            .spacing(metrics::SPACING_04)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text("\u{f007}") // nf-fa-user
@@ -3743,7 +3743,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
         scrollable(list).style(mde_ui::scrollbar).into()
     };
 
-    let mut col = Column::new().spacing(10.0).push(
+    let mut col = Column::new().spacing(metrics::SPACING_04).push(
         text("People who use this PC")
             .size(metrics::UI_PX)
             .color(palette::color(palette::WINDOW_TEXT)),
@@ -3778,7 +3778,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
                             ),
                     ),
             )
-            .padding(10.0)
+            .padding(metrics::SPACING_04)
             .style(|_| container::Style {
                 border: Border {
                     color: palette::accent(),
@@ -3820,7 +3820,7 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
     // A dimmed "unavailable" Windows Hello row.
     let hello = |title: &str| -> Element<Message> {
         Column::new()
-            .spacing(1.0)
+            .spacing(metrics::SPACING_01)
             .push(
                 text(title.to_string())
                     .size(metrics::UI_PX)
@@ -3917,7 +3917,7 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
         );
 
     Column::new()
-        .spacing(18.0)
+        .spacing(metrics::SPACING_05)
         .push(hello("Windows Hello Face"))
         .push(hello("Windows Hello Fingerprint"))
         .push(pin_section)
@@ -3995,7 +3995,7 @@ fn bluetooth_page(state: &Settings) -> Element<'_, Message> {
             "Available"
         };
         let mut row = Row::new()
-            .spacing(10.0)
+            .spacing(metrics::SPACING_04)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text("\u{f293}") // nf-fa-bluetooth
@@ -4096,7 +4096,7 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
             let name = crate::cups::sanitize_queue_name(&d.info);
             let uri = d.uri.clone();
             let row = Row::new()
-                .spacing(10.0)
+                .spacing(metrics::SPACING_04)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(
                     Column::new()
@@ -4160,7 +4160,7 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
                 .color(palette::color(palette::GRAY_TEXT)),
         );
         let mut row = Row::new()
-            .spacing(10.0)
+            .spacing(metrics::SPACING_04)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 text("\u{f02f}") // nf-fa-print
@@ -4247,7 +4247,7 @@ fn print_to_pdf_row<'a>(
                 .color(palette::color(palette::GRAY_TEXT)),
         );
     let mut row = Row::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::alignment::Vertical::Center)
         .push(
             text("\u{f1c1}") // nf-fa-file_pdf_o
@@ -4360,7 +4360,7 @@ fn mouse_page(state: &Settings) -> Element<'_, Message> {
         );
 
     Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .push(primary_row)
         .push(scroll_row)
         .push(natural)
@@ -4401,7 +4401,7 @@ fn touchpad_page(state: &Settings) -> Element<'_, Message> {
         );
 
     Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .push(cb(
             "Touchpad",
             state.touchpad_enabled,
@@ -4485,7 +4485,7 @@ fn typing_page(state: &Settings) -> Element<'_, Message> {
     };
 
     Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .push(layout_row)
         .push(row("Repeat rate", rate.into()))
         .push(row("Repeat delay", delay.into()))
@@ -4544,7 +4544,7 @@ fn autoplay_page(state: &Settings) -> Element<'_, Message> {
     };
 
     Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .push(master)
         .push(
             text("Choose AutoPlay defaults")
@@ -4583,7 +4583,7 @@ fn default_apps_page(state: &Settings) -> Element<'_, Message> {
     let is_firefox = name == "Firefox";
 
     let mut row = Row::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .align_y(iced::alignment::Vertical::Center)
         .push(crate::icons::icon_any(&[icon], 32))
         .push(
@@ -4687,7 +4687,7 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
         let frac = *bytes as f32 / root_used as f32;
         bars = bars.push(
             Column::new()
-                .spacing(3.0)
+                .spacing(metrics::SPACING_02)
                 .push(
                     Row::new()
                         .push(
@@ -4781,7 +4781,7 @@ fn apps_drill_in(state: &Settings) -> Element<'_, Message> {
     // Top-by-size (the full set is thousands of packages); 60 is plenty to scroll.
     for p in state.packages.iter().take(60) {
         let row = Row::new()
-            .spacing(10.0)
+            .spacing(metrics::SPACING_04)
             .align_y(iced::alignment::Vertical::Center)
             .push(
                 Column::new()
@@ -4817,7 +4817,7 @@ fn apps_drill_in(state: &Settings) -> Element<'_, Message> {
     }
 
     let mut col = Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(back)
         .push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill));
 
@@ -4825,7 +4825,7 @@ fn apps_drill_in(state: &Settings) -> Element<'_, Message> {
     if let Some(name) = &state.confirm_uninstall {
         col = col.push(
             Column::new()
-                .spacing(6.0)
+                .spacing(metrics::SPACING_03)
                 .push(
                     text(format!("Uninstall {name}?"))
                         .size(metrics::UI_PX)
@@ -4988,7 +4988,7 @@ fn backup_page(state: &Settings) -> Element<'_, Message> {
             seen.push(m.source.clone());
             let dev = m.source.clone();
             let row = Row::new()
-                .spacing(10.0)
+                .spacing(metrics::SPACING_04)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(
                     Column::new()
@@ -5110,7 +5110,7 @@ fn backup_more_page(state: &Settings) -> Element<'_, Message> {
     for inc in &state.backup_includes {
         col = col.push(
             Row::new()
-                .spacing(10.0)
+                .spacing(metrics::SPACING_04)
                 .align_y(iced::alignment::Vertical::Center)
                 .push(
                     text(inc.clone())
@@ -5151,7 +5151,7 @@ fn recovery_page(state: &Settings) -> Element<'_, Message> {
                   a: RecoveryAction|
      -> Element<'_, Message> {
         Column::new()
-            .spacing(3.0)
+            .spacing(metrics::SPACING_02)
             .push(
                 text(title)
                     .size(metrics::UI_PX)
@@ -5209,7 +5209,7 @@ fn recovery_page(state: &Settings) -> Element<'_, Message> {
         ))
         .push(
             Column::new()
-                .spacing(3.0)
+                .spacing(metrics::SPACING_02)
                 .push(
                     text("Create a recovery drive")
                         .size(metrics::UI_PX)
@@ -5382,7 +5382,7 @@ fn recovery_confirm(state: &Settings, a: RecoveryAction) -> Element<'_, Message>
     }
 
     let mut col = Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(
             text(a.title())
                 .size(metrics::INFO_TITLE_PX)
@@ -5434,7 +5434,7 @@ fn recovery_confirm(state: &Settings, a: RecoveryAction) -> Element<'_, Message>
 /// surface (§3: shown disabled, never an inert mockup).
 fn cellular_page() -> Element<'static, Message> {
     Column::new()
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .push(
             // No on_toggle → disabled, like the labwc-managed taskbar toggles.
             checkbox("Cellular", false)
@@ -5479,7 +5479,7 @@ fn data_usage_page(state: &Settings) -> Element<'_, Message> {
         .unwrap_or(1)
         .max(1);
     let total: u64 = state.usage.iter().map(|(_, rx, tx)| rx + tx).sum();
-    let mut list = Column::new().spacing(6.0);
+    let mut list = Column::new().spacing(metrics::SPACING_03);
     for (name, rx, tx) in &state.usage {
         let used = rx + tx;
         let filled = ((used * 100 / max) as u16).max(1);
@@ -5533,7 +5533,7 @@ fn data_usage_page(state: &Settings) -> Element<'_, Message> {
                 .width(Length::Fixed(100.0)),
         );
     Column::new()
-        .spacing(14.0)
+        .spacing(metrics::SPACING_05)
         .push(
             text(format!("Total since boot: {}", human_bytes(total)))
                 .size(metrics::UI_PX)
@@ -5935,7 +5935,7 @@ fn colors_page(state: &Settings) -> Element<'_, Message> {
     .style(mde_ui::checkbox_style);
 
     column![mode_label, modes, accent_chrome]
-        .spacing(10.0)
+        .spacing(metrics::SPACING_04)
         .into()
 }
 

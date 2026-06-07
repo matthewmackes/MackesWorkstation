@@ -40,7 +40,7 @@ crates/shell/mde/src/project.rs 0
 crates/shell/mde/src/restore.rs 0
 crates/shell/mde/src/search.rs 0
 crates/shell/mde/src/security.rs 0
-crates/shell/mde/src/settings.rs 33
+crates/shell/mde/src/settings.rs 0
 crates/shell/mde/src/system_properties.rs 0
 crates/shell/mde/src/taskbar_properties.rs 0
 crates/shell/mde/src/task_view.rs 0
