@@ -125,7 +125,8 @@ mod tests {
         assert_eq!(
             count(1),
             2,
-            "Server adds fleet (meshfs is LizardFS/E3, not a worker)"
+            "Server rank-1 = the two fleet workers; the LizardFS meshfs_worker \
+             spawns unconditionally (binary-self-gated), not via this rank table"
         );
         assert_eq!(count(2), 16, "Workstation adds voice/media/desktop");
     }
