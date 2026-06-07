@@ -1,14 +1,14 @@
-//! Windows 2000 property-sheet tab control.
+//! Carbon property-sheet tab control (E9.3).
 //!
-//! The classic notched tabs: each tab is a raised 3D edge with white top/left
-//! lines and a shadowed right line. The crucial Win2000 detail is the *seam* —
-//! an inactive tab carries a shadow line along its base (it sits above the page),
-//! while the selected tab has no base line, so it reads as merging into the page
-//! body beneath it. That single cue is what makes a property sheet look right;
-//! faking tabs with 3D push-buttons does not.
+//! Flat tabs: each tab is a face fill with a single 1px subtle border (the 3D
+//! Win2000 white/silver/gray bevels were retired in the Carbon-only collapse,
+//! E9.7). Two cues carry the state: the *seam* — an inactive tab keeps its base
+//! border (it sits above the page) while the selected tab omits it, so it merges
+//! into the page body beneath — and a strict 2px Carbon accent bar along the top
+//! of the selected tab (E9.4 interaction states).
 //!
 //! [`tab_strip`] builds the whole header row; the caller stacks the page body
-//! (a `frame::raised`) directly below it, exactly as the real dialogs do.
+//! directly below it, exactly as the real dialogs do.
 
 use iced::advanced::layout::{self, Layout};
 use iced::advanced::renderer;
@@ -58,38 +58,23 @@ where
         _viewport: &Rectangle,
     ) {
         let b = layout.bounds();
-        let hi = palette::color(palette::BUTTON_HILIGHT); // white
-        let lt = palette::color(palette::BUTTON_LIGHT); // silver
-        let sh = palette::color(palette::BUTTON_SHADOW); // gray
-        let dk = palette::color(palette::BUTTON_DK_SHADOW); // dark gray
         let face = palette::color(palette::BUTTON_FACE);
+        let border = palette::color(palette::WINDOW_FRAME);
 
-        // Face.
+        // Flat Carbon tab (E9.3): a face fill with a single 1px subtle border —
+        // no 3D bevel (the raised Win2000 white/silver/gray edges were retired in
+        // the Carbon-only collapse, E9.7; the same flat treatment as `draw_edge`).
         fill(renderer, b.x, b.y, b.width, b.height, face);
-        // Top edge: white outer, silver inner (the raised top).
-        fill(renderer, b.x, b.y, b.width, 1.0, hi);
-        fill(renderer, b.x + 1.0, b.y + 1.0, b.width - 2.0, 1.0, lt);
-        // Left edge: white outer, silver inner.
-        fill(renderer, b.x, b.y, 1.0, b.height, hi);
-        fill(renderer, b.x + 1.0, b.y + 1.0, 1.0, b.height - 1.0, lt);
-        // Right edge: dark outer, gray inner.
-        fill(renderer, b.x + b.width - 1.0, b.y, 1.0, b.height, dk);
-        fill(
-            renderer,
-            b.x + b.width - 2.0,
-            b.y + 1.0,
-            1.0,
-            b.height - 1.0,
-            sh,
-        );
-        // Base line: inactive tabs sit above the page (a shadow line); the
-        // active tab omits it so it merges into the page body below.
+        fill(renderer, b.x, b.y, b.width, 1.0, border); // top
+        fill(renderer, b.x, b.y, 1.0, b.height, border); // left
+        fill(renderer, b.x + b.width - 1.0, b.y, 1.0, b.height, border); // right
+                                                                         // Base line / seam: an inactive tab keeps its bottom border (it sits above
+                                                                         // the page); the active tab omits it so it merges into the page body below.
         if !self.active {
-            fill(renderer, b.x, b.y + b.height - 1.0, b.width, 1.0, sh);
+            fill(renderer, b.x, b.y + b.height - 1.0, b.width, 1.0, border);
         }
-        // E9.4 — Carbon selected-tab cue: a strict 2px accent bar along the top
-        // of the active tab, the Carbon "selected" indicator, atop the classic
-        // seam. Inactive tabs carry no accent.
+        // E9.4 — Carbon selected-tab cue: a strict 2px accent bar along the top of
+        // the active tab (the Carbon "selected" indicator). Inactive tabs: none.
         if self.active {
             fill(renderer, b.x, b.y, b.width, 2.0, palette::accent());
         }
