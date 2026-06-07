@@ -646,14 +646,21 @@ impl App {
     ///    (see `panels::home::dbus_subscription`).
     #[allow(clippy::unused_self)]
     fn subscription(&self) -> Subscription<Message> {
-        Subscription::batch([
+        let mut subs = vec![
             iced::time::every(Duration::from_millis(200))
                 .map(|_| PendingFocus::drain().map_or(Message::Noop, Message::FocusRequest)),
             home_panel::dbus_subscription(),
             // E0.3.1.b — Nebula signals now arrive over the mesh Bus
             // event topic, not D-Bus; this polls them into DbusEvents.
             home_panel::nebula_event_subscription(),
-        ])
+        ];
+        // E6.10 — sample Compute instance CPU/mem only while that view is
+        // active, so virsh/podman stats aren't polled when the operator is
+        // elsewhere.
+        if self.view.group() == Group::Compute {
+            subs.push(compute_panel::ComputePanel::sample_subscription());
+        }
+        Subscription::batch(subs)
     }
 
     fn title(&self) -> String {

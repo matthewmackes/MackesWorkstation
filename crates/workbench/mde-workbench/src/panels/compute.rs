@@ -16,11 +16,23 @@
 //! hypervisor tool is installed (empty list + a "no hypervisor" status,
 //! never a panic) — the standalone-first cross-cutting rule.
 
+use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
+
 use iced::widget::{column, row, text, Space};
-use iced::{Element, Length, Task};
+use iced::{Element, Length, Subscription, Task};
 use mde_theme::{spacing, FontSize, Palette, TypeRole};
 
 use crate::controls::{variant_button, ButtonVariant};
+use crate::panels::sparkline::{push_sample, sparkline};
+
+/// Live-metric sample cadence. Also the nominal interval used to turn a
+/// VM's cumulative `cpu.time` (nanoseconds) into a percentage.
+const SAMPLE_SECS: f32 = 2.0;
+/// Sparkline dimensions in the instance row (kept compact — it's a trend
+/// glyph, not a chart).
+const SPARK_W: f32 = 72.0;
+const SPARK_H: f32 = 18.0;
 
 /// Whether an enumerated instance is a libvirt VM or a Podman container.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -58,9 +70,38 @@ pub struct Enumeration {
     pub sources: Vec<&'static str>,
 }
 
+/// Stable per-instance key for the metrics map (`name` alone can collide
+/// between a VM and a container).
+#[must_use]
+pub fn metric_key(kind: InstanceKind, name: &str) -> String {
+    format!("{}:{name}", kind.label())
+}
+
+/// Per-instance rolling CPU% / memory% history feeding the sparklines.
+/// `prev_cpu_ns` carries a VM's previous cumulative `cpu.time` so the
+/// next sample can be turned into a percentage by delta.
+#[derive(Debug, Clone, Default)]
+pub struct InstanceMetrics {
+    pub cpu: VecDeque<f32>,
+    pub mem: VecDeque<f32>,
+    pub prev_cpu_ns: Option<u64>,
+}
+
+/// One instance's sampled metrics for a single tick. Containers report a
+/// direct `cpu_pct`; VMs report cumulative `cpu_time_ns` (the reducer
+/// deltas it). `mem_pct` is direct for both.
+#[derive(Debug, Clone, PartialEq)]
+pub struct InstanceSample {
+    pub key: String,
+    pub cpu_pct: Option<f32>,
+    pub cpu_time_ns: Option<u64>,
+    pub mem_pct: Option<f32>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ComputePanel {
     instances: Vec<Instance>,
+    metrics: HashMap<String, InstanceMetrics>,
     status: String,
     loaded: bool,
 }
@@ -96,6 +137,11 @@ pub enum Message {
     },
     /// Apply a verb to every instance it applies to (Start all / Stop all).
     Bulk(Verb),
+    /// The 2 s metric-sampling tick (fires only while Compute is in view).
+    SampleTick,
+    /// Sampled CPU/mem for the current instances — pushed into the rolling
+    /// per-instance buffers that feed the sparklines.
+    Sampled(Vec<InstanceSample>),
 }
 
 impl ComputePanel {
@@ -147,7 +193,49 @@ impl ComputePanel {
                 )
             }
             Message::Bulk(verb) => self.bulk(verb),
+            Message::SampleTick => {
+                if self.instances.is_empty() {
+                    return Task::none();
+                }
+                let instances = self.instances.clone();
+                Task::perform(sample_metrics(instances), |s| {
+                    crate::Message::Compute(Message::Sampled(s))
+                })
+            }
+            Message::Sampled(samples) => {
+                for s in samples {
+                    let m = self.metrics.entry(s.key).or_default();
+                    // Containers report CPU% directly; VMs report cumulative
+                    // cpu.time — delta it against the previous sample.
+                    let cpu = if let Some(p) = s.cpu_pct {
+                        Some(p)
+                    } else if let Some(ns) = s.cpu_time_ns {
+                        let pct = m
+                            .prev_cpu_ns
+                            .map(|prev| cpu_percent_from_delta(prev, ns, SAMPLE_SECS));
+                        m.prev_cpu_ns = Some(ns);
+                        pct
+                    } else {
+                        None
+                    };
+                    if let Some(c) = cpu {
+                        push_sample(&mut m.cpu, c);
+                    }
+                    if let Some(mem) = s.mem_pct {
+                        push_sample(&mut m.mem, mem);
+                    }
+                }
+                Task::none()
+            }
         }
+    }
+
+    /// The metric-sampling subscription. The caller (App::subscription)
+    /// only includes it while the Compute view is active, so sampling
+    /// commands don't run when the operator is elsewhere.
+    pub fn sample_subscription() -> Subscription<crate::Message> {
+        iced::time::every(Duration::from_secs_f32(SAMPLE_SECS))
+            .map(|_| crate::Message::Compute(Message::SampleTick))
     }
 
     /// Apply `verb` to every currently-listed instance it applies to, then
@@ -241,7 +329,8 @@ impl ComputePanel {
         } else {
             let mut rows: Vec<Element<'_, crate::Message>> = vec![instance_header_row(palette)];
             for inst in &self.instances {
-                rows.push(instance_row(inst, palette));
+                let m = self.metrics.get(&metric_key(inst.kind, &inst.name));
+                rows.push(instance_row(inst, m, palette));
             }
             column(rows).spacing(f32::from(spacing::BASE[1])).into()
         };
@@ -278,6 +367,10 @@ fn instance_header_row<'a>(palette: Palette) -> Element<'a, crate::Message> {
             .size(cap)
             .color(muted)
             .width(Length::FillPortion(2)),
+        text("CPU / Mem")
+            .size(cap)
+            .color(muted)
+            .width(Length::Fixed(SPARK_W * 2.0 + f32::from(spacing::BASE[1]))),
         text("Action")
             .size(cap)
             .color(muted)
@@ -287,11 +380,41 @@ fn instance_header_row<'a>(palette: Palette) -> Element<'a, crate::Message> {
     .into()
 }
 
+/// The CPU + memory sparkline pair for one instance (CPU in the success
+/// green, memory in the accent). Empty (no samples yet) renders as blank
+/// fixed-width spacers so the column stays aligned.
+fn metric_cell<'a>(
+    metrics: Option<&InstanceMetrics>,
+    palette: Palette,
+) -> Element<'a, crate::Message> {
+    let spark = |buf: Option<&VecDeque<f32>>, color| -> Element<'a, crate::Message> {
+        match buf {
+            Some(b) if b.len() >= 2 => {
+                sparkline(b.iter().copied().collect(), color, SPARK_W, SPARK_H)
+            }
+            _ => Space::new()
+                .width(Length::Fixed(SPARK_W))
+                .height(Length::Fixed(SPARK_H))
+                .into(),
+        }
+    };
+    row![
+        spark(metrics.map(|m| &m.cpu), palette.success.into_iced_color()),
+        spark(metrics.map(|m| &m.mem), palette.accent.into_iced_color()),
+    ]
+    .spacing(f32::from(spacing::BASE[1]))
+    .into()
+}
+
 /// One instance row: name / kind / state (coloured by liveness) + a
 /// single context-appropriate lifecycle button — Start when stopped,
 /// Stop when running, nothing when paused (suspend/resume live in the
 /// detail panel, a later slice).
-fn instance_row<'a>(inst: &Instance, palette: Palette) -> Element<'a, crate::Message> {
+fn instance_row<'a>(
+    inst: &Instance,
+    metrics: Option<&InstanceMetrics>,
+    palette: Palette,
+) -> Element<'a, crate::Message> {
     let body = TypeRole::Body.size_in(FontSize::defaults());
     let state_color = if state_is_running(&inst.state) {
         palette.success
@@ -327,6 +450,8 @@ fn instance_row<'a>(inst: &Instance, palette: Palette) -> Element<'a, crate::Mes
             .size(body)
             .color(state_color.into_iced_color())
             .width(Length::FillPortion(2)),
+        iced::widget::container(metric_cell(metrics, palette))
+            .width(Length::Fixed(SPARK_W * 2.0 + f32::from(spacing::BASE[1]))),
         iced::widget::container(action_cell).width(Length::FillPortion(2)),
     ]
     .spacing(f32::from(spacing::BASE[3]))
@@ -416,6 +541,149 @@ pub fn command_for(kind: InstanceKind, verb: Verb, name: &str) -> (&'static str,
             ("podman", vec![v.to_string(), name.to_string()])
         }
     }
+}
+
+/// Turn two cumulative `cpu.time` readings (nanoseconds) `elapsed_secs`
+/// apart into a CPU percentage. A guest can exceed 100% (multiple vCPUs);
+/// the sparkline auto-scales, so the raw figure is kept. Pure.
+#[must_use]
+pub fn cpu_percent_from_delta(prev_ns: u64, now_ns: u64, elapsed_secs: f32) -> f32 {
+    if elapsed_secs <= 0.0 || now_ns < prev_ns {
+        return 0.0;
+    }
+    let delta_ns = (now_ns - prev_ns) as f32;
+    let window_ns = elapsed_secs * 1.0e9;
+    (delta_ns / window_ns * 100.0).max(0.0)
+}
+
+/// Parse a `podman`-style percent string (`"1.23%"`, with optional
+/// surrounding whitespace) into an f32. Returns `None` on garbage.
+#[must_use]
+pub fn parse_percent(s: &str) -> Option<f32> {
+    s.trim().trim_end_matches('%').trim().parse::<f32>().ok()
+}
+
+/// Parse `podman stats --no-stream --format json` into
+/// `(name, cpu_pct, mem_pct)` rows. Podman reports CPU under `CPU` and
+/// memory under `MemPerc` as percent strings. Garbage → empty. Pure.
+#[must_use]
+pub fn parse_podman_stats(stdout: &str) -> Vec<(String, Option<f32>, Option<f32>)> {
+    let Ok(rows) = serde_json::from_str::<Vec<serde_json::Value>>(stdout) else {
+        return vec![];
+    };
+    rows.into_iter()
+        .filter_map(|row| {
+            let name = row.get("Name").and_then(|v| v.as_str()).unwrap_or("");
+            if name.is_empty() {
+                return None;
+            }
+            let cpu = row
+                .get("CPU")
+                .and_then(|v| v.as_str())
+                .and_then(parse_percent);
+            let mem = row
+                .get("MemPerc")
+                .and_then(|v| v.as_str())
+                .and_then(parse_percent);
+            Some((name.to_string(), cpu, mem))
+        })
+        .collect()
+}
+
+/// Parse `virsh domstats --cpu-total --balloon` output into
+/// `(name, cpu_time_ns, mem_pct)` rows. The output is `Domain: 'name'`
+/// blocks of `key=value` lines; `cpu.time` is cumulative nanoseconds and
+/// `balloon.current`/`balloon.maximum` are KiB. Pure.
+#[must_use]
+pub fn parse_domstats_cpu_mem(stdout: &str) -> Vec<(String, Option<u64>, Option<f32>)> {
+    let mut out: Vec<(String, Option<u64>, Option<f32>)> = Vec::new();
+    let mut name: Option<String> = None;
+    let mut cpu_ns: Option<u64> = None;
+    let mut bal_cur: Option<u64> = None;
+    let mut bal_max: Option<u64> = None;
+    let flush = |name: &mut Option<String>,
+                 cpu_ns: &mut Option<u64>,
+                 bal_cur: &mut Option<u64>,
+                 bal_max: &mut Option<u64>,
+                 out: &mut Vec<(String, Option<u64>, Option<f32>)>| {
+        if let Some(n) = name.take() {
+            let mem = match (*bal_cur, *bal_max) {
+                (Some(c), Some(m)) if m > 0 => {
+                    Some((c as f32 / m as f32 * 100.0).clamp(0.0, 100.0))
+                }
+                _ => None,
+            };
+            out.push((n, *cpu_ns, mem));
+        }
+        *cpu_ns = None;
+        *bal_cur = None;
+        *bal_max = None;
+    };
+    for line in stdout.lines() {
+        let t = line.trim();
+        if let Some(rest) = t.strip_prefix("Domain:") {
+            flush(&mut name, &mut cpu_ns, &mut bal_cur, &mut bal_max, &mut out);
+            name = Some(rest.trim().trim_matches('\'').to_string());
+        } else if let Some(v) = t.strip_prefix("cpu.time=") {
+            cpu_ns = v.trim().parse::<u64>().ok();
+        } else if let Some(v) = t.strip_prefix("balloon.current=") {
+            bal_cur = v.trim().parse::<u64>().ok();
+        } else if let Some(v) = t.strip_prefix("balloon.maximum=") {
+            bal_max = v.trim().parse::<u64>().ok();
+        }
+    }
+    flush(&mut name, &mut cpu_ns, &mut bal_cur, &mut bal_max, &mut out);
+    out
+}
+
+/// Sample CPU/mem for the given instances: one `podman stats` call covers
+/// every container, one `virsh domstats` call covers every running domain.
+/// Missing tools / stopped instances simply produce no sample (a flat
+/// sparkline), never an error.
+async fn sample_metrics(instances: Vec<Instance>) -> Vec<InstanceSample> {
+    let mut samples = Vec::new();
+
+    let want_containers = instances.iter().any(|i| i.kind == InstanceKind::Container);
+    let want_vms = instances.iter().any(|i| i.kind == InstanceKind::Vm);
+
+    if want_containers {
+        if let Some(stdout) =
+            run_query("podman", &["stats", "--no-stream", "--format", "json"]).await
+        {
+            for (name, cpu, mem) in parse_podman_stats(&stdout) {
+                samples.push(InstanceSample {
+                    key: metric_key(InstanceKind::Container, &name),
+                    cpu_pct: cpu,
+                    cpu_time_ns: None,
+                    mem_pct: mem,
+                });
+            }
+        }
+    }
+    if want_vms {
+        if let Some(stdout) = run_query(
+            "virsh",
+            &[
+                "-c",
+                "qemu:///system",
+                "domstats",
+                "--cpu-total",
+                "--balloon",
+            ],
+        )
+        .await
+        {
+            for (name, cpu_ns, mem) in parse_domstats_cpu_mem(&stdout) {
+                samples.push(InstanceSample {
+                    key: metric_key(InstanceKind::Vm, &name),
+                    cpu_pct: None,
+                    cpu_time_ns: cpu_ns,
+                    mem_pct: mem,
+                });
+            }
+        }
+    }
+    samples
 }
 
 /// Parse `virsh list --all` table output into `(name, state)` pairs.
@@ -698,5 +966,95 @@ mod tests {
         let _ = panel.bulk(Verb::Start);
         let _ = panel.bulk(Verb::Stop);
         let _: Element<'_, crate::Message> = panel.view();
+    }
+
+    #[test]
+    fn cpu_percent_from_delta_computes_and_guards() {
+        // 2e9 ns of CPU over a 2 s window = 100%.
+        assert!((cpu_percent_from_delta(0, 2_000_000_000, 2.0) - 100.0).abs() < 0.01);
+        // Counter reset / decreasing → 0, not negative.
+        assert_eq!(cpu_percent_from_delta(5, 1, 2.0), 0.0);
+        // Zero window → 0 (no divide-by-zero).
+        assert_eq!(cpu_percent_from_delta(0, 100, 0.0), 0.0);
+    }
+
+    #[test]
+    fn parse_percent_strips_suffix() {
+        assert_eq!(parse_percent(" 1.50% "), Some(1.5));
+        assert_eq!(parse_percent("0%"), Some(0.0));
+        assert_eq!(parse_percent("n/a"), None);
+    }
+
+    #[test]
+    fn parse_podman_stats_reads_cpu_and_mem() {
+        let out = r#"[{"Name":"web","CPU":"1.50%","MemPerc":"2.00%"},
+                      {"Name":"db","CPU":"0.00%","MemPerc":"5.00%"}]"#;
+        let got = parse_podman_stats(out);
+        assert_eq!(got.len(), 2);
+        assert_eq!(got[0], ("web".to_string(), Some(1.5), Some(2.0)));
+        assert_eq!(got[1].2, Some(5.0));
+    }
+
+    #[test]
+    fn parse_podman_stats_garbage_is_empty() {
+        assert!(parse_podman_stats("oops").is_empty());
+    }
+
+    #[test]
+    fn parse_domstats_splits_domains_and_computes_mem() {
+        let out = "Domain: 'fedora-vm'\n\
+                   \x20 cpu.time=12345\n\
+                   \x20 balloon.current=2097152\n\
+                   \x20 balloon.maximum=4194304\n\
+                   Domain: 'build-box'\n\
+                   \x20 cpu.time=999\n";
+        let got = parse_domstats_cpu_mem(out);
+        assert_eq!(got.len(), 2);
+        assert_eq!(got[0].0, "fedora-vm");
+        assert_eq!(got[0].1, Some(12345));
+        let mem0 = got[0].2.expect("fedora-vm has balloon mem%");
+        assert!((mem0 - 50.0).abs() < 0.01); // 2097152/4194304 = 50%
+        assert_eq!(got[1].0, "build-box");
+        assert_eq!(got[1].2, None); // no balloon data
+    }
+
+    #[test]
+    fn sampled_pushes_into_buffers_and_deltas_vm_cpu() {
+        let mut panel = ComputePanel::new();
+        let key = metric_key(InstanceKind::Vm, "vm");
+        // First VM sample establishes the baseline (no % yet).
+        let _ = panel.update(Message::Sampled(vec![InstanceSample {
+            key: key.clone(),
+            cpu_pct: None,
+            cpu_time_ns: Some(0),
+            mem_pct: Some(40.0),
+        }]));
+        // Second sample deltas to a CPU %.
+        let _ = panel.update(Message::Sampled(vec![InstanceSample {
+            key: key.clone(),
+            cpu_pct: None,
+            cpu_time_ns: Some(2_000_000_000),
+            mem_pct: Some(42.0),
+        }]));
+        let m = panel.metrics.get(&key).expect("metrics recorded");
+        assert_eq!(m.cpu.len(), 1, "one delta CPU sample after two readings");
+        let cpu = m.cpu.back().copied().expect("a CPU sample");
+        assert!((cpu - 100.0).abs() < 0.01);
+        assert_eq!(m.mem.len(), 2, "both mem readings pushed");
+    }
+
+    #[test]
+    fn sampled_container_uses_direct_cpu() {
+        let mut panel = ComputePanel::new();
+        let key = metric_key(InstanceKind::Container, "web");
+        let _ = panel.update(Message::Sampled(vec![InstanceSample {
+            key: key.clone(),
+            cpu_pct: Some(3.0),
+            cpu_time_ns: None,
+            mem_pct: Some(1.0),
+        }]));
+        let m = panel.metrics.get(&key).expect("metrics recorded");
+        assert_eq!(m.cpu.back().copied(), Some(3.0));
+        assert_eq!(m.mem.back().copied(), Some(1.0));
     }
 }

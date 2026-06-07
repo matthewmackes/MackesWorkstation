@@ -53,6 +53,7 @@ pub mod service_publishing;
 pub mod session;
 pub mod snapshots;
 pub mod sound;
+pub mod sparkline;
 pub mod sync_status;
 pub mod system_update;
 pub mod themes;
