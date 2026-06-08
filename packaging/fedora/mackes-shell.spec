@@ -69,7 +69,7 @@ Recommends:     ibm-plex-mono-fonts
 
 %description
 Mackes Workstation (MDE) is the native-Rust mesh operating environment: a
-multiplexed shell (Win2000 / IBM Carbon / Windows 10 / BeOS looks) over labwc,
+multiplexed shell with a strict IBM Carbon look (Gray 10 / 90 / 100) over labwc,
 the mackesd control plane with the mde-bus backbone, the Nebula encrypted
 overlay, LizardFS mesh-storage, and the native KDE Connect host. One install,
 an install-time role chooser (Lighthouse / Server / Workstation).
@@ -88,6 +88,22 @@ if [ ! -s DISCLAIMER.md ]; then
     exit 1
 fi
 echo "mde-core: DISCLAIMER.md pre-flight gate passed ($(wc -c < DISCLAIMER.md) bytes)."
+
+# E8.5 #3 — held-release guard. The RPM is HELD until the preceding E8 gates
+# (E8.1 accuracy/gallery, E8.4 runtime-reachability/no-stubs) report green; the
+# operator releases the hold by exporting MDE_RELEASE_READY=1 ONLY after
+# confirming them. The default-held posture means a stray `rpmbuild` can't emit
+# a release artifact before the platform is verified (CLAUDE.md §7). E8.2
+# (disclaimer) and E8.3 (clippy-deny/fmt/test green) are already satisfied;
+# E8.1 + E8.4 are display-bench / E3 (LizardFS) gated.
+if [ "${MDE_RELEASE_READY:-0}" != "1" ]; then
+    echo "ERROR: RPM build is HELD (E8.5 #3 release gate)." >&2
+    echo "       Held pending the E8.1 (accuracy/gallery) + E8.4 (runtime-" >&2
+    echo "       reachability, E3/LizardFS-gated) sign-off. Export" >&2
+    echo "       MDE_RELEASE_READY=1 to release the hold once they are green." >&2
+    exit 1
+fi
+echo "mde-core: held-release guard cleared (MDE_RELEASE_READY=1)."
 
 %build
 # The whole workspace, release mode. (.cargo/config.toml carries the CMake-4
