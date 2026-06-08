@@ -195,46 +195,42 @@ impl RecordingSurfaces {
     /// fired through that surface, in call order.
     #[must_use]
     pub fn log_silent_ulids(&self) -> Vec<String> {
-        self.inner.lock().unwrap().log_silent.clone()
+        self.lock().log_silent.clone()
     }
     #[must_use]
     pub fn tray_and_badge_ulids(&self) -> Vec<String> {
-        self.inner.lock().unwrap().tray_and_badge.clone()
+        self.lock().tray_and_badge.clone()
     }
     #[must_use]
     pub fn status_strip_and_sound_ulids(&self) -> Vec<String> {
-        self.inner.lock().unwrap().status_strip_and_sound.clone()
+        self.lock().status_strip_and_sound.clone()
     }
     #[must_use]
     pub fn theater_wallpaper_phone_ulids(&self) -> Vec<String> {
-        self.inner.lock().unwrap().theater_wallpaper_phone.clone()
+        self.lock().theater_wallpaper_phone.clone()
+    }
+
+    /// Lock the recording state, recovering the guard if a prior holder
+    /// panicked (poison) rather than cascading the panic (E8.3 — no `unwrap`).
+    fn lock(&self) -> std::sync::MutexGuard<'_, RecordingState> {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
 impl Surfaces for RecordingSurfaces {
     fn log_silent(&self, msg: &StoredMessage) {
-        self.inner.lock().unwrap().log_silent.push(msg.ulid.clone());
+        self.lock().log_silent.push(msg.ulid.clone());
     }
     fn tray_and_badge(&self, msg: &StoredMessage) {
-        self.inner
-            .lock()
-            .unwrap()
-            .tray_and_badge
-            .push(msg.ulid.clone());
+        self.lock().tray_and_badge.push(msg.ulid.clone());
     }
     fn status_strip_and_sound(&self, msg: &StoredMessage) {
-        self.inner
-            .lock()
-            .unwrap()
-            .status_strip_and_sound
-            .push(msg.ulid.clone());
+        self.lock().status_strip_and_sound.push(msg.ulid.clone());
     }
     fn theater_wallpaper_phone(&self, msg: &StoredMessage) {
-        self.inner
-            .lock()
-            .unwrap()
-            .theater_wallpaper_phone
-            .push(msg.ulid.clone());
+        self.lock().theater_wallpaper_phone.push(msg.ulid.clone());
     }
 }
 

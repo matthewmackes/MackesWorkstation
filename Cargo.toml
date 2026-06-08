@@ -80,9 +80,12 @@ unused_must_use = "deny"
 [workspace.lints.clippy]
 pedantic    = { level = "warn", priority = -1 }
 nursery     = { level = "warn", priority = -1 }
-unwrap_used = "warn"
+# E8.3 — promoted to deny: no panicking `.unwrap()` / no `todo!()` stub markers
+# survive into the held release. Test code is exempt via clippy.toml
+# (`allow-unwrap-in-tests`). `panic` stays warn (deliberate `panic!`s exist).
+unwrap_used = "deny"
 panic       = "warn"
-todo        = "warn"
+todo        = "deny"
 
 [profile.release]
 opt-level = "z"

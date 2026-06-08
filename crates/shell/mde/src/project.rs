@@ -228,19 +228,22 @@ fn view(state: &Project) -> Element<'_, Message> {
         col = col.push(mode_button(mode));
     }
 
-    let card = container(col.spacing(metrics::SPACING_03).padding(metrics::SPACING_05))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_: &iced::Theme| container::Style {
-            background: Some(palette::color(palette::WINDOW).into()),
-            text_color: Some(palette::color(palette::WINDOW_TEXT)),
-            border: iced::Border {
-                color: palette::color(palette::WINDOW_FRAME),
-                width: 1.0,
-                radius: 0.0.into(),
-            },
-            ..Default::default()
-        });
+    let card = container(
+        col.spacing(metrics::SPACING_03)
+            .padding(metrics::SPACING_05),
+    )
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(|_: &iced::Theme| container::Style {
+        background: Some(palette::color(palette::WINDOW).into()),
+        text_color: Some(palette::color(palette::WINDOW_TEXT)),
+        border: iced::Border {
+            color: palette::color(palette::WINDOW_FRAME),
+            width: 1.0,
+            radius: 0.0.into(),
+        },
+        ..Default::default()
+    });
     container(card)
         .width(Length::Fill)
         .height(Length::Fill)

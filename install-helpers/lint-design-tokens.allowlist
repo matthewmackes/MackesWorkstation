@@ -157,9 +157,9 @@ crates/shell/mde-panel/src/top_bar.rs:17
 crates/shell/mde-panel/src/top_bar.rs:507
 crates/shell/mde-popover/src/hostname_info.rs:302
 crates/shell/mde-popover/src/lock.rs:570
-crates/shell/mde-popover/src/network.rs:974
 crates/shell/mde-popover/src/network.rs:975
 crates/shell/mde-popover/src/network.rs:976
+crates/shell/mde-popover/src/network.rs:977
 crates/shell/mde-popover/src/toasts.rs:371
 crates/shell/mde-popover/src/toasts.rs:372
 crates/shell/mde-popover/src/toasts.rs:373

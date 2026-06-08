@@ -110,13 +110,15 @@ pub fn validate(snapshot: &DesiredSnapshot) -> Vec<ValidationError> {
             errors.push(ValidationError::UnknownSettingKey { key: key.clone() });
             continue;
         };
-        let value: Result<serde_json::Value, _> = serde_json::from_str(value_json);
-        let Ok(value) = value else {
-            errors.push(ValidationError::InvalidSettingValue {
-                key: key.clone(),
-                reason: value.unwrap_err().to_string(),
-            });
-            continue;
+        let value = match serde_json::from_str::<serde_json::Value>(value_json) {
+            Ok(value) => value,
+            Err(e) => {
+                errors.push(ValidationError::InvalidSettingValue {
+                    key: key.clone(),
+                    reason: e.to_string(),
+                });
+                continue;
+            }
         };
         if let Err(reason) = settings_value_shape_matches(parsed_key, &value) {
             errors.push(ValidationError::InvalidSettingValue {

@@ -366,7 +366,10 @@ impl MeshFsWorker {
             for cs_ip in &current_peers {
                 if !enrolled_set.contains(cs_ip.as_str()) {
                     let already = {
-                        let guard = self.evicted_ips.lock().unwrap();
+                        let guard = self
+                            .evicted_ips
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner);
                         guard.contains(cs_ip)
                     };
                     if !already {
@@ -386,7 +389,10 @@ impl MeshFsWorker {
                         let argv = evict_argv(&self.admin_binary, &self.vip, cs_ip);
                         tracing::info!(target: "mackesd::meshfs_worker", argv = ?argv, "evicting chunkserver");
                         let _ = run_argv(&argv);
-                        self.evicted_ips.lock().unwrap().insert(cs_ip.clone());
+                        self.evicted_ips
+                            .lock()
+                            .unwrap_or_else(std::sync::PoisonError::into_inner)
+                            .insert(cs_ip.clone());
                         publish_meshfs_event(
                             "meshfs/peer-state-changed",
                             &format!(r#"{{"op":"removed","ip":"{cs_ip}"}}"#),
@@ -492,7 +498,10 @@ impl MeshFsWorker {
             .unwrap_or_default()
             .as_secs();
         {
-            let mut guard = self.last_quota_s.lock().unwrap();
+            let mut guard = self
+                .last_quota_s
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if now_s.saturating_sub(*guard) < DEFAULT_QUOTA_TICK.as_secs() {
                 return;
             }

@@ -838,7 +838,8 @@ fn nmcli_split(line: &str) -> Vec<String> {
         if c == '\\' {
             if let Some(&next) = chars.peek() {
                 if next == ':' || next == '\\' {
-                    cur.push(chars.next().unwrap());
+                    chars.next(); // consume the char we just peeked
+                    cur.push(next);
                     continue;
                 }
             }
