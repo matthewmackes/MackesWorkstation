@@ -196,11 +196,11 @@ crates/workbench/mde-workbench/src/panels/drift.rs:46
 crates/workbench/mde-workbench/src/panels/health_check.rs:205
 crates/workbench/mde-workbench/src/panels/health_check.rs:206
 crates/workbench/mde-workbench/src/panels/health_check.rs:207
-crates/workbench/mde-workbench/src/panels/home.rs:101
-crates/workbench/mde-workbench/src/panels/home.rs:102
-crates/workbench/mde-workbench/src/panels/home.rs:103
 crates/workbench/mde-workbench/src/panels/home.rs:104
-crates/workbench/mde-workbench/src/panels/home.rs:1280
+crates/workbench/mde-workbench/src/panels/home.rs:105
+crates/workbench/mde-workbench/src/panels/home.rs:106
+crates/workbench/mde-workbench/src/panels/home.rs:107
+crates/workbench/mde-workbench/src/panels/home.rs:1487
 crates/workbench/mde-workbench/src/panels/mesh_control.rs:328
 crates/workbench/mde-workbench/src/panels/mesh_control.rs:340
 crates/workbench/mde-workbench/src/panels/mesh_pending.rs:297

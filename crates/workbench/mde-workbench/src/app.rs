@@ -125,6 +125,11 @@ pub enum Message {
     /// Devices launcher panels (mouse/keyboard/displays) that delegate
     /// to Settings instead of duplicating the libinput controls.
     OpenSettingsPage(&'static str, &'static str),
+    /// Launch a standalone MDE app by binary name, detached. Fired by
+    /// Overview capability rows whose config surface is its own app
+    /// rather than a Workbench panel (e.g. Voice & Video →
+    /// `mde-voice-config`). The binary resolves on PATH post-install.
+    LaunchApp(&'static str),
     /// CB-1.4.b — Devices sound panel Refresh button. Re-runs
     /// the panel's Load so a freshly-plugged speaker shows up
     /// in the picker without the user having to navigate
@@ -733,6 +738,18 @@ impl App {
                     cmd.arg(slug);
                 }
                 let _ = cmd
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .spawn();
+                Task::none()
+            }
+            Message::LaunchApp(bin) => {
+                // Detached best-effort spawn, mirroring OpenSettings. The
+                // binary resolves on PATH post-install; a missing binary
+                // (dev tree without an install) fails silently rather than
+                // panicking the Workbench.
+                let _ = std::process::Command::new(bin)
                     .stdin(std::process::Stdio::null())
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())

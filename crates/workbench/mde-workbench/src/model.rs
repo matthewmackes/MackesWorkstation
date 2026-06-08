@@ -290,6 +290,12 @@ pub fn nav_model() -> Vec<NavEntry> {
                 Panel::new("mesh_ssh", "Mesh SSH"),
                 Panel::new("mesh_topology", "Mesh Topology"),
                 Panel::new("mesh_services", "Mesh Services"),
+                // MESHFS-13.1 (v5.0.0) — Mesh Storage panel (per-peer
+                // chunkserver status). Already wired in app.rs's panel
+                // router + reached by the Overview's File Sharing row;
+                // listed here so `--focus network.mesh_storage` resolves
+                // and the curated label renders.
+                Panel::new("mesh_storage", "Mesh Storage"),
                 Panel::new("network_hosts", "Network Hosts"),
                 Panel::new("mesh_bus", "Mackes Bus"),
                 Panel::new("mesh_federation", "Mesh Federation"),
