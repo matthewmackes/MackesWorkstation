@@ -35,12 +35,13 @@ use anyhow::Context;
 use tokio::process::Command;
 use tokio::signal::unix::{signal, SignalKind};
 
-/// MDE-shipped labwc config DIR. Falls back here when the operator has no
-/// per-user config at `~/.config/labwc/` (the failure mode that landed
-/// operators in an empty / stock labwc session on fresh installs). labwc
-/// reads `{rc.xml,menu.xml,autostart,themerc}` from this directory. This is
-/// the same tree the RPM ships as the skel (see crates/shell/mde Cargo.toml
-/// generate-rpm assets), reused as the system fallback.
+/// MDE-shipped labwc config DIR. Two roles: (a) the `-C` fallback when the
+/// operator has no per-user config at `~/.config/labwc/` at all, and (b) the
+/// SEED source — `seed_user_labwc_config` copies any of its files MISSING from
+/// the user dir into it before launch (see that fn for the regression it
+/// fixes). labwc reads `{rc.xml,menu.xml,autostart,themerc}` from this
+/// directory. This is the same tree the RPM ships as the skel (see
+/// crates/shell/mde Cargo.toml generate-rpm assets).
 const SYSTEM_LABWC_CONFIG_DIR: &str = "/usr/share/mde/skel/.config/labwc";
 
 /// Compositor command. Defaults to `labwc` (wayland feature, the locked
@@ -97,6 +98,62 @@ fn labwc_config_args(
     ]
 }
 
+/// Recursively copy every file under `system_dir` that is ABSENT from
+/// `user_dir` into `user_dir`, preserving the source's permission bits
+/// (`std::fs::copy` carries the mode, so `autostart` + `scripts/*.sh` keep
+/// their exec bit). Never overwrites an existing user file. Returns the count
+/// copied.
+///
+/// This is the fix for the second-login black-desktop regression: the
+/// `labwc -C <system skel>` fallback only fires when `~/.config/labwc/` is
+/// **wholly** absent, but `mde panel` (`sync_root_menu` writes `menu.xml`),
+/// `mouse.rs` (`rc.xml`) and `keyboard.rs` (`environment`) each create that dir
+/// holding only THEIR one file. After any of them runs once, labwc reads a
+/// PARTIAL user dir — missing the `autostart` that launches `mde panel` — so
+/// the desktop comes up black with only labwc's stock menu. Seeding makes the
+/// user dir self-complete, so labwc always finds the autostart regardless of
+/// which tool touched the dir first. Pure over the two paths; unit-tested.
+fn seed_missing_files(system_dir: &Path, user_dir: &Path) -> std::io::Result<usize> {
+    if !system_dir.is_dir() {
+        return Ok(0);
+    }
+    let mut copied = 0;
+    for entry in std::fs::read_dir(system_dir)? {
+        let entry = entry?;
+        let src = entry.path();
+        let dst = user_dir.join(entry.file_name());
+        if src.is_dir() {
+            copied += seed_missing_files(&src, &dst)?;
+        } else if !dst.exists() {
+            std::fs::create_dir_all(user_dir)?;
+            std::fs::copy(&src, &dst)?;
+            copied += 1;
+        }
+    }
+    Ok(copied)
+}
+
+/// Seed the user's `~/.config/labwc/` from the system skel before launch (see
+/// [`seed_missing_files`]). No-op for non-labwc compositors; never fatal — a
+/// failure just leaves the `-C` fallback to do what it can.
+fn seed_user_labwc_config(compositor: &str) {
+    if compositor != "labwc" {
+        return;
+    }
+    let Some(user_dir) = user_labwc_config_dir() else {
+        return;
+    };
+    match seed_missing_files(Path::new(SYSTEM_LABWC_CONFIG_DIR), &user_dir) {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(
+            count = n,
+            "mde-session: seeded {n} missing labwc skel file(s) into {}",
+            user_dir.display()
+        ),
+        Err(e) => tracing::warn!("mde-session: seeding labwc skel into user config failed: {e}"),
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
@@ -144,6 +201,10 @@ async fn main() -> anyhow::Result<()> {
 
     // 3. Exec the compositor.
     let cmp = compositor_cmd();
+    // Complete the user's ~/.config/labwc from the system skel first, so a
+    // partial dir left by `mde panel`/`mouse`/`keyboard` (which would otherwise
+    // mask the autostart) still boots a full desktop. See seed_missing_files.
+    seed_user_labwc_config(&cmp);
     let user_cfg = user_labwc_config_dir();
     let extra_args = labwc_config_args(
         &cmp,
@@ -243,5 +304,86 @@ mod tests {
     #[test]
     fn system_labwc_config_dir_constant_points_at_install_path() {
         assert_eq!(SYSTEM_LABWC_CONFIG_DIR, "/usr/share/mde/skel/.config/labwc");
+    }
+
+    /// The regression: a partial user dir (only `menu.xml`, as `mde panel`
+    /// leaves it) gets `autostart` + nested `scripts/*` seeded in, while the
+    /// pre-existing `menu.xml` is preserved verbatim.
+    #[test]
+    fn seed_completes_a_partial_user_dir_without_clobbering() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let system = tmp.path().join("system");
+        std::fs::create_dir_all(system.join("scripts")).unwrap();
+        std::fs::write(system.join("autostart"), b"mde panel &\n").unwrap();
+        std::fs::write(system.join("menu.xml"), b"<system-menu/>").unwrap();
+        std::fs::write(system.join("rc.xml"), b"<rc/>").unwrap();
+        std::fs::write(system.join("scripts/brightness.sh"), b"#!/bin/sh\n").unwrap();
+
+        // User has only their own customised menu.xml (the panel-generated file).
+        let user = tmp.path().join("user");
+        std::fs::create_dir_all(&user).unwrap();
+        std::fs::write(user.join("menu.xml"), b"<user-menu/>").unwrap();
+
+        let copied = seed_missing_files(&system, &user).expect("seed");
+        assert_eq!(copied, 3, "autostart + rc.xml + scripts/brightness.sh");
+        assert_eq!(
+            std::fs::read(user.join("menu.xml")).unwrap(),
+            b"<user-menu/>",
+            "the user's menu.xml must NOT be overwritten"
+        );
+        assert!(user.join("autostart").is_file());
+        assert!(user.join("scripts/brightness.sh").is_file());
+
+        // Second run is a clean no-op — everything is now present.
+        assert_eq!(seed_missing_files(&system, &user).expect("re-seed"), 0);
+    }
+
+    /// A wholly-absent user dir is created and fully populated from the skel.
+    #[test]
+    fn seed_creates_user_dir_when_absent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let system = tmp.path().join("system");
+        std::fs::create_dir_all(&system).unwrap();
+        std::fs::write(system.join("autostart"), b"mde panel &\n").unwrap();
+        let user = tmp.path().join("nonexistent/labwc");
+
+        let copied = seed_missing_files(&system, &user).expect("seed");
+        assert_eq!(copied, 1);
+        assert!(user.join("autostart").is_file());
+    }
+
+    /// Missing system skel is a silent no-op (dev box with no RPM installed).
+    #[test]
+    fn seed_noop_when_system_skel_absent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let system = tmp.path().join("does-not-exist");
+        let user = tmp.path().join("user");
+        assert_eq!(seed_missing_files(&system, &user).expect("seed"), 0);
+        assert!(
+            !user.exists(),
+            "no user dir conjured when there's nothing to seed"
+        );
+    }
+
+    /// `std::fs::copy` carries the source mode, so a seeded `autostart` keeps
+    /// its exec bit — labwc requires it to be runnable.
+    #[cfg(unix)]
+    #[test]
+    fn seed_preserves_executable_bit() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let system = tmp.path().join("system");
+        std::fs::create_dir_all(&system).unwrap();
+        let src = system.join("autostart");
+        std::fs::write(&src, b"#!/bin/sh\nmde panel &\n").unwrap();
+        std::fs::set_permissions(&src, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let user = tmp.path().join("user");
+        seed_missing_files(&system, &user).expect("seed");
+        let mode = std::fs::metadata(user.join("autostart"))
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o111, 0o111, "exec bits must survive the copy");
     }
 }
