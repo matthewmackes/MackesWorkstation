@@ -27,8 +27,8 @@ crates/mesh/mackesd/src/workers/subprocess_tick.rs:220
 crates/mesh/mackesd/src/workers/workspace_namer.rs:33
 crates/platform/mde-bus/src/rpc.rs:45
 crates/platform/mde-bus/src/subs.rs:58
-crates/shell/mde-popover/src/toasts.rs:529
-crates/shell/mde-popover/src/toasts.rs:530
+crates/shell/mde-popover/src/toasts.rs:525
+crates/shell/mde-popover/src/toasts.rs:526
 # 2026-06-04 — E0.3.6: the `mde connect` Bus responder's poll-tick cadence
 #   (how often it sweeps action/connect/devices for new roster queries), a
 #   NON-animation Duration per this gate's own carve-out — not a UI motion.

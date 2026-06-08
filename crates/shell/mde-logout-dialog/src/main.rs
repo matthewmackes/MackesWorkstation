@@ -23,12 +23,9 @@
 
 use std::cell::Cell;
 
-use std::path::PathBuf;
-
 use clap::Parser;
 use iced::widget::{button, column, container, row, text, Space};
 use iced::{Alignment, Color, Element, Length, Size, Task, Theme};
-use mackes_theme::{apply_preset_accent, parse_tokens, token_value};
 
 use mde_logout_dialog::{
     body, cancel_button_label, exit_code, primary_button_label, title, Action, Choice,
@@ -60,46 +57,28 @@ thread_local! {
     static OUTCOME: Cell<Choice> = const { Cell::new(Choice::Cancel) };
 }
 
+/// The dialog theme — the canonical IBM Carbon dark palette, sourced from
+/// `mde_theme::Palette::dark()` (E9.9, §1 — no raw values here). The old
+/// `tokens.css` read is gone: that file is the Material-indigo GTK-era palette
+/// (and shared), so seeding from it gave this dialog a non-Carbon look.
 fn load_theme() -> Theme {
-    let candidates = [
-        PathBuf::from("/usr/share/mde/css/tokens.css"),
-        PathBuf::from("/usr/share/mde/data/css/tokens.css"),
-        PathBuf::from("data/css/tokens.css"),
-        PathBuf::from("../../data/css/tokens.css"),
-    ];
-    for path in &candidates {
-        if let Ok(css) = std::fs::read_to_string(path) {
-            let mut tokens = parse_tokens(&css);
-            apply_preset_accent(&mut tokens);
-            return theme_from_tokens(&tokens);
-        }
-    }
-    Theme::Dark
-}
-
-fn theme_from_tokens(tokens: &mackes_theme::TokenTable) -> Theme {
-    let mut palette = iced::theme::Palette {
-        background: Color::from_rgb8(0x1a, 0x1a, 0x1a),
-        text: Color::from_rgb8(0xcc, 0xcc, 0xcc),
-        primary: Color::from_rgb8(0xff, 0x77, 0x00),
-        success: Color::from_rgb8(0x3e, 0x86, 0x35),
-        danger: Color::from_rgb8(0xc9, 0x19, 0x0b),
+    let c = mde_theme::Palette::dark();
+    let to = |x: mde_theme::Rgba| Color {
+        r: f32::from(x.r) / 255.0,
+        g: f32::from(x.g) / 255.0,
+        b: f32::from(x.b) / 255.0,
+        a: 1.0,
     };
-    let seeds: &[(&str, fn(&mut iced::theme::Palette, Color))] = &[
-        ("cds_bg_default", |p, c| p.background = c),
-        ("cds_text_primary", |p, c| p.text = c),
-        ("mackes_accent", |p, c| p.primary = c),
-        ("cds_support_success", |p, c| p.success = c),
-        ("cds_support_error", |p, c| p.danger = c),
-    ];
-    for (name, setter) in seeds {
-        if let Some(val) = token_value(tokens, name) {
-            if let Some((r, g, b, _)) = mackes_theme::parse_hex_color(val) {
-                setter(&mut palette, Color::from_rgb8(r, g, b));
-            }
-        }
-    }
-    Theme::custom("MDE".to_string(), palette)
+    Theme::custom(
+        "MDE".to_string(),
+        iced::theme::Palette {
+            background: to(c.background),
+            text: to(c.text),
+            primary: to(c.accent),
+            success: to(c.success),
+            danger: to(c.danger),
+        },
+    )
 }
 
 fn main() -> iced::Result {

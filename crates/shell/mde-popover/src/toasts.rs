@@ -236,39 +236,31 @@ const FG_TEXT: Color = Color {
     b: 0.957,
     a: 1.0,
 };
+// Carbon Gray 100 toast surface, at 95% alpha (the wlr-layer surface stays
+// slightly translucent over the wallpaper). E9.9 — §1 Carbon.
 const SURFACE_BG: Color = Color {
-    r: 0.055,
-    g: 0.055,
-    b: 0.063,
+    r: 0.086,
+    g: 0.086,
+    b: 0.086,
     a: 0.95,
 };
 
 fn pill_accent(kind: ToastKind) -> Color {
+    // E9.9 — the per-kind toast accent stripe sourced from the canonical IBM
+    // Carbon dark palette (§1/§2.1, no raw values here): Blue / Green / Yellow /
+    // Red.
+    let c = mde_theme::Palette::dark();
+    let to = |x: mde_theme::Rgba| Color {
+        r: f32::from(x.r) / 255.0,
+        g: f32::from(x.g) / 255.0,
+        b: f32::from(x.b) / 255.0,
+        a: 1.0,
+    };
     match kind {
-        ToastKind::Info => Color {
-            r: 0.169,
-            g: 0.604,
-            b: 0.953,
-            a: 1.0,
-        },
-        ToastKind::Success => Color {
-            r: 0.224,
-            g: 0.741,
-            b: 0.388,
-            a: 1.0,
-        },
-        ToastKind::Warn => Color {
-            r: 0.949,
-            g: 0.694,
-            b: 0.247,
-            a: 1.0,
-        },
-        ToastKind::Error => Color {
-            r: 0.98,
-            g: 0.31,
-            b: 0.34,
-            a: 1.0,
-        },
+        ToastKind::Info => to(c.accent),
+        ToastKind::Success => to(c.success),
+        ToastKind::Warn => to(c.warning),
+        ToastKind::Error => to(c.danger),
     }
 }
 
@@ -357,20 +349,24 @@ fn app_theme(_state: &App) -> Theme {
     // the panel when the toast stack was empty. wlr-layer-
     // shell respects alpha so the operator sees the
     // wallpaper through the surface in that idle state.
+    // E9.9 — source the accent + status roles from the canonical IBM Carbon
+    // dark palette (§1) instead of the retired indigo/amber literals.
+    let carbon = mde_theme::Palette::dark();
+    let to_color = |c: mde_theme::Rgba| Color {
+        r: f32::from(c.r) / 255.0,
+        g: f32::from(c.g) / 255.0,
+        b: f32::from(c.b) / 255.0,
+        a: 1.0,
+    };
     Theme::custom(
         "mde-popover-toasts",
         iced::theme::Palette {
             background: Color::TRANSPARENT,
             text: FG_TEXT,
-            primary: Color {
-                r: 0.36,
-                g: 0.42,
-                b: 0.96,
-                a: 1.0,
-            },
-            warning: Color::from_rgb(0.96, 0.65, 0.14),
-            success: Color::from_rgb(0.20, 0.80, 0.40),
-            danger: Color::from_rgb(0.92, 0.32, 0.30),
+            primary: to_color(carbon.accent), // Carbon Blue 60
+            warning: to_color(carbon.warning),
+            success: to_color(carbon.success),
+            danger: to_color(carbon.danger),
         },
     )
 }

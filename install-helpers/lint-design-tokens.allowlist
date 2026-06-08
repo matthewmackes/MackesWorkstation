@@ -130,12 +130,6 @@ crates/shared/mde-theme/src/accessibility.rs:18
 crates/shared/mde-theme/src/color.rs:83
 crates/shared/mde-theme/src/color.rs:92
 crates/shared/mde-theme/src/color.rs:93
-crates/shell/mde-logout-dialog/src/main.rs:82
-crates/shell/mde-logout-dialog/src/main.rs:83
-crates/shell/mde-logout-dialog/src/main.rs:84
-crates/shell/mde-logout-dialog/src/main.rs:85
-crates/shell/mde-logout-dialog/src/main.rs:86
-crates/shell/mde-logout-dialog/src/main.rs:98
 crates/shell/mde-panel/src/theme.rs:130
 crates/shell/mde-panel/src/theme.rs:131
 crates/shell/mde-panel/src/theme.rs:132

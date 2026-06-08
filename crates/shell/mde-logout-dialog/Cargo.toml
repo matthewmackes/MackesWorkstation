@@ -26,7 +26,7 @@ path = "src/main.rs"
 # member via mde-files). Same feature set so we share its dep tree.
 iced         = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "tokio", "advanced"] }
 clap         = { version = "4.5", features = ["derive"] }
-mackes-theme = { path = "../../shared/mackes-theme" }
+mde-theme    = { path = "../../shared/mde-theme" }
 
 [features]
 # `wayland` (default): Wayland window hints via Iced.
