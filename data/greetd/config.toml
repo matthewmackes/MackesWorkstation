@@ -20,8 +20,10 @@
 # `systemctl set-default graphical.target`. Until DM-5 runs,
 # this config sits on disk inert.
 #
-# Owned by the `greeter` system user (created by the greetd
-# RPM's own %pre scriptlet — no MDE-side user creation needed).
+# Runs as the unprivileged `greetd` system user — the user the Fedora greetd
+# package creates in its own scriptlet (NOT `greeter`; that user does not exist
+# on Fedora and would make greetd fail to start the session → broken login).
+# greetd's PAM session grants the seat0 access cage needs for DRM/input.
 # Edits to this file survive `dnf upgrade` because the RPM
 # install line uses %config(noreplace).
 
@@ -37,7 +39,7 @@ vt = 1
 # escape paths pre-auth — operator can only interact with
 # regreet's UI.
 command = "cage -s -- regreet"
-user    = "greeter"
+user    = "greetd"
 
 # Q4 lock — NO `[initial_session]` block. Without it greetd
 # always falls through to `[default_session]`, which prompts.
