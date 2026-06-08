@@ -492,7 +492,7 @@ fn view(state: &Search) -> Element<'_, Message> {
                 button(row)
                     .on_press(Message::Activate(i))
                     .width(Length::Fill)
-                    .padding(Padding::from([4.0, 8.0]))
+                    .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_03]))
                     .style(row_style),
             );
         }

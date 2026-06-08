@@ -117,7 +117,7 @@ fn view(state: &Phone) -> Element<'_, Message> {
             container(content(state))
                 .width(Length::Fill)
                 .height(Length::Fill)
-                .padding(Padding::from(12.0)),
+                .padding(Padding::from(metrics::SPACING_04)),
         )
         .width(Length::Fill)
         .height(Length::Fill);
@@ -155,7 +155,7 @@ fn rail(state: &Phone) -> Element<'_, Message> {
             col = col.push(
                 ibutton(text(format!("{dot}{}", d.name)).size(metrics::UI_PX))
                     .width(Length::Fill)
-                    .padding(Padding::from([4.0, 8.0]))
+                    .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_03]))
                     .style(crate::files::row_style(i == state.selected))
                     .on_press(Message::SelectDevice(i)),
             );
@@ -172,7 +172,7 @@ fn rail(state: &Phone) -> Element<'_, Message> {
                     .size(metrics::UI_PX)
                     .color(palette::color(palette::GRAY_TEXT)),
             )
-            .padding(Padding::from([4.0, 8.0])),
+            .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_03])),
         );
     }
 
@@ -184,7 +184,7 @@ fn rail(state: &Phone) -> Element<'_, Message> {
         .push(
             ibutton(text("Refresh").size(metrics::UI_PX))
                 .width(Length::Fill)
-                .padding(Padding::from([4.0, 8.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_03]))
                 .style(crate::files::row_style(false))
                 .on_press(Message::Refresh),
         )
@@ -194,7 +194,7 @@ fn rail(state: &Phone) -> Element<'_, Message> {
     container(outer)
         .width(Length::Fixed(200.0))
         .height(Length::Fill)
-        .padding(Padding::from(8.0))
+        .padding(Padding::from(metrics::SPACING_03))
         .style(|_: &iced::Theme| container::Style {
             background: Some(iced::Background::Color(palette::color(
                 palette::BUTTON_FACE,

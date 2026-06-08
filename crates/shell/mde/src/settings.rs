@@ -3112,7 +3112,9 @@ fn category(state: &Settings, c: usize) -> Element<'_, Message> {
     // Left rail: one entry per page (deferred greyed). The Touchpad page is
     // conditional — hidden from the rail when no touchpad is attached (E12.7);
     // its page index stays stable for the others since we only skip the push.
-    let mut rail = Column::new().spacing(metrics::SPACING_01).width(Length::Fixed(220.0));
+    let mut rail = Column::new()
+        .spacing(metrics::SPACING_01)
+        .width(Length::Fixed(220.0));
     for (i, p) in cat.pages.iter().enumerate() {
         if matches!(p.kind, Kind::Touchpad) && !state.touchpad_present {
             continue;
@@ -3404,7 +3406,7 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
         .push(
             button(text("Save").size(metrics::UI_PX))
                 .on_press(Message::SaveActiveHours)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(tile_style),
         );
     col = col.push(active);
@@ -3427,7 +3429,7 @@ fn update_page(state: &Settings) -> Element<'_, Message> {
                             .width(Length::FillPortion(2))
                             .color(palette::color(palette::GRAY_TEXT)),
                     )
-                    .padding(Padding::from([2.0, 4.0])),
+                    .padding(Padding::from([metrics::SPACING_01, metrics::SPACING_02])),
             );
         }
         col = col.push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill));
@@ -3480,7 +3482,7 @@ fn update_history_page(state: &Settings) -> Element<'_, Message> {
                                 .push(cell(h.date.clone(), 3, true))
                                 .push(cell(h.action.clone(), 2, true))
                                 .push(cell(h.altered.clone(), 1, true))
-                                .padding(Padding::from([2.0, 4.0])),
+                                .padding(Padding::from([metrics::SPACING_01, metrics::SPACING_02])),
                         )
                         .on_press(Message::SelectHistory(h.id)),
                     );
@@ -3630,7 +3632,7 @@ fn account_info_page(state: &Settings) -> Element<'_, Message> {
         .push(
             button(text("Browse for one…").size(metrics::UI_PX))
                 .on_press(Message::BrowseAvatar)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(tile_style),
         )
         .push(
@@ -3700,7 +3702,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
             )
             .push(
                 container(text(badge).size(metrics::BADGE_PX).color(badge_col))
-                    .padding(Padding::from([2.0, 8.0]))
+                    .padding(Padding::from([metrics::SPACING_01, metrics::SPACING_03]))
                     .style(|_| container::Style {
                         border: Border {
                             color: palette::color(palette::WINDOW_FRAME),
@@ -3767,13 +3769,19 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
                             .push(
                                 button(text("Delete account").size(metrics::UI_PX))
                                     .on_press(Message::ConfirmRemove(name.clone()))
-                                    .padding(Padding::from([4.0, 12.0]))
+                                    .padding(Padding::from([
+                                        metrics::SPACING_02,
+                                        metrics::SPACING_04,
+                                    ]))
                                     .style(tile_style),
                             )
                             .push(
                                 button(text("Cancel").size(metrics::UI_PX))
                                     .on_press(Message::CancelRemove)
-                                    .padding(Padding::from([4.0, 12.0]))
+                                    .padding(Padding::from([
+                                        metrics::SPACING_02,
+                                        metrics::SPACING_04,
+                                    ]))
                                     .style(mde_ui::button_ghost),
                             ),
                     ),
@@ -3805,7 +3813,7 @@ fn family_users_page(state: &Settings) -> Element<'_, Message> {
                 .push(
                     button(text("Add account").size(metrics::UI_PX))
                         .on_press(Message::AddUser)
-                        .padding(Padding::from([4.0, 12.0]))
+                        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                         .style(mde_ui::button_primary),
                 ),
         )
@@ -3850,14 +3858,14 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
             .size(metrics::UI_PX),
         )
         .on_press(Message::SavePin)
-        .padding(Padding::from([4.0, 12.0]))
+        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
         .style(mde_ui::button_primary),
     );
     if state.pin_set {
         pin_buttons = pin_buttons.push(
             button(text("Remove").size(metrics::UI_PX))
                 .on_press(Message::RemovePin)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(mde_ui::button_ghost),
         );
     }
@@ -3912,7 +3920,7 @@ fn sign_in_page(state: &Settings) -> Element<'_, Message> {
         .push(
             button(text("Change").size(metrics::UI_PX))
                 .on_press(Message::ChangePassword)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(tile_style),
         );
 
@@ -3971,7 +3979,7 @@ fn bluetooth_page(state: &Settings) -> Element<'_, Message> {
             .size(metrics::UI_PX),
         )
         .on_press(Message::BtDiscover)
-        .padding(Padding::from([4.0, 12.0]))
+        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
         .style(mde_ui::button_primary),
     );
 
@@ -4046,7 +4054,9 @@ fn bluetooth_page(state: &Settings) -> Element<'_, Message> {
                     .style(mde_ui::button_primary),
             );
         }
-        list = list.push(container(row).padding(Padding::from([4.0, 4.0])));
+        list = list.push(
+            container(row).padding(Padding::from([metrics::SPACING_02, metrics::SPACING_02])),
+        );
     }
     col.push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill))
         .into()
@@ -4081,7 +4091,7 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
             .size(metrics::UI_PX),
         )
         .on_press(Message::PrintersDiscover)
-        .padding(Padding::from([4.0, 12.0]))
+        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
         .style(mde_ui::button_primary),
     );
 
@@ -4118,7 +4128,9 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
                         .padding(Padding::from([3.0, 10.0]))
                         .style(mde_ui::button_primary),
                 );
-            found = found.push(container(row).padding(Padding::from([4.0, 4.0])));
+            found = found.push(
+                container(row).padding(Padding::from([metrics::SPACING_02, metrics::SPACING_02])),
+            );
         }
         col = col.push(found);
     } else if state.printers_scanned {
@@ -4199,7 +4211,9 @@ fn printers_page(state: &Settings) -> Element<'_, Message> {
                     .padding(Padding::from([3.0, 10.0]))
                     .style(mde_ui::button_ghost),
             );
-        list = list.push(container(row).padding(Padding::from([4.0, 4.0])));
+        list = list.push(
+            container(row).padding(Padding::from([metrics::SPACING_02, metrics::SPACING_02])),
+        );
     }
 
     col = col.push(container(scrollable(list).style(mde_ui::scrollbar)).height(Length::Fill));
@@ -4284,7 +4298,9 @@ fn print_to_pdf_row<'a>(
             );
         }
     }
-    container(row).padding(Padding::from([4.0, 4.0])).into()
+    container(row)
+        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_02]))
+        .into()
 }
 
 /// Devices ▸ Mouse (E12.6): primary button, scroll lines, natural-scroll, and the
@@ -4711,7 +4727,7 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
     col = col.push(
         button(text("Apps & features").size(metrics::UI_PX))
             .on_press(Message::ShowApps)
-            .padding(Padding::from([4.0, 12.0]))
+            .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
             .style(mde_ui::button_ghost),
     );
 
@@ -4733,7 +4749,7 @@ fn storage_page(state: &Settings) -> Element<'_, Message> {
         .push(
             button(text("Configure Storage Sense or run it now").size(metrics::UI_PX))
                 .on_press(Message::ShowClean)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(mde_ui::button_ghost),
         );
 
@@ -4813,7 +4829,9 @@ fn apps_drill_in(state: &Settings) -> Element<'_, Message> {
                     .padding(Padding::from([3.0, 10.0]))
                     .style(mde_ui::button_ghost),
             );
-        list = list.push(container(row).padding(Padding::from([4.0, 4.0])));
+        list = list.push(
+            container(row).padding(Padding::from([metrics::SPACING_02, metrics::SPACING_02])),
+        );
     }
 
     let mut col = Column::new()
@@ -5015,7 +5033,9 @@ fn backup_page(state: &Settings) -> Element<'_, Message> {
                         .padding(Padding::from([3.0, 10.0]))
                         .style(mde_ui::button_primary),
                 );
-            col = col.push(container(row).padding(Padding::from([4.0, 4.0])));
+            col = col.push(
+                container(row).padding(Padding::from([metrics::SPACING_02, metrics::SPACING_02])),
+            );
         }
     }
     scrollable(col).style(mde_ui::scrollbar).into()
@@ -5129,7 +5149,7 @@ fn backup_more_page(state: &Settings) -> Element<'_, Message> {
     col = col.push(
         button(text("+ Add a folder").size(metrics::UI_PX))
             .on_press(Message::AddInclude)
-            .padding(Padding::from([4.0, 12.0]))
+            .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
             .style(mde_ui::button_ghost),
     );
 
@@ -5165,7 +5185,7 @@ fn recovery_page(state: &Settings) -> Element<'_, Message> {
             .push(
                 button(text(label).size(metrics::UI_PX))
                     .on_press(Message::AskRecovery(a))
-                    .padding(Padding::from([4.0, 12.0]))
+                    .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                     .style(mde_ui::button_ghost),
             )
             .into()
@@ -5223,7 +5243,7 @@ fn recovery_page(state: &Settings) -> Element<'_, Message> {
                 .push(
                     button(text("Create a recovery drive").size(metrics::UI_PX))
                         .on_press(Message::ShowUsb)
-                        .padding(Padding::from([4.0, 12.0]))
+                        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                         .style(mde_ui::button_ghost),
                 ),
         );
@@ -5342,13 +5362,13 @@ fn usb_wizard(state: &Settings) -> Element<'_, Message> {
                     .push(
                         button(text("Cancel").size(metrics::UI_PX))
                             .on_press(Message::CancelCreateUsb)
-                            .padding(Padding::from([4.0, 12.0]))
+                            .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                             .style(mde_ui::button_ghost),
                     ),
             );
     } else {
         let mut create = button(text("Create").size(metrics::UI_PX))
-            .padding(Padding::from([4.0, 16.0]))
+            .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_05]))
             .style(mde_ui::button_primary);
         if state.usb_device.is_some() {
             create = create.on_press(Message::AskCreateUsb);
@@ -5422,7 +5442,7 @@ fn recovery_confirm(state: &Settings, a: RecoveryAction) -> Element<'_, Message>
         Row::new().spacing(metrics::SPACING_03).push(confirm).push(
             button(text("Cancel").size(metrics::UI_PX))
                 .on_press(Message::CancelRecovery)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(mde_ui::button_ghost),
         ),
     )
@@ -5762,7 +5782,7 @@ fn vpn_page(state: &Settings) -> Element<'_, Message> {
                         .padding(Padding::from([2.0, 10.0]))
                         .style(tile_style),
                     )
-                    .padding(Padding::from([2.0, 4.0])),
+                    .padding(Padding::from([metrics::SPACING_01, metrics::SPACING_02])),
             );
         }
         container(scrollable(col).style(mde_ui::scrollbar))
@@ -6047,7 +6067,7 @@ fn fit_row<'a>(browse_label: &str, mode: BgMode, browse: bool) -> Element<'a, Me
         row = row.push(
             button(text(browse_label.to_string()).size(metrics::UI_PX))
                 .on_press(Message::BgBrowse)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(tile_style),
         );
     }
@@ -6205,13 +6225,13 @@ fn lock_page(state: &Settings) -> Element<'_, Message> {
                 .push(
                     button(text("Browse").size(metrics::UI_PX))
                         .on_press(Message::LockBrowse)
-                        .padding(Padding::from([4.0, 12.0]))
+                        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                         .style(tile_style),
                 )
                 .push(
                     button(text("Apply").size(metrics::UI_PX))
                         .on_press(Message::LockApply)
-                        .padding(Padding::from([4.0, 16.0]))
+                        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_05]))
                         .style(tile_style),
                 ),
         )

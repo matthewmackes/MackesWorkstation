@@ -323,7 +323,7 @@ fn detail_header(title: &'static str) -> Column<'static, Message> {
         .push(
             button(text("← Back").size(metrics::UI_PX))
                 .on_press(Message::Back)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(mde_ui::button_ghost),
         )
         .push(
@@ -377,10 +377,10 @@ fn device_security_view(s: &SecurityStatus) -> Element<'_, Message> {
                 .on_press(Message::Launch(
                     "xdg-open https://fedoraproject.org/wiki/Features/SecureBoot",
                 ))
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(mde_ui::button_primary),
         )
-        .padding(Padding::from(16.0))
+        .padding(Padding::from(metrics::SPACING_05))
         .into()
 }
 
@@ -407,10 +407,10 @@ fn advisory_page(
         .push(
             button(text(link_label).size(metrics::UI_PX))
                 .on_press(Message::Launch(link_cmd))
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(mde_ui::button_primary),
         )
-        .padding(Padding::from(16.0))
+        .padding(Padding::from(metrics::SPACING_05))
         .into()
 }
 
@@ -457,7 +457,7 @@ fn home_view(s: &SecurityStatus) -> Element<'_, Message> {
 
     Column::new()
         .spacing(metrics::SPACING_05)
-        .padding(Padding::from(16.0))
+        .padding(Padding::from(metrics::SPACING_05))
         .push(heading)
         .push(grid)
         .into()
@@ -467,13 +467,16 @@ fn home_view(s: &SecurityStatus) -> Element<'_, Message> {
 fn firewall_view(fw: Option<&FirewallDetail>) -> Element<'_, Message> {
     let back = button(text("← Back").size(metrics::UI_PX))
         .on_press(Message::Back)
-        .padding(Padding::from([4.0, 12.0]))
+        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
         .style(mde_ui::button_ghost);
     let heading = text("Firewall & network protection")
         .size(metrics::INFO_TITLE_PX)
         .color(palette::color(palette::WINDOW_TEXT));
 
-    let mut col = Column::new().spacing(metrics::SPACING_04).push(back).push(heading);
+    let mut col = Column::new()
+        .spacing(metrics::SPACING_04)
+        .push(back)
+        .push(heading);
 
     if let Some(fw) = fw {
         let (mark, role) = level_mark(if fw.running { Level::Ok } else { Level::Risk });
@@ -526,10 +529,10 @@ fn firewall_view(fw: Option<&FirewallDetail>) -> Element<'_, Message> {
         .push(
             button(text("Advanced settings").size(metrics::UI_PX))
                 .on_press(Message::Advanced)
-                .padding(Padding::from([4.0, 12.0]))
+                .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                 .style(mde_ui::button_primary),
         )
-        .padding(Padding::from(16.0))
+        .padding(Padding::from(metrics::SPACING_05))
         .into()
 }
 
@@ -539,7 +542,7 @@ fn firewall_view(fw: Option<&FirewallDetail>) -> Element<'_, Message> {
 fn encryption_view(state: &Security) -> Element<'_, Message> {
     let back = button(text("← Back").size(metrics::UI_PX))
         .on_press(Message::Back)
-        .padding(Padding::from([4.0, 12.0]))
+        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
         .style(mde_ui::button_ghost);
     let mut col = Column::new().spacing(metrics::SPACING_04).push(back).push(
         text("Device encryption")
@@ -643,7 +646,7 @@ fn encryption_view(state: &Security) -> Element<'_, Message> {
         }
     }
 
-    col.padding(Padding::from(16.0)).into()
+    col.padding(Padding::from(metrics::SPACING_05)).into()
 }
 
 /// Virus & threat detail (E14.7): if ClamAV is installed, a Quick scan of the home
@@ -651,7 +654,7 @@ fn encryption_view(state: &Security) -> Element<'_, Message> {
 fn antivirus_view(av: Option<&Option<String>>) -> Element<'_, Message> {
     let back = button(text("← Back").size(metrics::UI_PX))
         .on_press(Message::Back)
-        .padding(Padding::from([4.0, 12.0]))
+        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
         .style(mde_ui::button_ghost);
     let mut col = Column::new().spacing(metrics::SPACING_04).push(back).push(
         text("Virus & threat protection")
@@ -692,7 +695,7 @@ fn antivirus_view(av: Option<&Option<String>>) -> Element<'_, Message> {
                 .push(
                     button(text("Quick scan").size(metrics::UI_PX))
                         .on_press(Message::QuickScan)
-                        .padding(Padding::from([4.0, 12.0]))
+                        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                         .style(mde_ui::button_primary),
                 );
         }
@@ -707,7 +710,7 @@ fn antivirus_view(av: Option<&Option<String>>) -> Element<'_, Message> {
                 .push(
                     button(text("Install ClamAV").size(metrics::UI_PX))
                         .on_press(Message::InstallAv)
-                        .padding(Padding::from([4.0, 12.0]))
+                        .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_04]))
                         .style(mde_ui::button_primary),
                 );
         }
@@ -720,5 +723,5 @@ fn antivirus_view(av: Option<&Option<String>>) -> Element<'_, Message> {
         }
     }
 
-    col.padding(Padding::from(16.0)).into()
+    col.padding(Padding::from(metrics::SPACING_05)).into()
 }

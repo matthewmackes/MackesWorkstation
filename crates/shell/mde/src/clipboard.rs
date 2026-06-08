@@ -432,8 +432,12 @@ mod popup {
                     .spacing(metrics::SPACING_02)
                     .align_y(iced::alignment::Vertical::Center)
                     .push(
-                        mouse_area(container(body).width(Length::Fill).padding(metrics::SPACING_03))
-                            .on_press(Message::Copy(i)),
+                        mouse_area(
+                            container(body)
+                                .width(Length::Fill)
+                                .padding(metrics::SPACING_03),
+                        )
+                        .on_press(Message::Copy(i)),
                     )
                     .push(glyph_btn("\u{f08d}", e.pinned, Message::TogglePin(i))) // thumbtack
                     .push(glyph_btn("\u{f00d}", false, Message::Delete(i))); // times
@@ -456,7 +460,7 @@ mod popup {
             .push(
                 button(text("Clear all").size(metrics::UI_PX))
                     .on_press(Message::ClearAll)
-                    .padding(Padding::from([2.0, 8.0]))
+                    .padding(Padding::from([metrics::SPACING_01, metrics::SPACING_03]))
                     .style(mde_ui::button_ghost),
             );
 

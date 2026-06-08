@@ -199,13 +199,19 @@ fn view(state: &Restore) -> Element<'_, Message> {
         .push(
             button(text("< Older").size(metrics::UI_PX))
                 .on_press(Message::Older)
-                .padding(iced::Padding::from([4.0, 12.0]))
+                .padding(iced::Padding::from([
+                    metrics::SPACING_02,
+                    metrics::SPACING_04,
+                ]))
                 .style(mde_ui::button_ghost),
         )
         .push(
             button(text("Newer >").size(metrics::UI_PX))
                 .on_press(Message::Newer)
-                .padding(iced::Padding::from([4.0, 12.0]))
+                .padding(iced::Padding::from([
+                    metrics::SPACING_02,
+                    metrics::SPACING_04,
+                ]))
                 .style(mde_ui::button_ghost),
         )
         .push(iced::widget::horizontal_space());
@@ -238,7 +244,10 @@ fn view(state: &Restore) -> Element<'_, Message> {
             .push(
                 button(text("Cancel").size(metrics::UI_PX))
                     .on_press(Message::CancelRestore)
-                    .padding(iced::Padding::from([4.0, 12.0]))
+                    .padding(iced::Padding::from([
+                        metrics::SPACING_02,
+                        metrics::SPACING_04,
+                    ]))
                     .style(mde_ui::button_ghost),
             )
             .into()
