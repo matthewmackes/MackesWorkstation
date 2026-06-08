@@ -1,10 +1,11 @@
 # Mackes Workstation (MDE) — v10.0.0 RPM spec.
 #
-# E8.5 (2026-06-05): rewritten for the Rust monorepo. The historical
-# Python-era spec (mackes-shell, GTK3 + birthright.py) is in git history; this
-# packages the Rust workspace's release binaries + the LizardFS mesh-storage
-# bundle + the shipped data. The role-subpackage split (mde-headless /
-# mde-desktop) is a follow-up; this base package is the installable platform.
+# E8.5 (2026-06-05, role-split 2026-06-08): rewritten for the Rust monorepo. The
+# historical Python-era spec (mackes-shell, GTK3 + birthright.py) is in git
+# history; this packages the Rust workspace's release binaries + the LizardFS
+# mesh-storage bundle + the shipped data, split across three role subpackages —
+# mde-core (Lighthouse base) ⊂ mde-headless (Server) ⊂ mde-desktop (Workstation)
+# — each a strict superset (§12).
 #
 # Source0 is produced by `git archive --prefix=mde-core-%{version}/`; Source1
 # (lizardfs-binaries.tar.gz) by install-helpers/build-lizardfs.sh — both staged
@@ -17,7 +18,7 @@
 
 Name:           mde-core
 Version:        10.0.0
-Release:        4%{?dist}
+Release:        5%{?dist}
 Summary:        Mackes Workstation (MDE) — native-Rust mesh desktop environment
 
 License:        GPL-3.0-or-later
@@ -27,16 +28,13 @@ Source0:        mackes-shell-%{version}.tar.gz
 # install-helpers/build-lizardfs.sh (or the lizardfs-build.yml CI job).
 Source1:        lizardfs-binaries.tar.gz
 
-# Back-compat names (the platform was `mackes-shell` / `mackes-xfce-workstation`
-# / `mde`; `dnf install mde` keeps resolving here).
+# Back-compat names (the platform was `mackes-shell` / `mde`; `dnf install mde`
+# keeps resolving here). `mackes-xfce-workstation` → the mde-desktop subpackage.
 Provides:       mde = %{version}-%{release}
 Provides:       mackes-shell = %{version}-%{release}
-Provides:       mackes-xfce-workstation = %{version}-%{release}
 Obsoletes:      mde < 10.0.0
 Obsoletes:      mackes-shell < 10.0.0
-Obsoletes:      mackes-xfce-workstation < 10.0.0
-# MDE absorbs KDE Connect (the native mde-kdc-host replaces it) and the legacy
-# XFCE stack.
+# MDE absorbs KDE Connect (the native host runs in mackesd, which is core).
 Obsoletes:      kdeconnect < 999
 Obsoletes:      kdeconnectd < 999
 Obsoletes:      kdeconnect-cli < 999
@@ -56,16 +54,11 @@ BuildRequires:  openssl-devel
 # Provides the user-unit dir + user-unit scriptlet macros used below.
 BuildRequires:  systemd-rpm-macros
 
-# Hard runtime deps kept minimal so the package installs cleanly; rpm's ELF
-# dependency generator pulls the shared-library deps automatically. The desktop
-# stack (compositor, greeter, tools) is weak so a headless box can install the
-# base without dragging in the GUI.
-Requires:       fuse3
-Recommends:     labwc
-Recommends:     greetd
-Recommends:     grim
-Recommends:     foot
-Recommends:     ibm-plex-mono-fonts
+# mde-core is the minimal base every role installs (Lighthouse included): the
+# `mde` dispatcher, the mackesd control plane, the mde-bus backbone, and the
+# core CLI utilities. rpm's ELF dep generator pulls shared-library deps
+# automatically. No desktop or mesh-storage deps here — those live on the
+# mde-desktop / mde-headless subpackages so a Lighthouse relay stays lean.
 
 %description
 Mackes Workstation (MDE) is the native-Rust mesh operating environment: a
@@ -73,6 +66,48 @@ multiplexed shell with a strict IBM Carbon look (Gray 10 / 90 / 100) over labwc,
 the mackesd control plane with the mde-bus backbone, the Nebula encrypted
 overlay, LizardFS mesh-storage, and the native KDE Connect host. One install,
 an install-time role chooser (Lighthouse / Server / Workstation).
+
+This base package (mde-core) is the Lighthouse-role tier: the dispatcher,
+control plane, and bus that every role needs. Add mde-headless for the Server
+role (mesh storage + fleet) and mde-desktop for the full Workstation desktop.
+
+# ── Server role: headless mesh storage + fleet ──────────────────────────────
+%package -n mde-headless
+Summary:        Mackes Workstation — headless mesh storage + fleet (Server role)
+Requires:       mde-core = %{version}-%{release}
+# The LizardFS FUSE mount client needs fuse3 at runtime.
+Requires:       fuse3
+Provides:       mde-server = %{version}-%{release}
+
+%description -n mde-headless
+The Server-role tier over mde-core: the LizardFS mesh-storage binaries (master,
+chunkserver, metadata restore, FUSE mount client, admin CLI) and the fleet
+(ansible-pull) plumbing. Adds no desktop. Requires mde-core.
+
+# ── Workstation role: the full IBM Carbon desktop ───────────────────────────
+%package -n mde-desktop
+Summary:        Mackes Workstation — full IBM Carbon desktop (Workstation role)
+Requires:       mde-core = %{version}-%{release}
+# Workstation is a strict superset of Server (§12), so it pulls the headless
+# tier too.
+Requires:       mde-headless = %{version}-%{release}
+# The desktop stack (compositor, greeter, screenshot, terminal, fonts) is weak
+# so the role can come up but the operator can swap components.
+Recommends:     labwc
+Recommends:     greetd
+Recommends:     grim
+Recommends:     foot
+Recommends:     ibm-plex-mono-fonts
+Provides:       mackes-xfce-workstation = %{version}-%{release}
+Obsoletes:      mackes-xfce-workstation < 10.0.0
+
+%description -n mde-desktop
+The Workstation-role desktop over mde-core + mde-headless: the labwc session
+orchestrator, the IBM Carbon shell surfaces (the mde-* subcommand symlink farm
++ the standalone Files / Music / Voice-HUD / Workbench apps), the status
+applets, the media + voice + clipboard service daemons, the labwc skel config +
+window-frame theme + wayland-session entry, and the session/greeter systemd
+units. Requires mde-core + mde-headless.
 
 %prep
 # Source0 is a git-archive with the %{name}-%{version} prefix, so a plain
@@ -211,22 +246,41 @@ install -d %{buildroot}%{_datadir}/themes
 cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
     %{buildroot}%{_datadir}/themes/
 
+# ── mde-core: the Lighthouse base (dispatcher + control plane + bus) ─────────
+# Every role installs this. Only the role-agnostic binaries + the shared data +
+# the control-plane unit live here; mde-* GUI binaries are owned by mde-desktop
+# and the LizardFS sbin set by mde-headless.
 %files
 %doc DISCLAIMER.md
 %{_bindir}/mde
-%{_bindir}/mde-*
 %{_bindir}/mackesd
-%{_sbindir}/mfsmaster
-%{_sbindir}/mfschunkserver
-%{_sbindir}/mfsmetarestore
-%{_sbindir}/mfsmount
-%{_sbindir}/lizardfs
-%{_sbindir}/lizardfs-admin
-%{_datadir}/mde/
-%{_datadir}/wayland-sessions/mde.desktop
-%{_datadir}/themes/Win2000-MDE/
+%{_bindir}/mde-bus
+%{_bindir}/mde-alert-emit
+%{_bindir}/mde-update
+# Shipped read-only data the shell + mackesd read (tokens / icons / assets);
+# the desktop skel subtree is owned by mde-desktop.
+%dir %{_datadir}/mde
+%{_datadir}/mde/*
+%exclude %{_datadir}/mde/skel
+# The per-user control-plane unit + its enabling preset.
 %{_userunitdir}/mackesd.service
 %{_userpresetdir}/80-mde-mackesd.preset
+
+# ── mde-headless: LizardFS mesh storage (Server role) ───────────────────────
+%files -n mde-headless
+%{_sbindir}/*
+
+# ── mde-desktop: the full IBM Carbon desktop (Workstation role) ──────────────
+# Every mde-* binary + the subcommand symlink farm EXCEPT the role-agnostic
+# utilities mde-core owns. (`mde` itself has no hyphen, so the glob skips it.)
+%files -n mde-desktop
+%{_bindir}/mde-*
+%exclude %{_bindir}/mde-bus
+%exclude %{_bindir}/mde-alert-emit
+%exclude %{_bindir}/mde-update
+%{_datadir}/mde/skel
+%{_datadir}/wayland-sessions/mde.desktop
+%{_datadir}/themes/Win2000-MDE/
 
 # Bug 3 (2026-06-06) — register + enable the per-user control-plane unit. The
 # post scriptlet applies the shipped enabling preset (Bug 6 is resolved, so the
@@ -238,6 +292,17 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %systemd_user_preun mackesd.service
 
 %changelog
+* Sun Jun 08 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-5
+- packaging (E8.5 #1): split into the three role subpackages — mde-core
+  (Lighthouse base: mde / mackesd / mde-bus + core utils + control-plane unit +
+  shared data), mde-headless (Server: the LizardFS sbin set + fuse3), and
+  mde-desktop (Workstation: every mde-* GUI binary + the subcommand symlink farm
+  + skel/theme/wayland-session). Each is a strict superset via Requires
+  (desktop → headless → core), matching §12. Moved the desktop Recommends +
+  mackes-xfce-workstation Provides/Obsoletes onto mde-desktop; fuse3 onto
+  mde-headless. Completes E8.5 (held-guard #3 + disclaimer #2 already in place).
+- docs (E9.7): drop the stale "Win2000 / Windows 10 / BeOS" framing from the
+  %description (Carbon-only).
 * Sat Jun 06 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-4
 - fix (Bug 6): prereq-gate the mackesd workers that can't run off an enrolled
   box so `mackesd serve` no longer crash-loops as a per-user daemon —
