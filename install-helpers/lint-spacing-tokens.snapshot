@@ -5,8 +5,9 @@
 crates/services/mde-files/src/app.rs 1
 # mde-files themes via mde-theme (its own palette, raw sizes by convention —
 # a service crate, not an mde-ui Carbon surface); +6 for the E10.6 Network
-# (interactive SMB) view (Cloud-Files + local-browser views net out under 51).
-crates/services/mde-files/src/views.rs 57
+# (interactive SMB) view (Cloud-Files + local-browser views net out under 51);
+# +4 for the E10.5 browser-tab strip (tab chip + close × + new-tab button).
+crates/services/mde-files/src/views.rs 61
 crates/services/mde-files/src/widgets.rs 69
 # picker.rs (E10.3 Open/Save chooser): same service-crate convention — raw
 # sizes, no mde-ui Carbon metrics dep (iced 0.14 vs mde-ui's 0.13).

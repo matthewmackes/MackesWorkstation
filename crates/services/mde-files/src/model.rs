@@ -294,6 +294,54 @@ impl View {
                 | Self::MeshUndelete
         )
     }
+
+    /// E10.5 — a short title for the browser-tab strip. For `Local` the tab is
+    /// named after the directory it's parked on (filled in by the caller, which
+    /// holds the path); the static views use a fixed label.
+    #[must_use]
+    pub fn tab_label(&self) -> &str {
+        match self {
+            Self::MeshOverview => "Mesh",
+            Self::Inbox => "Inbox",
+            Self::Peer(_) => "Peer",
+            Self::Downloads => "Downloads",
+            Self::Local => "Local",
+            Self::MeshHome => "Mesh Home",
+            Self::MeshHomeChild(slug) => slug,
+            Self::MeshUndelete => "Recycle Bin",
+            Self::CloudDevices => "Cloud Files",
+            Self::Network => "Network",
+        }
+    }
+}
+
+/// E10.5 — one open browser tab: the per-tab navigation state. The active tab's
+/// state is mirrored into the flat `MdeFiles` fields so the existing
+/// `view()`/`update()` code is unchanged; switching tabs swaps the mirror.
+#[derive(Debug, Clone, Default)]
+pub struct Tab {
+    pub view: View,
+    pub local_path: String,
+    pub mesh_home_path: Vec<String>,
+    pub search: String,
+}
+
+impl Tab {
+    /// The strip title: the directory's last path component when parked on a
+    /// `Local` view (so two Local tabs read distinctly), else the view's label.
+    #[must_use]
+    pub fn title(&self) -> String {
+        if matches!(self.view, View::Local) {
+            std::path::Path::new(&self.local_path)
+                .file_name()
+                .and_then(|s| s.to_str())
+                .filter(|s| !s.is_empty())
+                .unwrap_or("/")
+                .to_string()
+        } else {
+            self.view.tab_label().to_string()
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

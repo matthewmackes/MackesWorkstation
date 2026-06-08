@@ -17,6 +17,16 @@ use crate::views;
 #[derive(Debug, Clone)]
 pub enum Message {
     SelectView(View),
+    /// E10.5 — open a fresh browser tab (Mesh overview) and switch to it.
+    NewTab,
+    /// E10.5 — close the tab at the given index (no-op when only one remains).
+    CloseTab(usize),
+    /// E10.5 — close the currently-active tab (Ctrl+W).
+    CloseActiveTab,
+    /// E10.5 — switch to the tab at the given index.
+    SwitchTab(usize),
+    /// E10.5 — cycle to the next tab, wrapping (Ctrl+Tab).
+    CycleTab,
     /// E10 — navigate the Local browser to the parent directory.
     LocalUp,
     /// E10 — jump the Local browser to an absolute path (sidebar quick-access:
@@ -191,6 +201,13 @@ pub struct MdeFiles {
     /// E10 — Network view status / error line (None = idle).
     pub net_status: Option<String>,
     pub view: View,
+    /// E10.5 — open browser tabs. The active tab's nav state is mirrored into
+    /// the flat `view`/`local_path`/`mesh_home_path`/`search` fields above (the
+    /// "active mirror"); `tabs[active_tab]` is re-synced at the end of every
+    /// `update()` so the strip always reflects live state.
+    pub tabs: Vec<crate::model::Tab>,
+    /// E10.5 — index into `tabs` of the currently-shown tab.
+    pub active_tab: usize,
     pub local_open: bool,
     pub layout: Layout,
     pub search: String,
@@ -291,6 +308,8 @@ impl Default for MdeFiles {
             net_shares: Vec::new(),
             net_status: None,
             view: View::default(),
+            tabs: vec![crate::model::Tab::default()],
+            active_tab: 0,
             local_open: false,
             layout: Layout::default(),
             search: String::new(),
@@ -345,6 +364,8 @@ impl MdeFiles {
                 if let Some(dir) = &initial_dir {
                     s.local_path = dir.clone();
                     s.view = View::Local;
+                    // E10.5 — fold the initial dir into the first tab's state.
+                    s.sync_active_tab();
                 }
                 s
             },
@@ -353,6 +374,7 @@ impl MdeFiles {
         )
         .title(Self::title)
         .theme(Self::theme)
+        .subscription(Self::subscription)
         .window_size(Size::new(t::WIN_W, t::WIN_H))
         .run()
     }
@@ -365,6 +387,27 @@ impl MdeFiles {
         t::theme()
     }
 
+    /// E10.5 — global tab keybindings: Ctrl+T new tab, Ctrl+W close tab,
+    /// Ctrl+Tab cycle. Plain keys are left to the focused widget (the
+    /// `listen_with` filter drops everything else).
+    fn subscription(&self) -> iced::Subscription<Message> {
+        iced::event::listen_with(|event, _status, _window| {
+            use iced::keyboard::{key::Named, Event as Kbd, Key};
+            let iced::Event::Keyboard(Kbd::KeyPressed { key, modifiers, .. }) = event else {
+                return None;
+            };
+            if !modifiers.command() {
+                return None;
+            }
+            match key.as_ref() {
+                Key::Character("t") => Some(Message::NewTab),
+                Key::Character("w") => Some(Message::CloseActiveTab),
+                Key::Named(Named::Tab) => Some(Message::CycleTab),
+                _ => None,
+            }
+        })
+    }
+
     /// Update reducer — every interaction in the UI flows through this single
     /// function. No async work happens here yet (the demo backend is in-memory);
     /// once `mded` is wired, several variants will return real `Task`s.
@@ -374,6 +417,30 @@ impl MdeFiles {
         let mut pending_task: Option<Task<Message>> = None;
 
         match msg {
+            Message::NewTab => {
+                // Mirror the live state into the active tab, then push + switch
+                // to a fresh Mesh-overview tab (end-of-update sync re-captures).
+                self.sync_active_tab();
+                self.tabs.push(crate::model::Tab::default());
+                self.active_tab = self.tabs.len() - 1;
+                self.load_active_tab();
+            }
+            Message::CloseTab(i) => self.close_tab(i),
+            Message::CloseActiveTab => self.close_tab(self.active_tab),
+            Message::SwitchTab(i) => {
+                if i < self.tabs.len() && i != self.active_tab {
+                    self.sync_active_tab();
+                    self.active_tab = i;
+                    self.load_active_tab();
+                }
+            }
+            Message::CycleTab => {
+                if self.tabs.len() > 1 {
+                    self.sync_active_tab();
+                    self.active_tab = (self.active_tab + 1) % self.tabs.len();
+                    self.load_active_tab();
+                }
+            }
             Message::LocalUp => {
                 // E10 — ascend to the parent directory (end-of-update refresh
                 // re-lists). Stops at the filesystem root.
@@ -671,7 +738,47 @@ impl MdeFiles {
             },
         }
         self.refresh_snapshot();
+        // E10.5 — keep the active tab's stored nav state in lock-step with the
+        // live mirror so the tab strip always renders the current view/path.
+        self.sync_active_tab();
         pending_task.unwrap_or_else(Task::none)
+    }
+
+    /// E10.5 — copy the live nav fields into the active tab's stored state.
+    fn sync_active_tab(&mut self) {
+        if let Some(tab) = self.tabs.get_mut(self.active_tab) {
+            tab.view = self.view.clone();
+            tab.local_path = self.local_path.clone();
+            tab.mesh_home_path = self.mesh_home_path.clone();
+            tab.search = self.search.clone();
+        }
+    }
+
+    /// E10.5 — load the active tab's stored nav state into the live mirror.
+    /// `refresh_snapshot()` (end of `update()`) then re-lists for the new view.
+    fn load_active_tab(&mut self) {
+        if let Some(tab) = self.tabs.get(self.active_tab).cloned() {
+            self.view = tab.view;
+            self.local_path = tab.local_path;
+            self.mesh_home_path = tab.mesh_home_path;
+            self.search = tab.search;
+            self.selection.clear();
+        }
+    }
+
+    /// E10.5 — remove the tab at `i`, keeping at least one open. The active
+    /// index is clamped so it still points at a live tab.
+    fn close_tab(&mut self, i: usize) {
+        if self.tabs.len() <= 1 || i >= self.tabs.len() {
+            return; // never close the last tab
+        }
+        // Persist the live mirror first so a non-active close keeps state.
+        self.sync_active_tab();
+        self.tabs.remove(i);
+        if self.active_tab > i || self.active_tab >= self.tabs.len() {
+            self.active_tab = self.active_tab.saturating_sub(1);
+        }
+        self.load_active_tab();
     }
 
     /// Re-capture the `BackendSnapshot` + (when on a peer view)
@@ -771,6 +878,7 @@ impl MdeFiles {
         });
 
         let main = column![
+            views::tab_strip(&self.tabs, self.active_tab),
             views::toolbar(&self.view, self.layout, &self.search, crumbs),
             content,
         ]
@@ -1811,5 +1919,64 @@ mod tests {
         let json = r#"{"master_reachable":true,"goal":2,"peers":[{"addr":"10.0.0.1","used_bytes":0,"avail_bytes":0,"undergoal_chunks":0}],"offline_peers":[]}"#;
         let _ = s.update(Message::MeshFsHealthLoaded(json.to_owned()));
         assert!(s.meshfs_healing);
+    }
+
+    // ── E10.5 tabs ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn starts_with_one_tab() {
+        let s = MdeFiles::default();
+        assert_eq!(s.tabs.len(), 1);
+        assert_eq!(s.active_tab, 0);
+    }
+
+    #[test]
+    fn new_tab_appends_and_switches_to_it() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::NewTab);
+        assert_eq!(s.tabs.len(), 2);
+        assert_eq!(s.active_tab, 1);
+        // A fresh tab lands on the default Mesh overview.
+        assert_eq!(s.view, View::default());
+    }
+
+    #[test]
+    fn switching_tabs_preserves_per_tab_state() {
+        let mut s = MdeFiles::default();
+        // Park tab 0 on a Local path.
+        let _ = s.update(Message::LocalGoto("/tmp".to_string()));
+        assert_eq!(s.view, View::Local);
+        // Open a second tab and navigate it elsewhere.
+        let _ = s.update(Message::NewTab);
+        let _ = s.update(Message::LocalGoto("/usr".to_string()));
+        assert_eq!(s.local_path, "/usr");
+        // Back to tab 0 — its /tmp Local view is restored, not /usr.
+        let _ = s.update(Message::SwitchTab(0));
+        assert_eq!(s.active_tab, 0);
+        assert_eq!(s.view, View::Local);
+        assert_eq!(s.local_path, "/tmp");
+    }
+
+    #[test]
+    fn cycle_tab_wraps() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::NewTab); // now 2 tabs, active 1
+        let _ = s.update(Message::CycleTab); // 1 -> 0 (wrap)
+        assert_eq!(s.active_tab, 0);
+        let _ = s.update(Message::CycleTab); // 0 -> 1
+        assert_eq!(s.active_tab, 1);
+    }
+
+    #[test]
+    fn close_tab_keeps_at_least_one() {
+        let mut s = MdeFiles::default();
+        let _ = s.update(Message::CloseActiveTab); // single tab: no-op
+        assert_eq!(s.tabs.len(), 1);
+        let _ = s.update(Message::NewTab);
+        let _ = s.update(Message::NewTab); // 3 tabs, active 2
+        let _ = s.update(Message::CloseTab(0)); // remove first
+        assert_eq!(s.tabs.len(), 2);
+        // active was 2, index 0 removed -> shifts down to 1.
+        assert_eq!(s.active_tab, 1);
     }
 }

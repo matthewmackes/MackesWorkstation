@@ -9,7 +9,7 @@ use crate::app::{Crumb, Message, TrashItem};
 use crate::backend::BackendSnapshot;
 use crate::grid;
 use crate::icons;
-use crate::model::{fmt_count, FileRow, Layout, Peer, PeerStatus, SelfNode, View};
+use crate::model::{fmt_count, FileRow, Layout, Peer, PeerStatus, SelfNode, Tab, View};
 use crate::search;
 use crate::selection::Selection;
 use crate::theme as t;
@@ -428,6 +428,108 @@ pub fn sidebar<'a>(
             background: Some(Background::Color(t::WINDOW_SIDE)),
             border: Border {
                 color: t::DIVIDER,
+                width: 0.0,
+                radius: 0.0.into(),
+            },
+            ..container::Style::default()
+        })
+        .into()
+}
+
+// ─── Tab strip (E10.5) ─────────────────────────────────────────────────────
+
+/// The browser-tab strip: one chip per open tab (click to switch, × to close)
+/// plus a trailing `+` new-tab button. Rendered above the toolbar.
+pub fn tab_strip(tabs: &[Tab], active: usize) -> Element<'static, Message> {
+    let mut strip = row![]
+        .spacing(2.0)
+        .align_y(iced::alignment::Vertical::Center);
+    let show_close = tabs.len() > 1;
+    for (i, tab) in tabs.iter().enumerate() {
+        let is_active = i == active;
+        let mut chip =
+            row![text(tab.title())
+                .size(12)
+                .color(if is_active { t::FG } else { t::FG_DIM })]
+            .spacing(6.0)
+            .align_y(iced::alignment::Vertical::Center);
+        if show_close {
+            chip = chip.push(
+                button(icon(icons::CLOSE, 11.0, t::FG_FAINT))
+                    .on_press(Message::CloseTab(i))
+                    .padding(2.0)
+                    .style(|_t: &Theme, status: button::Status| button::Style {
+                        snap: false,
+                        background: matches!(status, button::Status::Hovered).then_some(
+                            Background::Color(Color {
+                                a: 0.10,
+                                ..Color::WHITE
+                            }),
+                        ),
+                        text_color: t::FG,
+                        border: Border {
+                            color: Color::TRANSPARENT,
+                            width: 0.0,
+                            radius: 3.0.into(),
+                        },
+                        ..button::Style::default()
+                    }),
+            );
+        }
+        strip = strip.push(
+            button(chip)
+                .on_press(Message::SwitchTab(i))
+                .padding(Padding::from([5.0, 10.0]))
+                .style(move |_t: &Theme, status: button::Status| {
+                    let hot = matches!(status, button::Status::Hovered);
+                    button::Style {
+                        snap: false,
+                        background: Some(Background::Color(if is_active {
+                            t::PF_BG_300
+                        } else if hot {
+                            t::ROW_HOVER
+                        } else {
+                            Color::TRANSPARENT
+                        })),
+                        text_color: t::FG,
+                        border: Border {
+                            color: Color::TRANSPARENT,
+                            width: 0.0,
+                            radius: 0.0.into(),
+                        },
+                        ..button::Style::default()
+                    }
+                }),
+        );
+    }
+    strip = strip.push(
+        button(icon(icons::PLUS, 13.0, t::FG_DIM))
+            .on_press(Message::NewTab)
+            .padding(Padding::from([5.0, 8.0]))
+            .style(|_t: &Theme, status: button::Status| button::Style {
+                snap: false,
+                background: matches!(status, button::Status::Hovered)
+                    .then_some(Background::Color(t::ROW_HOVER)),
+                text_color: t::FG,
+                border: Border {
+                    color: Color::TRANSPARENT,
+                    width: 0.0,
+                    radius: 0.0.into(),
+                },
+                ..button::Style::default()
+            }),
+    );
+    container(strip)
+        .width(Length::Fill)
+        .padding(Padding::from([3.0, 8.0]))
+        .style(|_| container::Style {
+            snap: false,
+            background: Some(Background::Color(t::WINDOW_TITLEBAR)),
+            border: Border {
+                color: Color {
+                    a: 0.08,
+                    ..Color::WHITE
+                },
                 width: 0.0,
                 radius: 0.0.into(),
             },

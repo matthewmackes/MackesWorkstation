@@ -29,4 +29,4 @@ pub use app::{MdeFiles, Message};
 pub use backend::{
     AuditEntry, Backend, BackendError, ConflictPolicy, DemoBackend, Destination, OpId, SendMode,
 };
-pub use model::{FileRow, Layout, Mime, Peer, PeerKind, PeerStatus, SelfNode, View};
+pub use model::{FileRow, Layout, Mime, Peer, PeerKind, PeerStatus, SelfNode, Tab, View};
