@@ -15,6 +15,7 @@ pub mod icons;
 pub mod mesh_backend;
 pub mod model;
 pub mod panels;
+pub mod picker;
 pub mod prefs;
 pub mod search;
 pub mod selection;

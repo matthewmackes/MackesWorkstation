@@ -156,6 +156,35 @@ pub fn run(args: &[String]) -> ExitCode {
     } else {
         title
     };
+
+    // E10.3 — fold the Open/Save dialog onto the one file engine: when the
+    // unified `mde-files` manager is installed (the Workstation role), hand the
+    // pick off to its `--pick` chooser so the desktop has a single file engine
+    // for both browsing and picking. `exec` replaces this process, so the
+    // chooser's stdout (the chosen path) and exit code flow straight back to
+    // whoever spawned `mde filedialog`, preserving the contract. `exec` only
+    // returns on failure (e.g. headless roles where mde-files isn't shipped),
+    // in which case we fall through to the built-in Carbon dialog below.
+    // (Fully retiring this in-shell dialog is gated on mde-files reaching IBM
+    // Carbon parity — today it themes from the Material-indigo `tokens.css`.)
+    {
+        use std::os::unix::process::CommandExt;
+        let mut cmd = std::process::Command::new("mde-files");
+        cmd.arg("--pick");
+        if save {
+            cmd.arg("--save");
+        }
+        cmd.args(["--title", &title]);
+        cmd.args(["--dir", &current.to_string_lossy()]);
+        if !filename.is_empty() {
+            cmd.args(["--filename", &filename]);
+        }
+        if !filter_spec.is_empty() {
+            cmd.args(["--filter", &filter_spec]);
+        }
+        let _ = cmd.exec(); // returns only if mde-files is absent/unspawnable
+    }
+
     match gui(save, title, current, filename, filters) {
         // Selection is printed inside the GUI (then it exits 0); reaching here
         // without a selection means the window closed / Cancel.

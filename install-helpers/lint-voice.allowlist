@@ -39,8 +39,12 @@ crates/shell/mde/src/browser_jumplist.rs:42
 crates/shell/mde/src/browser_jumplist.rs:43
 crates/shell/mde/src/fedora.rs:49
 crates/shell/mde/src/filedialog.rs:152
-crates/shell/mde/src/filedialog.rs:318
-crates/shell/mde/src/filedialog.rs:598
+crates/shell/mde/src/filedialog.rs:347
+crates/shell/mde/src/filedialog.rs:627
+# mde-files picker (E10.3): "Save As" window title + Save/Open accept-button
+# label are file-dialog terminology, not config-apply verbs.
+crates/services/mde-files/src/picker.rs:146
+crates/services/mde-files/src/picker.rs:564
 crates/shell/mde/src/oobe.rs:1351
 crates/shell/mde/src/oobe.rs:1167
 crates/shell/mde/src/oobe.rs:1169
