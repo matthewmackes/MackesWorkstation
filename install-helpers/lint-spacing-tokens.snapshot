@@ -6,7 +6,10 @@ crates/services/mde-files/src/app.rs 1
 crates/services/mde-files/src/views.rs 51
 crates/services/mde-files/src/widgets.rs 69
 crates/services/mde-music/src/main.rs 86
-crates/services/mde-voice-hud/src/main.rs 11
+# mde-voice-hud themes via its own theme.rs (own dark palette, raw sizes by
+# convention — a standalone service crate, not an mde-ui Carbon surface, like
+# mde-music/mde-files); +4 for the VOIP-28 slice-2 Call/Hang-up bar.
+crates/services/mde-voice-hud/src/main.rs 15
 crates/shared/mde-iced-components/src/lib.rs 6
 crates/shell/mde-logout-dialog/src/main.rs 3
 crates/shell/mde-popover/src/admin_menu.rs 8

@@ -118,6 +118,14 @@ pub enum Message {
     /// Result of the startup SIP REGISTER attempt (VOIP-28) — the
     /// resolved registration state, rendered in the topbar.
     Registered(sip::RegistrationState),
+    /// Operator pressed Call — place an outbound INVITE to the dialed number.
+    PlaceCall,
+    /// Result of the outbound INVITE: the established dialog or a failure.
+    CallConnected(Result<sip::CallSession, String>),
+    /// Operator pressed Hang up — tear the active call down with a BYE.
+    HangUp,
+    /// The BYE task finished — the call is fully torn down (no-op confirm).
+    CallEnded,
 }
 
 /// Top-level HUD state.
@@ -130,6 +138,13 @@ pub struct VoiceHud {
     /// Live SIP registration state (VOIP-28) — drives the topbar status
     /// line + presence pip. `NoAccount` until `account.toml` exists.
     pub registration: sip::RegistrationState,
+    /// The loaded SIP account (used to place calls); `None` with no config.
+    pub account: Option<sip::SipAccount>,
+    /// Live outbound-call state (VOIP-28 slice 2) — drives the call status
+    /// row + the Call/Hang-up button.
+    pub call: sip::CallState,
+    /// The established dialog while a call is up (for the BYE on hang-up).
+    pub session: Option<sip::CallSession>,
 }
 
 // ── iced_layershell 0.18 builder-pattern functions ──────────────────────────
@@ -161,6 +176,62 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
             tracing::info!(state = ?reg, "voice-hud: registration result");
             state.registration = reg;
         }
+        Message::PlaceCall => {
+            let dialed = state.dialer_input.trim().to_string();
+            if dialed.is_empty() || state.call.is_active() {
+                return Task::none();
+            }
+            match state.account.clone() {
+                Some(acct) => {
+                    state.call = sip::CallState::Calling {
+                        peer: dialed.clone(),
+                    };
+                    let peer = dialed.clone();
+                    return Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                sip::place_call(&acct, &dialed, std::time::Duration::from_secs(30))
+                            })
+                            .await
+                            .unwrap_or_else(|e| Err(format!("call task failed: {e}")))
+                        },
+                        move |res| Message::CallConnected(res.map_err(|e| format!("{peer}: {e}"))),
+                    );
+                }
+                None => {
+                    state.call = sip::CallState::Failed("no SIP account configured".into());
+                }
+            }
+        }
+        Message::CallConnected(Ok(session)) => {
+            tracing::info!(
+                rtp = session.rtp_port,
+                "voice-hud: call connected (signaling up)"
+            );
+            state.call = sip::CallState::InCall {
+                peer: state.dialer_input.trim().to_string(),
+            };
+            state.session = Some(session);
+        }
+        Message::CallConnected(Err(why)) => {
+            tracing::info!(why = %why, "voice-hud: call failed");
+            state.call = sip::CallState::Failed(why);
+            state.session = None;
+        }
+        Message::HangUp => {
+            state.call = sip::CallState::Ended;
+            if let Some(session) = state.session.take() {
+                return Task::perform(
+                    async move {
+                        let _ = tokio::task::spawn_blocking(move || sip::hang_up(&session)).await;
+                    },
+                    |()| Message::CallEnded,
+                );
+            }
+        }
+        Message::CallEnded => {
+            // BYE delivered; state is already `Ended`.
+        }
         // `#[to_layer_message]` injects extra variants for
         // layer-shell control actions (anchor / margin / etc.
         // changes). VOIP-27 ships idle-state only — no
@@ -173,15 +244,23 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
 }
 
 pub fn view(state: &VoiceHud) -> Element<'_, Message> {
-    container(column![build_topbar(state), build_display(state), build_keypad(),].spacing(12))
-        .padding(Padding::from([16, 16]))
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_: &Theme| iced::widget::container::Style {
-            background: Some(iced::Background::Color(theme::SURF)),
-            ..Default::default()
-        })
-        .into()
+    container(
+        column![
+            build_topbar(state),
+            build_display(state),
+            build_keypad(),
+            build_call_bar(state),
+        ]
+        .spacing(12),
+    )
+    .padding(Padding::from([16, 16]))
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .style(|_: &Theme| iced::widget::container::Style {
+        background: Some(iced::Background::Color(theme::SURF)),
+        ..Default::default()
+    })
+    .into()
 }
 
 fn subscription(_state: &VoiceHud) -> iced::Subscription<Message> {
@@ -397,6 +476,68 @@ fn keypad_button<'a>(c: char) -> Element<'a, Message> {
     .into()
 }
 
+/// The Call / Hang-up action button + live call status (VOIP-28 slice 2).
+fn build_call_bar(state: &VoiceHud) -> Element<'_, Message> {
+    let action: Element<Message> = if state.call.is_active() {
+        button(
+            container(text("Hang up").size(16.0).color(theme::SURF))
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center),
+        )
+        .on_press(Message::HangUp)
+        .width(Length::Fill)
+        .height(Length::Fixed(48.0))
+        .style(|_: &Theme, _status| iced::widget::button::Style {
+            background: Some(iced::Background::Color(theme::ERROR)),
+            text_color: theme::SURF,
+            border: iced::Border {
+                radius: iced::border::Radius::from(8.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .into()
+    } else {
+        let enabled = !state.dialer_input.trim().is_empty();
+        let mut b = button(
+            container(text("Call").size(16.0).color(if enabled {
+                theme::SURF
+            } else {
+                theme::ON_SURF_MUTED
+            }))
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+        )
+        .width(Length::Fill)
+        .height(Length::Fixed(48.0))
+        .style(move |_: &Theme, _status| iced::widget::button::Style {
+            background: Some(iced::Background::Color(if enabled {
+                theme::SUCCESS
+            } else {
+                theme::SURF_C
+            })),
+            text_color: theme::SURF,
+            border: iced::Border {
+                radius: iced::border::Radius::from(8.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        if enabled {
+            b = b.on_press(Message::PlaceCall);
+        }
+        b.into()
+    };
+    column![
+        action,
+        text(state.call.label())
+            .size(11.0)
+            .color(theme::ON_SURF_VAR),
+    ]
+    .spacing(6)
+    .into()
+}
+
 // ── Pure helpers ────────────────────────────────────────────────────────
 
 /// `true` if `c` is a valid dialer character: ASCII digit, `*`,
@@ -438,7 +579,7 @@ fn main() -> iced_layershell::Result {
             // is configured. The blocking socket work runs off the UI thread
             // via spawn_blocking; the result lands as Message::Registered.
             let account = sip::SipAccount::load();
-            let (registration, task) = match account {
+            let (registration, task) = match account.clone() {
                 Some(acct) => {
                     tracing::info!(server = %acct.server_host, "voice-hud: registering");
                     let t = Task::perform(
@@ -462,6 +603,9 @@ fn main() -> iced_layershell::Result {
                     dialer_input: String::new(),
                     roster: peers,
                     registration,
+                    account,
+                    call: sip::CallState::Idle,
+                    session: None,
                 },
                 task,
             )
@@ -511,6 +655,9 @@ mod tests {
             dialer_input: String::new(),
             roster: vec![],
             registration: sip::RegistrationState::NoAccount,
+            account: None,
+            call: sip::CallState::Idle,
+            session: None,
         }
     }
 
