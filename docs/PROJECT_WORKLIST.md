@@ -968,14 +968,24 @@ _Depends: E0, E1, E2, E4, E5, E6_
     - [✓] Degraded is distinct from Fail (overlay offline / master-unreachable render Degraded; a missing RPC reply renders Fail); no raw hex (palette `STATUS_*` roles), metrics via `metrics`. *(gallery verified: Nebula + LizardFS amber, not red)*
     - [✓] Reachable from `mde birthright`; degrades gracefully on Bus timeout / mackesd down (`MeshProbe::all_fail` + per-row Fail reasons, never panic — the poller thread isolates the 800ms RPC stalls). *(8 new parse/argv tests; 12 birthright tests total)*
 
-- [ ] **E7.5: E7 — birthright Voice + Network sections**
-  The SIP attestation row and the four-tool network readout. Builds on E7.3's shell.
-  **As** an operator, **I want** the dashboard to prove the softphone would ring and to surface the platform's network readouts, **so that** I can confirm voice and connectivity at commissioning.
-  *Reuse:* E5.4 persistent SIP agent (registration + inbound listener), `nebula_roster.rs`, `voip_rtt.rs`, `fleet.rs`, `probe_nmap.rs`, NetworkManager / `net_flyout.rs`. *Deps:* E7.3, E5.4.
+- [✓] **E7.5: E7 — birthright Voice section + the SIP-over-Bus plumbing it needs** *(DONE 2026-06-08; split from the Network half → E7.5b)*
+  The Voice attestation row + the cross-process SIP status it required. Originally bundled with Network; **re-split** because the Voice half had a real blocker (the E5.4 SIP agent's state lived only inside the `mde-voice-hud` process) — operator chose (2026-06-08) to **build the SIP-over-Bus plumbing** rather than ship a proxy or defer.
+  Built: (1) `mde-voice-hud` `sip.rs` now publishes a timestamped `state/voice/status` snapshot (`{registered,listening,server,detail,ts}`) to the Bus on each registration change + a 15s heartbeat (`publish_voice_status`, sync `Persist::write` — no runtime on the agent thread); (2) a headless **`mde-voice-hud --agent`** mode (`run_headless_agent`) that runs the persistent register+listen loop with no GUI and publishes status (honest "Not registered" heartbeat when no `account.toml`), launched from the skel `autostart`; (3) birthright's **Voice** card reads the retained `state/voice/status` (sync `Persist::list_since`), treating a heartbeat older than `VOICE_STALE_SECS` (45s) as "agent not running" — registered+listening → Pass, listening-only → Degraded, else/stale/absent → Fail, with a "Voice settings" fix (`mde-voice-config`). The birthright poller was generalised mesh→`LiveProbe{mesh,voice}` (one Bus-reading thread serves both).
+  **Decision (§6):** the live registered-against-a-real-registrar Pass is the **SIP-server bench** (per [[e5-4-voip-pure-rust-sip]] + [[bench-gates-lifted]]); everything else is §3-complete and **verified live on the dev box** — the headless agent published `state/voice/status` and birthright read+rendered it ("Softphone (SIP): not listening (Not registered)"). The inbound-call→answer/decline HUD hand-off stays E5.4's domain (the headless agent logs the ring; it does not own the GUI handoff). A loopback test-call button is deferred to the bench too.
+  **As** an operator, **I want** the dashboard to prove the softphone is up (registered + listening), **so that** I can confirm voice at commissioning.
+  *Reuse:* E5.4 persistent SIP agent (`sip::run_agent`), `mde_bus` (`Persist::write`/`list_since`), `mde-voice-config` (fix). *Deps:* E7.3, E5.4.
   **Acceptance** (runtime-observable):
-    - [ ] The Voice card shows a Pass row only when the E5.4 SIP agent is **registered AND its inbound listener socket is bound** (a call would ring); a failed row offers a Register fix; a live loopback test-call is an explicit opt-in button, never an auto-check.
-    - [ ] The Network card surfaces all four readouts — Nebula roster + `voip_rtt` RTT, `fleet` inventory, a LAN `probe_nmap` scan, and NetworkManager/net-flyout connectivity (link/IP/DNS/gateway); the expensive probes (nmap, RTT, test-call) run only on open + Re-check, not the auto-poll.
-    - [ ] Both cards render live tri-state rows updating on `mde-bus` events + manual Re-check; reachable from `mde birthright`, Carbon-only, degrades gracefully when a tool/daemon is absent.
+    - [✓] The Voice card shows Pass only when the agent reports **registered AND listening**; listening-without-registration is Degraded; absent/stale status is Fail; a non-green row offers a "Voice settings" fix. *(parse_voice unit-tested for all states; live gallery shows the honest no-account Fail)*
+    - [✓] The agent's registration + listener state is published to the Bus (`state/voice/status`, heartbeated + timestamped) by a headless `mde-voice-hud --agent` autostarted at login, so birthright reads it cross-process. *(verified: agent created the `state/` topic + birthright rendered its value)*
+    - [✓] The Voice row renders live tri-state, refreshing on the poller + manual Re-check; reachable from `mde birthright`, palette `STATUS_*` roles, degrades gracefully (stale/no-bus → Fail, never panic). *(4 new birthright tests + 1 sip test; 15 birthright + 54 voice-hud + 187 mde green; clippy/fmt clean)*
+
+- [ ] **E7.5b: E7 — birthright Network section (four-tool readout)** *(split from E7.5, 2026-06-08)*
+  The four network readouts. Builds on E7.5's `LiveProbe` poller + section pattern.
+  **As** an operator, **I want** the dashboard to surface the platform's network readouts, **so that** I can confirm connectivity + reachability at commissioning.
+  *Reuse:* `action/nebula/status` roster + `voip_rtt`, `action/fleet/*`, `action/netassess/*` (nmap), NetworkManager / `nm.rs` / `net_flyout.rs`. *Deps:* E7.5.
+  **Acceptance** (runtime-observable):
+    - [ ] The Network card surfaces all four readouts — Nebula roster + RTT, `fleet` inventory, a LAN nmap (`action/netassess`) scan, and NetworkManager/net-flyout connectivity (link/IP/DNS/gateway); the expensive probes (nmap, RTT) run only on open + Re-check, not the auto-poll.
+    - [ ] Rows render live tri-state via the `LiveProbe` poller + manual Re-check; reachable from `mde birthright`, palette roles only, degrades gracefully when a tool/daemon is absent (never panic).
 
 - [ ] **E7.6: E7 — birthright attestation extras: report export + post-commissioning escalation**
   Copy/Save the commissioning report, and a panel badge + toast when a previously-green subsystem regresses after the box is unchecked.

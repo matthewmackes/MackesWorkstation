@@ -682,6 +682,37 @@ pub fn filter_dialer_chars(s: &str) -> String {
 
 // ── Main ────────────────────────────────────────────────────────────────
 
+/// Headless persistent-agent mode (`mde-voice-hud --agent`, E7.5). Runs the SIP
+/// register + inbound-listen loop with no GUI, publishing `state/voice/status`
+/// to the Bus for the birthright commissioning dashboard. Blocks until the
+/// process is signalled (SIGTERM from the session teardown). With no
+/// `account.toml` it publishes an honest "Not registered" heartbeat rather than
+/// exiting, so a reader can still distinguish "agent up, no account" from "agent
+/// not running".
+fn run_headless_agent() {
+    let Some(acct) = sip::SipAccount::load() else {
+        tracing::info!("voice agent: no account.toml — publishing unregistered heartbeat");
+        loop {
+            sip::publish_voice_status(&sip::RegistrationState::NoAccount, false);
+            std::thread::sleep(std::time::Duration::from_secs(sip::STATUS_HEARTBEAT_SECS));
+        }
+    };
+    tracing::info!(server = %acct.server_host, "voice agent: starting (headless)");
+    let (event_tx, event_rx) = mpsc::channel::<sip::AgentEvent>();
+    // Hold the command sender for the agent's lifetime so its loop never sees a
+    // disconnected channel; drain events so the channel never backs up (and log
+    // inbound rings — the answer/decline HUD hand-off is E5.4's domain).
+    let (_cmd_tx, cmd_rx) = mpsc::channel::<sip::AgentCommand>();
+    std::thread::spawn(move || {
+        while let Ok(ev) = event_rx.recv() {
+            if let sip::AgentEvent::Incoming { from, .. } = &ev {
+                tracing::info!(%from, "voice agent: inbound call ringing (headless)");
+            }
+        }
+    });
+    sip::run_agent(&acct, &event_tx, &cmd_rx);
+}
+
 fn main() -> iced_layershell::Result {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -690,6 +721,15 @@ fn main() -> iced_layershell::Result {
         )
         .json()
         .init();
+
+    // E7.5 — headless agent mode. The labwc autostart launches `mde-voice-hud
+    // --agent` at login so the persistent SIP agent registers + listens for
+    // inbound calls (and publishes `state/voice/status` to the Bus) without a
+    // window. Returns only when the process is signalled.
+    if std::env::args().skip(1).any(|a| a == "--agent") {
+        run_headless_agent();
+        return Ok(());
+    }
 
     iced_layershell::application(
         || {

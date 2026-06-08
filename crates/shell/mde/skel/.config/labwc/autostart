@@ -13,6 +13,12 @@ nm-applet --indicator &
 # that the Win+V history popup (mde clipboard) reads. Lockfile-idempotent.
 mde clipboard daemon &
 
+# Persistent SIP/voice agent (E7.5): registers with the configured SIP account
+# and listens for inbound calls, publishing state/voice/status to the Bus so the
+# birthright commissioning dashboard can attest the softphone is up. No-ops
+# gracefully (honest "Not registered" heartbeat) when no account.toml exists.
+mde-voice-hud --agent &
+
 # AutoPlay (E12.9): watches udisks2 for removable media and opens it in Files on
 # mount, per Settings ▸ Devices ▸ AutoPlay. No-ops when AutoPlay is off.
 mde devices-monitor &

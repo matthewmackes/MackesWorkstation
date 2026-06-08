@@ -139,6 +139,70 @@ impl RegistrationState {
     }
 }
 
+// ── VOIP-28 / E7.5: publish agent status to the Bus ─────────────────────────
+//
+// The persistent SIP agent lives inside this process, so a separate reader (the
+// `mde birthright` commissioning dashboard) can't see its registration state
+// directly. The agent therefore publishes a small `state/voice/status` snapshot
+// to the Bus on each registration change and on a heartbeat, stamped with a
+// wall-clock time so a stale snapshot (a dead agent) is detectable. `Persist`
+// writes are synchronous — no runtime needed on the agent thread.
+
+/// The Bus topic the agent publishes its status to.
+pub const VOICE_STATUS_TOPIC: &str = "state/voice/status";
+
+/// How often the running agent re-publishes its status, so a reader can tell a
+/// live agent (fresh `ts`) from a crashed one (stale `ts`). A reader's
+/// staleness window should be a small multiple of this (birthright uses 45s).
+pub const STATUS_HEARTBEAT_SECS: u64 = 15;
+
+/// Current wall-clock seconds since the Unix epoch (0 if the clock is before it).
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Pure JSON builder for the `state/voice/status` body — split out so it is
+/// unit-tested without a Bus.
+fn voice_status_json(reg: &RegistrationState, listening: bool, ts: u64) -> String {
+    let (registered, server, detail) = match reg {
+        RegistrationState::Registered { server, .. } => (true, server.clone(), reg.label()),
+        RegistrationState::NoAccount
+        | RegistrationState::Registering
+        | RegistrationState::Failed(_) => (false, String::new(), reg.label()),
+    };
+    serde_json::json!({
+        "registered": registered,
+        "listening": listening,
+        "server": server,
+        "detail": detail,
+        "ts": ts,
+    })
+    .to_string()
+}
+
+/// Publish the agent's current status to the Bus (best-effort; a missing Bus or
+/// write error is logged at debug and ignored — status is advisory).
+pub fn publish_voice_status(reg: &RegistrationState, listening: bool) {
+    let Some(dir) = mde_bus::default_data_dir() else {
+        return;
+    };
+    let Ok(persist) = mde_bus::persist::Persist::open(dir) else {
+        return;
+    };
+    let body = voice_status_json(reg, listening, now_unix());
+    if let Err(e) = persist.write(
+        VOICE_STATUS_TOPIC,
+        mde_bus::hooks::config::Priority::Default,
+        None,
+        Some(&body),
+    ) {
+        tracing::debug!(error = %e, "voice agent: status publish failed");
+    }
+}
+
 /// A parsed `WWW-Authenticate` / `Proxy-Authenticate` digest challenge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Challenge {
@@ -1039,21 +1103,21 @@ pub fn run_agent(
         .ok()
         .and_then(|mut it| it.next())
     else {
-        let _ = events.send(AgentEvent::Registration(RegistrationState::Failed(
-            "cannot resolve registrar".into(),
-        )));
+        let st = RegistrationState::Failed("cannot resolve registrar".into());
+        publish_voice_status(&st, false);
+        let _ = events.send(AgentEvent::Registration(st));
         return;
     };
     let Some(local_ip) = route_source_ip(registrar) else {
-        let _ = events.send(AgentEvent::Registration(RegistrationState::Failed(
-            "no route to registrar".into(),
-        )));
+        let st = RegistrationState::Failed("no route to registrar".into());
+        publish_voice_status(&st, false);
+        let _ = events.send(AgentEvent::Registration(st));
         return;
     };
     let Ok(sock) = UdpSocket::bind((local_ip.as_str(), 0)) else {
-        let _ = events.send(AgentEvent::Registration(RegistrationState::Failed(
-            "agent socket bind failed".into(),
-        )));
+        let st = RegistrationState::Failed("agent socket bind failed".into());
+        publish_voice_status(&st, false);
+        let _ = events.send(AgentEvent::Registration(st));
         return;
     };
     sock.set_read_timeout(Some(Duration::from_millis(200))).ok();
@@ -1061,10 +1125,13 @@ pub fn run_agent(
     let rtp_port = 40000 + (local_port % 1000) * 2;
 
     let reg_period = Duration::from_secs(u64::from(account.expires.max(60)) / 2);
-    let _ = events.send(AgentEvent::Registration(agent_register(
-        &sock, registrar, account, &local_ip, local_port,
-    )));
+    // The socket is bound, so the agent is now listening for inbound INVITEs;
+    // `listening` stays true for the rest of the loop.
+    let mut reg_state = agent_register(&sock, registrar, account, &local_ip, local_port);
+    publish_voice_status(&reg_state, true);
+    let _ = events.send(AgentEvent::Registration(reg_state.clone()));
     let mut next_reg = Instant::now() + reg_period;
+    let mut next_status = Instant::now() + Duration::from_secs(STATUS_HEARTBEAT_SECS);
     let mut pending: Option<InboundInvite> = None;
     let mut media: Option<crate::media::MediaSession> = None;
     let mut buf = [0u8; 4096];
@@ -1147,10 +1214,17 @@ pub fn run_agent(
         }
 
         if Instant::now() >= next_reg {
-            let _ = events.send(AgentEvent::Registration(agent_register(
-                &sock, registrar, account, &local_ip, local_port,
-            )));
+            reg_state = agent_register(&sock, registrar, account, &local_ip, local_port);
+            publish_voice_status(&reg_state, true);
+            let _ = events.send(AgentEvent::Registration(reg_state.clone()));
             next_reg = Instant::now() + reg_period;
+        }
+
+        // Heartbeat: re-publish the (unchanged) status so a reader can tell a
+        // live agent from a crashed one by the freshness of its `ts`.
+        if Instant::now() >= next_status {
+            publish_voice_status(&reg_state, true);
+            next_status = Instant::now() + Duration::from_secs(STATUS_HEARTBEAT_SECS);
         }
     }
 }
@@ -1176,6 +1250,26 @@ mod tests {
         assert_eq!(split_host_port("host:5080", 5060), ("host".into(), 5080));
         // A bare IPv4 with no port keeps the default.
         assert_eq!(split_host_port("10.0.0.1", 5060), ("10.0.0.1".into(), 5060));
+    }
+
+    #[test]
+    fn voice_status_json_reflects_registration() {
+        let reg = RegistrationState::Registered {
+            server: "sip.example.com:5060".into(),
+            expires: 3600,
+        };
+        let v: serde_json::Value =
+            serde_json::from_str(&voice_status_json(&reg, true, 1_700_000_000)).unwrap();
+        assert_eq!(v["registered"], true);
+        assert_eq!(v["listening"], true);
+        assert_eq!(v["server"], "sip.example.com:5060");
+        assert_eq!(v["ts"], 1_700_000_000_u64);
+
+        let down = voice_status_json(&RegistrationState::NoAccount, false, 1);
+        let dv: serde_json::Value = serde_json::from_str(&down).unwrap();
+        assert_eq!(dv["registered"], false);
+        assert_eq!(dv["listening"], false);
+        assert_eq!(dv["detail"], "Not registered");
     }
 
     #[test]

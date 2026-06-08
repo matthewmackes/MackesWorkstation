@@ -103,6 +103,8 @@ enum Fix {
     ReEnroll,
     /// Open the Workbench — the mesh / compute / storage control surface.
     OpenWorkbench,
+    /// Open the voice/SIP account configuration.
+    OpenVoice,
 }
 
 impl Fix {
@@ -111,6 +113,7 @@ impl Fix {
             Fix::StartMackesd => "Start mackesd",
             Fix::ReEnroll => "Re-enroll",
             Fix::OpenWorkbench => "Open Workbench",
+            Fix::OpenVoice => "Voice settings",
         }
     }
 }
@@ -132,6 +135,7 @@ fn fix_argv(fix: Fix) -> Vec<String> {
         ],
         Fix::ReEnroll => vec![exe, "oobe".into()],
         Fix::OpenWorkbench => vec!["mde-workbench".into()],
+        Fix::OpenVoice => vec!["mde-voice-config".into()],
     }
 }
 
@@ -172,9 +176,33 @@ impl Check {
     }
 }
 
-/// Shared handle the background mesh poller writes and the UI tick reads
-/// (`None` until the first probe completes).
-type MeshHandle = Arc<Mutex<Option<MeshProbe>>>;
+/// Reader-side staleness window for the voice agent's `state/voice/status`
+/// heartbeat: a snapshot older than this means the agent stopped. A small
+/// multiple of the agent's `STATUS_HEARTBEAT_SECS` (15s).
+const VOICE_STALE_SECS: u64 = 45;
+
+/// Shared handle the background poller writes and the UI tick reads (`None`
+/// until the first probe completes). Carries both the Mesh + Voice sections,
+/// which both read the Bus, so one poller thread serves both.
+type LiveHandle = Arc<Mutex<Option<LiveProbe>>>;
+
+/// A snapshot of the Bus-backed sections: the four mesh rows + the voice row.
+#[derive(Debug, Clone)]
+struct LiveProbe {
+    mesh: MeshProbe,
+    voice: Check,
+}
+
+impl LiveProbe {
+    /// Every Bus-backed row failed for the same reason (no Bus / no runtime).
+    fn all_fail(reason: &str) -> Self {
+        LiveProbe {
+            mesh: MeshProbe::all_fail(reason),
+            voice: Check::new("Softphone (SIP)", Status::Fail, reason.to_string())
+                .with_fix(Fix::OpenVoice),
+        }
+    }
+}
 
 /// A snapshot of the four mesh-component rows.
 #[derive(Debug, Clone)]
@@ -211,8 +239,9 @@ impl MeshProbe {
 
 struct Birthright {
     desktop: Vec<Check>,
-    mesh: MeshHandle,
+    live: LiveHandle,
     mesh_rows: Vec<Check>,
+    voice_row: Check,
     show_at_startup: bool,
 }
 
@@ -252,6 +281,11 @@ fn mesh_checking() -> Vec<Check> {
     ]
 }
 
+/// The Voice row's initial Checking state.
+fn voice_checking() -> Check {
+    Check::checking("Softphone (SIP)")
+}
+
 pub fn run(args: &[String]) -> ExitCode {
     // `--autostart`: the labwc autostart launches us this way every login. Honour
     // the per-user "show at startup" flag and exit silently when it's off, so an
@@ -278,8 +312,9 @@ pub fn run(args: &[String]) -> ExitCode {
         (
             Birthright {
                 desktop: desktop_checking(),
-                mesh: start_mesh_poller(),
+                live: start_live_poller(),
                 mesh_rows: mesh_checking(),
+                voice_row: voice_checking(),
                 show_at_startup: crate::state::load().birthright_show_at_startup,
             },
             Task::done(Message::Probe),
@@ -303,15 +338,17 @@ fn update(state: &mut Birthright, message: Message) -> Task<Message> {
         Message::Recheck => {
             state.desktop = desktop_checking();
             state.mesh_rows = mesh_checking();
-            refresh_mesh(state.mesh.clone());
+            state.voice_row = voice_checking();
+            refresh_live(state.live.clone());
             return Task::done(Message::Probe);
         }
         Message::Probe | Message::Tick => {
             state.desktop = probe_desktop();
             // Non-blocking read of the background poller's latest snapshot; keep
             // the Checking rows until the first probe lands.
-            if let Some(probe) = state.mesh.lock().ok().and_then(|g| g.clone()) {
-                state.mesh_rows = probe.rows();
+            if let Some(probe) = state.live.lock().ok().and_then(|g| g.clone()) {
+                state.mesh_rows = probe.mesh.rows();
+                state.voice_row = probe.voice;
             }
         }
         Message::ToggleStartup(on) => {
@@ -323,8 +360,8 @@ fn update(state: &mut Birthright, message: Message) -> Task<Message> {
         Message::Fix(fix) => {
             run_fix(fix);
             // The change (service start, re-enrol) lands asynchronously; nudge the
-            // mesh poller so the row reflects it sooner than the next 5s tick.
-            refresh_mesh(state.mesh.clone());
+            // poller so the row reflects it sooner than the next 5s tick.
+            refresh_live(state.live.clone());
         }
         Message::Close => std::process::exit(0),
     }
@@ -433,17 +470,17 @@ fn probe_desktop() -> Vec<Check> {
 
 // --- probes: Mesh section ---------------------------------------------------
 
-/// Start the background mesh poller; returns the shared handle the UI reads.
-/// Mirrors `mesh_status::start` — a dedicated thread keeps the 800 ms-timeout
-/// Bus RPCs off the UI thread.
+/// Start the background poller; returns the shared handle the UI reads. Mirrors
+/// `mesh_status::start` — a dedicated thread keeps the 800 ms-timeout Bus RPCs
+/// (and the voice-status read) off the UI thread.
 #[must_use]
-fn start_mesh_poller() -> MeshHandle {
-    let handle: MeshHandle = Arc::new(Mutex::new(None));
+fn start_live_poller() -> LiveHandle {
+    let handle: LiveHandle = Arc::new(Mutex::new(None));
     let writer = handle.clone();
     let _ = thread::Builder::new()
-        .name("mde-birthright-mesh".into())
+        .name("mde-birthright-live".into())
         .spawn(move || loop {
-            let probe = probe_mesh();
+            let probe = probe_live();
             if let Ok(mut g) = writer.lock() {
                 *g = Some(probe);
             }
@@ -452,35 +489,42 @@ fn start_mesh_poller() -> MeshHandle {
     handle
 }
 
-/// Fire a one-shot mesh re-probe into `handle` (manual Re-check / post-fix).
-fn refresh_mesh(handle: MeshHandle) {
+/// Fire a one-shot re-probe into `handle` (manual Re-check / post-fix).
+fn refresh_live(handle: LiveHandle) {
     let _ = thread::Builder::new()
-        .name("mde-birthright-mesh-once".into())
+        .name("mde-birthright-live-once".into())
         .spawn(move || {
-            let probe = probe_mesh();
+            let probe = probe_live();
             if let Ok(mut g) = handle.lock() {
                 *g = Some(probe);
             }
         });
 }
 
-/// One full mesh probe: open the Bus, then RPC each component. Self-contained
-/// (own current-thread tokio runtime) so it runs on the poller thread.
-fn probe_mesh() -> MeshProbe {
+/// One full probe of the Bus-backed sections: open the Bus once, read the
+/// retained voice status (sync), then RPC each mesh component (async). Runs on
+/// the poller thread with its own current-thread tokio runtime.
+fn probe_live() -> LiveProbe {
     let Some(bus_dir) = mde_bus::default_data_dir() else {
-        return MeshProbe::all_fail("no Bus data dir configured");
+        return LiveProbe::all_fail("no Bus data dir configured");
     };
+    let persist = match mde_bus::persist::Persist::open(bus_dir) {
+        Ok(p) => p,
+        Err(e) => return LiveProbe::all_fail(&format!("Bus store unreachable: {e}")),
+    };
+    // Voice: a sync read of the agent's retained `state/voice/status`.
+    let voice = parse_voice(read_latest(&persist, mde_voice_status_topic()), now_unix());
+    // Mesh: async request/reply RPCs.
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     else {
-        return MeshProbe::all_fail("could not start probe runtime");
-    };
-    rt.block_on(async move {
-        let persist = match mde_bus::persist::Persist::open(bus_dir) {
-            Ok(p) => p,
-            Err(e) => return MeshProbe::all_fail(&format!("Bus store: {e}")),
+        return LiveProbe {
+            mesh: MeshProbe::all_fail("could not start probe runtime"),
+            voice,
         };
+    };
+    let mesh = rt.block_on(async {
         let bus = Check::new("mde-bus", Status::Pass, "Bus store reachable");
         let mackesd = parse_mackesd(rpc_body(&persist, "action/shell/healthz").await);
         let nebula = parse_nebula(rpc_body(&persist, "action/nebula/status").await);
@@ -491,7 +535,34 @@ fn probe_mesh() -> MeshProbe {
             nebula,
             meshfs,
         }
-    })
+    });
+    LiveProbe { mesh, voice }
+}
+
+/// The Bus topic the voice agent publishes its status to (matches
+/// `mde_voice_hud::sip::VOICE_STATUS_TOPIC` — kept as a literal here since that
+/// const lives in a sibling binary crate, not a shared lib).
+fn mde_voice_status_topic() -> &'static str {
+    "state/voice/status"
+}
+
+/// Current wall-clock seconds since the Unix epoch (0 before it).
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// The latest retained message body on `topic` (`None` if the topic is empty or
+/// unreadable).
+fn read_latest(persist: &mde_bus::persist::Persist, topic: &str) -> Option<String> {
+    persist
+        .list_since(topic, None)
+        .ok()?
+        .into_iter()
+        .last()?
+        .body
 }
 
 /// One Bus RPC → the reply body (`None` on timeout / no reply / no body).
@@ -656,6 +727,67 @@ fn parse_meshfs(body: Option<String>) -> Check {
     }
 }
 
+/// Parse the voice agent's retained `state/voice/status` (published by
+/// `mde-voice-hud --agent`) into the Voice row, treating a stale heartbeat
+/// (`now - ts > VOICE_STALE_SECS`) as "agent not running". `registered +
+/// listening` is Pass; `listening` without registration is Degraded; otherwise
+/// Fail. The live-registrar path is the SIP-server bench (E5.4 / VOIP-28).
+fn parse_voice(body: Option<String>, now: u64) -> Check {
+    let label = "Softphone (SIP)";
+    let Some(body) = body else {
+        return Check::new(
+            label,
+            Status::Fail,
+            "no SIP status on the Bus — the voice agent is not running",
+        )
+        .with_fix(Fix::OpenVoice);
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return Check::new(label, Status::Fail, "unparseable voice status")
+            .with_fix(Fix::OpenVoice);
+    };
+    let ts = v.get("ts").and_then(serde_json::Value::as_u64).unwrap_or(0);
+    if now.saturating_sub(ts) > VOICE_STALE_SECS {
+        return Check::new(
+            label,
+            Status::Fail,
+            "voice status is stale — the agent stopped publishing (not running?)",
+        )
+        .with_fix(Fix::OpenVoice);
+    }
+    let registered = v
+        .get("registered")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let listening = v
+        .get("listening")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let detail = v.get("detail").and_then(|x| x.as_str()).unwrap_or("");
+    let server = v.get("server").and_then(|x| x.as_str()).unwrap_or("");
+    if registered && listening {
+        Check::new(
+            label,
+            Status::Pass,
+            format!("registered · {server} — listening for inbound calls"),
+        )
+    } else if listening {
+        Check::new(
+            label,
+            Status::Degraded,
+            format!("listening, but not registered ({detail})"),
+        )
+        .with_fix(Fix::OpenVoice)
+    } else {
+        Check::new(
+            label,
+            Status::Fail,
+            format!("not listening for calls ({detail})"),
+        )
+        .with_fix(Fix::OpenVoice)
+    }
+}
+
 // --- view -------------------------------------------------------------------
 
 fn label(s: impl text::IntoFragment<'static>) -> iced::widget::Text<'static> {
@@ -745,11 +877,13 @@ fn view(state: &Birthright) -> Element<'_, Message> {
                 .color(palette::color(palette::GRAY_TEXT)),
         );
 
+    let voice_rows = std::slice::from_ref(&state.voice_row);
     let sections = scrollable(
         Column::new()
             .spacing(metrics::SPACING_04)
             .push(section_card("Desktop", &state.desktop))
-            .push(section_card("Mesh", &state.mesh_rows)),
+            .push(section_card("Mesh", &state.mesh_rows))
+            .push(section_card("Voice", voice_rows)),
     )
     .height(Length::Fill);
 
@@ -928,5 +1062,47 @@ mod tests {
         let p = MeshProbe::all_fail("no bus");
         assert!(p.rows().iter().all(|c| c.status == Status::Fail));
         assert_eq!(p.rows().len(), 4);
+    }
+
+    #[test]
+    fn live_all_fail_covers_mesh_and_voice() {
+        let p = LiveProbe::all_fail("no bus");
+        assert!(p.mesh.rows().iter().all(|c| c.status == Status::Fail));
+        assert_eq!(p.voice.status, Status::Fail);
+        assert_eq!(p.voice.fix, Some(Fix::OpenVoice));
+    }
+
+    #[test]
+    fn voice_parse_states() {
+        let now = 1_700_000_000;
+        // No status published → agent not running → Fail.
+        assert_eq!(parse_voice(None, now).status, Status::Fail);
+        // Registered + listening → Pass.
+        let reg = format!(
+            r#"{{"registered":true,"listening":true,"server":"sip.x:5060","detail":"Registered","ts":{now}}}"#
+        );
+        let c = parse_voice(Some(reg), now);
+        assert_eq!(c.status, Status::Pass);
+        assert!(c.detail.contains("sip.x:5060"));
+        // Listening but not registered → Degraded.
+        let unreg = format!(
+            r#"{{"registered":false,"listening":true,"server":"","detail":"Not registered","ts":{now}}}"#
+        );
+        assert_eq!(parse_voice(Some(unreg), now).status, Status::Degraded);
+        // Not listening → Fail.
+        let down =
+            format!(r#"{{"registered":false,"listening":false,"detail":"no route","ts":{now}}}"#);
+        assert_eq!(parse_voice(Some(down), now).status, Status::Fail);
+        // Stale heartbeat (older than the window) → Fail even if it claims up.
+        let stale = r#"{"registered":true,"listening":true,"server":"s","ts":1}"#;
+        assert_eq!(
+            parse_voice(Some(stale.to_string()), now).status,
+            Status::Fail
+        );
+    }
+
+    #[test]
+    fn open_voice_fix_argv_is_voice_config() {
+        assert_eq!(fix_argv(Fix::OpenVoice), vec!["mde-voice-config"]);
     }
 }
