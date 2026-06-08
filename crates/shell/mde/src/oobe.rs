@@ -603,6 +603,19 @@ fn finish(dry: bool) {
     let _ = crate::state::save(&st);
 }
 
+/// Spawn `mde birthright` as the closing step of a completed GUI OOBE (E7.3).
+/// Workstation-role only (the dashboard is a desktop surface) and never on a
+/// dry-run. Best-effort and detached — a failure here must never strand the
+/// finished OOBE.
+fn launch_birthright(dry: bool) {
+    if dry || !matches!(mde_role::load(), Ok(mde_role::Role::Workstation)) {
+        return;
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        let _ = Command::new(exe).arg("birthright").spawn();
+    }
+}
+
 /// Persist the four Privacy toggles to `menu.json` and apply the configs they each
 /// control (E11.7) — echoed under dry-run. `find_my_device`/Advertising are pure
 /// state flags; Location drives a geoclue opt-out marker and Diagnostics a telemetry
@@ -833,6 +846,10 @@ fn update(state: &mut Oobe, msg: Msg) -> Task<Msg> {
         }
         Msg::Finish => {
             finish(state.dry);
+            // E7.3 — hand off to the commissioning dashboard as OOBE's final step,
+            // on Workstation only and never in a dry-run. A spawn failure must not
+            // strand the finished OOBE, so it's best-effort.
+            launch_birthright(state.dry);
             std::process::exit(0);
         }
     }

@@ -256,6 +256,12 @@ pub struct MenuState {
     pub privacy_find_device: bool,
     #[serde(default = "def_true")]
     pub privacy_ads: bool,
+    /// Birthright commissioning dashboard (E7.3): when true, the labwc autostart
+    /// re-launches `mde birthright` at each login. Unchecking "show at startup" in
+    /// the dashboard sets this false; defaults **on** so a freshly-commissioned box
+    /// re-surfaces the attestation until the operator dismisses it for good.
+    #[serde(default = "def_true")]
+    pub birthright_show_at_startup: bool,
 }
 
 fn def_scroll_lines() -> u8 {
@@ -364,6 +370,7 @@ impl Default for MenuState {
             privacy_diagnostics: true,
             privacy_find_device: true,
             privacy_ads: true,
+            birthright_show_at_startup: true,
         }
     }
 }
@@ -503,6 +510,7 @@ mod tests {
             privacy_diagnostics: true,
             privacy_find_device: false,
             privacy_ads: true,
+            birthright_show_at_startup: false,
         };
         let json = serde_json::to_string(&s).unwrap();
         assert_eq!(parse(&json), s);

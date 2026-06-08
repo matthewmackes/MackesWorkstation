@@ -144,6 +144,7 @@ shot properties       properties "Command Prompt" "/usr/bin/foot"
 shot log-off          logoff
 shot shut-down        shutdown
 shot about            about
+shot birthright       --wait 3.0 birthright
 shot taskbar-properties taskbar-properties
 shot setup            setup --gui
 

@@ -47,3 +47,12 @@ done
 if [ ! -e "$HOME/.config/mde/.setup-done" ]; then
     ( mde setup && mkdir -p "$HOME/.config/mde" && touch "$HOME/.config/mde/.setup-done" ) &
 fi
+
+# Birthright commissioning dashboard (E7.3). Re-surfaces the health attestation
+# each login until the operator unchecks "Show this at startup". The `--autostart`
+# flag makes `mde birthright` honour that per-user flag (exits silently when off)
+# and the role gate refuses it on headless Server/Lighthouse — so this line is a
+# no-op once dismissed and on non-Workstation roles. Launched late so the panel +
+# session services it checks have had a moment to come up (the dashboard re-polls
+# regardless).
+mde birthright --autostart &

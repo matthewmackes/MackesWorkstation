@@ -45,9 +45,9 @@ crates/shell/mde/src/filedialog.rs:627
 # label are file-dialog terminology, not config-apply verbs.
 crates/services/mde-files/src/picker.rs:146
 crates/services/mde-files/src/picker.rs:564
-crates/shell/mde/src/oobe.rs:1351
-crates/shell/mde/src/oobe.rs:1167
-crates/shell/mde/src/oobe.rs:1169
+crates/shell/mde/src/oobe.rs:1368
+crates/shell/mde/src/oobe.rs:1184
+crates/shell/mde/src/oobe.rs:1186
 crates/shell/mde/src/panel.rs:132
 crates/shell/mde/src/panel.rs:136
 crates/shell/mde/src/panel.rs:139

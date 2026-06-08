@@ -15,6 +15,7 @@ mod about;
 mod action_center;
 mod apps;
 mod autoplay;
+mod birthright;
 mod bluez;
 mod browser;
 mod browser_jumplist;
@@ -119,6 +120,7 @@ COMMANDS:
     taskbar-properties   Taskbar and Start Menu Properties
     setup [--profile=R|--show|--tui|--gui|--dry-run]   Pin deployment role (R=lighthouse|server|workstation; upgrade-only) / --show rank / install
     oobe [--tui|--force|--dry-run]   Win10 first-run OOBE (Region→…→Finalize); same flow as `setup --era=win10`
+    birthright [--autostart]   Commissioning dashboard: attest desktop/mesh/voice/network health (Workstation)
     install [--assets]   Fetch Chicago95 + Win2k assets (first run)
     logoff           Log Off / Win10 account flyout (Lock · Sign out)
     shutdown         Shut Down / Win10 power flyout (Sleep · Shut down · Restart)
@@ -294,6 +296,9 @@ fn main() -> ExitCode {
         // E7.1 — the Win10 OOBE as a first-class subcommand (the same flow
         // as `mde setup --era=win10`); honours --tui / --force / --dry-run.
         "oobe" => oobe::run(rest),
+        // E7.3 — the commissioning dashboard (OOBE's final step + autostart
+        // re-surface). `--autostart` self-gates on the show-at-startup flag.
+        "birthright" => birthright::run(rest),
         "install" => install::run(rest),
         "-V" | "--version" => {
             println!("mde {}", env!("CARGO_PKG_VERSION"));

@@ -22,7 +22,7 @@
 /// Pure desktop-UI subcommands — refused on a pinned non-Workstation role.
 /// Deliberately excludes the core CLI and every setup/role tool (see the module
 /// docs): adding `setup` here would break `mde setup --profile` upgrades.
-const DESKTOP_ONLY: &[&str] = &["settings", "action-center", "security"];
+const DESKTOP_ONLY: &[&str] = &["settings", "action-center", "security", "birthright"];
 
 /// The shared role check: `Ok` when the desktop is permitted (Workstation, or
 /// no role pinned yet), `Err(reason)` when a pinned non-Workstation role can't
