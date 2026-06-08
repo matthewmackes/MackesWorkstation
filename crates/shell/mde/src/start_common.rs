@@ -11,19 +11,44 @@ use iced::{Background, Border, Color, Element, Length, Padding, Shadow};
 
 use mde_ui::{metrics, palette};
 
-/// Launch a shell command, optionally inside a `foot` terminal (for CLI tools).
+/// Build a `foot` invocation that opens **maximized** at the 12pt CLI font and
+/// runs `cmd`. When `admin` is set the command runs with **administrative (root)
+/// access** via `pkexec` — the one place the "system tools open maximized + admin"
+/// contract lives, so every surface that launches a CLI/TUI tool behaves the same.
+///
+/// Why root for the whole tool catalog: most of these interfaces (iotop, powertop,
+/// smartctl, `systemctl`, lynis, nmap raw scans, sensors, …) show nothing useful
+/// without it — running them unprivileged is the reason they felt broken via the
+/// desktop. `pkexec env TERM=foot` re-establishes the terminal type pkexec strips,
+/// and `bash -lc` gives the elevated command a login shell (PATH/locale) so tools
+/// resolve. A polkit authentication agent must be running in the session for the
+/// prompt to appear (the labwc autostart launches one). Non-admin terminals (the
+/// Start menu's Help/pinned/program items) skip pkexec so they never demand a
+/// password just to print text.
+pub fn foot_command(cmd: &str, admin: bool) -> Command {
+    let mut c = Command::new("foot");
+    c.arg("--maximized").arg("-o").arg(format!(
+        "font=monospace:size={}",
+        crate::fedora::CLI_FONT_SIZE
+    ));
+    if admin {
+        c.arg("pkexec").arg("env").arg("TERM=foot");
+    }
+    c.arg("bash").arg("-lc").arg(cmd);
+    c
+}
+
+/// A maximized, root-capable terminal for a system tool. See [`foot_command`].
+pub fn foot_admin(cmd: &str) -> Command {
+    foot_command(cmd, true)
+}
+
+/// Launch a shell command. Terminal commands open in a maximized `foot` (as the
+/// user — admin elevation is reserved for the system-tool catalog via
+/// [`foot_admin`]); non-terminal commands spawn directly.
 pub fn launch_cmd(cmd: &str, terminal: bool) {
     if terminal {
-        let _ = Command::new("foot")
-            .arg("-o")
-            .arg(format!(
-                "font=monospace:size={}",
-                crate::fedora::CLI_FONT_SIZE
-            ))
-            .arg("sh")
-            .arg("-c")
-            .arg(cmd)
-            .spawn();
+        let _ = foot_command(cmd, false).spawn();
     } else {
         let _ = Command::new("sh").arg("-c").arg(cmd).spawn();
     }

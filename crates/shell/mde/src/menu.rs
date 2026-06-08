@@ -19,7 +19,7 @@ use iced_layershell::{to_layer_message, Appearance};
 
 use mde_ui::{frame, metrics, palette};
 
-use crate::{apps, fedora, start_common};
+use crate::{apps, start_common};
 
 /// A node in the menu tree.
 enum Node {
@@ -31,7 +31,6 @@ enum Node {
 /// What a leaf does when activated.
 #[derive(Clone)]
 enum Act {
-    Tool(usize),       // fedora tool index
     Cmd(String, bool), // shell command, run-in-terminal
     Mde(&'static str), // re-exec this binary with a subcommand
     Run,
@@ -219,22 +218,25 @@ fn build_root() -> Vec<Node> {
         root.push(Node::Sep);
     }
     root.extend([
-        // Quick-launch staples at the top of the menu, above MackesDE Update.
+        // Quick-launch staples at the top of the menu.
         Node::Leaf("File Explorer".into(), Act::Mde("files")),
         Node::Leaf(
             "Terminal (Terminator)".into(),
             Act::Cmd("terminator".into(), false),
         ),
         Node::Leaf("Firefox".into(), Act::Cmd("firefox".into(), false)),
-        Node::Leaf(
-            "MackesDE Update".into(),
-            Act::Cmd("sudo dnf upgrade".into(), true),
-        ),
         Node::Sep,
         Node::Sub("Programs".into(), programs_tree()),
-        Node::Sub("Settings".into(), settings_tree()),
+        // Settings IS the hub now: the old Win2000 "Settings" fly-out (Control
+        // Panel / Display / Network / Printers / Taskbar) and the "System Tools"
+        // category cascade both duplicated services that live in the Settings
+        // app, so they're retired. Every Control-Panel applet + system tool is
+        // reachable through Settings (System Tools category); no more direct
+        // per-service links in the Start menu. (Automatic Updates, which the
+        // old top-level "MackesDE Update" duplicated, lives in Settings ▸ Update
+        // & Security / System Tools.)
+        Node::Leaf("Settings".into(), Act::Mde("settings")),
         Node::Sub("Search".into(), search_tree()),
-        Node::Sub("System Tools".into(), system_tools_tree()),
         Node::Leaf("Help".into(), Act::Help),
         Node::Leaf("About Mackes Workstation".into(), Act::Mde("about")),
         Node::Leaf("Run...".into(), Act::Run),
@@ -258,40 +260,6 @@ fn programs_tree() -> Vec<Node> {
         nodes.push(Node::Leaf("(no applications found)".into(), Act::Help));
     }
     nodes
-}
-
-fn system_tools_tree() -> Vec<Node> {
-    fedora::categories()
-        .into_iter()
-        .map(|cat| {
-            let children = fedora::TOOLS
-                .iter()
-                .enumerate()
-                .filter(|(_, t)| t.category == cat)
-                .map(|(i, t)| Node::Leaf(t.name.to_string(), Act::Tool(i)))
-                .collect();
-            Node::Sub(cat.to_string(), children)
-        })
-        .collect()
-}
-
-fn settings_tree() -> Vec<Node> {
-    vec![
-        Node::Leaf("Control Panel".into(), Act::Mde("control-panel")),
-        Node::Leaf("Display".into(), Act::Mde("display")),
-        Node::Leaf(
-            "Network and Dial-up Connections".into(),
-            Act::Cmd("nm-connection-editor".into(), false),
-        ),
-        Node::Leaf(
-            "Printers".into(),
-            Act::Cmd("system-config-printer".into(), false),
-        ),
-        Node::Leaf(
-            "Taskbar & Start Menu".into(),
-            Act::Mde("taskbar-properties"),
-        ),
-    ]
 }
 
 fn search_tree() -> Vec<Node> {
@@ -416,7 +384,6 @@ fn command_for(act: &Act) -> Option<String> {
     match act {
         Act::Cmd(c, _) => Some(c.clone()),
         Act::Mde(s) => Some(format!("mde {s}")),
-        Act::Tool(i) => fedora::TOOLS.get(*i).map(|t| t.command.to_string()),
         _ => None,
     }
 }
@@ -579,11 +546,6 @@ fn update(menu: &mut Menu, message: Message) -> Task<Message> {
 
 fn run_act(act: &Act) {
     match act {
-        Act::Tool(i) => {
-            if let Some(t) = fedora::TOOLS.get(*i) {
-                let _ = fedora::launch(t);
-            }
-        }
         Act::Cmd(cmd, terminal) => start_common::launch_cmd(cmd, *terminal),
         Act::Mde(sub) => start_common::mde_self(sub),
         Act::Run => start_common::mde_self("run"),

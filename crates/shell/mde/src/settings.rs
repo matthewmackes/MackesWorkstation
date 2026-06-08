@@ -464,6 +464,10 @@ enum Kind {
     Tool(&'static str),
     /// A raw command (in a terminal when `bool`).
     Cmd(&'static str, bool),
+    /// A native catalog page listing every `fedora::TOOLS` entry in the named
+    /// category (System Tools consolidation). Tools that already have a
+    /// dedicated Settings page are filtered out so nothing is duplicated.
+    ToolGroup(&'static str),
 }
 
 struct Page {
@@ -786,7 +790,103 @@ const CATEGORIES: &[Category] = &[
             },
         ],
     },
+    // System Tools — the consolidated home for the classic Control Panel applets
+    // and the Fedora system/admin utilities that used to live in the Start menu's
+    // "System Tools" and "Settings" fly-outs. Each page lists one `fedora`
+    // category; tools that already have a dedicated Settings page above are
+    // filtered out at render time so nothing appears twice.
+    Category {
+        title: "System Tools",
+        caption: "Control Panel applets, admin & monitoring tools",
+        icons: &["applications-system", "preferences-system"],
+        pages: &[
+            Page {
+                title: "Control Panel applets",
+                kind: Kind::ToolGroup("Control Panel"),
+            },
+            Page {
+                title: "Administrative Tools",
+                kind: Kind::ToolGroup("Administrative Tools"),
+            },
+            Page {
+                title: "All-in-One Dashboard",
+                kind: Kind::ToolGroup("All-in-One Dashboard"),
+            },
+            Page {
+                title: "Resource Monitoring",
+                kind: Kind::ToolGroup("Resource Monitoring"),
+            },
+            Page {
+                title: "Storage & Disk",
+                kind: Kind::ToolGroup("Storage & Disk"),
+            },
+            Page {
+                title: "Backup & Recovery",
+                kind: Kind::ToolGroup("Backup & Recovery"),
+            },
+            Page {
+                title: "Package Management",
+                kind: Kind::ToolGroup("Package Management"),
+            },
+            Page {
+                title: "Network Tools",
+                kind: Kind::ToolGroup("Network Tools"),
+            },
+            Page {
+                title: "Power Management",
+                kind: Kind::ToolGroup("Power Management"),
+            },
+            Page {
+                title: "Hardware Info",
+                kind: Kind::ToolGroup("Hardware Info"),
+            },
+            Page {
+                title: "System Security",
+                kind: Kind::ToolGroup("System Security"),
+            },
+        ],
+    },
 ];
+
+/// Whether `tool` already has a dedicated native Settings page (any
+/// `Kind::Tool`/`Kind::Cmd`/`Kind::Mde` page outside the System Tools catalog),
+/// so the catalog can filter it out — the dedup the consolidation requires.
+///
+/// Matching: `mde <sub>` tools match the native `Kind::Mde(sub)` exactly (the
+/// "mde" binary is too coarse to match on); every other tool matches a native
+/// `Kind::Tool`/`Kind::Cmd` by leading binary, so the catalog's
+/// `timedatectl; echo; read…` collapses onto the native `timedatectl` page.
+fn has_native_page(tool: &fedora::Tool) -> bool {
+    let tool_bin = fedora::binary(tool.command);
+    CATEGORIES
+        .iter()
+        .filter(|cat| cat.title != "System Tools")
+        .flat_map(|cat| cat.pages.iter())
+        .any(|p| match p.kind {
+            Kind::Mde(sub) => tool.command.strip_prefix("mde ") == Some(sub),
+            Kind::Tool(c) | Kind::Cmd(c, _) => tool_bin != "mde" && fedora::binary(c) == tool_bin,
+            _ => false,
+        })
+}
+
+/// The native-page commands — used by the dedup test to assert no overlap.
+#[cfg(test)]
+fn native_tool_commands() -> std::collections::HashSet<&'static str> {
+    fedora::TOOLS
+        .iter()
+        .filter(|t| has_native_page(t))
+        .map(|t| t.command)
+        .collect()
+}
+
+/// The `fedora::TOOLS` in `cat` that are NOT already surfaced as a native
+/// Settings page — what the catalog page for `cat` actually shows.
+fn tools_in_group(cat: &str) -> Vec<&'static fedora::Tool> {
+    fedora::TOOLS
+        .iter()
+        .filter(|t| t.category == cat && !has_native_page(t))
+        .collect()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum View {
@@ -974,6 +1074,9 @@ enum Message {
     OpenCategory(usize),
     SelectPage(usize),
     Open, // activate the current page's backend
+    /// Launch a `fedora::TOOLS` entry by command from a System Tools catalog row
+    /// (install-if-missing, like the classic Control Panel).
+    LaunchTool(&'static str),
     Back,
     SetDark(bool),
     SetAccentOnTaskbar(bool),
@@ -1388,6 +1491,7 @@ fn list() -> ExitCode {
                 Kind::Mde(s) => format!("mde {s}"),
                 Kind::Tool(c) => format!("tool: {c}"),
                 Kind::Cmd(c, _) => format!("cmd: {c}"),
+                Kind::ToolGroup(c) => format!("(native: {c} tools)"),
             };
             println!("{} \u{25b8} {} -> {}", cat.title, p.title, backend);
         }
@@ -1572,6 +1676,7 @@ fn update(state: &mut Settings, message: Message) -> Task<Message> {
             return maybe_load(state);
         }
         Message::Open => open_current(state),
+        Message::LaunchTool(cmd) => launch_tool_by_cmd(state, cmd),
         Message::SetDark(d) => {
             state.dark = d;
             palette::set_dark(d);
@@ -2783,15 +2888,26 @@ fn apply_background(state: &Settings) {
 
 /// Compute (once) whether the current Tool page's command is installed.
 fn cache_install(state: &mut Settings) {
-    if let Some(Page {
-        kind: Kind::Tool(cmd),
-        ..
-    }) = current_page(state)
-    {
-        if !state.installed.contains_key(cmd) {
-            let present = tool_by_cmd(cmd).map(fedora::is_installed).unwrap_or(false);
-            state.installed.insert(cmd, present);
+    // Prime the installed-state for whatever the active page needs: a single
+    // Tool page, or every tool listed by a System Tools catalog page. Done on
+    // page-change (never in the view) since `is_installed` spawns subprocesses.
+    match current_page(state).map(|p| p.kind) {
+        Some(Kind::Tool(cmd)) => {
+            if !state.installed.contains_key(cmd) {
+                let present = tool_by_cmd(cmd).map(fedora::is_installed).unwrap_or(false);
+                state.installed.insert(cmd, present);
+            }
         }
+        Some(Kind::ToolGroup(cat)) => {
+            for tool in tools_in_group(cat) {
+                if !state.installed.contains_key(tool.command) {
+                    state
+                        .installed
+                        .insert(tool.command, fedora::is_installed(tool));
+                }
+            }
+        }
+        _ => {}
     }
 }
 
@@ -2835,33 +2951,32 @@ fn open_current(state: &mut Settings) {
         | Kind::Storage
         | Kind::Backup
         | Kind::Recovery
+        | Kind::ToolGroup(_)
         | Kind::LockScreen => {}
         Kind::Mde(sub) => {
             let mde = mde_path();
             let _ = Command::new(mde).arg(sub).spawn();
         }
-        Kind::Tool(cmd) => {
-            if let Some(tool) = tool_by_cmd(cmd) {
-                let present = state.installed.get(cmd).copied().unwrap_or(false);
-                if present {
-                    let _ = fedora::launch(tool);
-                } else if matches!(fedora::install(&[tool.package]), Ok(s) if s.success()) {
-                    state.installed.insert(cmd, true);
-                    let _ = fedora::launch(tool);
-                }
-            }
-        }
+        Kind::Tool(cmd) => launch_tool_by_cmd(state, cmd),
         Kind::Cmd(cmd, terminal) => {
-            if terminal {
-                let _ = Command::new("foot")
-                    .arg("-e")
-                    .arg("sh")
-                    .arg("-c")
-                    .arg(cmd)
-                    .spawn();
-            } else {
-                let _ = Command::new("sh").arg("-c").arg(cmd).spawn();
-            }
+            // Terminal commands open maximized + root-capable (the shared
+            // contract); GUI commands spawn directly.
+            crate::start_common::launch_cmd(cmd, terminal);
+        }
+    }
+}
+
+/// Launch a `fedora::TOOLS` entry by command, installing it first if missing
+/// (the classic Control Panel gesture). Shared by `Kind::Tool` pages and the
+/// System Tools catalog rows (`Message::LaunchTool`).
+fn launch_tool_by_cmd(state: &mut Settings, cmd: &'static str) {
+    if let Some(tool) = tool_by_cmd(cmd) {
+        let present = state.installed.get(cmd).copied().unwrap_or(false);
+        if present {
+            let _ = fedora::launch(tool);
+        } else if matches!(fedora::install(&[tool.package]), Ok(s) if s.success()) {
+            state.installed.insert(cmd, true);
+            let _ = fedora::launch(tool);
         }
     }
 }
@@ -3217,6 +3332,7 @@ fn content_pane<'a>(state: &'a Settings, cat: &'static Category) -> Element<'a, 
             let present = state.installed.get(cmd).copied().unwrap_or(true);
             open_button(page.title, present)
         }
+        Kind::ToolGroup(cat) => tool_group_page(state, cat),
     };
     Column::new()
         .spacing(metrics::SPACING_05)
@@ -3247,6 +3363,71 @@ fn open_button<'a>(title: &str, present: bool) -> Element<'a, Message> {
                 .style(tile_style),
         )
         .into()
+}
+
+/// System Tools catalog page: one row per `fedora::TOOLS` entry in `cat` (minus
+/// any already surfaced as a native Settings page). Each row shows the tool's
+/// icon, name, an admin/terminal hint, an installed/missing badge, and an Open
+/// (or Install & Open) button that launches it via [`Message::LaunchTool`].
+fn tool_group_page<'a>(state: &'a Settings, cat: &'a str) -> Element<'a, Message> {
+    let tools = tools_in_group(cat);
+    if tools.is_empty() {
+        return text("Every tool in this group already has its own page in Settings.")
+            .size(metrics::UI_PX)
+            .color(palette::color(palette::GRAY_TEXT))
+            .into();
+    }
+    let mut col = Column::new().spacing(metrics::SPACING_03);
+    for tool in tools {
+        let present = state.installed.get(tool.command).copied().unwrap_or(true);
+        // Sub-line: "Opens in a terminal · runs as administrator" for CLI/TUI
+        // tools (the maximized-root contract), else a plain GUI note.
+        let sub = if tool.terminal {
+            "Opens maximized in a terminal · runs as administrator"
+        } else {
+            "Opens in its own window"
+        };
+        let badge = if present {
+            "Installed"
+        } else {
+            "Not installed"
+        };
+        let label = if present {
+            format!("Open {}", tool.name)
+        } else {
+            format!("Install & Open {}", tool.name)
+        };
+        let info = Column::new()
+            .spacing(metrics::SPACING_01)
+            .push(
+                text(tool.name)
+                    .size(metrics::UI_PX)
+                    .color(palette::color(palette::WINDOW_TEXT)),
+            )
+            .push(
+                text(sub)
+                    .size(metrics::BADGE_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+            );
+        let row = Row::new()
+            .spacing(metrics::SPACING_04)
+            .align_y(iced::alignment::Vertical::Center)
+            .push(crate::icons::icon_any(tool.icons, 24))
+            .push(info.width(Length::Fill))
+            .push(
+                text(badge)
+                    .size(metrics::BADGE_PX)
+                    .color(palette::color(palette::GRAY_TEXT)),
+            )
+            .push(
+                button(text(label).size(metrics::UI_PX))
+                    .on_press(Message::LaunchTool(tool.command))
+                    .padding(Padding::from([6.0, 16.0]))
+                    .style(tile_style),
+            );
+        col = col.push(row);
+    }
+    scrollable(col).style(mde_ui::scrollbar).into()
 }
 
 /// Update & Security ▸ Update (E13.2): a status card (glyph + headline + sub-line)
@@ -6357,10 +6538,51 @@ ID Command line                 Date and time       Action(s) Altered
     }
 
     #[test]
-    fn home_has_eleven_categories_no_gaming_no_search() {
-        assert_eq!(CATEGORIES.len(), 11);
+    fn home_has_the_win10_categories_plus_system_tools_no_gaming_no_search() {
+        // The ten Win10 categories + the consolidated System Tools catalog
+        // (the Start menu's old "System Tools"/"Settings" fly-outs folded in).
+        assert_eq!(CATEGORIES.len(), 12);
+        assert!(CATEGORIES.iter().any(|c| c.title == "System Tools"));
         assert!(!CATEGORIES
             .iter()
             .any(|c| c.title == "Gaming" || c.title == "Search"));
+    }
+
+    #[test]
+    fn system_tools_catalog_does_not_duplicate_native_pages() {
+        // Every tool the catalog surfaces must NOT already have a dedicated
+        // native Settings page — the dedup the consolidation requires.
+        let native = native_tool_commands();
+        for cat in CATEGORIES {
+            for p in cat.pages {
+                if let Kind::ToolGroup(group) = p.kind {
+                    for tool in tools_in_group(group) {
+                        assert!(
+                            !native.contains(tool.command),
+                            "{} is in both a native page and the {group} catalog",
+                            tool.name
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn system_tools_catalog_surfaces_the_non_native_tools() {
+        // Sanity: tools with no native page (e.g. btop, lynis) appear in the
+        // catalog so nothing is orphaned by removing the Start-menu fly-outs.
+        let reachable: std::collections::HashSet<&str> = CATEGORIES
+            .iter()
+            .flat_map(|c| c.pages.iter())
+            .filter_map(|p| match p.kind {
+                Kind::ToolGroup(g) => Some(g),
+                _ => None,
+            })
+            .flat_map(tools_in_group)
+            .map(|t| t.name)
+            .collect();
+        assert!(reachable.contains("btop"));
+        assert!(reachable.contains("Lynis (Audit)"));
     }
 }
