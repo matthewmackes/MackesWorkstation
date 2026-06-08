@@ -22,6 +22,30 @@ use mde_ui::{font, group_box, metrics, palette};
 
 use crate::connect::{self, DeviceInfo};
 
+/// Selected/hover row button style. Moved here from the retired `files.rs`
+/// (E10.6) — phone.rs was its only consumer.
+fn row_style(
+    selected: bool,
+) -> impl Fn(&iced::Theme, iced::widget::button::Status) -> iced::widget::button::Style {
+    move |_theme, status| {
+        let hot = selected
+            || matches!(
+                status,
+                iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed
+            );
+        iced::widget::button::Style {
+            background: hot.then(|| iced::Background::Color(palette::color(palette::HIGHLIGHT))),
+            text_color: if hot {
+                palette::color(palette::HIGHLIGHT_TEXT)
+            } else {
+                palette::color(palette::WINDOW_TEXT)
+            },
+            border: iced::Border::default(),
+            shadow: iced::Shadow::default(),
+        }
+    }
+}
+
 /// The rail's view entries (E9.3–E9.9). Each is shown reserved until its epic lands.
 const VIEWS: &[&str] = &["Notifications", "Messages", "Photos", "Calls", "Settings"];
 
@@ -156,7 +180,7 @@ fn rail(state: &Phone) -> Element<'_, Message> {
                 ibutton(text(format!("{dot}{}", d.name)).size(metrics::UI_PX))
                     .width(Length::Fill)
                     .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_03]))
-                    .style(crate::files::row_style(i == state.selected))
+                    .style(row_style(i == state.selected))
                     .on_press(Message::SelectDevice(i)),
             );
         }
@@ -185,7 +209,7 @@ fn rail(state: &Phone) -> Element<'_, Message> {
             ibutton(text("Refresh").size(metrics::UI_PX))
                 .width(Length::Fill)
                 .padding(Padding::from([metrics::SPACING_02, metrics::SPACING_03]))
-                .style(crate::files::row_style(false))
+                .style(row_style(false))
                 .on_press(Message::Refresh),
         )
         .height(Length::Fill)

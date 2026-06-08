@@ -29,7 +29,6 @@ mod display;
 mod embedded_icons;
 mod fedora;
 mod filedialog;
-mod files;
 mod greeter;
 mod icons;
 mod install;
@@ -208,7 +207,16 @@ fn main() -> ExitCode {
         }
         "popup" => popup::run(rest),
         "jumplist" => popup::run_jumplist(rest),
-        "files" => files::run(rest),
+        // E10.6 — the unified file manager is the separate `mde-files` binary
+        // (iced 0.14 vs the shell's 0.13 rules out an in-binary fold). Launch
+        // it, forwarding any path arg so `mde files <dir>` opens there.
+        "files" => match std::process::Command::new("mde-files").args(rest).spawn() {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("mde files: cannot launch mde-files: {e}");
+                ExitCode::FAILURE
+            }
+        },
         // `mde open-uri mde://…` — the x-scheme-handler/mde dispatcher (E4.20,
         // migrated from the retired mde-portal mde-open).
         "open-uri" => open_uri::run(rest),

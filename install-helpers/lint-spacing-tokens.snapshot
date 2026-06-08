@@ -36,7 +36,6 @@ crates/shell/mde/src/clipboard.rs 0
 crates/shell/mde/src/control_panel.rs 0
 crates/shell/mde/src/display.rs 0
 crates/shell/mde/src/filedialog.rs 0
-crates/shell/mde/src/files.rs 24
 crates/shell/mde/src/menu.rs 0
 crates/shell/mde/src/net_flyout.rs 0
 crates/shell/mde/src/oobe.rs 0

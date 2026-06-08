@@ -334,11 +334,27 @@ impl MdeFiles {
     /// Builds a fresh `MdeFiles` state, registers the warm-dark theme, opens a
     /// 1480×940 window, and dispatches updates from `Message`.
     pub fn run() -> iced::Result {
-        iced::application(Self::new, Self::update, Self::view)
-            .title(Self::title)
-            .theme(Self::theme)
-            .window_size(Size::new(t::WIN_W, t::WIN_H))
-            .run()
+        // E10 — `mde-files [PATH]` opens the Local browser at PATH (a directory),
+        // so the shell's `mde files <dir>` / inode-directory handler land there.
+        let initial_dir = std::env::args()
+            .nth(1)
+            .filter(|p| std::path::Path::new(p).is_dir());
+        iced::application(
+            move || {
+                let mut s = Self::new();
+                if let Some(dir) = &initial_dir {
+                    s.local_path = dir.clone();
+                    s.view = View::Local;
+                }
+                s
+            },
+            Self::update,
+            Self::view,
+        )
+        .title(Self::title)
+        .theme(Self::theme)
+        .window_size(Size::new(t::WIN_W, t::WIN_H))
+        .run()
     }
 
     fn title(&self) -> String {
