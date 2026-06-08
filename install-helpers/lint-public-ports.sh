@@ -68,6 +68,7 @@ crates/mesh/mackesd/src/workers/wol.rs
 crates/mesh/mackesd/src/voice/materialize.rs
 crates/services/mde-voice-config/src/lib.rs
 crates/services/mde-voice-hud/src/sip.rs
+crates/services/mde-voice-hud/src/media.rs
 crates/mesh/mackesd/tests/
 '
 
@@ -92,6 +93,10 @@ crates/mesh/mackesd/tests/
 #   selects the source interface by route (the Nebula overlay for a mesh
 #   registrar). An outbound client socket, NOT a service listener (same
 #   class as wol.rs above).
+# - services/mde-voice-hud/src/media.rs : the RTP media socket binds the
+#   SDP-negotiated local RTP port then connect()s to the peer's RTP
+#   endpoint — kernel-filtered to that peer, overlay-routed. Outbound
+#   media, NOT a service listener (same class as sip.rs above).
 # - voice/materialize.rs : default mesh_bind_address placeholder
 #   gets replaced with the per-peer overlay IP by voice_config.rs
 #   on materialize; "0.0.0.0" is a fallback for tests + initial

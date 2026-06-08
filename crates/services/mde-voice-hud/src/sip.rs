@@ -449,7 +449,7 @@ impl CallState {
             CallState::Idle => String::new(),
             CallState::Calling { peer } => format!("Calling {peer}…"),
             CallState::Ringing { peer } => format!("Ringing {peer}…"),
-            CallState::InCall { peer } => format!("In call · {peer} (no audio yet)"),
+            CallState::InCall { peer } => format!("In call · {peer}"),
             CallState::Ended => "Call ended".to_string(),
             CallState::Failed(why) => format!("Call failed: {why}"),
         }

@@ -32,6 +32,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 dirs = "5"
 rsip = "0.4"
 tokio = { version = "1", default-features = false, features = ["rt"] }
+cpal = "0.17"
 
 [lints]
 workspace = true

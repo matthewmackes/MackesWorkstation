@@ -4848,6 +4848,7 @@ name = "mde-voice-hud"
 version = "10.0.0"
 dependencies = [
  "clap",
+ "cpal",
  "dirs 5.0.1",
  "iced 0.14.0",
  "iced_layershell 0.18.1",

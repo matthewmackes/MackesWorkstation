@@ -32,6 +32,7 @@ use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
 use std::time::Duration;
 
+mod media;
 mod recents;
 mod resolve;
 mod roster;
@@ -145,6 +146,8 @@ pub struct VoiceHud {
     pub call: sip::CallState,
     /// The established dialog while a call is up (for the BYE on hang-up).
     pub session: Option<sip::CallSession>,
+    /// The running RTP/G.711 media engine while a call is up (slice 3).
+    pub media: Option<media::MediaSession>,
 }
 
 // ── iced_layershell 0.18 builder-pattern functions ──────────────────────────
@@ -206,8 +209,15 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
         Message::CallConnected(Ok(session)) => {
             tracing::info!(
                 rtp = session.rtp_port,
-                "voice-hud: call connected (signaling up)"
+                "voice-hud: call connected; starting media"
             );
+            // Start the RTP/G.711 media path over the negotiated endpoint. A
+            // failure (no audio devices) leaves the call up but silent — honest
+            // degradation, not a panic.
+            match media::start_media(session.rtp_port, &session.remote) {
+                Ok(m) => state.media = Some(m),
+                Err(e) => tracing::warn!(%e, "voice-hud: media start failed (call up, no audio)"),
+            }
             state.call = sip::CallState::InCall {
                 peer: state.dialer_input.trim().to_string(),
             };
@@ -220,6 +230,9 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
         }
         Message::HangUp => {
             state.call = sip::CallState::Ended;
+            if let Some(m) = state.media.take() {
+                m.stop();
+            }
             if let Some(session) = state.session.take() {
                 return Task::perform(
                     async move {
@@ -606,6 +619,7 @@ fn main() -> iced_layershell::Result {
                     account,
                     call: sip::CallState::Idle,
                     session: None,
+                    media: None,
                 },
                 task,
             )
@@ -658,6 +672,7 @@ mod tests {
             account: None,
             call: sip::CallState::Idle,
             session: None,
+            media: None,
         }
     }
 
