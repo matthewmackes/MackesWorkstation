@@ -4653,7 +4653,6 @@ version = "10.0.0"
 dependencies = [
  "chrono",
  "iced 0.14.0",
- "mackes-theme",
  "mde-bus",
  "mde-iced-components",
  "mde-theme",
@@ -4721,7 +4720,7 @@ version = "10.0.0"
 dependencies = [
  "clap",
  "iced 0.13.1",
- "mackes-theme",
+ "mde-theme",
 ]
 
 [[package]]
