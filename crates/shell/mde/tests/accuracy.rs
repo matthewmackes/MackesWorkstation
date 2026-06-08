@@ -76,8 +76,9 @@ fn role_rgb(name: &str) -> palette::Rgb {
 fn want_rgb(cap: &Capture, p: &Point) -> (u8, u8, u8) {
     if let Some(role) = &p.role {
         match cap.era.as_deref() {
-            Some("windows10") => palette::set_theme(Theme::Windows10),
-            Some("carbon") => palette::set_theme(Theme::Carbon),
+            // E9.7 — Carbon is the only look; a stale "windows10" era folds to it
+            // (matches the shell's startup theme resolution).
+            Some("carbon" | "windows10") => palette::set_theme(Theme::Carbon),
             other => panic!("accuracy: role point needs a known capture `era`, got {other:?}"),
         }
         palette::set_dark(cap.dark);

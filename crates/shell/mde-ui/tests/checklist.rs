@@ -106,58 +106,11 @@ fn color_conversion_is_exact_8bit() {
     assert_eq!((ch(c.r), ch(c.g), ch(c.b)), (0x16, 0x16, 0x16));
 }
 
-/// MackesDE rebrand (§2.2): the Windows 10 era now uses **Carbon's coloring
-/// verbatim** — its former blue accent + per-user accent picker were retired, so
-/// the era is a Carbon-skinned modern *layout*, not a distinct palette. Pin that
-/// `color()` under `Theme::Windows10` equals `Theme::Carbon` for a representative
-/// role set in BOTH modes, so a future re-divergence fails CI. The atomics are
-/// process-global, so this holds THEME_GUARD and restores the default before
-/// releasing. (Supersedes the old `windows10_remap_pins`, which pinned the
-/// now-removed Win10 blue.)
-#[test]
-fn windows10_uses_carbon_coloring() {
-    use mde_ui::palette::Theme;
-    let _g = THEME_GUARD.lock().unwrap();
-
-    let roles = [
-        palette::HIGHLIGHT,
-        palette::ACTIVE_TITLE,
-        palette::WINDOW,
-        palette::WINDOW_TEXT,
-        palette::MENU,
-        palette::BACKGROUND,
-        palette::TITLE_TEXT,
-        palette::WINDOW_FRAME,
-        palette::INFO_BAND,
-    ];
-    let rgb = |c: iced::Color| (ch(c.r), ch(c.g), ch(c.b));
-    for dark in [false, true] {
-        palette::set_theme(Theme::Carbon);
-        palette::set_dark(dark);
-        let carbon: Vec<_> = roles.iter().map(|&r| rgb(palette::color(r))).collect();
-
-        palette::set_theme(Theme::Windows10);
-        palette::set_dark(dark);
-        for (i, &r) in roles.iter().enumerate() {
-            assert_eq!(
-                rgb(palette::color(r)),
-                carbon[i],
-                "Win10 role #{i} diverges from Carbon (dark={dark})"
-            );
-        }
-    }
-
-    // The accent is now Carbon Blue, never the retired Win10 blue (0x0078d4).
-    palette::set_theme(Theme::Windows10);
-    palette::set_dark(true);
-    assert_eq!(
-        rgb(palette::color(palette::HIGHLIGHT)),
-        palette::carbon_accent()
-    );
-
-    palette::set_theme(Theme::Carbon); // restore the default
-    palette::set_dark(true);
-}
+/// E9.7 — the former `windows10_uses_carbon_coloring` Win10-vs-Carbon
+/// equivalence test was retired with the `Theme::Windows10` variant: there is
+/// only one look now, so the equivalence is structural. The Carbon role
+/// coloring it guarded is pinned absolutely by `color_conversion_is_exact_8bit`
+/// (palette.rs) and the other checklist pins below.
 
 /// E14.2: pin the security-status roles (OK / WARN / RISK) + the dashboard tile
 /// metric. Identity values are the classic-era green / amber / red; Carbon (and
@@ -184,54 +137,36 @@ fn security_status_palette_pins() {
         rgb(palette::color(palette::STATUS_RISK)),
         (0xfa, 0x4d, 0x56)
     );
-    // Win10 shares Carbon's coloring → identical support colors.
-    palette::set_theme(Theme::Windows10);
-    palette::set_dark(true);
-    assert_eq!(rgb(palette::color(palette::STATUS_OK)), (0x42, 0xbe, 0x65));
 
     palette::set_theme(Theme::Carbon); // restore the default
     palette::set_dark(true);
 }
 
-/// E15.12: pin the palette roles the Windows 10 network surfaces paint with — the
-/// **accent** (flyout toggle pills, Wi-Fi signal bars, data-usage bars, selection)
-/// and the page **surface / caption neutrals** — so the Networking look can't drift
-/// under `Theme::Windows10`. They equal Carbon (the rebrand). Holds THEME_GUARD and
-/// restores the default at the end.
+/// E15.12: pin the palette roles the network surfaces paint with — the
+/// **accent** (flyout toggle pills, Wi-Fi signal bars, data-usage bars,
+/// selection) and the page **surface / caption neutrals** — so the Networking
+/// look can't drift under the single Carbon theme. Holds THEME_GUARD and
+/// restores the default at the end. (E9.7 — the former Win10-vs-Carbon
+/// equivalence leg is gone with the `Theme::Windows10` variant.)
 #[test]
-fn windows10_network_palette_pins() {
+fn network_palette_pins() {
     use mde_ui::palette::Theme;
     let _g = THEME_GUARD.lock().unwrap();
     let rgb = |c: iced::Color| (ch(c.r), ch(c.g), ch(c.b));
 
-    // The roles the net surfaces use; capture Carbon dark as the reference.
-    let roles = [
-        palette::HIGHLIGHT,
-        palette::WINDOW,
-        palette::MENU,
-        palette::GRAY_TEXT,
-    ];
     palette::set_theme(Theme::Carbon);
     palette::set_dark(true);
-    let carbon: Vec<_> = roles.iter().map(|&r| rgb(palette::color(r))).collect();
-
-    palette::set_theme(Theme::Windows10);
-    palette::set_dark(true);
-    for (i, &r) in roles.iter().enumerate() {
-        assert_eq!(
-            rgb(palette::color(r)),
-            carbon[i],
-            "Win10 net role #{i} drifted from Carbon"
-        );
-    }
-    // The accent (pills / bars / selection) is specifically Carbon Blue.
+    // The net page surface / caption neutrals resolve onto the Carbon Gray 100
+    // dark tokens; the accent (pills / bars / selection) is Carbon Blue.
+    assert_eq!(rgb(palette::color(palette::WINDOW)), (0x39, 0x39, 0x39));
+    assert_eq!(rgb(palette::color(palette::MENU)), (0x39, 0x39, 0x39));
+    assert_eq!(rgb(palette::color(palette::GRAY_TEXT)), (0x6f, 0x6f, 0x6f));
     assert_eq!(
         rgb(palette::color(palette::HIGHLIGHT)),
         palette::carbon_accent()
     );
 
-    palette::set_theme(Theme::Carbon); // restore the default
-    palette::set_dark(true);
+    palette::set_dark(true); // already Carbon; keep the default mode
 }
 
 /// App-chrome colors live in the palette too, so nothing outside it names a
