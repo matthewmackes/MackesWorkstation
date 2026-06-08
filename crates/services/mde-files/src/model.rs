@@ -71,6 +71,9 @@ pub struct FileRow {
     /// MESHFS-11.1 — true while the LizardFS fleet is healing (under-
     /// replicated). Triggers the sync indicator badge on mesh-homed rows.
     pub syncing: bool,
+    /// E10 — absolute filesystem path for a real local row (`LocalFsBackend`).
+    /// `None` for virtual mesh/peer rows. Drives local descent + Open/Copy-Path.
+    pub path: Option<String>,
 }
 
 impl FileRow {
@@ -91,7 +94,21 @@ impl FileRow {
             has_conflict: false,
             conflict_sibling: None,
             syncing: false,
+            path: None,
         }
+    }
+
+    /// E10 — attach the row's absolute filesystem path (local rows).
+    #[must_use]
+    pub fn with_path(mut self, path: impl Into<String>) -> Self {
+        self.path = Some(path.into());
+        self
+    }
+
+    /// E10 — true for a directory row (drives descend-vs-open).
+    #[must_use]
+    pub fn is_dir(&self) -> bool {
+        matches!(self.mime, Mime::Folder)
     }
 
     #[must_use]

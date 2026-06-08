@@ -17,6 +17,8 @@ use crate::views;
 #[derive(Debug, Clone)]
 pub enum Message {
     SelectView(View),
+    /// E10 — navigate the Local browser to the parent directory.
+    LocalUp,
     ToggleLocal,
     SetLayout(Layout),
     SearchChanged(String),
@@ -166,6 +168,11 @@ pub struct MdeFiles {
     /// view. Refreshed when `View::Peer` is entered so `view()`
     /// can borrow without re-querying the backend per render.
     pub peer_files: Vec<crate::model::FileRow>,
+    /// E10 — the current local directory (absolute) when browsing `View::Local`.
+    /// Defaults to `$HOME`.
+    pub local_path: String,
+    /// E10 — real files in `local_path`, refreshed when `View::Local` is active.
+    pub local_files: Vec<crate::model::FileRow>,
     pub view: View,
     pub local_open: bool,
     pub layout: Layout,
@@ -260,6 +267,8 @@ impl Default for MdeFiles {
             backend,
             snapshot,
             peer_files: Vec::new(),
+            local_path: std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
+            local_files: Vec::new(),
             view: View::default(),
             local_open: false,
             layout: Layout::default(),
@@ -328,6 +337,14 @@ impl MdeFiles {
         let mut pending_task: Option<Task<Message>> = None;
 
         match msg {
+            Message::LocalUp => {
+                // E10 — ascend to the parent directory (end-of-update refresh
+                // re-lists). Stops at the filesystem root.
+                if let Some(parent) = std::path::Path::new(&self.local_path).parent() {
+                    self.local_path = parent.to_string_lossy().into_owned();
+                    self.selection.clear();
+                }
+            }
             Message::SelectView(v) => {
                 let is_local = matches!(v, View::Local);
                 let is_undelete = matches!(v, View::MeshUndelete);
@@ -437,12 +454,38 @@ impl MdeFiles {
                 self.context_menu.open(row, (x, y));
             }
             Message::CloseContextMenu => self.context_menu.close(),
-            Message::ContextMenuItemClicked(_item) => {
-                // The actual side-effect routing (Send-To dialog,
-                // clipboard, properties window) happens at the
-                // view-side. The reducer just dismisses the
-                // floating menu so it doesn't linger after the
-                // click.
+            Message::ContextMenuItemClicked(item) => {
+                // E10 — resolve the row the menu was opened over (local listing)
+                // and route the path-based actions. Send-To / Rename / Delete /
+                // Properties route elsewhere / are future.
+                let row = self.context_menu.row().and_then(|key| {
+                    self.local_files
+                        .iter()
+                        .chain(self.peer_files.iter())
+                        .find(|r| r.name == key)
+                        .cloned()
+                });
+                match item {
+                    ContextMenuItem::Open => {
+                        if let Some(r) = &row {
+                            if let Some(p) = &r.path {
+                                if r.is_dir() {
+                                    // Descend — the end-of-update refresh re-lists.
+                                    self.local_path = p.clone();
+                                    self.view = View::Local;
+                                } else {
+                                    let _ = std::process::Command::new("xdg-open").arg(p).spawn();
+                                }
+                            }
+                        }
+                    }
+                    ContextMenuItem::CopyPath => {
+                        if let Some(p) = row.and_then(|r| r.path) {
+                            let _ = std::process::Command::new("wl-copy").arg(p).spawn();
+                        }
+                    }
+                    _ => {}
+                }
                 self.context_menu.close();
             }
             Message::ToggleOperationDrawer => {
@@ -574,6 +617,10 @@ impl MdeFiles {
         };
         // MESHFS-11.1 — annotate rows with conflict / syncing state.
         self.peer_files = annotate_conflict_and_sync(raw_files, self.meshfs_healing);
+        // E10 — real local filesystem listing for the Local browser.
+        if matches!(self.view, View::Local) {
+            self.local_files = self.backend.list(&self.local_path);
+        }
     }
 
     /// Top-level view tree.
@@ -599,7 +646,9 @@ impl MdeFiles {
                 }
             }
             View::Downloads => views::downloads(snap, &self.selection),
-            View::Local => views::local_veil(snap, &self.selection),
+            View::Local => {
+                views::local_browser(&self.local_files, &self.local_path, &self.selection)
+            }
             View::MeshHome => views::mesh_home(snap),
             View::MeshHomeChild(slug) => views::mesh_home_child(
                 slug,
@@ -1182,6 +1231,37 @@ mod tests {
         let _ = s.update(Message::OpenContextMenu("a.txt".into(), 0.0, 0.0));
         let _ = s.update(Message::ContextMenuItemClicked(ContextMenuItem::Open));
         assert!(!s.context_menu.is_open());
+    }
+
+    #[test]
+    fn local_up_ascends_to_parent_dir() {
+        let mut s = MdeFiles::default();
+        s.local_path = "/home/user/Documents".into();
+        let _ = s.update(Message::LocalUp);
+        assert_eq!(s.local_path, "/home/user");
+        // Root stays root (no parent).
+        s.local_path = "/".into();
+        let _ = s.update(Message::LocalUp);
+        assert_eq!(s.local_path, "/");
+    }
+
+    #[test]
+    fn context_open_on_a_local_dir_descends() {
+        // A real temp dir with a subfolder; the end-of-update refresh lists it
+        // so the "docs/" row carries a real path the Open handler descends into.
+        let tmp = std::env::temp_dir().join(format!("mdefiles-descend-{}", std::process::id()));
+        let sub = tmp.join("docs");
+        std::fs::create_dir_all(&sub).unwrap();
+        let mut s = MdeFiles::default();
+        s.view = View::Local;
+        s.local_path = tmp.to_string_lossy().into_owned();
+        // OpenContextMenu's end-of-update refresh populates local_files from tmp.
+        let _ = s.update(Message::OpenContextMenu("docs/".into(), 0.0, 0.0));
+        let _ = s.update(Message::ContextMenuItemClicked(ContextMenuItem::Open));
+        // Open on the directory row descends into it.
+        assert_eq!(s.local_path, sub.to_string_lossy());
+        assert!(matches!(s.view, View::Local));
+        std::fs::remove_dir_all(&tmp).ok();
     }
 
     #[test]

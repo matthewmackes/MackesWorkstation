@@ -521,12 +521,16 @@ impl LocalFsBackend {
                 fmt_bytes(meta.len())
             };
             let age = fmt_age(mtime);
+            let abs_path = entry.path().to_string_lossy().into_owned();
             let display = if meta.is_dir() {
                 format!("{name}/")
             } else {
                 name
             };
-            rows.push((mtime, FileRow::local(display, mime, size, age)));
+            rows.push((
+                mtime,
+                FileRow::local(display, mime, size, age).with_path(abs_path),
+            ));
         }
         // newest first
         rows.sort_by(|a, b| b.0.cmp(&a.0));

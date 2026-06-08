@@ -9,7 +9,7 @@ use crate::app::{Crumb, Message, TrashItem};
 use crate::backend::BackendSnapshot;
 use crate::grid;
 use crate::icons;
-use crate::model::{fmt_count, FileRow, Layout, LocalPin, Peer, PeerStatus, SelfNode, View};
+use crate::model::{fmt_count, FileRow, Layout, Peer, PeerStatus, SelfNode, View};
 use crate::search;
 use crate::selection::Selection;
 use crate::theme as t;
@@ -874,88 +874,43 @@ pub fn downloads<'a>(snap: &'a BackendSnapshot, selection: &'a Selection) -> Ele
 
 // ─── Local veil ────────────────────────────────────────────────────────────
 
-pub fn local_veil<'a>(snap: &'a BackendSnapshot, selection: &'a Selection) -> Element<'a, Message> {
-    let self_node = &snap.self_node;
-    let title_row = row![
+/// E10 — the real local-filesystem browser (replaces the old privacy veil).
+/// Renders the files in `path`; right-click → Open descends a folder / launches
+/// a file (handled in the reducer), and the back button ascends to the parent.
+pub fn local_browser<'a>(
+    files: &'a [crate::model::FileRow],
+    path: &'a str,
+    selection: &'a Selection,
+) -> Element<'a, Message> {
+    let up = button(icon(icons::ARROW_LEFT, 16.0, t::FG))
+        .on_press(Message::LocalUp)
+        .style(|_, _| ghost_button_style());
+    let header = row![
+        up,
         icon(icons::HDD, 18.0, t::FG),
-        text("Local filesystem").size(15).color(t::FG),
-        container(
-            text(format!("private to {}", self_node.host))
-                .size(10)
-                .color(t::FG_FAINT)
-        )
-        .padding(Padding::from([1.0, 6.0]))
-        .style(|_| container::Style {
-            snap: false,
-            background: Some(Background::Color(Color {
-                a: 0.04,
-                ..Color::WHITE
-            })),
-            border: Border {
-                color: Color {
-                    a: 0.08,
-                    ..Color::WHITE
-                },
-                width: 1.0,
-                radius: 0.0.into()
-            },
-            ..container::Style::default()
-        }),
+        text(path.to_string()).size(13).color(t::FG),
     ]
     .spacing(8)
     .align_y(iced::alignment::Vertical::Center);
 
-    let body_text = format!(
-        "This is the unsynced filesystem on {host}. Nothing here is visible to other peers. \
-         To share, move a file into ~/mesh or drag it onto a peer in the sidebar.",
-        host = self_node.host,
-    );
-
-    let pin_children: Vec<Element<'_, Message>> = snap
-        .local_pins
-        .iter()
-        .cloned()
-        .map(local_pin_tile)
-        .collect();
-    let pin_grid = iced::widget::Row::with_children(pin_children)
-        .spacing(6)
-        .wrap();
-
-    let veil = container(
-        column![
-            title_row,
-            text(body_text).size(12).color(t::FG_DIM),
-            pin_grid,
-        ]
-        .spacing(14),
-    )
-    .padding(Padding::from([20.0, 22.0]))
-    .style(|_| container::Style {
-        snap: false,
-        background: Some(Background::Color(t::PF_BG_200)),
-        border: Border {
-            color: t::DIVIDER,
-            width: 1.0,
-            radius: 0.0.into(),
-        },
-        ..container::Style::default()
-    });
-
-    let mut recent = column![file_row_head("Where")];
-    for f in &snap.local_recent {
-        let sel = selection.is_selected(&f.name);
-        let foc = selection.is_focused(&f.name);
-        recent = recent.push(file_row(f.clone(), true, sel, foc));
+    let mut list = column![file_row_head("Name")];
+    if files.is_empty() {
+        list = list.push(
+            container(text("Empty folder").size(12).color(t::FG_DIM))
+                .padding(Padding::from([8.0, 4.0])),
+        );
+    } else {
+        for f in files {
+            let sel = selection.is_selected(&f.name);
+            let foc = selection.is_focused(&f.name);
+            list = list.push(file_row(f.clone(), true, sel, foc));
+        }
     }
 
-    column![
-        veil,
-        Space::new().height(Length::Fixed(20.0)),
-        section_h("Recent locally-modified", Some("~/ · last 24 h")),
-        recent,
-    ]
-    .spacing(0)
-    .into()
+    column![header, Space::new().height(Length::Fixed(12.0)), list,]
+        .spacing(0)
+        .padding(Padding::from([20.0, 22.0]))
+        .into()
 }
 
 // ─── Mesh Home (AF-mesh.2) ────────────────────────────────────────────────
@@ -1354,38 +1309,6 @@ pub fn resolve_conflict_dialog<'a>(original: &'a str, sibling: &'a str) -> Eleme
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
-}
-
-fn local_pin_tile(pin: LocalPin) -> Element<'static, Message> {
-    container(
-        row![
-            icon(icons::svg_for_pin(pin.icon), 16.0, t::FG_DIM),
-            text(pin.name.to_string()).size(12).color(t::FG_DIM),
-            Space::new().width(Length::Fill),
-            text(pin.path.to_string()).size(10).color(t::FG_FAINT),
-        ]
-        .spacing(10)
-        .align_y(iced::alignment::Vertical::Center),
-    )
-    .padding(Padding::from([8.0, 10.0]))
-    .width(Length::Fixed(180.0))
-    .style(|_| container::Style {
-        snap: false,
-        background: Some(Background::Color(Color {
-            a: 0.02,
-            ..Color::WHITE
-        })),
-        border: Border {
-            color: Color {
-                a: 0.05,
-                ..Color::WHITE
-            },
-            width: 1.0,
-            radius: 0.0.into(),
-        },
-        ..container::Style::default()
-    })
-    .into()
 }
 
 // ── MESHFS-8.1: Recycle Bin view ────────────────────────────────────────────
