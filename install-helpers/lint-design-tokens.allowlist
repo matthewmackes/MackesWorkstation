@@ -163,11 +163,11 @@ crates/shell/mde-popover/src/network.rs:976
 crates/shell/mde-popover/src/toasts.rs:371
 crates/shell/mde-popover/src/toasts.rs:372
 crates/shell/mde-popover/src/toasts.rs:373
-crates/shell/mde/src/display.rs:1352
-crates/shell/mde/src/display.rs:899
-crates/shell/mde/src/display.rs:900
-crates/shell/mde/src/display.rs:943
-crates/shell/mde/src/display.rs:945
+crates/shell/mde/src/display.rs:1349
+crates/shell/mde/src/display.rs:896
+crates/shell/mde/src/display.rs:897
+crates/shell/mde/src/display.rs:940
+crates/shell/mde/src/display.rs:942
 crates/shell/mde/src/icons.rs:157
 crates/shell/mde/src/installer.rs:323
 crates/shell/mde/src/oobe.rs:882

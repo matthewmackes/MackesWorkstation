@@ -204,30 +204,27 @@ impl std::fmt::Display for IconSet {
 
 /// The look-and-feel theme selectable on the Appearance tab (state key `theme`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// E9.7 — Carbon-only: the look picker offers just Carbon now (the retired
+// Windows10/Win2000/BeOS options are gone). The light/dark mode + accent
+// pickers below still vary the Carbon palette.
 enum Theme {
     Carbon,
-    Windows10,
 }
 impl Theme {
-    const ALL: [Theme; 2] = [Theme::Carbon, Theme::Windows10];
+    const ALL: [Theme; 1] = [Theme::Carbon];
     fn key(self) -> &'static str {
         match self {
             Theme::Carbon => "carbon",
-            Theme::Windows10 => "windows10",
         }
     }
-    fn from_key(k: &str) -> Self {
-        match k {
-            "windows10" => Theme::Windows10,
-            _ => Theme::Carbon,
-        }
+    fn from_key(_k: &str) -> Self {
+        Theme::Carbon
     }
 }
 impl std::fmt::Display for Theme {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(match self {
             Theme::Carbon => "IBM Carbon",
-            Theme::Windows10 => "MackesDE 10",
         })
     }
 }

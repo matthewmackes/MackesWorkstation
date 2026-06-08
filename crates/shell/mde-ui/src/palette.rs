@@ -104,30 +104,25 @@ use std::sync::atomic::{AtomicU8, Ordering};
 /// The active shell theme. (The Win2000 "Classic" theme was retired in the
 /// Carbon-only collapse, E9.7 slice 3; `Windows10` remains as a Carbon-skinned
 /// layout until its files.rs branches are rewritten by E10.)
+/// E9.7 — Carbon is the only look (the Windows10 / Win2000 / BeOS variants were
+/// retired in the Carbon-only collapse). A single-variant enum is kept so the
+/// theme API (`set_theme`/`theme()`/`is_carbon`) stays stable for callers; the
+/// deeper "remove the theme machinery entirely" is a follow-on cleanup.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Theme {
     Carbon,
-    Windows10,
 }
 
-// Packed active theme + Carbon mode/accent in plain atomics (read on the draw
-// hot path, so lock-free). THEME stores `Theme as u8`: 0=Carbon 1=Windows10.
-// DARK + ACCENT are shared (Carbon and Windows10 both honor light/dark).
-static THEME: AtomicU8 = AtomicU8::new(0);
+// Carbon mode/accent atomics (read on the draw hot path, so lock-free).
 static DARK: AtomicU8 = AtomicU8::new(1); // Carbon default mode = dark
 static ACCENT: AtomicU8 = AtomicU8::new(0); // 0=blue 1=orange 2=red 3=neutral (icon accent)
 
-/// Select the active theme.
-pub fn set_theme(theme: Theme) {
-    THEME.store(theme as u8, Ordering::Relaxed);
-}
+/// Select the active theme. Carbon-only — accepts `Theme` for API stability.
+pub fn set_theme(_theme: Theme) {}
 
-/// The active theme.
+/// The active theme (always Carbon under the Carbon-only collapse).
 pub fn theme() -> Theme {
-    match THEME.load(Ordering::Relaxed) {
-        1 => Theme::Windows10,
-        _ => Theme::Carbon,
-    }
+    Theme::Carbon
 }
 
 /// Set Carbon mode: dark (true) or light (false). No effect outside Carbon.
@@ -172,14 +167,10 @@ pub fn chrome_accent() -> iced::Color {
     }
 }
 
-/// Whether the Carbon theme is active.
+/// Whether the Carbon theme is active (always true under the Carbon-only
+/// collapse; retained for call-site stability).
 pub fn is_carbon() -> bool {
     theme() == Theme::Carbon
-}
-
-/// Whether the Windows 10 theme is active.
-pub fn is_windows10() -> bool {
-    theme() == Theme::Windows10
 }
 
 // ───────────────────────────────────────────────────────────────────────────

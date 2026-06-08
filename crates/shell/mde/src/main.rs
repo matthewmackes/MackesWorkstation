@@ -143,10 +143,9 @@ fn main() -> ExitCode {
     {
         use mde_ui::palette::{self, Theme};
         let st = state::load();
-        match st.theme.as_str() {
-            "windows10" => palette::set_theme(Theme::Windows10),
-            _ => palette::set_theme(Theme::Carbon),
-        }
+        // E9.7 — Carbon-only: any persisted theme (incl. a stale "windows10")
+        // resolves to Carbon.
+        palette::set_theme(Theme::Carbon);
         palette::set_dark(st.theme_mode != "light");
         palette::set_accent(match st.icon_color.as_str() {
             "blue" => 0,

@@ -251,7 +251,7 @@ pub fn run(args: &[String]) -> ExitCode {
     let force = args.iter().any(|a| a == "--force");
 
     // The OOBE renders in Windows 10 chrome regardless of the persisted theme.
-    palette::set_theme(Theme::Windows10);
+    palette::set_theme(Theme::Carbon);
     palette::set_dark(true);
 
     // Show once: a completed OOBE is skipped unless re-run with --force (E11.10).

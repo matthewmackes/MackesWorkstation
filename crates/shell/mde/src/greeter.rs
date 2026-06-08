@@ -95,7 +95,7 @@ pub fn conf(wallpaper: &str) -> String {
 /// Headless entry for `mde greeter …`.
 pub fn run(args: &[String]) -> ExitCode {
     // The greeter is always the Windows 10 look, regardless of the desktop theme.
-    palette::set_theme(Theme::Windows10);
+    palette::set_theme(Theme::Carbon);
     if args.iter().any(|a| a == "--css") {
         print!("{}", css());
         return ExitCode::SUCCESS;
@@ -117,7 +117,7 @@ mod tests {
     fn css_colours_are_palette_sourced() {
         // Win10 == Carbon colours after the rebrand, so this can't perturb a
         // parallel colour-reading test (both themes resolve identically).
-        palette::set_theme(Theme::Windows10);
+        palette::set_theme(Theme::Carbon);
         let css = css();
         // Every @define-color must equal palette::hex(role) — the "diff CSS vars
         // against win10() outputs" bench, proving the colours are palette-sourced.
