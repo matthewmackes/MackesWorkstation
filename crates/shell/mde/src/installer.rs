@@ -313,7 +313,12 @@ fn status_bar<'a>() -> Element<'a, Msg> {
             .color(dim()),
     )
     .width(Length::Fill)
-    .padding(pad(2.0, 8.0, 2.0, 8.0))
+    .padding(pad(
+        metrics::SPACING_01,
+        metrics::SPACING_03,
+        metrics::SPACING_01,
+        metrics::SPACING_03,
+    ))
     .style(|_| container::Style {
         background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.35))),
         ..container::Style::default()
@@ -323,9 +328,12 @@ fn status_bar<'a>() -> Element<'a, Msg> {
 
 /// The scrollable category tree of component rows.
 fn tree(state: &Setup) -> Element<'_, Msg> {
-    let mut col = Column::new()
-        .spacing(metrics::SPACING_01)
-        .padding(pad(0.0, 24.0, 0.0, 24.0));
+    let mut col = Column::new().spacing(metrics::SPACING_01).padding(pad(
+        0.0,
+        metrics::SPACING_06,
+        0.0,
+        metrics::SPACING_06,
+    ));
     let mut last_cat = "";
     for (i, c) in state.cat.iter().enumerate() {
         if c.category != last_cat {
@@ -361,9 +369,12 @@ fn tree(state: &Setup) -> Element<'_, Msg> {
 }
 
 fn view(state: &Setup) -> Element<'_, Msg> {
-    let mut header = Column::new()
-        .spacing(metrics::SPACING_02)
-        .padding(pad(16.0, 24.0, 8.0, 24.0));
+    let mut header = Column::new().spacing(metrics::SPACING_02).padding(pad(
+        metrics::SPACING_05,
+        metrics::SPACING_06,
+        metrics::SPACING_03,
+        metrics::SPACING_06,
+    ));
     header = header.push(
         text("Choose Components")
             .size(metrics::WIZARD_HEADING_PX)
@@ -401,9 +412,19 @@ fn view(state: &Setup) -> Element<'_, Msg> {
 
     let body = Column::new()
         .push(header)
-        .push(container(presets).padding(pad(0.0, 24.0, 8.0, 24.0)))
+        .push(container(presets).padding(pad(
+            0.0,
+            metrics::SPACING_06,
+            metrics::SPACING_03,
+            metrics::SPACING_06,
+        )))
         .push(tree(state))
-        .push(container(buttons).padding(pad(8.0, 24.0, 12.0, 24.0)));
+        .push(container(buttons).padding(pad(
+            metrics::SPACING_03,
+            metrics::SPACING_06,
+            metrics::SPACING_04,
+            metrics::SPACING_06,
+        )));
 
     let screen = Column::new()
         .push(container(body).width(Length::Fill).height(Length::Fill))

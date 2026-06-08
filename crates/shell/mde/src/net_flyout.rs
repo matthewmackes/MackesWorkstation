@@ -316,7 +316,7 @@ fn view(state: &Flyout) -> Element<'_, Message> {
             .align_y(Vertical::Bottom)
             // The taskbar's exclusive zone already clips this above the bar (like
             // popup.rs), so only a small lift off the bottom-right is needed.
-            .padding(pad(0.0, 4.0, 4.0, 0.0)),
+            .padding(pad(0.0, metrics::SPACING_02, metrics::SPACING_02, 0.0)),
     ]
     .into()
 }

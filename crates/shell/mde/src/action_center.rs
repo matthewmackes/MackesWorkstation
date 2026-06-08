@@ -405,7 +405,7 @@ fn view(state: &Center) -> Element<'_, Message> {
             )
             .width(Length::Fill)
             .align_x(Horizontal::Right)
-            .padding(pad(2.0, 4.0, 0.0, 0.0)),
+            .padding(pad(metrics::SPACING_01, metrics::SPACING_02, 0.0, 0.0)),
         );
         scrollable(col).style(mde_ui::scrollbar).into()
     };
@@ -611,7 +611,9 @@ fn tile_grid(state: &Center) -> Element<'_, Message> {
     } else {
         state.tiles.len().min(COLLAPSED)
     };
-    let mut grid = Column::new().spacing(metrics::SPACING_03).width(Length::Fill);
+    let mut grid = Column::new()
+        .spacing(metrics::SPACING_03)
+        .width(Length::Fill);
     let mut r = Row::new().spacing(metrics::SPACING_03);
     for (i, (id, on)) in state.tiles.iter().take(shown).enumerate() {
         r = r.push(quick_tile(id, *on));

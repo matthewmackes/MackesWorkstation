@@ -863,9 +863,12 @@ fn picker<'a>(
     selected: usize,
     on_pick: fn(usize) -> Msg,
 ) -> Element<'a, Msg> {
-    let mut col = Column::new()
-        .spacing(metrics::SPACING_01)
-        .padding(pad(0.0, 8.0, 0.0, 8.0));
+    let mut col = Column::new().spacing(metrics::SPACING_01).padding(pad(
+        0.0,
+        metrics::SPACING_03,
+        0.0,
+        metrics::SPACING_03,
+    ));
     for (i, label) in items {
         let sel = i == selected;
         let row = ibutton(text(label).size(metrics::UI_PX).color(white()))
@@ -906,9 +909,12 @@ fn actions_full<'a>(
     primary: &'a str,
     on_primary: Msg,
 ) -> Element<'a, Msg> {
-    let mut row = Row::new()
-        .spacing(metrics::SPACING_03)
-        .padding(pad(8.0, 24.0, 16.0, 24.0));
+    let mut row = Row::new().spacing(metrics::SPACING_03).padding(pad(
+        metrics::SPACING_03,
+        metrics::SPACING_06,
+        metrics::SPACING_05,
+        metrics::SPACING_06,
+    ));
     if back {
         row = row.push(
             mde_ui::button(text("Back").size(metrics::UI_PX))
@@ -1007,7 +1013,12 @@ fn privacy_body(state: &Oobe) -> Element<'_, Msg> {
     scrollable(
         Column::new()
             .spacing(metrics::SPACING_04)
-            .padding(pad(12.0, 8.0, 0.0, 8.0))
+            .padding(pad(
+                metrics::SPACING_04,
+                metrics::SPACING_03,
+                0.0,
+                metrics::SPACING_03,
+            ))
             .push(privacy_row(
                 state.p_location,
                 0,
@@ -1084,7 +1095,12 @@ fn personalize_body(state: &Oobe) -> Element<'_, Msg> {
         );
     Column::new()
         .spacing(metrics::SPACING_05)
-        .padding(pad(16.0, 8.0, 0.0, 8.0))
+        .padding(pad(
+            metrics::SPACING_05,
+            metrics::SPACING_03,
+            0.0,
+            metrics::SPACING_03,
+        ))
         .push(text("Accent color").size(metrics::UI_PX).color(dim()))
         .push(swatches)
         .push(text("Choose your mode").size(metrics::UI_PX).color(dim()))
@@ -1138,7 +1154,12 @@ fn account_body(state: &Oobe) -> Element<'_, Msg> {
     };
     let mut col = Column::new()
         .spacing(metrics::SPACING_04)
-        .padding(pad(16.0, 8.0, 0.0, 8.0))
+        .padding(pad(
+            metrics::SPACING_05,
+            metrics::SPACING_03,
+            0.0,
+            metrics::SPACING_03,
+        ))
         .push(text("User name").size(metrics::UI_PX).color(dim()))
         .push(field("User name", &state.username, Msg::Username, false))
         .push(text("Password").size(metrics::UI_PX).color(dim()))

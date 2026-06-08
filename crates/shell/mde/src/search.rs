@@ -520,7 +520,7 @@ fn view(state: &Search) -> Element<'_, Message> {
         top: 0.0,
         right: 0.0,
         bottom: 0.0,
-        left: 2.0,
+        left: metrics::SPACING_01,
     }))
     .on_press(Message::Close)
     .on_right_press(Message::Close)

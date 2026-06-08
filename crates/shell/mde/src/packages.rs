@@ -385,7 +385,12 @@ fn section_header(label: &str) -> Element<'static, Message> {
             .size(metrics::UI_PX)
             .font(mde_ui::font::ui_bold()),
     )
-    .padding(pad(8.0, 0.0, 2.0, 2.0))
+    .padding(pad(
+        metrics::SPACING_03,
+        0.0,
+        metrics::SPACING_01,
+        metrics::SPACING_01,
+    ))
     .into()
 }
 
@@ -477,7 +482,12 @@ fn programs_view(state: &AddRemove) -> (Element<'_, Message>, String) {
     let matches = |p: &Pkg| pkg_matches(p, &q);
     let shown = state.rows.iter().filter(|p| matches(p)).count();
 
-    let mut list = Column::new().spacing(0.0).padding(pad(2.0, 8.0, 2.0, 8.0));
+    let mut list = Column::new().spacing(0.0).padding(pad(
+        metrics::SPACING_01,
+        metrics::SPACING_03,
+        metrics::SPACING_01,
+        metrics::SPACING_03,
+    ));
     for cat in catalogue::categories(&catalogue::catalogue()) {
         let cat_rows: Vec<&Pkg> = state
             .rows
@@ -524,7 +534,12 @@ fn updates_view(state: &AddRemove) -> (Element<'_, Message>, String) {
                 .padding(pad(2.0, 10.0, 2.0, 10.0)),
         );
 
-    let mut list = Column::new().spacing(0.0).padding(pad(2.0, 8.0, 2.0, 8.0));
+    let mut list = Column::new().spacing(0.0).padding(pad(
+        metrics::SPACING_01,
+        metrics::SPACING_03,
+        metrics::SPACING_01,
+        metrics::SPACING_03,
+    ));
     // Feature update section (E13.3a): a downloaded Fedora release upgrade, shown
     // above the per-package Quality updates with its own header.
     if let Some(n) = state.feature {
@@ -592,7 +607,12 @@ fn note(s: &str) -> Element<'static, Message> {
             .size(metrics::UI_PX)
             .color(palette::color(palette::GRAY_TEXT)),
     )
-    .padding(pad(8.0, 0.0, 2.0, 2.0))
+    .padding(pad(
+        metrics::SPACING_03,
+        0.0,
+        metrics::SPACING_01,
+        metrics::SPACING_01,
+    ))
     .into()
 }
 

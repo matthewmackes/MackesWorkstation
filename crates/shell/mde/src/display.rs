@@ -779,8 +779,12 @@ fn background_tab(state: &Display) -> Element<'_, Message> {
     let mut list = Column::new().spacing(0.0);
     if state.wallpapers.is_empty() {
         list = list.push(
-            container(label("(no images found in Pictures / backgrounds)"))
-                .padding(pad(2.0, 4.0, 2.0, 4.0)),
+            container(label("(no images found in Pictures / backgrounds)")).padding(pad(
+                metrics::SPACING_01,
+                metrics::SPACING_02,
+                metrics::SPACING_01,
+                metrics::SPACING_02,
+            )),
         );
     }
     for (i, wp) in state.wallpapers.iter().enumerate() {
@@ -1404,7 +1408,12 @@ fn revert_dialog(secs: u32) -> Element<'static, Message> {
     let body = Column::new()
         .spacing(metrics::SPACING_04)
         .align_x(iced::Alignment::Center)
-        .padding(pad(16.0, 16.0, 12.0, 16.0))
+        .padding(pad(
+            metrics::SPACING_05,
+            metrics::SPACING_05,
+            metrics::SPACING_04,
+            metrics::SPACING_05,
+        ))
         .push(bold("Display Settings"))
         .push(label("Your desktop has been reconfigured."))
         .push(label(&format!(

@@ -443,7 +443,7 @@ fn view(state: &Popup) -> Element<'_, Message> {
             .push(Space::with_height(Length::Fill))
     };
 
-    mouse_area(container(positioned).padding(pad(0.0, 0.0, 0.0, 2.0)))
+    mouse_area(container(positioned).padding(pad(0.0, 0.0, 0.0, metrics::SPACING_01)))
         .on_press(Message::Close)
         .on_right_press(Message::Close)
         .into()

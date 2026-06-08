@@ -451,7 +451,12 @@ fn toolbar() -> Element<'static, Message> {
     let btn = |icons: &'static [&'static str], msg: Message| {
         button(crate::icons::icon_any(icons, 16))
             .on_press(msg)
-            .padding(pad(2.0, 4.0, 2.0, 4.0))
+            .padding(pad(
+                metrics::SPACING_01,
+                metrics::SPACING_02,
+                metrics::SPACING_01,
+                metrics::SPACING_02,
+            ))
     };
     Row::new()
         .spacing(metrics::SPACING_01)
@@ -482,7 +487,12 @@ fn places_bar() -> Element<'static, Message> {
             )
             .on_press(Message::Place(i))
             .width(Length::Fill)
-            .padding(pad(4.0, 2.0, 4.0, 2.0))
+            .padding(pad(
+                metrics::SPACING_02,
+                metrics::SPACING_01,
+                metrics::SPACING_02,
+                metrics::SPACING_01,
+            ))
             .style(row_style(false)),
         );
     }
@@ -562,8 +572,12 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
     // File list well.
     let mut list = Column::new().spacing(0.0);
     if state.entries.is_empty() {
-        list = list
-            .push(container(text("(empty)").size(metrics::UI_PX)).padding(pad(2.0, 4.0, 2.0, 4.0)));
+        list = list.push(container(text("(empty)").size(metrics::UI_PX)).padding(pad(
+            metrics::SPACING_01,
+            metrics::SPACING_02,
+            metrics::SPACING_01,
+            metrics::SPACING_02,
+        )));
     }
     for (i, e) in state.entries.iter().enumerate() {
         list = list.push(entry_row(state, i, e));
@@ -575,7 +589,10 @@ fn view(state: &FileDialog) -> Element<'_, Message> {
     .width(Length::Fill)
     .height(Length::Fill);
 
-    let middle = Row::new().spacing(metrics::SPACING_03).push(places_bar()).push(well);
+    let middle = Row::new()
+        .spacing(metrics::SPACING_03)
+        .push(places_bar())
+        .push(well);
 
     // Filename row + Open/Save button.
     let accept_label = if state.save { "Save" } else { "Open" };

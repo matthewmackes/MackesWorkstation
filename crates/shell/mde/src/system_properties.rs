@@ -245,8 +245,12 @@ fn hardware_tab(state: &SysProps) -> Element<'static, Message> {
     let mut tree = Column::new().spacing(0.0);
     if !state.scanned {
         tree = tree.push(
-            container(text("Scanning hardware devices\u{2026}").size(metrics::UI_PX))
-                .padding(pad(2.0, 4.0, 2.0, 4.0)),
+            container(text("Scanning hardware devices\u{2026}").size(metrics::UI_PX)).padding(pad(
+                metrics::SPACING_01,
+                metrics::SPACING_02,
+                metrics::SPACING_01,
+                metrics::SPACING_02,
+            )),
         );
     }
     for (i, cat) in state.devices.iter().enumerate() {

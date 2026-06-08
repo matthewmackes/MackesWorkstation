@@ -121,7 +121,12 @@ fn taskbar_preview() -> Element<'static, Message> {
     let bar = Row::new()
         .spacing(metrics::SPACING_02)
         .align_y(iced::Alignment::Center)
-        .padding(pad(2.0, 4.0, 2.0, 4.0))
+        .padding(pad(
+            metrics::SPACING_01,
+            metrics::SPACING_02,
+            metrics::SPACING_01,
+            metrics::SPACING_02,
+        ))
         .push(button(
             text("Start")
                 .size(metrics::UI_PX)
@@ -158,7 +163,7 @@ fn general_tab(state: &TaskbarProps) -> Element<'_, Message> {
 
     Column::new()
         .spacing(metrics::SPACING_04)
-        .push(container(taskbar_preview()).width(Length::Fill).center_x(Length::Fill).padding(pad(4.0, 0.0, 4.0, 0.0)))
+        .push(container(taskbar_preview()).width(Length::Fill).center_x(Length::Fill).padding(pad(metrics::SPACING_02, 0.0, metrics::SPACING_02, 0.0)))
         .push(group_box("Taskbar", taskbar))
         .push(group_box("Start menu", start_menu))
         .push(

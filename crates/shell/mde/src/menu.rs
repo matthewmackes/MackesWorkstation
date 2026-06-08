@@ -734,7 +734,7 @@ fn render_item<'a>(
             .on_press(Message::Click(col, idx))
             .width(Length::Fill)
             .height(Length::Fixed(row_h))
-            .padding(pad(0.0, 16.0, 0.0, 8.0))
+            .padding(pad(0.0, metrics::SPACING_05, 0.0, metrics::SPACING_03))
             .style(item_style(selected)),
         )
         .on_right_press(Message::RightClick(col, idx))
@@ -750,7 +750,7 @@ fn render_item<'a>(
         .on_press(Message::Click(col, idx))
         .width(Length::Fill)
         .height(Length::Fixed(row_h))
-        .padding(pad(0.0, 8.0, 0.0, 8.0))
+        .padding(pad(0.0, metrics::SPACING_03, 0.0, metrics::SPACING_03))
         .style(item_style(selected))
         .into(),
     }
@@ -1093,7 +1093,12 @@ fn context_menu(pinned: bool) -> Element<'static, Message> {
             .on_press(msg)
             .width(Length::Fill)
             .height(Length::Fixed(ITEM_H))
-            .padding(pad(4.0, 16.0, 0.0, 12.0))
+            .padding(pad(
+                metrics::SPACING_02,
+                metrics::SPACING_05,
+                0.0,
+                metrics::SPACING_04,
+            ))
             .style(item_style(false))
     };
     let (pin_label, pin_msg) = if pinned {
