@@ -292,7 +292,7 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %systemd_user_preun mackesd.service
 
 %changelog
-* Sun Jun 08 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-5
+* Mon Jun 08 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-5
 - packaging (E8.5 #1): split into the three role subpackages — mde-core
   (Lighthouse base: mde / mackesd / mde-bus + core utils + control-plane unit +
   shared data), mde-headless (Server: the LizardFS sbin set + fuse3), and
