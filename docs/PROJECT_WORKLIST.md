@@ -988,14 +988,22 @@ _Depends: E0, E1, E2, E4, E5, E6_
     - [✓] The Network card surfaces network-tool readouts — NetworkManager active connections, the Nebula peer roster (paired/online), and the latest LAN (netassess) scan; the expensive nmap is the worker's job (read-only here), so the poll stays cheap. *(gallery verified live: "1 active: Wired connection 2", "no paired peers yet", "0 LAN host(s) seen")*
     - [✓] Rows render live tri-state via the `LiveProbe` poller + manual Re-check; reachable from `mde birthright`, palette roles only, degrades gracefully when a tool/daemon is absent (Bus-down still shows NM + LAN locally; never panic). *(2 new tests; 17 birthright + 187 mde green; clippy/fmt clean)*
 
-- [ ] **E7.6: E7 — birthright attestation extras: report export + post-commissioning escalation**
-  Copy/Save the commissioning report, and a panel badge + toast when a previously-green subsystem regresses after the box is unchecked.
-  **As** an operator, **I want** to capture a commissioning record and be told later if something I'd confirmed breaks, **so that** I have an attestation artifact and don't silently lose a subsystem after dismissing the wizard.
-  *Reuse:* `mackesd` `health.rs` `to_json_line` (report body), `panel.rs` (health badge), `mde toast` (escalation). *Deps:* E7.4, E7.5.
+- [✓] **E7.6: E7 — birthright report export (Copy diagnostics + Save report)** *(DONE 2026-06-08; escalation split → E7.6b)*
+  The commissioning-record half of the attestation extras. `build_report` serializes all four sections' rows (`{check,status,detail}`) into pretty JSON with a `{product,host,generated_ts}` header; "Copy diagnostics" pipes it to `wl-copy`, "Save report" writes `~/.local/share/mde/birthright/<ts>-commissioning.json`. Both surface a transient footer confirmation (`last_action`). The footer is now Copy / Save / Re-check all / Close + the show-at-startup checkbox.
+  **Decision (§6):** the report is built from the dashboard's own live rows (not `mackesd healthz` `to_json_line` directly) so it captures all four sections — desktop/mesh/voice/network — in one artifact, which is what a commissioning record needs; the mackesd health JSON is already folded into the mesh row's detail.
+  **As** an operator, **I want** to capture a commissioning record, **so that** I have an attestation artifact to file or share.
+  *Reuse:* `wl-copy` (clipboard, as snip.rs/clipboard.rs), `serde_json`. *Deps:* E7.4, E7.5, E7.5b.
   **Acceptance** (runtime-observable):
-    - [ ] A "Copy diagnostics" action puts the full commissioning report on the clipboard, and "Save report" writes a timestamped JSON/txt artifact (reusing `health.rs` `to_json_line`); both observably produce the artifact.
-    - [ ] After the startup flag is unchecked, a regression of a previously-green subsystem raises a panel health badge (steady state) + a single debounced toast (per new failure) that deep-links back to `mde birthright`; a flapping peer does not toast-spam.
-    - [ ] Reachable from `mde birthright` / the panel; Carbon-only, no raw hex, degrades gracefully.
+    - [✓] "Copy diagnostics" puts the full four-section commissioning report (JSON) on the clipboard via `wl-copy`; "Save report" writes a timestamped JSON file under `~/.local/share/mde/birthright/`; each shows a footer confirmation. *(build_report/rows_json/status_str unit-tested; footer buttons gallery-verified)*
+    - [✓] Reachable from `mde birthright`; palette roles only; degrades gracefully (a missing wl-copy / unwritable dir yields a footer error string, never a panic). *(19 birthright + 187 mde green; clippy/fmt clean)*
+
+- [ ] **E7.6b: E7 — birthright post-commissioning escalation (panel badge + toast)** *(split from E7.6, 2026-06-08)*
+  After the operator unchecks "show at startup", surface later regressions so a silently-lost subsystem doesn't go unnoticed.
+  **As** an operator who dismissed the dashboard, **I want** to be told if something I'd confirmed later breaks, **so that** I don't silently lose a subsystem.
+  *Reuse:* `panel.rs` (health badge next to the mesh chip), `notifyd`/`mde toast` (escalation), birthright's `probe_*` (shared check logic). *Deps:* E7.6.
+  **Acceptance** (runtime-observable):
+    - [ ] After the startup flag is unchecked, a regression of a previously-green subsystem raises a panel health badge (steady state) + a single debounced toast (per new failure) deep-linking to `mde birthright`; a flapping peer does not toast-spam.
+    - [ ] Reachable from the panel; palette roles only; degrades gracefully; no toast-spam (debounce verified).
 
 ### E8 — Polish + Held RPM Release
 _Depends: E0-E7_

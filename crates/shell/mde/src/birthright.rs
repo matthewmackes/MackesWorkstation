@@ -249,6 +249,8 @@ struct Birthright {
     voice_row: Check,
     network_rows: Vec<Check>,
     show_at_startup: bool,
+    /// Transient confirmation after Copy/Save (shown in the footer).
+    last_action: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -263,6 +265,10 @@ enum Message {
     ToggleStartup(bool),
     /// A remediation button was pressed.
     Fix(Fix),
+    /// Copy the commissioning report to the clipboard (`wl-copy`).
+    CopyReport,
+    /// Save the commissioning report to a timestamped file.
+    SaveReport,
     /// Close the dashboard.
     Close,
 }
@@ -332,6 +338,7 @@ pub fn run(args: &[String]) -> ExitCode {
                 voice_row: voice_checking(),
                 network_rows: network_checking(),
                 show_at_startup: crate::state::load().birthright_show_at_startup,
+                last_action: None,
             },
             Task::done(Message::Probe),
         )
@@ -380,6 +387,12 @@ fn update(state: &mut Birthright, message: Message) -> Task<Message> {
             // The change (service start, re-enrol) lands asynchronously; nudge the
             // poller so the row reflects it sooner than the next 5s tick.
             refresh_live(state.live.clone());
+        }
+        Message::CopyReport => {
+            state.last_action = Some(copy_report(&build_report(state)));
+        }
+        Message::SaveReport => {
+            state.last_action = Some(save_report(&build_report(state)));
         }
         Message::Close => std::process::exit(0),
     }
@@ -950,6 +963,97 @@ fn parse_voice(body: Option<String>, now: u64) -> Check {
     }
 }
 
+// --- report export (E7.6) ---------------------------------------------------
+
+/// Stable string for a status, for the exported report.
+fn status_str(s: Status) -> &'static str {
+    match s {
+        Status::Checking => "checking",
+        Status::Pass => "pass",
+        Status::Degraded => "degraded",
+        Status::Fail => "fail",
+    }
+}
+
+/// JSON array of `{check,status,detail}` for one section's rows.
+fn rows_json(rows: &[Check]) -> Vec<serde_json::Value> {
+    rows.iter()
+        .map(|c| {
+            serde_json::json!({
+                "check": c.label,
+                "status": status_str(c.status),
+                "detail": c.detail,
+            })
+        })
+        .collect()
+}
+
+/// This host's name (`/proc/sys/kernel/hostname`), for the report header.
+fn hostname() -> String {
+    std::fs::read_to_string("/proc/sys/kernel/hostname")
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
+/// Build the commissioning report (pretty JSON) from the dashboard's current
+/// rows — the attestation artifact a Copy/Save produces.
+fn build_report(state: &Birthright) -> String {
+    let report = serde_json::json!({
+        "product": "Mackes Workstation",
+        "report": "birthright-commissioning",
+        "host": hostname(),
+        "generated_ts": now_unix(),
+        "sections": {
+            "desktop": rows_json(&state.desktop),
+            "mesh": rows_json(&state.mesh_rows),
+            "voice": rows_json(std::slice::from_ref(&state.voice_row)),
+            "network": rows_json(&state.network_rows),
+        },
+    });
+    serde_json::to_string_pretty(&report).unwrap_or_else(|_| "{}".to_string())
+}
+
+/// Pipe the report into `wl-copy`. Returns a footer confirmation string.
+fn copy_report(report: &str) -> String {
+    use std::io::Write;
+    use std::process::Stdio;
+    match Command::new("wl-copy").stdin(Stdio::piped()).spawn() {
+        Ok(mut child) => {
+            if let Some(mut stdin) = child.stdin.take() {
+                let _ = stdin.write_all(report.as_bytes());
+            }
+            let _ = child.wait();
+            "Copied diagnostics to clipboard".to_string()
+        }
+        Err(_) => "Copy failed — wl-copy not available".to_string(),
+    }
+}
+
+/// `~/.local/share/mde/birthright/` — where saved reports land.
+fn report_dir() -> Option<std::path::PathBuf> {
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share"))
+        })?;
+    Some(base.join("mde").join("birthright"))
+}
+
+/// Write the report to a timestamped file. Returns a footer confirmation.
+fn save_report(report: &str) -> String {
+    let Some(dir) = report_dir() else {
+        return "Export failed — no data dir".to_string();
+    };
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        return format!("Export failed: {e}");
+    }
+    let path = dir.join(format!("{}-commissioning.json", now_unix()));
+    match std::fs::write(&path, report) {
+        Ok(()) => format!("Exported report to {}", path.display()),
+        Err(e) => format!("Export failed: {e}"),
+    }
+}
+
 // --- view -------------------------------------------------------------------
 
 fn label(s: impl text::IntoFragment<'static>) -> iced::widget::Text<'static> {
@@ -1050,7 +1154,7 @@ fn view(state: &Birthright) -> Element<'_, Message> {
     )
     .height(Length::Fill);
 
-    let footer = Row::new()
+    let buttons = Row::new()
         .spacing(metrics::SPACING_04)
         .align_y(iced::Alignment::Center)
         .push(
@@ -1061,6 +1165,16 @@ fn view(state: &Birthright) -> Element<'_, Message> {
         )
         .push(Space::with_width(Length::Fill))
         .push(
+            button(label("Copy diagnostics"))
+                .on_press(Message::CopyReport)
+                .height(Length::Fixed(metrics::BUTTON_MD)),
+        )
+        .push(
+            button(label("Export report"))
+                .on_press(Message::SaveReport)
+                .height(Length::Fixed(metrics::BUTTON_MD)),
+        )
+        .push(
             button(label("Re-check all"))
                 .on_press(Message::Recheck)
                 .height(Length::Fixed(metrics::BUTTON_MD)),
@@ -1070,6 +1184,12 @@ fn view(state: &Birthright) -> Element<'_, Message> {
                 .on_press(Message::Close)
                 .height(Length::Fixed(metrics::BUTTON_MD)),
         );
+
+    // Footer = the action row, plus a transient confirmation after Copy/Save.
+    let mut footer = Column::new().spacing(metrics::SPACING_02).push(buttons);
+    if let Some(msg) = &state.last_action {
+        footer = footer.push(label(msg.clone()).color(palette::color(palette::GRAY_TEXT)));
+    }
 
     let body = Column::new()
         .spacing(metrics::SPACING_05)
@@ -1303,5 +1423,27 @@ mod tests {
         assert!(network_checking()
             .iter()
             .all(|c| c.status == Status::Checking));
+    }
+
+    #[test]
+    fn status_str_is_stable() {
+        assert_eq!(status_str(Status::Pass), "pass");
+        assert_eq!(status_str(Status::Degraded), "degraded");
+        assert_eq!(status_str(Status::Fail), "fail");
+        assert_eq!(status_str(Status::Checking), "checking");
+    }
+
+    #[test]
+    fn rows_json_carries_check_status_detail() {
+        let rows = vec![
+            Check::new("Compositor", Status::Pass, "labwc is running"),
+            Check::new("Panel", Status::Fail, "not running"),
+        ];
+        let j = rows_json(&rows);
+        assert_eq!(j.len(), 2);
+        assert_eq!(j[0]["check"], "Compositor");
+        assert_eq!(j[0]["status"], "pass");
+        assert_eq!(j[0]["detail"], "labwc is running");
+        assert_eq!(j[1]["status"], "fail");
     }
 }
