@@ -14,7 +14,6 @@ path = "src/main.rs"
 
 [dependencies]
 iced       = { version = "0.14", default-features = false, features = ["wgpu", "tiny-skia", "svg", "tokio", "advanced", "wayland"] }
-mackes-theme = { path = "../../shared/mackes-theme" }
 # CR-4 (2026-05-25) — Object Card consumer. Pulls `object_card` from
 # the shared widget crate that CR-3.b introduced; the data form +
 # spec constants come from mde-theme (no toolkit dep there).

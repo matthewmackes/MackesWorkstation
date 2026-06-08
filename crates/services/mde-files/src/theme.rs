@@ -1,16 +1,13 @@
-//! Visual tokens — Rust translation of the PatternFly v6 + Mackes warm-dark
-//! palette declared at the top of the prototype's `:root { ... }` block.
-//!
-//! The `theme()` function loads the canonical `data/css/tokens.css` at
-//! runtime and applies the active preset's accent override, so the Iced
-//! palette stays in sync with the GTK layer. The const color values below
-//! serve as (a) compile-time fallbacks and (b) widget-level detail colors
-//! not covered by the five-slot Iced palette.
-
-use std::path::PathBuf;
+//! Visual tokens — the IBM Carbon Gray-100 dark palette mde-files renders with
+//! (E10.7, §1 Carbon-only). The const color values below are the single source:
+//! `theme()` builds the five-slot Iced base palette from them, and the widget
+//! code reads the rest directly for surface/border/row detail not covered by
+//! that base. (Historically this translated a PatternFly/Material warm-dark
+//! `:root` block seeded from `data/css/tokens.css`; that GTK-era path is gone —
+//! the shell has no GTK layer to stay in sync with, and tokens.css carried the
+//! non-Carbon Material values.)
 
 use iced::Color;
-use mackes_theme::{apply_preset_accent, parse_tokens, token_value};
 
 const fn rgb_hex(r: u8, g: u8, b: u8) -> Color {
     Color {
@@ -39,31 +36,37 @@ const fn white_alpha(a: f32) -> Color {
     }
 }
 
-// ─── PatternFly v6 dark surface tokens ─────────────────────────────────────
-pub const PF_BG_100: Color = rgb_hex(0x15, 0x15, 0x15);
-pub const PF_BG_200: Color = rgb_hex(0x1b, 0x1d, 0x21);
-pub const PF_BG_300: Color = rgb_hex(0x1f, 0x1f, 0x1f);
-pub const PF_BG_400: Color = rgb_hex(0x29, 0x29, 0x29);
-pub const PF_BORDER: Color = rgb_hex(0x44, 0x45, 0x48);
+// ─── IBM Carbon Gray-100 dark surface ramp (E10.7) ─────────────────────────
+// The dark layer ramp, deepest → lightest. (Constant names keep their legacy
+// `PF_*` spelling for call-site stability; the VALUES are Carbon Gray tokens
+// now — §1 Carbon-only. Matches the shell's `mde-ui` dark mapping + the
+// canonical `mde_theme::Palette::dark()`.)
+pub const PF_BG_100: Color = rgb_hex(0x16, 0x16, 0x16); // Gray 100 — page bg
+pub const PF_BG_200: Color = rgb_hex(0x26, 0x26, 0x26); // Gray 90 — titlebar/sidebar
+pub const PF_BG_300: Color = rgb_hex(0x39, 0x39, 0x39); // Gray 80 — content/field
+pub const PF_BG_400: Color = rgb_hex(0x52, 0x52, 0x52); // Gray 70 — overlay/hover
+pub const PF_BORDER: Color = rgb_hex(0x52, 0x52, 0x52); // Gray 70 — border
 
-pub const PF_TEXT_100: Color = rgb_hex(0xf0, 0xf0, 0xf0);
-pub const PF_TEXT_200: Color = rgb_hex(0xb8, 0xbb, 0xbe);
-pub const PF_TEXT_300: Color = rgb_hex(0x8a, 0x8d, 0x90);
+pub const PF_TEXT_100: Color = rgb_hex(0xf4, 0xf4, 0xf4); // Gray 10 — text primary
+pub const PF_TEXT_200: Color = rgb_hex(0xc6, 0xc6, 0xc6); // Gray 30 — text secondary
+pub const PF_TEXT_300: Color = rgb_hex(0x8d, 0x8d, 0x8d); // Gray 50 — text helper
 
-// ─── Mackes warm-dark accent ───────────────────────────────────────────────
-pub const ACCENT: Color = rgb_hex(0xf0, 0xab, 0x00);
-pub const ACCENT_HI: Color = rgb_hex(0xff, 0xc1, 0x07);
-pub const RUST: Color = rgb_hex(0xe3, 0x6b, 0x3a);
+// ─── Carbon Blue interactive accent (on dark) ──────────────────────────────
+pub const ACCENT: Color = rgb_hex(0x45, 0x89, 0xff); // Blue 50 — on-dark accent
+pub const ACCENT_HI: Color = rgb_hex(0x78, 0xa9, 0xff); // Blue 40 — accent hover
+/// The "self / local node" status hue — Carbon Teal 30, kept distinct from the
+/// Blue mesh accent. (Legacy name `RUST`; value is Carbon now.)
+pub const RUST: Color = rgb_hex(0x3d, 0xdb, 0xd9);
 
-/// Classic ChromeOS primary button indigo (0x5b6af5). CR-4.e.
-pub const BUTTON_ACCENT: Color = rgb_hex(0x5b, 0x6a, 0xf5);
-/// Classic ChromeOS primary button indigo hover (+8% luminance). CR-4.e.
-pub const BUTTON_ACCENT_HI: Color = rgb_hex(0x62, 0x72, 0xff);
+/// Carbon Blue 60 — primary-button fill.
+pub const BUTTON_ACCENT: Color = rgb_hex(0x0f, 0x62, 0xfe);
+/// Carbon Blue 50 — primary-button hover.
+pub const BUTTON_ACCENT_HI: Color = rgb_hex(0x45, 0x89, 0xff);
 
-// ─── PatternFly status colours ─────────────────────────────────────────────
-pub const PF_INFO: Color = rgb_hex(0x2b, 0x9a, 0xf3);
-pub const PF_SUCCESS: Color = rgb_hex(0x3e, 0x86, 0x35);
-pub const PF_DANGER: Color = rgb_hex(0xc9, 0x19, 0x0b);
+// ─── Carbon support status colours (dark) ──────────────────────────────────
+pub const PF_INFO: Color = rgb_hex(0x45, 0x89, 0xff); // Blue 50
+pub const PF_SUCCESS: Color = rgb_hex(0x42, 0xbe, 0x65); // Green 40
+pub const PF_DANGER: Color = rgb_hex(0xfa, 0x4d, 0x56); // Red 50
 
 // ─── Common derived colours / surfaces ─────────────────────────────────────
 pub const BG: Color = PF_BG_100;
@@ -74,10 +77,8 @@ pub const WINDOW: Color = PF_BG_300;
 
 /// CR-4 — bridge the mde-files local theme tokens to the
 /// `mde_theme::Palette` shape so `mde_iced_components::object_card`
-/// can render against mde-files's amber accent + PatternFly dark
-/// surfaces. Without this bridge the Object Card chrome would
-/// inherit the workbench's indigo accent and read out-of-place
-/// inside the file manager.
+/// renders against the same IBM Carbon surfaces + Blue accent as the
+/// rest of the manager (E10.7 — Carbon-only, §1).
 #[must_use]
 pub fn mde_files_palette() -> mde_theme::Palette {
     use mde_theme::Rgba;
@@ -109,35 +110,38 @@ pub fn mde_files_palette() -> mde_theme::Palette {
     }
 }
 pub const WINDOW_TITLEBAR: Color = PF_BG_200;
-pub const WINDOW_SIDE: Color = rgb_hex(0x25, 0x25, 0x27);
+pub const WINDOW_SIDE: Color = rgb_hex(0x26, 0x26, 0x26); // Gray 90
 pub const DIVIDER: Color = white_alpha(0.08);
 
 pub const ROW_HOVER: Color = white_alpha(0.05);
 pub const ROW_HOVER_FAINT: Color = white_alpha(0.03);
-pub const ACTIVE_RUST_BG: Color = rgba_hex(0xe3, 0x6b, 0x3a, 0.16);
-pub const ACTIVE_RUST_BORDER: Color = RUST;
-pub const PRIMARY_AMBER_BG: Color = rgba_hex(0xf0, 0xab, 0x00, 0.06);
-pub const PRIMARY_AMBER_BG_HOVER: Color = rgba_hex(0xf0, 0xab, 0x00, 0.12);
-pub const PRIMARY_AMBER_BG_ACTIVE: Color = rgba_hex(0xf0, 0xab, 0x00, 0.18);
-pub const PRIMARY_AMBER_BORDER: Color = rgba_hex(0xf0, 0xab, 0x00, 0.55);
+// E10.7 — the selected-row highlight + the "primary" tints are the Carbon Blue
+// accent now (was warm amber/rust). Names keep their legacy spelling; values
+// are Carbon Blue 50 (0x4589ff) tints.
+pub const ACTIVE_RUST_BG: Color = rgba_hex(0x45, 0x89, 0xff, 0.16);
+pub const ACTIVE_RUST_BORDER: Color = ACCENT;
+pub const PRIMARY_AMBER_BG: Color = rgba_hex(0x45, 0x89, 0xff, 0.06);
+pub const PRIMARY_AMBER_BG_HOVER: Color = rgba_hex(0x45, 0x89, 0xff, 0.12);
+pub const PRIMARY_AMBER_BG_ACTIVE: Color = rgba_hex(0x45, 0x89, 0xff, 0.18);
+pub const PRIMARY_AMBER_BORDER: Color = rgba_hex(0x45, 0x89, 0xff, 0.55);
 
-pub const MESH_PILL_BG: Color = rgba_hex(0xf0, 0xab, 0x00, 0.10);
-pub const MESH_PILL_BORDER: Color = rgba_hex(0xf0, 0xab, 0x00, 0.25);
+pub const MESH_PILL_BG: Color = rgba_hex(0x45, 0x89, 0xff, 0.10);
+pub const MESH_PILL_BORDER: Color = rgba_hex(0x45, 0x89, 0xff, 0.25);
 pub const LOCAL_PILL_BG: Color = white_alpha(0.03);
 pub const LOCAL_PILL_BORDER: Color = white_alpha(0.06);
 
-pub const MESH_ROW_BG: Color = rgba_hex(0xf0, 0xab, 0x00, 0.025);
-pub const MESH_ROW_BG_HOVER: Color = rgba_hex(0xf0, 0xab, 0x00, 0.06);
+pub const MESH_ROW_BG: Color = rgba_hex(0x45, 0x89, 0xff, 0.025);
+pub const MESH_ROW_BG_HOVER: Color = rgba_hex(0x45, 0x89, 0xff, 0.06);
 
-pub const BANNER_BORDER: Color = rgba_hex(0xf0, 0xab, 0x00, 0.18);
-pub const BANNER_TINT_A: Color = rgba_hex(0xf0, 0xab, 0x00, 0.10);
+pub const BANNER_BORDER: Color = rgba_hex(0x45, 0x89, 0xff, 0.18);
+pub const BANNER_TINT_A: Color = rgba_hex(0x45, 0x89, 0xff, 0.10);
 
 pub const ROW_DIVIDER: Color = white_alpha(0.03);
 
-/// CR-4.d — Classic ChromeOS list-divider (charcoal 0x3c4043).
-pub const LIST_ROW_DIVIDER: Color = rgb_hex(0x3c, 0x40, 0x43);
-/// CR-4.d — Indigo selection overlay at 15 % alpha (0x5b6af5).
-pub const LIST_SELECTION_BG: Color = rgba_hex(0x5b, 0x6a, 0xf5, 0.15);
+/// Carbon Gray 80 list-divider.
+pub const LIST_ROW_DIVIDER: Color = rgb_hex(0x39, 0x39, 0x39);
+/// Carbon Blue 50 selection overlay at 15 % alpha.
+pub const LIST_SELECTION_BG: Color = rgba_hex(0x45, 0x89, 0xff, 0.15);
 
 // ─── Dimensions ────────────────────────────────────────────────────────────
 pub const WIN_W: f32 = 1480.0;
@@ -172,64 +176,68 @@ pub fn peer_status_dot(status: PeerStatus) -> Color {
 
 // ─── Iced theme ────────────────────────────────────────────────────────────
 
-/// Build the Iced theme from `tokens.css` + the active preset's accent
-/// override. Falls back to the hardcoded warm-dark palette when no token
-/// file is found (dev builds without the install tree).
+/// The Iced base theme — built directly from the IBM Carbon tokens above
+/// (E10.7, §1 Carbon-only). The old `tokens.css` read is gone: that file
+/// carries the Material-indigo GTK-era values and is shared, so seeding from it
+/// re-introduced a non-Carbon base; the shell has no GTK layer to stay "in sync"
+/// with any more. The accent is fixed Carbon Blue (the per-user accent picker
+/// only retints icons, not the UI accent).
 #[must_use]
 pub fn theme() -> iced::Theme {
-    if let Some(path) = locate_tokens_css() {
-        if let Ok(css) = std::fs::read_to_string(path) {
-            let mut tokens = parse_tokens(&css);
-            apply_preset_accent(&mut tokens);
-            return theme_from_tokens(&tokens);
-        }
-    }
     iced::Theme::custom(
         "MDE",
         iced::theme::Palette {
             background: WINDOW,
             text: FG,
             primary: ACCENT,
-            warning: Color::from_rgb(0.96, 0.65, 0.14),
+            warning: rgb_hex(0xf1, 0xc2, 0x1b), // Carbon Yellow 30
             success: PF_SUCCESS,
             danger: PF_DANGER,
         },
     )
 }
 
-fn locate_tokens_css() -> Option<PathBuf> {
-    [
-        PathBuf::from("/usr/share/mde/css/tokens.css"),
-        PathBuf::from("/usr/share/mde/data/css/tokens.css"),
-        PathBuf::from("data/css/tokens.css"),
-        PathBuf::from("../../data/css/tokens.css"),
-    ]
-    .into_iter()
-    .find(|p| p.exists())
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-fn theme_from_tokens(tokens: &mackes_theme::TokenTable) -> iced::Theme {
-    let mut palette = iced::theme::Palette {
-        background: WINDOW,
-        text: FG,
-        primary: ACCENT,
-        warning: Color::from_rgb(0.96, 0.65, 0.14),
-        success: PF_SUCCESS,
-        danger: PF_DANGER,
-    };
-    let seeds: &[(&str, fn(&mut iced::theme::Palette, Color))] = &[
-        ("cds_bg_default", |p, c| p.background = c),
-        ("cds_text_primary", |p, c| p.text = c),
-        ("mackes_accent", |p, c| p.primary = c),
-        ("cds_support_success", |p, c| p.success = c),
-        ("cds_support_error", |p, c| p.danger = c),
-    ];
-    for (name, setter) in seeds {
-        if let Some(val) = token_value(tokens, name) {
-            if let Some((r, g, b, _)) = mackes_theme::parse_hex_color(val) {
-                setter(&mut palette, Color::from_rgb8(r, g, b));
-            }
-        }
+    fn rgb8(c: Color) -> (u8, u8, u8) {
+        (
+            (c.r * 255.0).round() as u8,
+            (c.g * 255.0).round() as u8,
+            (c.b * 255.0).round() as u8,
+        )
     }
-    iced::Theme::custom("MDE", palette)
+
+    /// E10.7 / §1 — pin the core palette to its IBM Carbon Gray-100 dark token
+    /// values, so a future drift back toward the retired Material/PatternFly
+    /// warm-dark palette fails here. (Carbon spec: carbondesignsystem.com.)
+    #[test]
+    fn palette_is_carbon_gray_100_dark() {
+        // Gray ramp (surface tiers).
+        assert_eq!(rgb8(PF_BG_100), (0x16, 0x16, 0x16), "bg = Gray 100");
+        assert_eq!(rgb8(PF_BG_200), (0x26, 0x26, 0x26), "titlebar = Gray 90");
+        assert_eq!(rgb8(PF_BG_300), (0x39, 0x39, 0x39), "content = Gray 80");
+        assert_eq!(rgb8(PF_BG_400), (0x52, 0x52, 0x52), "overlay = Gray 70");
+        // Text ramp.
+        assert_eq!(rgb8(PF_TEXT_100), (0xf4, 0xf4, 0xf4), "text = Gray 10");
+        assert_eq!(rgb8(PF_TEXT_300), (0x8d, 0x8d, 0x8d), "helper = Gray 50");
+        // Interactive accent + primary button = Carbon Blue (no amber/indigo).
+        assert_eq!(rgb8(ACCENT), (0x45, 0x89, 0xff), "accent = Blue 50");
+        assert_eq!(rgb8(BUTTON_ACCENT), (0x0f, 0x62, 0xfe), "button = Blue 60");
+        // Carbon support colours.
+        assert_eq!(rgb8(PF_SUCCESS), (0x42, 0xbe, 0x65), "success = Green 40");
+        assert_eq!(rgb8(PF_DANGER), (0xfa, 0x4d, 0x56), "danger = Red 50");
+    }
+
+    /// The Iced base theme is built from the Carbon constants (not the retired
+    /// Material `tokens.css`), so the runtime background/accent are Carbon
+    /// regardless of any installed token file.
+    #[test]
+    fn iced_base_theme_is_carbon() {
+        let pal = theme().palette();
+        assert_eq!(rgb8(pal.background), (0x39, 0x39, 0x39)); // WINDOW = Gray 80
+        assert_eq!(rgb8(pal.primary), (0x45, 0x89, 0xff)); // accent = Blue 50
+        assert_eq!(rgb8(pal.text), (0xf4, 0xf4, 0xf4)); // Gray 10
+    }
 }
