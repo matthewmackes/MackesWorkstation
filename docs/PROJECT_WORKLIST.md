@@ -946,6 +946,44 @@ _Depends: E0, E1, E2, E4, E5, E6_
     - [✓] The optional "Your Phone" stage runs a KDC pairing handshake (`mde-kdc-proto`) and, when a phone confirms, persists the pairing to the mackesd pairing store; declining/skipping leaves the flow complete and pairing re-runnable later from Settings. *(DONE to floor 2026-06-05: the mockup is replaced by honest KDE-Connect pairing guidance — phone-initiated, re-runnable from Mobile Devices, skip non-fatal; the live handshake+persist-on-confirm is the 2-device bench. Unblocked by E2.2/E2.3.)*
     - [✓] A "read before proceeding" disclaimer stage renders `DISCLAIMER.md` via `disclaimer.rs` `include_str!` (single source, no copy-paste) and blocks Next until acknowledged; whole flow reachable from `mde oobe`, themed via `palette::color()` with `metrics::UI_PX`, and degrades gracefully. *(increment 1; test-locked)*
 
+- [ ] **E7.3: E7 — `mde birthright` commissioning dashboard shell + lifecycle + Desktop section**
+  Design: `docs/design/birthright-commissioning.md` (operator 20-Q survey, 2026-06-08). The standalone Carbon status dashboard surface (sectioned cards), its first-boot/re-surface lifecycle, and the first live section (Desktop). Workstation role only.
+  **As** an operator who just installed a Workstation, **I want** a commissioning screen that opens at the end of OOBE and again at each login until I uncheck it, confirming the full desktop is actually built, **so that** I have positive proof the box came up whole rather than the black-desktop failure mode.
+  *Reuse:* `oobe.rs` Finalize hand-off, the skel `autostart` first-run block (like `mde setup`), `~/.config/mde` state (`#[serde(default)]`, atomic `save()`), `panel.rs`/applet registration + labwc compositor query. *Deps:* E7.2, E8 (held release reads it).
+  **Acceptance** (runtime-observable):
+    - [ ] `mde birthright` launches a full-window Carbon dashboard (Gray 100; color via `palette::color()`, sizing via `metrics`) with sectioned cards (Desktop / Mesh / Voice / Network — latter three may be present-but-pending until E7.4/E7.5); reachable from a `"birthright"` dispatch arm in `main.rs`, no-panic on `timeout 3 ./target/debug/mde birthright`.
+    - [ ] OOBE Finalize launches `mde birthright` as its closing page **without** blocking `state.oobe_done` from being stamped (a birthright failure never strands OOBE).
+    - [ ] A guarded line in the skel `autostart` re-launches `mde birthright` each login when the per-user `~/.config/mde` flag is set AND role is Workstation; a "Don't show at startup again" control (default ON) toggles that flag (atomic save); machine-first-boot (`/var/lib/mde`) + per-user-first-login markers gate the initial appearance.
+    - [ ] The Desktop section shows live Pass/Degraded/Fail/checking rows for: labwc is the compositor, `mde panel` running, expected applets registered, autostart completed; a failed row offers an actionable fix (e.g. re-run autostart / open Settings). Rows update on `mde-bus` events plus a manual "Re-check all" button.
+
+- [ ] **E7.4: E7 — birthright Mesh section (per-component rows + remediation)**
+  Per-component live mesh rows over `mde-bus`, reading `mackesd` health, with fix buttons. Builds on E7.3's shell.
+  **As** a node operator, **I want** the dashboard to show each mesh component's health separately with a way to fix a red one, **so that** I can confirm (and recover) mackesd, the Nebula overlay, the LizardFS mount, and the Bus in one place.
+  *Reuse:* `mackesd` `health.rs` `HealthReport` + `preflight.rs` (as-is, surfaced over Bus), `mde-bus` self-ping, E7.2 Nebula enrolment flow (for Re-enroll). *Deps:* E7.3, E3 (LizardFS), E7.2.
+  **Acceptance** (runtime-observable):
+    - [ ] The Mesh card shows independent Pass/Degraded/Fail/checking rows for `mackesd` (+ each worker), the Nebula overlay, the LizardFS mount, and `mde-bus`; values come from `mackesd` health pushed over `mde-bus` and refresh on event + manual Re-check.
+    - [ ] Each failed/degraded row offers a contextual fix: Start service (mackesd worker), Mount (LizardFS), **Re-enroll** (invokes the E7.2 Nebula enrolment flow), each runnable and observably changing the row on success.
+    - [ ] Degraded is distinct from Fail (e.g. mesh up but a roster peer unreachable renders Degraded, not Fail); no raw hex (Carbon status tokens), no scattered `.size()`.
+    - [ ] Reachable from `mde birthright`; degrades gracefully on Bus timeout / mackesd down (rows show Fail with a reason, never panic).
+
+- [ ] **E7.5: E7 — birthright Voice + Network sections**
+  The SIP attestation row and the four-tool network readout. Builds on E7.3's shell.
+  **As** an operator, **I want** the dashboard to prove the softphone would ring and to surface the platform's network readouts, **so that** I can confirm voice and connectivity at commissioning.
+  *Reuse:* E5.4 persistent SIP agent (registration + inbound listener), `nebula_roster.rs`, `voip_rtt.rs`, `fleet.rs`, `probe_nmap.rs`, NetworkManager / `net_flyout.rs`. *Deps:* E7.3, E5.4.
+  **Acceptance** (runtime-observable):
+    - [ ] The Voice card shows a Pass row only when the E5.4 SIP agent is **registered AND its inbound listener socket is bound** (a call would ring); a failed row offers a Register fix; a live loopback test-call is an explicit opt-in button, never an auto-check.
+    - [ ] The Network card surfaces all four readouts — Nebula roster + `voip_rtt` RTT, `fleet` inventory, a LAN `probe_nmap` scan, and NetworkManager/net-flyout connectivity (link/IP/DNS/gateway); the expensive probes (nmap, RTT, test-call) run only on open + Re-check, not the auto-poll.
+    - [ ] Both cards render live tri-state rows updating on `mde-bus` events + manual Re-check; reachable from `mde birthright`, Carbon-only, degrades gracefully when a tool/daemon is absent.
+
+- [ ] **E7.6: E7 — birthright attestation extras: report export + post-commissioning escalation**
+  Copy/Save the commissioning report, and a panel badge + toast when a previously-green subsystem regresses after the box is unchecked.
+  **As** an operator, **I want** to capture a commissioning record and be told later if something I'd confirmed breaks, **so that** I have an attestation artifact and don't silently lose a subsystem after dismissing the wizard.
+  *Reuse:* `mackesd` `health.rs` `to_json_line` (report body), `panel.rs` (health badge), `mde toast` (escalation). *Deps:* E7.4, E7.5.
+  **Acceptance** (runtime-observable):
+    - [ ] A "Copy diagnostics" action puts the full commissioning report on the clipboard, and "Save report" writes a timestamped JSON/txt artifact (reusing `health.rs` `to_json_line`); both observably produce the artifact.
+    - [ ] After the startup flag is unchecked, a regression of a previously-green subsystem raises a panel health badge (steady state) + a single debounced toast (per new failure) that deep-links back to `mde birthright`; a flapping peer does not toast-spam.
+    - [ ] Reachable from `mde birthright` / the panel; Carbon-only, no raw hex, degrades gracefully.
+
 ### E8 — Polish + Held RPM Release
 _Depends: E0-E7_
 
