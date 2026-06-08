@@ -310,18 +310,18 @@ pub fn sidebar<'a>(
         }
     }
 
-    // E10 — Network: GVfs-mounted SMB/NFS shares (mount via `mde mount
-    // smb://…`), browsed through the Local browser at the GVfs FUSE dir.
-    let gvfs_dir = std::env::var("XDG_RUNTIME_DIR")
-        .map(|r| format!("{r}/gvfs"))
-        .unwrap_or_else(|_| "/run/user/gvfs".to_string());
+    // E10 — Network: interactive SMB host-browse (type host → shares → mount).
     local_col = local_col.push(side_row(
         icons::MESH_HUB,
         "Network",
         None,
         None,
-        SideRowVariant::Default,
-        Message::LocalGoto(gvfs_dir),
+        if matches!(view, View::Network) {
+            SideRowVariant::Active
+        } else {
+            SideRowVariant::Default
+        },
+        Message::SelectView(View::Network),
     ));
 
     // E10 — Cloud Files: paired KDE-Connect devices.
@@ -978,6 +978,68 @@ pub fn cloud_devices<'a>(
         .spacing(0)
         .padding(Padding::from([20.0, 22.0]))
         .into()
+}
+
+/// E10 — interactive SMB Network browse: a host box + Browse, then the host's
+/// Disk shares; clicking a share mounts it over GVfs and opens it.
+pub fn network<'a>(
+    host: &'a str,
+    shares: &'a [String],
+    status: Option<&'a str>,
+) -> Element<'a, Message> {
+    let header = row![
+        icon(icons::MESH_HUB, 18.0, t::FG),
+        text("Network · SMB shares").size(13).color(t::FG),
+    ]
+    .spacing(8)
+    .align_y(iced::alignment::Vertical::Center);
+
+    let host_box = text_input("SMB host (e.g. nas.local or 10.0.0.4)", host)
+        .on_input(Message::NetHostChanged)
+        .on_submit(Message::NetBrowse)
+        .size(13)
+        .padding(Padding::from([6.0, 8.0]));
+    let browse = button(text("Browse").size(13).color(t::FG))
+        .on_press(Message::NetBrowse)
+        .padding(Padding::from([6.0, 12.0]))
+        .style(|_, _| ghost_button_style());
+    let input_row = row![host_box, browse]
+        .spacing(8)
+        .align_y(iced::alignment::Vertical::Center);
+
+    let mut list = column![];
+    if let Some(s) = status {
+        list = list.push(text(s.to_string()).size(12).color(t::FG_DIM));
+    }
+    if !shares.is_empty() {
+        list = list.push(file_row_head("Share"));
+        for sh in shares {
+            let r = button(
+                row![
+                    icon(icons::HDD, 16.0, t::FG_DIM),
+                    text(sh.to_string()).size(13).color(t::FG),
+                ]
+                .spacing(8)
+                .align_y(iced::alignment::Vertical::Center),
+            )
+            .on_press(Message::NetMount(sh.clone()))
+            .padding(Padding::from([6.0, 8.0]))
+            .width(Length::Fill)
+            .style(|_, _| ghost_button_style());
+            list = list.push(r);
+        }
+    }
+
+    column![
+        header,
+        Space::new().height(Length::Fixed(10.0)),
+        input_row,
+        Space::new().height(Length::Fixed(12.0)),
+        list.spacing(2),
+    ]
+    .spacing(0)
+    .padding(Padding::from([20.0, 22.0]))
+    .into()
 }
 
 // ─── Mesh Home (AF-mesh.2) ────────────────────────────────────────────────

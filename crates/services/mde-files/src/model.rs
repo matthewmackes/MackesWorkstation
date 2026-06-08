@@ -268,6 +268,9 @@ pub enum View {
     /// E10 — Cloud Files: paired KDE-Connect devices (over the Bus). Each row
     /// is a device; browsing into one (sftp) is a follow-on.
     CloudDevices,
+    /// E10 — Network: interactive SMB host-browse (type a host → list its Disk
+    /// shares → mount one over GVfs).
+    Network,
 }
 
 impl Default for View {

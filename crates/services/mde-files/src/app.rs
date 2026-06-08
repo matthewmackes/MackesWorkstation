@@ -22,6 +22,12 @@ pub enum Message {
     /// E10 — jump the Local browser to an absolute path (sidebar quick-access:
     /// Home / XDG dirs / the GVfs network-mount dir for `mde mount`-ed shares).
     LocalGoto(String),
+    /// E10 — Network view: the SMB host box changed.
+    NetHostChanged(String),
+    /// E10 — Network view: browse the typed host's SMB shares (smbclient -L).
+    NetBrowse,
+    /// E10 — Network view: mount a share over GVfs + open it in the browser.
+    NetMount(String),
     ToggleLocal,
     SetLayout(Layout),
     SearchChanged(String),
@@ -178,6 +184,12 @@ pub struct MdeFiles {
     pub local_files: Vec<crate::model::FileRow>,
     /// E10 — paired KDE-Connect device rows, refreshed on `View::CloudDevices`.
     pub cloud_files: Vec<crate::model::FileRow>,
+    /// E10 — the SMB host typed in the Network view's host box.
+    pub net_host: String,
+    /// E10 — Disk shares from the last successful `smbclient -L` browse.
+    pub net_shares: Vec<String>,
+    /// E10 — Network view status / error line (None = idle).
+    pub net_status: Option<String>,
     pub view: View,
     pub local_open: bool,
     pub layout: Layout,
@@ -275,6 +287,9 @@ impl Default for MdeFiles {
             local_path: std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
             local_files: Vec::new(),
             cloud_files: Vec::new(),
+            net_host: String::new(),
+            net_shares: Vec::new(),
+            net_status: None,
             view: View::default(),
             local_open: false,
             layout: Layout::default(),
@@ -353,6 +368,41 @@ impl MdeFiles {
             }
             Message::LocalGoto(path) => {
                 // E10 — jump the Local browser to an absolute path.
+                self.local_path = path;
+                self.view = View::Local;
+                self.selection.clear();
+            }
+            Message::NetHostChanged(host) => self.net_host = host,
+            Message::NetBrowse => {
+                // E10 — synchronous SMB browse (bounded by smbclient's timeout;
+                // consistent with the crate's blocking-I/O pattern). Making it
+                // async is a UX follow-on.
+                let host = self.net_host.trim().to_string();
+                if host.is_empty() {
+                    self.net_status = Some("Enter a host to browse.".into());
+                } else {
+                    self.net_status = Some(format!("Browsing \\\\{host}…"));
+                    match crate::smb::smb_shares(&host, 8) {
+                        Ok(shares) => {
+                            self.net_status = if shares.is_empty() {
+                                Some(format!("No shares found on '{host}'."))
+                            } else {
+                                None
+                            };
+                            self.net_shares = shares;
+                        }
+                        Err(e) => {
+                            self.net_shares.clear();
+                            self.net_status = Some(e);
+                        }
+                    }
+                }
+            }
+            Message::NetMount(share) => {
+                // E10 — mount the share over GVfs, then open it in the local
+                // browser at its GVfs FUSE path.
+                let host = self.net_host.trim().to_string();
+                let path = crate::smb::mount_share(&host, &share);
                 self.local_path = path;
                 self.view = View::Local;
                 self.selection.clear();
@@ -680,6 +730,9 @@ impl MdeFiles {
                 self.trash_error.as_deref(),
             ),
             View::CloudDevices => views::cloud_devices(&self.cloud_files, &self.selection),
+            View::Network => {
+                views::network(&self.net_host, &self.net_shares, self.net_status.as_deref())
+            }
         };
 
         let content = container(scrollable(container(main_body).padding(Padding {
@@ -814,6 +867,10 @@ fn breadcrumbs_for(view: &View) -> Vec<Crumb> {
         ],
         View::CloudDevices => vec![Crumb {
             label: "Cloud Files".into(),
+            mesh: false,
+        }],
+        View::Network => vec![Crumb {
+            label: "Network".into(),
             mesh: false,
         }],
         View::Peer(id) => {
@@ -1252,6 +1309,20 @@ mod tests {
         let _ = s.update(Message::OpenContextMenu("a.txt".into(), 0.0, 0.0));
         let _ = s.update(Message::ContextMenuItemClicked(ContextMenuItem::Open));
         assert!(!s.context_menu.is_open());
+    }
+
+    #[test]
+    fn net_browse_empty_host_sets_status_and_mount_navigates() {
+        let mut s = MdeFiles::default();
+        s.view = View::Network;
+        let _ = s.update(Message::NetBrowse); // empty host
+        assert!(s.net_status.as_deref().unwrap().contains("Enter a host"));
+        let _ = s.update(Message::NetHostChanged("nas".into()));
+        assert_eq!(s.net_host, "nas");
+        // Mount routes into the local browser at the share's GVfs path.
+        let _ = s.update(Message::NetMount("docs".into()));
+        assert!(s.local_path.contains("smb-share:server=nas,share=docs"));
+        assert!(matches!(s.view, View::Local));
     }
 
     #[test]

@@ -3,7 +3,10 @@
 # migration, E9.3). Format: <file> <count>. Ratchets DOWN as surfaces
 # migrate; a rise needs a recorded off-grid/dense-chrome rationale.
 crates/services/mde-files/src/app.rs 1
-crates/services/mde-files/src/views.rs 51
+# mde-files themes via mde-theme (its own palette, raw sizes by convention —
+# a service crate, not an mde-ui Carbon surface); +6 for the E10.6 Network
+# (interactive SMB) view (Cloud-Files + local-browser views net out under 51).
+crates/services/mde-files/src/views.rs 57
 crates/services/mde-files/src/widgets.rs 69
 crates/services/mde-music/src/main.rs 86
 # mde-voice-hud themes via its own theme.rs (own dark palette, raw sizes by
