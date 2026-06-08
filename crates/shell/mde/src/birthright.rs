@@ -186,20 +186,25 @@ const VOICE_STALE_SECS: u64 = 45;
 /// which both read the Bus, so one poller thread serves both.
 type LiveHandle = Arc<Mutex<Option<LiveProbe>>>;
 
-/// A snapshot of the Bus-backed sections: the four mesh rows + the voice row.
+/// A snapshot of the live sections: the four mesh rows, the voice row, and the
+/// network readouts.
 #[derive(Debug, Clone)]
 struct LiveProbe {
     mesh: MeshProbe,
     voice: Check,
+    network: Vec<Check>,
 }
 
 impl LiveProbe {
     /// Every Bus-backed row failed for the same reason (no Bus / no runtime).
+    /// The network section still probes (it reads NetworkManager + local report
+    /// files, not the Bus), so it is filled by the caller even on Bus failure.
     fn all_fail(reason: &str) -> Self {
         LiveProbe {
             mesh: MeshProbe::all_fail(reason),
             voice: Check::new("Softphone (SIP)", Status::Fail, reason.to_string())
                 .with_fix(Fix::OpenVoice),
+            network: probe_network_local(),
         }
     }
 }
@@ -242,6 +247,7 @@ struct Birthright {
     live: LiveHandle,
     mesh_rows: Vec<Check>,
     voice_row: Check,
+    network_rows: Vec<Check>,
     show_at_startup: bool,
 }
 
@@ -286,6 +292,15 @@ fn voice_checking() -> Check {
     Check::checking("Softphone (SIP)")
 }
 
+/// The three Network rows in their initial Checking state.
+fn network_checking() -> Vec<Check> {
+    vec![
+        Check::checking("Internet (NetworkManager)"),
+        Check::checking("Mesh peers (roster)"),
+        Check::checking("LAN scan (netassess)"),
+    ]
+}
+
 pub fn run(args: &[String]) -> ExitCode {
     // `--autostart`: the labwc autostart launches us this way every login. Honour
     // the per-user "show at startup" flag and exit silently when it's off, so an
@@ -301,7 +316,7 @@ pub fn run(args: &[String]) -> ExitCode {
         view,
     )
     .theme(|_| palette::iced_theme())
-    .window_size(iced::Size::new(560.0, 680.0))
+    .window_size(iced::Size::new(560.0, 860.0))
     .subscription(subscription)
     .font(mde_ui::font::REGULAR_BYTES)
     .font(mde_ui::font::BOLD_BYTES)
@@ -315,6 +330,7 @@ pub fn run(args: &[String]) -> ExitCode {
                 live: start_live_poller(),
                 mesh_rows: mesh_checking(),
                 voice_row: voice_checking(),
+                network_rows: network_checking(),
                 show_at_startup: crate::state::load().birthright_show_at_startup,
             },
             Task::done(Message::Probe),
@@ -339,6 +355,7 @@ fn update(state: &mut Birthright, message: Message) -> Task<Message> {
             state.desktop = desktop_checking();
             state.mesh_rows = mesh_checking();
             state.voice_row = voice_checking();
+            state.network_rows = network_checking();
             refresh_live(state.live.clone());
             return Task::done(Message::Probe);
         }
@@ -349,6 +366,7 @@ fn update(state: &mut Birthright, message: Message) -> Task<Message> {
             if let Some(probe) = state.live.lock().ok().and_then(|g| g.clone()) {
                 state.mesh_rows = probe.mesh.rows();
                 state.voice_row = probe.voice;
+                state.network_rows = probe.network;
             }
         }
         Message::ToggleStartup(on) => {
@@ -522,21 +540,165 @@ fn probe_live() -> LiveProbe {
         return LiveProbe {
             mesh: MeshProbe::all_fail("could not start probe runtime"),
             voice,
+            network: probe_network_local(),
         };
     };
-    let mesh = rt.block_on(async {
+    let (mesh, peers) = rt.block_on(async {
         let bus = Check::new("mde-bus", Status::Pass, "Bus store reachable");
         let mackesd = parse_mackesd(rpc_body(&persist, "action/shell/healthz").await);
         let nebula = parse_nebula(rpc_body(&persist, "action/nebula/status").await);
         let meshfs = parse_meshfs(rpc_body(&persist, "action/meshfs/status").await);
-        MeshProbe {
-            bus,
-            mackesd,
-            nebula,
-            meshfs,
-        }
+        let peers = parse_nebula_peers(rpc_body(&persist, "action/nebula/list-peers").await);
+        (
+            MeshProbe {
+                bus,
+                mackesd,
+                nebula,
+                meshfs,
+            },
+            peers,
+        )
     });
-    LiveProbe { mesh, voice }
+    // Network section: NetworkManager + the live peer roster + the latest LAN scan.
+    let network = vec![nm_row(), peers, lan_scan_row()];
+    LiveProbe {
+        mesh,
+        voice,
+        network,
+    }
+}
+
+/// Network rows that don't need the Bus (NetworkManager + the latest stored LAN
+/// scan) — used when the Bus is unreachable so the section still renders.
+fn probe_network_local() -> Vec<Check> {
+    vec![nm_row(), lan_scan_row()]
+}
+
+/// NetworkManager connectivity from `nmcli` active connections (reuses
+/// `crate::nm`). Pass when a non-loopback connection is active.
+fn nm_row() -> Check {
+    let label = "Internet (NetworkManager)";
+    let active: Vec<_> = crate::nm::active_connections()
+        .into_iter()
+        .filter(|c| c.kind != "loopback")
+        .collect();
+    if active.is_empty() {
+        Check::new(label, Status::Degraded, "no active network connection")
+    } else {
+        let names: Vec<&str> = active.iter().map(|c| c.name.as_str()).take(3).collect();
+        Check::new(
+            label,
+            Status::Pass,
+            format!("{} active: {}", active.len(), names.join(", ")),
+        )
+    }
+}
+
+/// Parse the `action/nebula/list-peers` reply (a `Vec<PeerRow>`) into the peer
+/// roster row: how many paired peers are reachable. A lone (peerless) node is
+/// Degraded, not failed.
+fn parse_nebula_peers(body: Option<String>) -> Check {
+    let label = "Mesh peers (roster)";
+    let Some(body) = body else {
+        return Check::new(label, Status::Fail, "no roster (mackesd down?)");
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return Check::new(label, Status::Fail, "unparseable peer roster");
+    };
+    if v.get("error").is_some() {
+        return Check::new(label, Status::Fail, "roster error from mackesd");
+    }
+    let Some(arr) = v.as_array() else {
+        return Check::new(label, Status::Degraded, "no paired peers yet");
+    };
+    if arr.is_empty() {
+        return Check::new(label, Status::Degraded, "no paired peers yet");
+    }
+    let online = arr
+        .iter()
+        .filter(|p| p.get("reachable").and_then(|x| x.as_str()) == Some("online"))
+        .count();
+    let total = arr.len();
+    let status = if online > 0 {
+        Status::Pass
+    } else {
+        Status::Degraded
+    };
+    Check::new(
+        label,
+        status,
+        format!("{total} paired peer(s), {online} online"),
+    )
+}
+
+/// The latest stored LAN assessment (`~/.local/share/mde/netassess/<host>/<iso>-<hash>.json`,
+/// written by the netassess worker). Read-only — the worker owns the scan
+/// cadence; this surfaces its most recent result.
+fn lan_scan_row() -> Check {
+    let label = "LAN scan (netassess)";
+    let Some(latest) = latest_netassess_report() else {
+        return Check::new(
+            label,
+            Status::Degraded,
+            "no LAN scan yet — the netassess worker has not run",
+        );
+    };
+    let (stamp, body) = latest;
+    // The stored AssessmentSnapshot lists ARP-discovered LAN hosts under `arp`.
+    let hosts = serde_json::from_str::<serde_json::Value>(&body)
+        .ok()
+        .and_then(|v| v.get("arp").and_then(|a| a.as_array()).map(Vec::len));
+    match hosts {
+        Some(n) => Check::new(
+            label,
+            Status::Pass,
+            format!("last scan {stamp}: {n} LAN host(s) seen"),
+        ),
+        None => Check::new(
+            label,
+            Status::Degraded,
+            format!("last scan {stamp}: unreadable"),
+        ),
+    }
+}
+
+/// Find the most recent netassess report file across all per-host subdirs;
+/// returns its (filename-stamp, JSON body). The ISO8601 filename prefix sorts
+/// lexicographically by time, so the max filename is the latest.
+fn latest_netassess_report() -> Option<(String, String)> {
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| {
+            std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share"))
+        })?
+        .join("mde")
+        .join("netassess");
+    let mut best: Option<std::path::PathBuf> = None;
+    for host_dir in std::fs::read_dir(&base).ok()?.flatten() {
+        let Ok(rd) = std::fs::read_dir(host_dir.path()) else {
+            continue;
+        };
+        for entry in rd.flatten() {
+            let p = entry.path();
+            if p.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            if best.as_ref().is_none_or(|b| {
+                p.file_name().unwrap_or_default() > b.file_name().unwrap_or_default()
+            }) {
+                best = Some(p);
+            }
+        }
+    }
+    let path = best?;
+    let stamp = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .and_then(|n| n.split('-').next())
+        .unwrap_or("?")
+        .to_string();
+    let body = std::fs::read_to_string(&path).ok()?;
+    Some((stamp, body))
 }
 
 /// The Bus topic the voice agent publishes its status to (matches
@@ -883,7 +1045,8 @@ fn view(state: &Birthright) -> Element<'_, Message> {
             .spacing(metrics::SPACING_04)
             .push(section_card("Desktop", &state.desktop))
             .push(section_card("Mesh", &state.mesh_rows))
-            .push(section_card("Voice", voice_rows)),
+            .push(section_card("Voice", voice_rows))
+            .push(section_card("Network", &state.network_rows)),
     )
     .height(Length::Fill);
 
@@ -1104,5 +1267,41 @@ mod tests {
     #[test]
     fn open_voice_fix_argv_is_voice_config() {
         assert_eq!(fix_argv(Fix::OpenVoice), vec!["mde-voice-config"]);
+    }
+
+    #[test]
+    fn nebula_peers_parse_states() {
+        // No reply → Fail.
+        assert_eq!(parse_nebula_peers(None).status, Status::Fail);
+        // Empty roster → Degraded (lone node).
+        assert_eq!(
+            parse_nebula_peers(Some("[]".to_string())).status,
+            Status::Degraded
+        );
+        // Error envelope → Fail.
+        assert_eq!(
+            parse_nebula_peers(Some(r#"{"error":"x"}"#.to_string())).status,
+            Status::Fail
+        );
+        // Peers with one online → Pass.
+        let peers = r#"[{"name":"a","reachable":"online"},{"name":"b","reachable":"offline"}]"#;
+        let c = parse_nebula_peers(Some(peers.to_string()));
+        assert_eq!(c.status, Status::Pass);
+        assert!(c.detail.contains("2 paired"));
+        assert!(c.detail.contains("1 online"));
+        // Peers but none online → Degraded.
+        let idle = r#"[{"name":"a","reachable":"idle"}]"#;
+        assert_eq!(
+            parse_nebula_peers(Some(idle.to_string())).status,
+            Status::Degraded
+        );
+    }
+
+    #[test]
+    fn network_checking_seeds_three_rows() {
+        assert_eq!(network_checking().len(), 3);
+        assert!(network_checking()
+            .iter()
+            .all(|c| c.status == Status::Checking));
     }
 }

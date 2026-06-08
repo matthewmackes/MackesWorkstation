@@ -979,13 +979,14 @@ _Depends: E0, E1, E2, E4, E5, E6_
     - [✓] The agent's registration + listener state is published to the Bus (`state/voice/status`, heartbeated + timestamped) by a headless `mde-voice-hud --agent` autostarted at login, so birthright reads it cross-process. *(verified: agent created the `state/` topic + birthright rendered its value)*
     - [✓] The Voice row renders live tri-state, refreshing on the poller + manual Re-check; reachable from `mde birthright`, palette `STATUS_*` roles, degrades gracefully (stale/no-bus → Fail, never panic). *(4 new birthright tests + 1 sip test; 15 birthright + 54 voice-hud + 187 mde green; clippy/fmt clean)*
 
-- [ ] **E7.5b: E7 — birthright Network section (four-tool readout)** *(split from E7.5, 2026-06-08)*
-  The four network readouts. Builds on E7.5's `LiveProbe` poller + section pattern.
+- [✓] **E7.5b: E7 — birthright Network section (network-tool readout)** *(DONE 2026-06-08 — verified live)*
+  Three live network rows on the `LiveProbe` poller: **Internet (NetworkManager)** via `crate::nm::active_connections` (nmcli, non-loopback active conns), **Mesh peers (roster)** via `action/nebula/list-peers` (`Vec<PeerRow>` → paired/online counts), and **LAN scan (netassess)** read from the latest stored `~/.local/share/mde/netassess/<host>/<iso>-<hash>.json` (ARP host count + scan stamp). Network rows added to `LiveProbe.network`; the NM + LAN-scan rows also populate on a Bus-down `all_fail` (they're local, not Bus-backed).
+  **Decision (§6):** dropped the **Fleet** row — `action/fleet/*` is a Phase-G stub (always the not-implemented envelope), so surfacing it would be a §3 mockup. Standalone per-peer **RTT** has no Bus endpoint (the `StatusSnapshot`/`PeerRow` expose reachable state, not latency), so the roster row reports paired/online counts instead of RTT. The **LAN scan is read-only** of the netassess worker's latest report (the worker owns the scan cadence) rather than triggering nmap from the dashboard — avoids a privileged/long nmap on the UI path; the auto-poll only reads the cheap stored report.
   **As** an operator, **I want** the dashboard to surface the platform's network readouts, **so that** I can confirm connectivity + reachability at commissioning.
-  *Reuse:* `action/nebula/status` roster + `voip_rtt`, `action/fleet/*`, `action/netassess/*` (nmap), NetworkManager / `nm.rs` / `net_flyout.rs`. *Deps:* E7.5.
+  *Reuse:* `crate::nm::active_connections`, `action/nebula/list-peers`, the netassess report files. *Deps:* E7.5.
   **Acceptance** (runtime-observable):
-    - [ ] The Network card surfaces all four readouts — Nebula roster + RTT, `fleet` inventory, a LAN nmap (`action/netassess`) scan, and NetworkManager/net-flyout connectivity (link/IP/DNS/gateway); the expensive probes (nmap, RTT) run only on open + Re-check, not the auto-poll.
-    - [ ] Rows render live tri-state via the `LiveProbe` poller + manual Re-check; reachable from `mde birthright`, palette roles only, degrades gracefully when a tool/daemon is absent (never panic).
+    - [✓] The Network card surfaces network-tool readouts — NetworkManager active connections, the Nebula peer roster (paired/online), and the latest LAN (netassess) scan; the expensive nmap is the worker's job (read-only here), so the poll stays cheap. *(gallery verified live: "1 active: Wired connection 2", "no paired peers yet", "0 LAN host(s) seen")*
+    - [✓] Rows render live tri-state via the `LiveProbe` poller + manual Re-check; reachable from `mde birthright`, palette roles only, degrades gracefully when a tool/daemon is absent (Bus-down still shows NM + LAN locally; never panic). *(2 new tests; 17 birthright + 187 mde green; clippy/fmt clean)*
 
 - [ ] **E7.6: E7 — birthright attestation extras: report export + post-commissioning escalation**
   Copy/Save the commissioning report, and a panel badge + toast when a previously-green subsystem regresses after the box is unchecked.
