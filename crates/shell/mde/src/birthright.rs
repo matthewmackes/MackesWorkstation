@@ -1,4 +1,4 @@
-//! `mde birthright` — the commissioning dashboard (E7.3+).
+//! `mde birthright` — the commissioning dashboard (E7.3 + E7.4).
 //!
 //! After install, the operator needs one screen that *attests the node came up
 //! whole* — not merely that the installer exited 0. Birthright is that screen: a
@@ -7,18 +7,24 @@
 //! by the labwc autostart while `state.birthright_show_at_startup` is true; the
 //! operator unchecks "Show this at startup" to dismiss it for good.
 //!
-//! E7.3 ships the dashboard shell + lifecycle + the **Desktop** section (the live
-//! checks that would have caught the second-login black-desktop regression: is
-//! labwc up, is `mde panel` up, did the autostart's background services run). The
-//! Mesh / Voice / Network sections land in E7.4 / E7.5 — this surface renders only
-//! sections that are genuinely live (no placeholder cards, CLAUDE.md §3).
+//! Sections:
+//!   * **Desktop** (E7.3) — labwc up, `mde panel` up, autostart services ran. The
+//!     checks that would have caught the second-login black-desktop regression.
+//!   * **Mesh** (E7.4) — per-component rows for `mde-bus`, `mackesd`, the Nebula
+//!     overlay, and LizardFS mesh-storage, probed live over the Bus, each with a
+//!     remediation action when red.
+//!
+//! Only sections that are genuinely live are rendered — no placeholder cards
+//! (CLAUDE.md §3). Voice + Network land in E7.5.
 //!
 //! Workstation-role only: `main.rs` gates `birthright` through
 //! [`crate::role_gate`] (`DESKTOP_ONLY`), so a headless Server/Lighthouse refuses
 //! it before a window is ever created.
 
 use std::path::Path;
-use std::process::ExitCode;
+use std::process::{Command, ExitCode};
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 
 use iced::widget::{button, checkbox, container, scrollable, text, Column, Row, Space};
@@ -26,10 +32,17 @@ use iced::{Element, Length, Subscription, Task};
 
 use mde_ui::{metrics, palette};
 
-/// How often the dashboard re-probes while open (live attestation). The Desktop
-/// checks are cheap `/proc` scans, so a brisk cadence is fine; the expensive
-/// probes that land in E7.5 (nmap, RTT) will be gated behind the Re-check button.
+/// How often the dashboard re-reads the live probe state while open. The Desktop
+/// checks are cheap `/proc` scans run inline; the Mesh checks are served from a
+/// background poller thread (the Bus RPCs would otherwise stall the UI).
 const POLL: Duration = Duration::from_secs(2);
+
+/// How often the background thread re-probes the mesh over the Bus.
+const MESH_POLL: Duration = Duration::from_secs(5);
+
+/// Per-RPC Bus timeout — short so a down `mackesd` doesn't wedge the poller
+/// (mirrors `mesh_status`).
+const MESH_RPC_TIMEOUT: Duration = Duration::from_millis(800);
 
 /// A check's state — Carbon tri-state plus a transient "checking…".
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,26 +93,126 @@ fn rollup(checks: &[Check]) -> Status {
     }
 }
 
+/// A remediation action offered on a failed/degraded row. Each maps to a real,
+/// reachable command — never a stub (CLAUDE.md §3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Fix {
+    /// Start the `mackesd` user service.
+    StartMackesd,
+    /// Re-run the OOBE (its mesh-enrolment stage, E7.2) to re-enroll on Nebula.
+    ReEnroll,
+    /// Open the Workbench — the mesh / compute / storage control surface.
+    OpenWorkbench,
+}
+
+impl Fix {
+    fn label(self) -> &'static str {
+        match self {
+            Fix::StartMackesd => "Start mackesd",
+            Fix::ReEnroll => "Re-enroll",
+            Fix::OpenWorkbench => "Open Workbench",
+        }
+    }
+}
+
+/// The argv a [`Fix`] runs — split out pure so it is unit-tested without
+/// spawning. `mde …` subcommands resolve via the running binary's path so a
+/// dev-tree `./target/debug/mde` re-execs itself, not a stale `/usr/bin/mde`.
+fn fix_argv(fix: Fix) -> Vec<String> {
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.to_str().map(String::from))
+        .unwrap_or_else(|| "mde".to_string());
+    match fix {
+        Fix::StartMackesd => vec![
+            "systemctl".into(),
+            "--user".into(),
+            "start".into(),
+            "mackesd".into(),
+        ],
+        Fix::ReEnroll => vec![exe, "oobe".into()],
+        Fix::OpenWorkbench => vec!["mde-workbench".into()],
+    }
+}
+
+/// Spawn a [`Fix`]'s command, detached and best-effort.
+fn run_fix(fix: Fix) {
+    let argv = fix_argv(fix);
+    let (cmd, rest) = argv.split_first().expect("fix_argv is never empty");
+    let _ = Command::new(cmd).args(rest).spawn();
+}
+
 /// One attestation row.
 #[derive(Debug, Clone)]
 struct Check {
     label: &'static str,
     status: Status,
     detail: String,
+    /// Remediation offered when this row is not green.
+    fix: Option<Fix>,
 }
 
 impl Check {
-    fn checking(label: &'static str) -> Self {
+    fn new(label: &'static str, status: Status, detail: impl Into<String>) -> Self {
         Check {
             label,
-            status: Status::Checking,
-            detail: "checking…".into(),
+            status,
+            detail: detail.into(),
+            fix: None,
+        }
+    }
+
+    fn with_fix(mut self, fix: Fix) -> Self {
+        self.fix = Some(fix);
+        self
+    }
+
+    fn checking(label: &'static str) -> Self {
+        Check::new(label, Status::Checking, "checking…")
+    }
+}
+
+/// Shared handle the background mesh poller writes and the UI tick reads
+/// (`None` until the first probe completes).
+type MeshHandle = Arc<Mutex<Option<MeshProbe>>>;
+
+/// A snapshot of the four mesh-component rows.
+#[derive(Debug, Clone)]
+struct MeshProbe {
+    bus: Check,
+    mackesd: Check,
+    nebula: Check,
+    meshfs: Check,
+}
+
+impl MeshProbe {
+    /// Rendered top-down: the Bus underpins everything, then the control plane,
+    /// then the overlay it rides, then the storage layered on top.
+    fn rows(&self) -> Vec<Check> {
+        vec![
+            self.bus.clone(),
+            self.mackesd.clone(),
+            self.nebula.clone(),
+            self.meshfs.clone(),
+        ]
+    }
+
+    /// Every row failed for the same reason (no Bus / no runtime).
+    fn all_fail(reason: &str) -> Self {
+        MeshProbe {
+            bus: Check::new("mde-bus", Status::Fail, reason.to_string()),
+            mackesd: Check::new("mackesd (control plane)", Status::Fail, reason.to_string())
+                .with_fix(Fix::StartMackesd),
+            nebula: Check::new("Nebula overlay", Status::Fail, reason.to_string()),
+            meshfs: Check::new("LizardFS storage", Status::Fail, reason.to_string()),
         }
     }
 }
 
 struct Birthright {
     desktop: Vec<Check>,
+    mesh: MeshHandle,
+    mesh_rows: Vec<Check>,
     show_at_startup: bool,
 }
 
@@ -107,12 +220,14 @@ struct Birthright {
 enum Message {
     /// User pressed "Re-check all": flash Checking, then re-probe.
     Recheck,
-    /// Run the probes (immediately after open / Recheck, and on each tick).
+    /// Run the inline (Desktop) probes immediately after open / Recheck.
     Probe,
-    /// Periodic live refresh.
+    /// Periodic live refresh — re-reads Desktop inline + the mesh handle.
     Tick,
     /// "Show this at startup" toggled — persisted to menu.json.
     ToggleStartup(bool),
+    /// A remediation button was pressed.
+    Fix(Fix),
     /// Close the dashboard.
     Close,
 }
@@ -123,6 +238,17 @@ fn desktop_checking() -> Vec<Check> {
         Check::checking("Compositor (labwc)"),
         Check::checking("Taskbar (mde panel)"),
         Check::checking("Session services"),
+    ]
+}
+
+/// The four Mesh rows in their initial Checking state (shown until the poller's
+/// first probe lands).
+fn mesh_checking() -> Vec<Check> {
+    vec![
+        Check::checking("mde-bus"),
+        Check::checking("mackesd (control plane)"),
+        Check::checking("Nebula overlay"),
+        Check::checking("LizardFS storage"),
     ]
 }
 
@@ -141,7 +267,7 @@ pub fn run(args: &[String]) -> ExitCode {
         view,
     )
     .theme(|_| palette::iced_theme())
-    .window_size(iced::Size::new(560.0, 640.0))
+    .window_size(iced::Size::new(560.0, 680.0))
     .subscription(subscription)
     .font(mde_ui::font::REGULAR_BYTES)
     .font(mde_ui::font::BOLD_BYTES)
@@ -152,6 +278,8 @@ pub fn run(args: &[String]) -> ExitCode {
         (
             Birthright {
                 desktop: desktop_checking(),
+                mesh: start_mesh_poller(),
+                mesh_rows: mesh_checking(),
                 show_at_startup: crate::state::load().birthright_show_at_startup,
             },
             Task::done(Message::Probe),
@@ -174,10 +302,17 @@ fn update(state: &mut Birthright, message: Message) -> Task<Message> {
     match message {
         Message::Recheck => {
             state.desktop = desktop_checking();
+            state.mesh_rows = mesh_checking();
+            refresh_mesh(state.mesh.clone());
             return Task::done(Message::Probe);
         }
         Message::Probe | Message::Tick => {
             state.desktop = probe_desktop();
+            // Non-blocking read of the background poller's latest snapshot; keep
+            // the Checking rows until the first probe lands.
+            if let Some(probe) = state.mesh.lock().ok().and_then(|g| g.clone()) {
+                state.mesh_rows = probe.rows();
+            }
         }
         Message::ToggleStartup(on) => {
             state.show_at_startup = on;
@@ -185,12 +320,18 @@ fn update(state: &mut Birthright, message: Message) -> Task<Message> {
             st.birthright_show_at_startup = on;
             let _ = crate::state::save(&st);
         }
+        Message::Fix(fix) => {
+            run_fix(fix);
+            // The change (service start, re-enrol) lands asynchronously; nudge the
+            // mesh poller so the row reflects it sooner than the next 5s tick.
+            refresh_mesh(state.mesh.clone());
+        }
         Message::Close => std::process::exit(0),
     }
     Task::none()
 }
 
-// --- probes (Desktop section) ----------------------------------------------
+// --- probes: Desktop section ------------------------------------------------
 
 /// The basename of an argv[0] (strips any directory part).
 fn basename(s: &str) -> &str {
@@ -259,35 +400,260 @@ fn probe_desktop() -> Vec<Check> {
     let clip = clipboard_daemon_alive();
 
     vec![
-        Check {
-            label: "Compositor (labwc)",
-            status: if labwc { Status::Pass } else { Status::Fail },
-            detail: if labwc {
-                "labwc is running".into()
+        Check::new(
+            "Compositor (labwc)",
+            if labwc { Status::Pass } else { Status::Fail },
+            if labwc {
+                "labwc is running"
             } else {
-                "labwc not detected — the Wayland session is not up".into()
+                "labwc not detected — the Wayland session is not up"
             },
-        },
-        Check {
-            label: "Taskbar (mde panel)",
-            status: if panel { Status::Pass } else { Status::Fail },
-            detail: if panel {
-                "mde panel is running".into()
+        ),
+        Check::new(
+            "Taskbar (mde panel)",
+            if panel { Status::Pass } else { Status::Fail },
+            if panel {
+                "mde panel is running"
             } else {
-                "mde panel is not running — the desktop autostart did not launch it".into()
+                "mde panel is not running — the desktop autostart did not launch it"
             },
-        },
-        Check {
-            // Optional background services: down is Degraded, not a hard Fail.
-            label: "Session services",
-            status: if clip { Status::Pass } else { Status::Degraded },
-            detail: if clip {
-                "clipboard-history daemon running (autostart completed)".into()
+        ),
+        // Optional background services: down is Degraded, not a hard Fail.
+        Check::new(
+            "Session services",
+            if clip { Status::Pass } else { Status::Degraded },
+            if clip {
+                "clipboard-history daemon running (autostart completed)"
             } else {
-                "clipboard-history daemon not running — autostart may be incomplete".into()
+                "clipboard-history daemon not running — autostart may be incomplete"
             },
-        },
+        ),
     ]
+}
+
+// --- probes: Mesh section ---------------------------------------------------
+
+/// Start the background mesh poller; returns the shared handle the UI reads.
+/// Mirrors `mesh_status::start` — a dedicated thread keeps the 800 ms-timeout
+/// Bus RPCs off the UI thread.
+#[must_use]
+fn start_mesh_poller() -> MeshHandle {
+    let handle: MeshHandle = Arc::new(Mutex::new(None));
+    let writer = handle.clone();
+    let _ = thread::Builder::new()
+        .name("mde-birthright-mesh".into())
+        .spawn(move || loop {
+            let probe = probe_mesh();
+            if let Ok(mut g) = writer.lock() {
+                *g = Some(probe);
+            }
+            thread::sleep(MESH_POLL);
+        });
+    handle
+}
+
+/// Fire a one-shot mesh re-probe into `handle` (manual Re-check / post-fix).
+fn refresh_mesh(handle: MeshHandle) {
+    let _ = thread::Builder::new()
+        .name("mde-birthright-mesh-once".into())
+        .spawn(move || {
+            let probe = probe_mesh();
+            if let Ok(mut g) = handle.lock() {
+                *g = Some(probe);
+            }
+        });
+}
+
+/// One full mesh probe: open the Bus, then RPC each component. Self-contained
+/// (own current-thread tokio runtime) so it runs on the poller thread.
+fn probe_mesh() -> MeshProbe {
+    let Some(bus_dir) = mde_bus::default_data_dir() else {
+        return MeshProbe::all_fail("no Bus data dir configured");
+    };
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return MeshProbe::all_fail("could not start probe runtime");
+    };
+    rt.block_on(async move {
+        let persist = match mde_bus::persist::Persist::open(bus_dir) {
+            Ok(p) => p,
+            Err(e) => return MeshProbe::all_fail(&format!("Bus store: {e}")),
+        };
+        let bus = Check::new("mde-bus", Status::Pass, "Bus store reachable");
+        let mackesd = parse_mackesd(rpc_body(&persist, "action/shell/healthz").await);
+        let nebula = parse_nebula(rpc_body(&persist, "action/nebula/status").await);
+        let meshfs = parse_meshfs(rpc_body(&persist, "action/meshfs/status").await);
+        MeshProbe {
+            bus,
+            mackesd,
+            nebula,
+            meshfs,
+        }
+    })
+}
+
+/// One Bus RPC → the reply body (`None` on timeout / no reply / no body).
+async fn rpc_body(persist: &mde_bus::persist::Persist, topic: &str) -> Option<String> {
+    mde_bus::rpc::request(
+        persist,
+        topic,
+        mde_bus::hooks::config::Priority::Default,
+        None,
+        None,
+        MESH_RPC_TIMEOUT,
+    )
+    .await
+    .ok()?
+    .body
+}
+
+/// Parse the `action/shell/healthz` reply (a `HealthReport` JSON line) into the
+/// mackesd row. A missing reply means the control plane isn't answering.
+fn parse_mackesd(body: Option<String>) -> Check {
+    let label = "mackesd (control plane)";
+    let Some(body) = body else {
+        return Check::new(
+            label,
+            Status::Fail,
+            "not responding — the mackesd control plane is down",
+        )
+        .with_fix(Fix::StartMackesd);
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return Check::new(label, Status::Fail, "unparseable health reply")
+            .with_fix(Fix::StartMackesd);
+    };
+    if v.get("error").is_some() {
+        return Check::new(label, Status::Fail, "health error from mackesd")
+            .with_fix(Fix::StartMackesd);
+    }
+    let version = v.get("version").and_then(|x| x.as_str()).unwrap_or("?");
+    let nodes = v
+        .get("node_count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let unreachable = v
+        .get("unreachable_nodes")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let audit_ok = v
+        .get("audit_chain_intact")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true);
+    if !audit_ok {
+        Check::new(
+            label,
+            Status::Degraded,
+            format!("v{version}, {nodes} node(s) — audit chain reported a break"),
+        )
+    } else if unreachable > 0 {
+        Check::new(
+            label,
+            Status::Degraded,
+            format!("v{version}, {nodes} node(s), {unreachable} unreachable"),
+        )
+    } else {
+        Check::new(
+            label,
+            Status::Pass,
+            format!("v{version} up, {nodes} node(s) known"),
+        )
+    }
+}
+
+/// Parse the `action/nebula/status` reply (a `StatusSnapshot`) into the overlay
+/// row. Offline (no active transport) is Degraded — a lone node is legitimately
+/// peerless — while a missing reply is a Fail.
+fn parse_nebula(body: Option<String>) -> Check {
+    let label = "Nebula overlay";
+    let Some(body) = body else {
+        return Check::new(label, Status::Fail, "no overlay status (mackesd down?)")
+            .with_fix(Fix::ReEnroll);
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return Check::new(label, Status::Fail, "unparseable overlay status")
+            .with_fix(Fix::ReEnroll);
+    };
+    if v.get("error").is_some() {
+        return Check::new(label, Status::Fail, "overlay error from mackesd")
+            .with_fix(Fix::ReEnroll);
+    }
+    let peers = v
+        .get("peer_count")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let transport = v
+        .get("active_transport")
+        .and_then(|x| x.as_str())
+        .unwrap_or("offline");
+    if transport == "offline" {
+        Check::new(
+            label,
+            Status::Degraded,
+            "overlay offline — no active transport",
+        )
+        .with_fix(Fix::ReEnroll)
+    } else {
+        Check::new(
+            label,
+            Status::Pass,
+            format!("on overlay ({transport}), {peers} peer(s)"),
+        )
+    }
+}
+
+/// Parse the `action/meshfs/status` reply (a `MeshFsStatusReport`) into the
+/// storage row. Master unreachable / offline peers are Degraded (storage may be
+/// optional or mid-bootstrap); a missing reply is a Fail.
+fn parse_meshfs(body: Option<String>) -> Check {
+    let label = "LizardFS storage";
+    let Some(body) = body else {
+        return Check::new(label, Status::Fail, "no storage status (mackesd down?)")
+            .with_fix(Fix::OpenWorkbench);
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return Check::new(label, Status::Fail, "unparseable storage status")
+            .with_fix(Fix::OpenWorkbench);
+    };
+    if v.get("error").is_some() {
+        return Check::new(label, Status::Fail, "storage error from mackesd")
+            .with_fix(Fix::OpenWorkbench);
+    }
+    let reachable = v
+        .get("master_reachable")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let offline = v
+        .get("offline_peers")
+        .and_then(|x| x.as_array())
+        .map_or(0, Vec::len);
+    let peers = v
+        .get("peers")
+        .and_then(|x| x.as_array())
+        .map_or(0, Vec::len);
+    if !reachable {
+        Check::new(
+            label,
+            Status::Degraded,
+            "LizardFS master not reachable — storage not yet bootstrapped",
+        )
+        .with_fix(Fix::OpenWorkbench)
+    } else if offline > 0 {
+        Check::new(
+            label,
+            Status::Degraded,
+            format!("master up, {peers} chunkserver(s), {offline} enrolled peer(s) offline"),
+        )
+        .with_fix(Fix::OpenWorkbench)
+    } else {
+        Check::new(
+            label,
+            Status::Pass,
+            format!("master up, {peers} chunkserver(s)"),
+        )
+    }
 }
 
 // --- view -------------------------------------------------------------------
@@ -296,7 +662,8 @@ fn label(s: impl text::IntoFragment<'static>) -> iced::widget::Text<'static> {
     text(s).size(metrics::UI_PX)
 }
 
-/// One status row: a fixed-width status chip, the label, and the detail line.
+/// One status row: a fixed-width status chip, the label + detail, and (when the
+/// row is not green and offers one) a remediation button.
 fn check_row(c: &Check) -> Element<'static, Message> {
     let chip = container(
         text(c.status.glyph())
@@ -306,7 +673,7 @@ fn check_row(c: &Check) -> Element<'static, Message> {
     )
     .width(Length::Fixed(28.0));
 
-    Row::new()
+    let mut row = Row::new()
         .spacing(metrics::SPACING_03)
         .align_y(iced::Alignment::Center)
         .push(chip)
@@ -314,9 +681,20 @@ fn check_row(c: &Check) -> Element<'static, Message> {
             Column::new()
                 .spacing(metrics::SPACING_01)
                 .push(label(c.label).font(mde_ui::font::ui_bold()))
-                .push(label(c.detail.clone()).color(palette::color(palette::GRAY_TEXT))),
-        )
-        .into()
+                .push(label(c.detail.clone()).color(palette::color(palette::GRAY_TEXT)))
+                .width(Length::Fill),
+        );
+
+    if c.status != Status::Pass && c.status != Status::Checking {
+        if let Some(fix) = c.fix {
+            row = row.push(
+                button(label(fix.label()))
+                    .on_press(Message::Fix(fix))
+                    .height(Length::Fixed(metrics::BUTTON_MD)),
+            );
+        }
+    }
+    row.into()
 }
 
 /// A titled section card with a rolled-up status chip in its header.
@@ -370,7 +748,8 @@ fn view(state: &Birthright) -> Element<'_, Message> {
     let sections = scrollable(
         Column::new()
             .spacing(metrics::SPACING_04)
-            .push(section_card("Desktop", &state.desktop)),
+            .push(section_card("Desktop", &state.desktop))
+            .push(section_card("Mesh", &state.mesh_rows)),
     )
     .height(Length::Fill);
 
@@ -448,11 +827,7 @@ mod tests {
 
     #[test]
     fn rollup_is_worst_of() {
-        let mk = |st: Status| Check {
-            label: "x",
-            status: st,
-            detail: String::new(),
-        };
+        let mk = |st: Status| Check::new("x", st, "");
         assert_eq!(rollup(&[mk(Status::Pass), mk(Status::Pass)]), Status::Pass);
         assert_eq!(
             rollup(&[mk(Status::Pass), mk(Status::Degraded)]),
@@ -474,9 +849,84 @@ mod tests {
     }
 
     #[test]
-    fn desktop_checking_seeds_three_rows() {
-        let rows = desktop_checking();
-        assert_eq!(rows.len(), 3);
-        assert!(rows.iter().all(|c| c.status == Status::Checking));
+    fn checking_seeds_expected_rows() {
+        assert_eq!(desktop_checking().len(), 3);
+        assert!(desktop_checking()
+            .iter()
+            .all(|c| c.status == Status::Checking));
+        assert_eq!(mesh_checking().len(), 4);
+        assert!(mesh_checking().iter().all(|c| c.status == Status::Checking));
+    }
+
+    #[test]
+    fn fix_argv_is_real_commands() {
+        assert_eq!(
+            fix_argv(Fix::StartMackesd),
+            vec!["systemctl", "--user", "start", "mackesd"]
+        );
+        // Re-enroll re-execs this binary's `oobe`.
+        let reenroll = fix_argv(Fix::ReEnroll);
+        assert_eq!(reenroll.last().unwrap(), "oobe");
+        assert_eq!(reenroll.len(), 2);
+        assert_eq!(fix_argv(Fix::OpenWorkbench), vec!["mde-workbench"]);
+    }
+
+    #[test]
+    fn mackesd_parse_missing_reply_is_fail_with_start_fix() {
+        let c = parse_mackesd(None);
+        assert_eq!(c.status, Status::Fail);
+        assert_eq!(c.fix, Some(Fix::StartMackesd));
+    }
+
+    #[test]
+    fn mackesd_parse_healthy_report_is_pass() {
+        let body = r#"{"schema":1,"is_leader":true,"applied_revision":null,"node_count":3,"healthy_nodes":3,"degraded_nodes":0,"unreachable_nodes":0,"audit_chain_intact":true,"version":"10.0.0"}"#;
+        let c = parse_mackesd(Some(body.to_string()));
+        assert_eq!(c.status, Status::Pass);
+        assert!(c.fix.is_none());
+        assert!(c.detail.contains("10.0.0"));
+    }
+
+    #[test]
+    fn mackesd_parse_broken_audit_is_degraded() {
+        let body = r#"{"node_count":2,"unreachable_nodes":0,"audit_chain_intact":false,"version":"10.0.0"}"#;
+        assert_eq!(
+            parse_mackesd(Some(body.to_string())).status,
+            Status::Degraded
+        );
+    }
+
+    #[test]
+    fn nebula_parse_offline_is_degraded_online_is_pass() {
+        let off = r#"{"peer_count":0,"active_transport":"offline"}"#;
+        assert_eq!(parse_nebula(Some(off.to_string())).status, Status::Degraded);
+        let on = r#"{"peer_count":4,"active_transport":"nebula_direct"}"#;
+        let c = parse_nebula(Some(on.to_string()));
+        assert_eq!(c.status, Status::Pass);
+        assert!(c.detail.contains("4 peer"));
+    }
+
+    #[test]
+    fn meshfs_parse_master_states() {
+        let down = r#"{"master_reachable":false,"peers":[],"offline_peers":[]}"#;
+        assert_eq!(
+            parse_meshfs(Some(down.to_string())).status,
+            Status::Degraded
+        );
+        let healthy = r#"{"master_reachable":true,"peers":[{"addr":"a"}],"offline_peers":[]}"#;
+        assert_eq!(parse_meshfs(Some(healthy.to_string())).status, Status::Pass);
+        let degraded = r#"{"master_reachable":true,"peers":[{"addr":"a"}],"offline_peers":["b"]}"#;
+        assert_eq!(
+            parse_meshfs(Some(degraded.to_string())).status,
+            Status::Degraded
+        );
+        assert_eq!(parse_meshfs(None).status, Status::Fail);
+    }
+
+    #[test]
+    fn all_fail_marks_every_row_failed() {
+        let p = MeshProbe::all_fail("no bus");
+        assert!(p.rows().iter().all(|c| c.status == Status::Fail));
+        assert_eq!(p.rows().len(), 4);
     }
 }
