@@ -430,6 +430,8 @@ fn try_register(account: &SipAccount, timeout: Duration) -> Result<u32, String> 
 pub enum CallState {
     /// No call in progress.
     Idle,
+    /// An inbound call is ringing — awaiting answer/decline.
+    Incoming { from: String },
     /// INVITE sent, awaiting a final response.
     Calling { peer: String },
     /// 180 Ringing received.
@@ -447,6 +449,7 @@ impl CallState {
     pub fn label(&self) -> String {
         match self {
             CallState::Idle => String::new(),
+            CallState::Incoming { from } => format!("Incoming call · {from}"),
             CallState::Calling { peer } => format!("Calling {peer}…"),
             CallState::Ringing { peer } => format!("Ringing {peer}…"),
             CallState::InCall { peer } => format!("In call · {peer}"),
@@ -765,6 +768,393 @@ pub fn hang_up(session: &CallSession) -> Result<(), String> {
     Ok(())
 }
 
+// ── VOIP-28 slice 4: inbound INVITE parsing + SIP response building ──────────
+
+/// A parsed inbound INVITE — carries the caller identity, the offered media,
+/// the source to reply to, and the raw dialog headers a response must echo.
+#[derive(Debug, Clone)]
+pub struct InboundInvite {
+    /// Caller display name (or the user part of the From URI).
+    pub from_display: String,
+    /// The caller's address-of-record (`sip:…`).
+    pub from_uri: String,
+    /// `Call-ID`, identifying the dialog.
+    pub call_id: String,
+    /// The offered remote media endpoint (our 200 OK answers it).
+    pub offer: Option<RemoteMedia>,
+    /// Where to send responses (the UDP source of the INVITE).
+    pub source: std::net::SocketAddr,
+    /// Our generated To-tag for this dialog.
+    pub to_tag: String,
+    // Raw header values echoed verbatim in every response (Via carries the
+    // branch the transaction is keyed on).
+    via: String,
+    from: String,
+    to: String,
+    cseq: String,
+}
+
+/// First value of header `name` (case-insensitive), trimmed.
+fn header_value<'a>(raw: &'a str, name: &str) -> Option<&'a str> {
+    raw.lines().take_while(|l| !l.is_empty()).find_map(|l| {
+        let (k, v) = l.split_once(':')?;
+        k.trim()
+            .eq_ignore_ascii_case(name)
+            .then(|| v.trim_start().trim_end_matches('\r'))
+    })
+}
+
+/// Extract a display name / user part from a `From:` header value.
+fn from_display_name(from: &str) -> String {
+    // "Alice" <sip:alice@h>  →  Alice ; <sip:1001@h>;tag=x → 1001
+    if let Some(start) = from.find('"') {
+        if let Some(end) = from[start + 1..].find('"') {
+            let name = from[start + 1..start + 1 + end].trim();
+            if !name.is_empty() {
+                return name.to_string();
+            }
+        }
+    }
+    let uri = from_uri_of(from);
+    uri.strip_prefix("sip:")
+        .unwrap_or(&uri)
+        .split('@')
+        .next()
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+/// Extract the bare `sip:…` URI from a From/To header value.
+fn from_uri_of(hdr: &str) -> String {
+    if let (Some(a), Some(b)) = (hdr.find('<'), hdr.find('>')) {
+        if a < b {
+            return hdr[a + 1..b].to_string();
+        }
+    }
+    hdr.split(';').next().unwrap_or(hdr).trim().to_string()
+}
+
+/// Parse an inbound INVITE message. `source` is the UDP sender to reply to.
+pub fn parse_invite(raw: &str, source: std::net::SocketAddr) -> Option<InboundInvite> {
+    let first = raw.lines().next()?;
+    if !first.starts_with("INVITE ") {
+        return None;
+    }
+    let via = header_value(raw, "Via")?.to_string();
+    let from = header_value(raw, "From")?.to_string();
+    let to = header_value(raw, "To")?.to_string();
+    let call_id = header_value(raw, "Call-ID")?.to_string();
+    let cseq = header_value(raw, "CSeq")?.to_string();
+    let offer = raw
+        .split_once("\r\n\r\n")
+        .and_then(|(_, body)| parse_sdp(body));
+    Some(InboundInvite {
+        from_display: from_display_name(&from),
+        from_uri: from_uri_of(&from),
+        call_id,
+        offer,
+        source,
+        to_tag: gen_token("t"),
+        via,
+        from,
+        to,
+        cseq,
+    })
+}
+
+/// Build a SIP response to an inbound INVITE, echoing its dialog headers (and
+/// adding our To-tag). `sdp` attaches an answer body (for the 200 OK).
+pub fn build_invite_response(
+    inv: &InboundInvite,
+    account: &SipAccount,
+    local_host: &str,
+    local_port: u16,
+    code: u16,
+    reason: &str,
+    sdp: Option<&str>,
+) -> String {
+    let mut m = String::new();
+    let _ = write!(m, "SIP/2.0 {code} {reason}\r\n");
+    let _ = write!(m, "Via: {}\r\n", inv.via);
+    let _ = write!(m, "From: {}\r\n", inv.from);
+    // Echo the To header, adding our tag if it lacks one.
+    if inv.to.contains(";tag=") {
+        let _ = write!(m, "To: {}\r\n", inv.to);
+    } else {
+        let _ = write!(m, "To: {};tag={}\r\n", inv.to, inv.to_tag);
+    }
+    let _ = write!(m, "Call-ID: {}\r\n", inv.call_id);
+    let _ = write!(m, "CSeq: {}\r\n", inv.cseq);
+    if (200..300).contains(&code) {
+        let contact = format!("sip:{}@{local_host}:{local_port}", account.username);
+        let _ = write!(m, "Contact: <{contact}>\r\n");
+    }
+    match sdp {
+        Some(body) => {
+            m.push_str("Content-Type: application/sdp\r\n");
+            let _ = write!(m, "Content-Length: {}\r\n\r\n", body.len());
+            m.push_str(body);
+        }
+        None => m.push_str("Content-Length: 0\r\n\r\n"),
+    }
+    m
+}
+
+/// Build the SDP answer to an inbound offer, advertising the same G.711 codec
+/// the caller will use, on our `rtp_port`.
+pub fn build_sdp_answer(local_host: &str, rtp_port: u16) -> String {
+    build_sdp_offer(local_host, rtp_port)
+}
+
+/// Build a simple final response (echoing a request's dialog headers) — used
+/// to 200-OK an inbound BYE.
+fn build_simple_response(raw: &str, code: u16, reason: &str) -> Option<String> {
+    let via = header_value(raw, "Via")?;
+    let from = header_value(raw, "From")?;
+    let to = header_value(raw, "To")?;
+    let call_id = header_value(raw, "Call-ID")?;
+    let cseq = header_value(raw, "CSeq")?;
+    let mut m = String::new();
+    let _ = write!(m, "SIP/2.0 {code} {reason}\r\n");
+    let _ = write!(m, "Via: {via}\r\n");
+    let _ = write!(m, "From: {from}\r\n");
+    let _ = write!(m, "To: {to}\r\n");
+    let _ = write!(m, "Call-ID: {call_id}\r\n");
+    let _ = write!(m, "CSeq: {cseq}\r\n");
+    m.push_str("Content-Length: 0\r\n\r\n");
+    Some(m)
+}
+
+// ── VOIP-28 slice 4: the persistent SIP agent (register + listen) ────────────
+
+/// Event from the agent thread to the UI (over an mpsc channel).
+#[derive(Debug, Clone)]
+pub enum AgentEvent {
+    /// Registration state changed.
+    Registration(RegistrationState),
+    /// An inbound call is ringing.
+    Incoming { from: String, call_id: String },
+    /// The local user answered and the dialog/media are up.
+    Established,
+    /// The remote party hung up (inbound BYE).
+    RemoteHangup,
+}
+
+/// Command from the UI to the agent thread.
+#[derive(Debug, Clone)]
+pub enum AgentCommand {
+    /// Answer the ringing call (200 OK + SDP answer + media).
+    Answer,
+    /// Decline the ringing call (486 Busy).
+    Decline,
+    /// Hang up the active inbound call.
+    HangUp,
+    /// Stop the agent (the app is exiting).
+    Shutdown,
+}
+
+/// Discover the local IP that routes to `peer` (the overlay IP for a mesh
+/// registrar) by connecting a throwaway UDP socket.
+fn route_source_ip(peer: std::net::SocketAddr) -> Option<String> {
+    let probe = UdpSocket::bind("0.0.0.0:0").ok()?;
+    probe.connect(peer).ok()?;
+    Some(probe.local_addr().ok()?.ip().to_string())
+}
+
+/// REGISTER on the agent's shared socket (send_to/recv_from the registrar),
+/// honouring one digest challenge. Returns the resulting state.
+fn agent_register(
+    sock: &UdpSocket,
+    registrar: std::net::SocketAddr,
+    account: &SipAccount,
+    local_ip: &str,
+    local_port: u16,
+) -> RegistrationState {
+    let ids = TxnIds {
+        call_id: gen_token("reg-"),
+        from_tag: gen_token("t"),
+        branch: format!("z9hG4bK{}", gen_token("")),
+        cseq: 1,
+    };
+    let req = build_register(account, local_ip, local_port, &ids, None);
+    if sock.send_to(req.as_bytes(), registrar).is_err() {
+        return RegistrationState::Failed("REGISTER send failed".into());
+    }
+    let mut buf = [0u8; 4096];
+    let mut authed = false;
+    for _ in 0..12 {
+        let Ok((n, _)) = sock.recv_from(&mut buf) else {
+            continue;
+        };
+        let Ok(resp) = rsip::Response::try_from(&buf[..n]) else {
+            continue;
+        };
+        let code = u16::from(resp.status_code.clone());
+        if code == 200 {
+            return RegistrationState::Registered {
+                server: format!("{}:{}", account.server_host, account.server_port),
+                expires: account.expires,
+            };
+        }
+        if (code == 401 || code == 407) && !authed {
+            authed = true;
+            let Some(ch) = parse_challenge(&resp) else {
+                continue;
+            };
+            let Ok(auth) = authorization_value(account, &ch, &gen_token("c"), 1) else {
+                continue;
+            };
+            let name = if ch.proxy {
+                "Proxy-Authorization"
+            } else {
+                "Authorization"
+            };
+            let ids2 = TxnIds {
+                call_id: ids.call_id.clone(),
+                from_tag: ids.from_tag.clone(),
+                branch: format!("z9hG4bK{}", gen_token("")),
+                cseq: 2,
+            };
+            let req2 = build_register(account, local_ip, local_port, &ids2, Some((name, &auth)));
+            let _ = sock.send_to(req2.as_bytes(), registrar);
+        }
+    }
+    RegistrationState::Failed("no REGISTER reply".into())
+}
+
+/// The persistent SIP agent: binds a stable socket on the route-to-registrar
+/// interface, registers (Contact = that socket), and serves inbound INVITE/BYE
+/// + UI answer/decline commands until told to shut down. Blocking — run on a
+/// dedicated thread. Never panics; transport failures end the loop cleanly.
+pub fn run_agent(
+    account: &SipAccount,
+    events: &std::sync::mpsc::Sender<AgentEvent>,
+    commands: &std::sync::mpsc::Receiver<AgentCommand>,
+) {
+    use std::sync::mpsc::TryRecvError;
+    use std::time::Instant;
+
+    let Some(registrar) = (account.server_host.as_str(), account.server_port)
+        .to_socket_addrs()
+        .ok()
+        .and_then(|mut it| it.next())
+    else {
+        let _ = events.send(AgentEvent::Registration(RegistrationState::Failed(
+            "cannot resolve registrar".into(),
+        )));
+        return;
+    };
+    let Some(local_ip) = route_source_ip(registrar) else {
+        let _ = events.send(AgentEvent::Registration(RegistrationState::Failed(
+            "no route to registrar".into(),
+        )));
+        return;
+    };
+    let Ok(sock) = UdpSocket::bind((local_ip.as_str(), 0)) else {
+        let _ = events.send(AgentEvent::Registration(RegistrationState::Failed(
+            "agent socket bind failed".into(),
+        )));
+        return;
+    };
+    sock.set_read_timeout(Some(Duration::from_millis(200))).ok();
+    let local_port = sock.local_addr().map(|a| a.port()).unwrap_or(0);
+    let rtp_port = 40000 + (local_port % 1000) * 2;
+
+    let reg_period = Duration::from_secs(u64::from(account.expires.max(60)) / 2);
+    let _ = events.send(AgentEvent::Registration(agent_register(
+        &sock, registrar, account, &local_ip, local_port,
+    )));
+    let mut next_reg = Instant::now() + reg_period;
+    let mut pending: Option<InboundInvite> = None;
+    let mut media: Option<crate::media::MediaSession> = None;
+    let mut buf = [0u8; 4096];
+
+    loop {
+        match commands.try_recv() {
+            Ok(AgentCommand::Answer) => {
+                if let Some(inv) = pending.take() {
+                    let sdp = build_sdp_answer(&local_ip, rtp_port);
+                    let ok = build_invite_response(
+                        &inv,
+                        account,
+                        &local_ip,
+                        local_port,
+                        200,
+                        "OK",
+                        Some(&sdp),
+                    );
+                    let _ = sock.send_to(ok.as_bytes(), inv.source);
+                    if let Some(offer) = &inv.offer {
+                        media = crate::media::start_media(rtp_port, offer).ok();
+                    }
+                    let _ = events.send(AgentEvent::Established);
+                }
+            }
+            Ok(AgentCommand::Decline) => {
+                if let Some(inv) = pending.take() {
+                    let busy = build_invite_response(
+                        &inv,
+                        account,
+                        &local_ip,
+                        local_port,
+                        486,
+                        "Busy Here",
+                        None,
+                    );
+                    let _ = sock.send_to(busy.as_bytes(), inv.source);
+                }
+            }
+            Ok(AgentCommand::HangUp) => {
+                if let Some(m) = media.take() {
+                    m.stop();
+                }
+                pending = None;
+            }
+            Ok(AgentCommand::Shutdown) | Err(TryRecvError::Disconnected) => {
+                if let Some(m) = media.take() {
+                    m.stop();
+                }
+                break;
+            }
+            Err(TryRecvError::Empty) => {}
+        }
+
+        if let Ok((n, src)) = sock.recv_from(&mut buf) {
+            let raw = String::from_utf8_lossy(&buf[..n]);
+            if raw.starts_with("INVITE ") {
+                if let Some(inv) = parse_invite(&raw, src) {
+                    tracing::info!(from = %inv.from_display, uri = %inv.from_uri, "voice-hud: inbound INVITE");
+                    let ringing = build_invite_response(
+                        &inv, account, &local_ip, local_port, 180, "Ringing", None,
+                    );
+                    let _ = sock.send_to(ringing.as_bytes(), src);
+                    let _ = events.send(AgentEvent::Incoming {
+                        from: inv.from_display.clone(),
+                        call_id: inv.call_id.clone(),
+                    });
+                    pending = Some(inv);
+                }
+            } else if raw.starts_with("BYE ") {
+                if let Some(ok) = build_simple_response(&raw, 200, "OK") {
+                    let _ = sock.send_to(ok.as_bytes(), src);
+                }
+                if let Some(m) = media.take() {
+                    m.stop();
+                }
+                pending = None;
+                let _ = events.send(AgentEvent::RemoteHangup);
+            }
+        }
+
+        if Instant::now() >= next_reg {
+            let _ = events.send(AgentEvent::Registration(agent_register(
+                &sock, registrar, account, &local_ip, local_port,
+            )));
+            next_reg = Instant::now() + reg_period;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1053,5 +1443,82 @@ mod tests {
         assert!(CallState::Calling { peer: "x".into() }.is_active());
         assert!(!CallState::Idle.is_active());
         assert!(!CallState::Ended.is_active());
+    }
+
+    // ── slice 4: inbound INVITE parse + response building ─────────────────
+
+    fn sample_inbound() -> (InboundInvite, std::net::SocketAddr) {
+        let src: std::net::SocketAddr = "203.0.113.9:5060".parse().unwrap();
+        let raw = "INVITE sip:alice@sip.example.com SIP/2.0\r\n\
+             Via: SIP/2.0/UDP 203.0.113.9:5060;branch=z9hG4bKinbound;rport\r\n\
+             From: \"Bob Smith\" <sip:bob@sip.example.com>;tag=callerTag\r\n\
+             To: <sip:alice@sip.example.com>\r\n\
+             Call-ID: inbound-call-1\r\n\
+             CSeq: 1 INVITE\r\n\
+             Content-Type: application/sdp\r\n\
+             Content-Length: 0\r\n\r\n\
+             v=0\r\no=bob 0 0 IN IP4 203.0.113.9\r\nc=IN IP4 203.0.113.9\r\n\
+             t=0 0\r\nm=audio 6000 RTP/AVP 0\r\na=rtpmap:0 PCMU/8000\r\n";
+        (parse_invite(raw, src).expect("invite"), src)
+    }
+
+    #[test]
+    fn parse_invite_extracts_caller_and_offer() {
+        let (inv, src) = sample_inbound();
+        assert_eq!(inv.from_display, "Bob Smith");
+        assert_eq!(inv.from_uri, "sip:bob@sip.example.com");
+        assert_eq!(inv.call_id, "inbound-call-1");
+        assert_eq!(inv.source, src);
+        let offer = inv.offer.expect("offer");
+        assert_eq!(offer.addr, "203.0.113.9");
+        assert_eq!(offer.port, 6000);
+        assert_eq!(offer.payload_type, 0);
+    }
+
+    #[test]
+    fn from_display_falls_back_to_user_part() {
+        assert_eq!(
+            from_display_name("<sip:1001@host>;tag=x"),
+            "1001".to_string()
+        );
+        assert_eq!(from_uri_of("<sip:1001@host>;tag=x"), "sip:1001@host");
+    }
+
+    #[test]
+    fn build_200_ok_echoes_dialog_and_carries_answer() {
+        let (inv, _) = sample_inbound();
+        let acct = sample_account();
+        let sdp = build_sdp_answer("10.0.0.5", 40002);
+        let resp = build_invite_response(&inv, &acct, "10.0.0.5", 5070, 200, "OK", Some(&sdp));
+        assert!(resp.starts_with("SIP/2.0 200 OK\r\n"));
+        assert!(resp.contains("Via: SIP/2.0/UDP 203.0.113.9:5060;branch=z9hG4bKinbound;rport\r\n"));
+        assert!(resp.contains("From: \"Bob Smith\" <sip:bob@sip.example.com>;tag=callerTag\r\n"));
+        assert!(resp.contains(&format!(
+            "To: <sip:alice@sip.example.com>;tag={}\r\n",
+            inv.to_tag
+        )));
+        assert!(resp.contains("Call-ID: inbound-call-1\r\n"));
+        assert!(resp.contains("CSeq: 1 INVITE\r\n"));
+        assert!(resp.contains("Contact: <sip:alice@10.0.0.5:5070>\r\n"));
+        assert!(resp.contains("Content-Type: application/sdp\r\n"));
+        assert!(resp.ends_with(&sdp));
+    }
+
+    #[test]
+    fn build_486_busy_has_no_body() {
+        let (inv, _) = sample_inbound();
+        let resp = build_invite_response(
+            &inv,
+            &sample_account(),
+            "10.0.0.5",
+            5070,
+            486,
+            "Busy Here",
+            None,
+        );
+        assert!(resp.starts_with("SIP/2.0 486 Busy Here\r\n"));
+        assert!(resp.contains("Content-Length: 0\r\n"));
+        assert!(!resp.contains("Content-Type:"));
+        assert!(!resp.contains("Contact:")); // non-2xx → no Contact
     }
 }

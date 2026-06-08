@@ -15,7 +15,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Maximum number of recents to surface. Matches the design
 /// bundle's `RECENTS` array length (6 rows) so the visual budget
@@ -24,7 +24,7 @@ pub const RECENTS_LIMIT: usize = 12;
 
 /// One call activity entry — JSON shape mded writes when a call
 /// concludes (success or failure).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RecentCall {
     /// `"in"` (incoming) or `"out"` (outgoing).
     pub dir: String,
@@ -91,6 +91,47 @@ pub fn load() -> Vec<RecentCall> {
             }
         })
         .collect()
+}
+
+/// Record an inbound call to the activity-as-files log (VOIP-28 slice 4).
+/// Best-effort — a write failure is logged, never fatal. The filename is a
+/// zero-padded epoch-nanos prefix so the lexicographic `load()` sort stays
+/// chronological.
+pub fn record_incoming(from: &str) {
+    write_entry(&RecentCall {
+        dir: "in".to_string(),
+        name: from.to_string(),
+        target: from.to_string(),
+        when: "just now".to_string(),
+        dur: default_duration(),
+        ok: true,
+        pstn: false,
+        fail: String::new(),
+        transit: String::new(),
+    });
+}
+
+fn write_entry(call: &RecentCall) {
+    let Some(dir) = activity_dir() else {
+        return;
+    };
+    if let Err(e) = fs::create_dir_all(&dir) {
+        tracing::warn!(error = %e, "voice-hud: cannot create activity dir");
+        return;
+    }
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let path = dir.join(format!("{nanos:030}-call.json"));
+    match serde_json::to_string(call) {
+        Ok(json) => {
+            if let Err(e) = fs::write(&path, json) {
+                tracing::warn!(error = %e, "voice-hud: cannot write recent");
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "voice-hud: cannot serialize recent"),
+    }
 }
 
 /// `~/.local/share/mde/activity/calls/`.

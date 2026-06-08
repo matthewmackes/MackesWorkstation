@@ -30,7 +30,6 @@ use iced::{Color, Element, Length, Padding, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
-use std::time::Duration;
 
 mod media;
 mod recents;
@@ -41,6 +40,25 @@ mod theme;
 
 use resolve::{resolve_target, Resolved};
 use roster::{Peer, RosterLoad};
+use std::sync::mpsc;
+use std::sync::Mutex;
+
+/// VOIP-28 slice 4 — channels bridging the persistent SIP agent thread (inbound
+/// calls + registration) to the iced UI. Statics so the agent-event
+/// subscription's `'static` closure can drain them; the agent is spawned once
+/// at boot. `AGENT_EVENTS` holds the agent→UI receiver (taken by the
+/// subscription), `AGENT_CMD` the UI→agent sender (used for answer/decline).
+static AGENT_EVENTS: Mutex<Option<mpsc::Receiver<sip::AgentEvent>>> = Mutex::new(None);
+static AGENT_CMD: Mutex<Option<mpsc::Sender<sip::AgentCommand>>> = Mutex::new(None);
+
+/// Send a command to the agent thread (no-op if no agent is running).
+fn agent_send(cmd: sip::AgentCommand) {
+    if let Ok(guard) = AGENT_CMD.lock() {
+        if let Some(tx) = guard.as_ref() {
+            let _ = tx.send(cmd);
+        }
+    }
+}
 
 /// VOIP-27 §2.5 size lock — cozy density default.
 const WIDTH: u32 = 420;
@@ -116,9 +134,12 @@ pub enum Message {
     /// triggers `std::process::exit(0)` since iced_layershell
     /// 0.18 doesn't expose a clean shutdown API.
     Exit,
-    /// Result of the startup SIP REGISTER attempt (VOIP-28) — the
-    /// resolved registration state, rendered in the topbar.
-    Registered(sip::RegistrationState),
+    /// An event from the persistent SIP agent (registration / inbound call).
+    Agent(sip::AgentEvent),
+    /// Operator answered the ringing inbound call.
+    Answer,
+    /// Operator declined the ringing inbound call.
+    Decline,
     /// Operator pressed Call — place an outbound INVITE to the dialed number.
     PlaceCall,
     /// Result of the outbound INVITE: the established dialog or a failure.
@@ -175,9 +196,39 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
         Message::Exit => {
             std::process::exit(0);
         }
-        Message::Registered(reg) => {
-            tracing::info!(state = ?reg, "voice-hud: registration result");
-            state.registration = reg;
+        Message::Agent(event) => match event {
+            sip::AgentEvent::Registration(reg) => {
+                tracing::info!(state = ?reg, "voice-hud: registration result");
+                state.registration = reg;
+            }
+            sip::AgentEvent::Incoming { from, .. } => {
+                tracing::info!(%from, "voice-hud: incoming call");
+                state.call = sip::CallState::Incoming { from: from.clone() };
+                // Surface an Action-Center toast via the FDO Notifications path
+                // (notify-send → mde's notifyd → Action Center), the same way
+                // snip.rs emits — best-effort, never fatal.
+                let _ = std::process::Command::new("notify-send")
+                    .args(["-a", "Mackes Workstation Voice", "Incoming call", &from])
+                    .spawn();
+                recents::record_incoming(&from);
+            }
+            sip::AgentEvent::Established => {
+                let peer = match &state.call {
+                    sip::CallState::Incoming { from } => from.clone(),
+                    _ => String::new(),
+                };
+                state.call = sip::CallState::InCall { peer };
+            }
+            sip::AgentEvent::RemoteHangup => {
+                state.call = sip::CallState::Ended;
+            }
+        },
+        Message::Answer => {
+            agent_send(sip::AgentCommand::Answer);
+        }
+        Message::Decline => {
+            agent_send(sip::AgentCommand::Decline);
+            state.call = sip::CallState::Idle;
         }
         Message::PlaceCall => {
             let dialed = state.dialer_input.trim().to_string();
@@ -233,6 +284,8 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
             if let Some(m) = state.media.take() {
                 m.stop();
             }
+            // An inbound call's media/dialog live in the agent thread.
+            agent_send(sip::AgentCommand::HangUp);
             if let Some(session) = state.session.take() {
                 return Task::perform(
                     async move {
@@ -277,6 +330,10 @@ pub fn view(state: &VoiceHud) -> Element<'_, Message> {
 }
 
 fn subscription(_state: &VoiceHud) -> iced::Subscription<Message> {
+    iced::Subscription::batch([keyboard_subscription(), agent_subscription()])
+}
+
+fn keyboard_subscription() -> iced::Subscription<Message> {
     use iced::event;
     use iced::keyboard;
     event::listen_with(|event, status, _window| match event {
@@ -299,6 +356,31 @@ fn subscription(_state: &VoiceHud) -> iced::Subscription<Message> {
             }
         }
         _ => None,
+    })
+}
+
+/// Bridge the persistent SIP agent's event channel (set up at boot) into iced
+/// `Message::Agent`s. Drains the std-mpsc receiver on a 50 ms poll inside the
+/// subscription's async task (mirrors the workbench's `stream::channel` idiom).
+fn agent_subscription() -> iced::Subscription<Message> {
+    use iced::futures::SinkExt;
+    use iced::stream;
+    iced::Subscription::run(|| {
+        stream::channel(
+            64,
+            |mut output: iced::futures::channel::mpsc::Sender<Message>| async move {
+                let rx = AGENT_EVENTS.lock().ok().and_then(|mut g| g.take());
+                if let Some(rx) = rx {
+                    loop {
+                        while let Ok(ev) = rx.try_recv() {
+                            let _ = output.send(Message::Agent(ev)).await;
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    }
+                }
+                std::future::pending::<()>().await;
+            },
+        )
     })
 }
 
@@ -489,9 +571,38 @@ fn keypad_button<'a>(c: char) -> Element<'a, Message> {
     .into()
 }
 
-/// The Call / Hang-up action button + live call status (VOIP-28 slice 2).
+/// A full-width call-action pill in `fill` with a white label.
+fn call_pill<'a>(label: &'a str, fill: Color, msg: Message) -> Element<'a, Message> {
+    button(
+        container(text(label).size(16.0).color(theme::SURF))
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+    )
+    .on_press(msg)
+    .width(Length::Fill)
+    .height(Length::Fixed(48.0))
+    .style(move |_: &Theme, _status| iced::widget::button::Style {
+        background: Some(iced::Background::Color(fill)),
+        text_color: theme::SURF,
+        border: iced::Border {
+            radius: iced::border::Radius::from(8.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    })
+    .into()
+}
+
+/// The call-action row (Answer/Decline · Hang-up · Call) + live call status.
 fn build_call_bar(state: &VoiceHud) -> Element<'_, Message> {
-    let action: Element<Message> = if state.call.is_active() {
+    let action: Element<Message> = if matches!(state.call, sip::CallState::Incoming { .. }) {
+        row![
+            call_pill("Answer", theme::SUCCESS, Message::Answer),
+            call_pill("Decline", theme::ERROR, Message::Decline),
+        ]
+        .spacing(8)
+        .into()
+    } else if state.call.is_active() {
         button(
             container(text("Hang up").size(16.0).color(theme::SURF))
                 .width(Length::Fill)
@@ -592,24 +703,26 @@ fn main() -> iced_layershell::Result {
             // is configured. The blocking socket work runs off the UI thread
             // via spawn_blocking; the result lands as Message::Registered.
             let account = sip::SipAccount::load();
-            let (registration, task) = match account.clone() {
+            let registration = match account.clone() {
                 Some(acct) => {
-                    tracing::info!(server = %acct.server_host, "voice-hud: registering");
-                    let t = Task::perform(
-                        async move {
-                            tokio::task::spawn_blocking(move || {
-                                sip::register_once(&acct, Duration::from_secs(3))
-                            })
-                            .await
-                            .unwrap_or_else(|e| {
-                                sip::RegistrationState::Failed(format!("register task failed: {e}"))
-                            })
-                        },
-                        Message::Registered,
-                    );
-                    (sip::RegistrationState::Registering, t)
+                    tracing::info!(server = %acct.server_host, "voice-hud: starting SIP agent");
+                    // Spawn the persistent SIP agent (registration + re-register
+                    // + inbound INVITE/BYE) on its own thread, bridged to the UI
+                    // via the AGENT_* channels (events ← agent, commands → agent).
+                    let (event_tx, event_rx) = mpsc::channel::<sip::AgentEvent>();
+                    let (cmd_tx, cmd_rx) = mpsc::channel::<sip::AgentCommand>();
+                    if let Ok(mut g) = AGENT_EVENTS.lock() {
+                        *g = Some(event_rx);
+                    }
+                    if let Ok(mut g) = AGENT_CMD.lock() {
+                        *g = Some(cmd_tx);
+                    }
+                    let _ = std::thread::Builder::new()
+                        .name("mwv-sip-agent".into())
+                        .spawn(move || sip::run_agent(&acct, &event_tx, &cmd_rx));
+                    sip::RegistrationState::Registering
                 }
-                None => (sip::RegistrationState::NoAccount, Task::none()),
+                None => sip::RegistrationState::NoAccount,
             };
             (
                 VoiceHud {
@@ -621,7 +734,7 @@ fn main() -> iced_layershell::Result {
                     session: None,
                     media: None,
                 },
-                task,
+                Task::none(),
             )
         },
         namespace,
