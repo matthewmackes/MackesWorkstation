@@ -34,6 +34,36 @@ use crate::model::{FileRow, Mime, Peer, PeerKind, PeerStatus, SelfNode};
 /// equal `mackesd_core::ipc::files::FLEET_FILES_PREFIX`.
 pub const FLEET_FILES_PREFIX: &str = "fleet-files";
 
+/// E10 — one row of the `action/connect/devices` KDE-Connect roster reply
+/// (mirrors the shell's `connect::WireDevice`). Extra fields are ignored.
+#[derive(Deserialize)]
+struct CloudWireDevice {
+    name: String,
+    #[serde(default)]
+    online: bool,
+    #[serde(default)]
+    battery: Option<u8>,
+}
+
+/// Decode the `action/connect/devices` roster JSON into Cloud-Files device
+/// rows (online state in the size column, battery in the age column). Pure —
+/// unit-tested. Malformed JSON yields no rows (the honest empty state).
+fn cloud_rows_from_json(raw: &str) -> Vec<FileRow> {
+    let wires: Vec<CloudWireDevice> = serde_json::from_str(raw).unwrap_or_default();
+    wires
+        .into_iter()
+        .map(|w| {
+            let status = if w.online { "online" } else { "offline" };
+            let batt = w
+                .battery
+                .filter(|b| *b <= 100)
+                .map(|b| format!("battery {b}%"))
+                .unwrap_or_else(|| "—".to_string());
+            FileRow::local(w.name, Mime::Folder, status, batt)
+        })
+        .collect()
+}
+
 /// Wire-format `SelfNode` as mackesd encodes it.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct WireSelfNode {
@@ -197,6 +227,28 @@ impl BusBackend {
         let wires = parse_files(&raw)
             .ok_or_else(|| BackendError::Rejected(format!("list_peer decode failed: {raw}")))?;
         Ok(wires.into_iter().map(WireFileRow::into_model).collect())
+    }
+
+    /// E10 — the paired KDE-Connect device roster over the Bus
+    /// (`action/connect/devices`, the mackesd KDC host worker), surfaced as
+    /// Cloud-Files device rows. Empty (never errors) when the daemon / Bus /
+    /// reply is unavailable, so the view renders an honest "no devices" state.
+    pub fn cloud_devices(&self) -> Vec<FileRow> {
+        let raw: Option<String> = self.rt.block_on(async {
+            let persist = mde_bus::persist::Persist::open(self.bus_dir.clone()).ok()?;
+            mde_bus::rpc::request(
+                &persist,
+                "action/connect/devices",
+                mde_bus::hooks::config::Priority::Default,
+                None,
+                None,
+                self.call_timeout,
+            )
+            .await
+            .ok()?
+            .body
+        });
+        raw.as_deref().map(cloud_rows_from_json).unwrap_or_default()
     }
 
     /// Publish one `action/fleet-files/<verb>` request on the Bus
@@ -414,6 +466,24 @@ pub fn conflict_policy_to_str(c: ConflictPolicy) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloud_rows_decode_roster_and_map_status_battery() {
+        let raw = r#"[
+            {"id":"a","name":"Pixel 8","online":true,"battery":85},
+            {"id":"b","name":"Old Tablet","online":false,"battery":null}
+        ]"#;
+        let rows = cloud_rows_from_json(raw);
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].name, "Pixel 8");
+        assert_eq!(rows[0].size, "online");
+        assert_eq!(rows[0].age, "battery 85%");
+        assert!(rows[0].is_dir()); // a device browses like a folder
+        assert_eq!(rows[1].size, "offline");
+        assert_eq!(rows[1].age, "—");
+        // Malformed JSON → honest empty state, never panics.
+        assert!(cloud_rows_from_json("not json").is_empty());
+    }
 
     #[test]
     fn parse_self_node_round_trips_basic_shape() {

@@ -704,6 +704,14 @@ impl Backend for RealBackend {
                 .and_then(|d| d.list_peer(peer).ok())
                 .unwrap_or_default();
         }
+        // E10 — Cloud-Files: the paired KDE-Connect device roster.
+        if path == "cloud:" {
+            return self
+                .bus
+                .as_ref()
+                .map(BusBackend::cloud_devices)
+                .unwrap_or_default();
+        }
         self.local.list(path)
     }
 

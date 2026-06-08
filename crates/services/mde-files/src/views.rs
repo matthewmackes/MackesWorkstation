@@ -308,6 +308,20 @@ pub fn sidebar<'a>(
         }
     }
 
+    // E10 — Cloud Files: paired KDE-Connect devices.
+    local_col = local_col.push(side_row(
+        icons::HDD,
+        "Cloud Files",
+        None,
+        None,
+        if matches!(view, View::CloudDevices) {
+            SideRowVariant::Active
+        } else {
+            SideRowVariant::Default
+        },
+        Message::SelectView(View::CloudDevices),
+    ));
+
     let local_pane = container(local_col.spacing(0))
         .padding(Padding {
             top: 0.0,
@@ -898,6 +912,43 @@ pub fn local_browser<'a>(
         list = list.push(
             container(text("Empty folder").size(12).color(t::FG_DIM))
                 .padding(Padding::from([8.0, 4.0])),
+        );
+    } else {
+        for f in files {
+            let sel = selection.is_selected(&f.name);
+            let foc = selection.is_focused(&f.name);
+            list = list.push(file_row(f.clone(), true, sel, foc));
+        }
+    }
+
+    column![header, Space::new().height(Length::Fixed(12.0)), list,]
+        .spacing(0)
+        .padding(Padding::from([20.0, 22.0]))
+        .into()
+}
+
+/// E10 — Cloud Files: the paired KDE-Connect device roster (over the Bus) as
+/// device rows. Honest empty state when nothing is paired / mackesd is down.
+pub fn cloud_devices<'a>(
+    files: &'a [crate::model::FileRow],
+    selection: &'a Selection,
+) -> Element<'a, Message> {
+    let header = row![
+        icon(icons::HDD, 18.0, t::FG),
+        text("Cloud Files · paired devices").size(13).color(t::FG),
+    ]
+    .spacing(8)
+    .align_y(iced::alignment::Vertical::Center);
+
+    let mut list = column![file_row_head("Device")];
+    if files.is_empty() {
+        list = list.push(
+            container(
+                text("No paired devices — pair one from Settings ▸ Mobile Devices.")
+                    .size(12)
+                    .color(t::FG_DIM),
+            )
+            .padding(Padding::from([8.0, 4.0])),
         );
     } else {
         for f in files {

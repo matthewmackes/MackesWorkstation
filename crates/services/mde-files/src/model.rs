@@ -265,6 +265,9 @@ pub enum View {
     /// LizardFS `.trash` virtual directory within the configured
     /// retention window (default 48 h).
     MeshUndelete,
+    /// E10 — Cloud Files: paired KDE-Connect devices (over the Bus). Each row
+    /// is a device; browsing into one (sftp) is a follow-on.
+    CloudDevices,
 }
 
 impl Default for View {

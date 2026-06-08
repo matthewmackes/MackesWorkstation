@@ -173,6 +173,8 @@ pub struct MdeFiles {
     pub local_path: String,
     /// E10 — real files in `local_path`, refreshed when `View::Local` is active.
     pub local_files: Vec<crate::model::FileRow>,
+    /// E10 — paired KDE-Connect device rows, refreshed on `View::CloudDevices`.
+    pub cloud_files: Vec<crate::model::FileRow>,
     pub view: View,
     pub local_open: bool,
     pub layout: Layout,
@@ -269,6 +271,7 @@ impl Default for MdeFiles {
             peer_files: Vec::new(),
             local_path: std::env::var("HOME").unwrap_or_else(|_| "/".to_string()),
             local_files: Vec::new(),
+            cloud_files: Vec::new(),
             view: View::default(),
             local_open: false,
             layout: Layout::default(),
@@ -621,6 +624,10 @@ impl MdeFiles {
         if matches!(self.view, View::Local) {
             self.local_files = self.backend.list(&self.local_path);
         }
+        // E10 — Cloud-Files device roster (paired KDE-Connect peers).
+        if matches!(self.view, View::CloudDevices) {
+            self.cloud_files = self.backend.list("cloud:");
+        }
     }
 
     /// Top-level view tree.
@@ -663,6 +670,7 @@ impl MdeFiles {
                 self.trash_busy,
                 self.trash_error.as_deref(),
             ),
+            View::CloudDevices => views::cloud_devices(&self.cloud_files, &self.selection),
         };
 
         let content = container(scrollable(container(main_body).padding(Padding {
@@ -795,6 +803,10 @@ fn breadcrumbs_for(view: &View) -> Vec<Crumb> {
                 mesh: false,
             },
         ],
+        View::CloudDevices => vec![Crumb {
+            label: "Cloud Files".into(),
+            mesh: false,
+        }],
         View::Peer(id) => {
             // The host string is built from the peer id by
             // convention (id "pine" → host "pine.mesh"). We
