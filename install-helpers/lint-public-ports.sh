@@ -67,6 +67,7 @@ crates/mesh/mackesd/src/workers/voice_config.rs
 crates/mesh/mackesd/src/workers/wol.rs
 crates/mesh/mackesd/src/voice/materialize.rs
 crates/services/mde-voice-config/src/lib.rs
+crates/services/mde-voice-hud/src/sip.rs
 crates/mesh/mackesd/tests/
 '
 
@@ -85,6 +86,12 @@ crates/mesh/mackesd/tests/
 #   "0.0.0.0" placeholder mesh_bind_address (in-source test).
 # - workers/wol.rs : WoL magic packet REQUIRES a broadcast UDP
 #   socket bound to 0.0.0.0:0 (RFC 2153 / WoL spec). Not a listener.
+# - services/mde-voice-hud/src/sip.rs : the SIP REGISTER client binds an
+#   EPHEMERAL UDP socket (0.0.0.0:0) then immediately connect()s to the
+#   registrar — the kernel filters incoming datagrams to that one peer and
+#   selects the source interface by route (the Nebula overlay for a mesh
+#   registrar). An outbound client socket, NOT a service listener (same
+#   class as wol.rs above).
 # - voice/materialize.rs : default mesh_bind_address placeholder
 #   gets replaced with the per-peer overlay IP by voice_config.rs
 #   on materialize; "0.0.0.0" is a fallback for tests + initial

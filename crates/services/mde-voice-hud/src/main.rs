@@ -30,10 +30,12 @@ use iced::{Color, Element, Length, Padding, Task, Theme};
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
 use iced_layershell::settings::{LayerShellSettings, Settings};
 use iced_layershell::to_layer_message;
+use std::time::Duration;
 
 mod recents;
 mod resolve;
 mod roster;
+mod sip;
 mod theme;
 
 use resolve::{resolve_target, Resolved};
@@ -48,13 +50,6 @@ const HEIGHT: u32 = 720;
 /// `(top, right, bottom, left)` per iced_layershell convention.
 const MARGIN_RIGHT: i32 = 16;
 const MARGIN_BOTTOM: i32 = 56;
-
-/// Registration status shown in the topbar. Single-node there is no PJSIP
-/// account, so this is an honest "Not registered" — VOIP-28 wires the live
-/// registrar state over the Bus (the real "Registered · <server>" is the
-/// SIP-server bench). Replaces the prior hardcoded "Registered ·
-/// 127.0.0.1:5060" mockup that claimed a registration that didn't exist.
-const REGISTRATION_STATUS: &str = "Not registered";
 
 /// The local peer's display name — the host's own name (`/etc/hostname`, else
 /// `$HOSTNAME`, else "MDE"). Real single-node data, not a fabricated label;
@@ -120,6 +115,9 @@ pub enum Message {
     /// triggers `std::process::exit(0)` since iced_layershell
     /// 0.18 doesn't expose a clean shutdown API.
     Exit,
+    /// Result of the startup SIP REGISTER attempt (VOIP-28) — the
+    /// resolved registration state, rendered in the topbar.
+    Registered(sip::RegistrationState),
 }
 
 /// Top-level HUD state.
@@ -129,6 +127,9 @@ pub struct VoiceHud {
     /// Loaded mesh roster — drives the `Resolved::Mesh` lookup
     /// in the resolved-chip rendering.
     pub roster: Vec<Peer>,
+    /// Live SIP registration state (VOIP-28) — drives the topbar status
+    /// line + presence pip. `NoAccount` until `account.toml` exists.
+    pub registration: sip::RegistrationState,
 }
 
 // ── iced_layershell 0.18 builder-pattern functions ──────────────────────────
@@ -156,6 +157,10 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
         Message::Exit => {
             std::process::exit(0);
         }
+        Message::Registered(reg) => {
+            tracing::info!(state = ?reg, "voice-hud: registration result");
+            state.registration = reg;
+        }
         // `#[to_layer_message]` injects extra variants for
         // layer-shell control actions (anchor / margin / etc.
         // changes). VOIP-27 ships idle-state only — no
@@ -168,7 +173,7 @@ pub fn update(state: &mut VoiceHud, message: Message) -> Task<Message> {
 }
 
 pub fn view(state: &VoiceHud) -> Element<'_, Message> {
-    container(column![build_topbar(), build_display(state), build_keypad(),].spacing(12))
+    container(column![build_topbar(state), build_display(state), build_keypad(),].spacing(12))
         .padding(Padding::from([16, 16]))
         .width(Length::Fill)
         .height(Length::Fill)
@@ -210,8 +215,14 @@ fn subscription(_state: &VoiceHud) -> iced::Subscription<Message> {
 /// pip is offline and the status reads "Not registered" until VOIP-28 wires
 /// the live PJSIP registrar state over the Bus (the registered view is the
 /// SIP-server bench).
-fn build_topbar<'a>() -> Element<'a, Message> {
+fn build_topbar(state: &VoiceHud) -> Element<'_, Message> {
     let peer_name = local_peer_name();
+    let pip_color = if state.registration.is_online() {
+        theme::PRESENCE_AVAILABLE
+    } else {
+        theme::PRESENCE_OFFLINE
+    };
+    let registration_status = state.registration.label();
     let account_dot = container(
         text(account_initials(&peer_name))
             .size(13.0)
@@ -231,8 +242,8 @@ fn build_topbar<'a>() -> Element<'a, Message> {
     .align_y(iced::alignment::Vertical::Center);
 
     let presence_pip = container(iced::widget::Space::new())
-        .style(|_: &Theme| iced::widget::container::Style {
-            background: Some(iced::Background::Color(theme::PRESENCE_OFFLINE)),
+        .style(move |_: &Theme| iced::widget::container::Style {
+            background: Some(iced::Background::Color(pip_color)),
             border: iced::Border {
                 radius: iced::border::Radius::from(4.0),
                 ..Default::default()
@@ -247,7 +258,7 @@ fn build_topbar<'a>() -> Element<'a, Message> {
         row![
             presence_pip,
             iced::widget::space().width(Length::Fixed(6.0)),
-            text(REGISTRATION_STATUS)
+            text(registration_status)
                 .size(11.0)
                 .color(theme::ON_SURF_VAR),
         ]
@@ -423,10 +434,37 @@ fn main() -> iced_layershell::Result {
                 ?source,
                 "voice-hud: roster loaded"
             );
-            VoiceHud {
-                dialer_input: String::new(),
-                roster: peers,
-            }
+            // VOIP-28 — kick off a real SIP REGISTER on launch when an account
+            // is configured. The blocking socket work runs off the UI thread
+            // via spawn_blocking; the result lands as Message::Registered.
+            let account = sip::SipAccount::load();
+            let (registration, task) = match account {
+                Some(acct) => {
+                    tracing::info!(server = %acct.server_host, "voice-hud: registering");
+                    let t = Task::perform(
+                        async move {
+                            tokio::task::spawn_blocking(move || {
+                                sip::register_once(&acct, Duration::from_secs(3))
+                            })
+                            .await
+                            .unwrap_or_else(|e| {
+                                sip::RegistrationState::Failed(format!("register task failed: {e}"))
+                            })
+                        },
+                        Message::Registered,
+                    );
+                    (sip::RegistrationState::Registering, t)
+                }
+                None => (sip::RegistrationState::NoAccount, Task::none()),
+            };
+            (
+                VoiceHud {
+                    dialer_input: String::new(),
+                    roster: peers,
+                    registration,
+                },
+                task,
+            )
         },
         namespace,
         update,
@@ -472,6 +510,7 @@ mod tests {
         VoiceHud {
             dialer_input: String::new(),
             roster: vec![],
+            registration: sip::RegistrationState::NoAccount,
         }
     }
 
@@ -618,9 +657,11 @@ mod tests {
 
     #[test]
     fn topbar_shows_honest_unregistered_state_and_derived_initials() {
-        // The topbar is honest single-node: not a fabricated "Registered ·
-        // 127.0.0.1:5060" — the live registrar state is the SIP-server bench.
-        assert_eq!(REGISTRATION_STATUS, "Not registered");
+        // The topbar is honest single-node: with no account.toml the state is
+        // NoAccount → "Not registered" (not a fabricated "Registered ·
+        // 127.0.0.1:5060"). The live registrar round-trip is the SIP-server
+        // bench; VOIP-28 drives the real REGISTER + state transitions.
+        assert_eq!(sip::RegistrationState::NoAccount.label(), "Not registered");
         // Initials derive from the real peer name (up to two leading alnums).
         assert_eq!(account_initials("Pixel Workstation"), "PI");
         assert_eq!(account_initials("mde-host-7"), "MD");
