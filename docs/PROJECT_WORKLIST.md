@@ -968,13 +968,14 @@ _Depends: E0-E7_
     - [✓] A sweep proves every such surface resolves its text through `disclaimer.rs` `include_str!`; no surface embeds a copy-pasted literal of the disclaimer. *(swept 2026-06-05 — zero copy-paste; all via `mde_disclaimer`)*
     - [✓] Editing `DISCLAIMER.md` and rebuilding changes the text shown by all surfaces simultaneously (single-source verified at runtime). *(inherent to the `include_str!` single source)*
 
-- [ ] **E8.3: E8 — Promote clippy todo + unwrap_used to deny; full cargo clippy --all-targets / fmt --check / test green workspace-wide**
+- [✓] **E8.3: E8 — Promote clippy todo + unwrap_used to deny; full cargo clippy --all-targets / fmt --check / test green workspace-wide** *(DONE 2026-06-08 — `1c49050c`)*
+  **DONE.** `[workspace.lints.clippy]` promotes `unwrap_used = "deny"` + `todo = "deny"` (panic stays warn — deliberate `panic!`s exist); a new `clippy.toml` exempts test code via `allow-unwrap-in-tests`/`allow-expect-in-tests` so the deny only bites runtime paths. Fixed the 12 production unwrap sites it surfaced — 11 `Mutex::lock().unwrap()` → `unwrap_or_else(PoisonError::into_inner)` (poison-recovering, in mde-bus `surface.rs` via a `lock()` helper + mackesd `meshfs_worker.rs`), `validation.rs`'s `unwrap_err()` → a `match` arm, and a provably-safe post-`peek` `next().unwrap()` in `network.rs`. `--all-targets` also surfaced + fixed two E9.7 `Theme::Windows10` test-target leftovers (`7e866a3`). **Acceptance met:** `cargo clippy --all-targets --workspace` exits 0 with the deny lints; `cargo fmt --all --check` clean (formatted the lone drifted file, project.rs); `cargo test --workspace` green — the only 2 `#[ignore]`s are a slow throughput bench + a host-keyed systemd-creds test, not hidden features.
   **As** a maintainer, **I want** `todo!`/`unwrap` promoted to deny and the full lint/format/test suite green, **so that** no stub markers or panicking unwraps can survive into the held release.
   *Reuse:* workspace lint config (new glue). *Deps:* E8.4.
   **Acceptance** (runtime-observable):
-    - [ ] `cargo clippy --all-targets --workspace` exits 0 with `clippy::todo` and `clippy::unwrap_used` set to deny; any remaining `todo!`/`unwrap()` fails the build.
-    - [ ] `cargo fmt --check` exits 0 across the workspace.
-    - [ ] `cargo test --workspace` passes; no test is `#[ignore]`-skipping a real feature path.
+    - [✓] `cargo clippy --all-targets --workspace` exits 0 with `clippy::todo` and `clippy::unwrap_used` set to deny; any remaining `todo!`/`unwrap()` fails the build.
+    - [✓] `cargo fmt --check` exits 0 across the workspace.
+    - [✓] `cargo test --workspace` passes; no test is `#[ignore]`-skipping a real feature path (the 2 ignores are a slow throughput bench + a host-keyed systemd-creds test).
 
 - [>] **E8.4: E8 — Runtime-reachability + no-stubs/no-mockups sweep: verify E0-E7 are section-3-complete (every feature invocable from a runtime entry point)** *(bench gate lifted 2026-06-07; headless sweep effectively clean)*
   **Sweep status (2026-06-07):** the no-stubs/mockups grep across `crates/**/src` finds **only** `mde-files`'s `demo_data` (the tracked E10 mock) — no `todo!()`/`unimplemented!()`/placeholder elsewhere. Known §3 gaps tracked: E10.2 (demo_data → real backend), E5.4 (VOIP-28 unbuilt PJSIP). *(RETIRE-PY.4's dead `fs_sync` worker is now deleted — no longer a gap.)* The display-bench render pass (every surface renders on a real session) is the post-release HW step. **Pending:** flip `[✓]` once those tracked gaps close.
