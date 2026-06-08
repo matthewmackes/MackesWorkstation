@@ -109,17 +109,9 @@ enum Message {
 }
 
 pub fn run(args: &[String]) -> ExitCode {
-    // Era guard: Search belongs to the Windows 10 era. Under any other theme,
-    // fall through to the classic Start menu so the Win+S keybind still opens
-    // something familiar rather than nothing.
-    if crate::state::load().theme != "windows10" {
-        let mde = std::env::current_exe()
-            .ok()
-            .and_then(|p| p.to_str().map(String::from))
-            .unwrap_or_else(|| "mde".to_string());
-        let _ = Command::new(mde).arg("menu").spawn();
-        return ExitCode::SUCCESS;
-    }
+    // E9.7 — the Search overlay is the universal Win+S surface under Carbon-only
+    // (modern identity); the old era guard that fell through to the classic
+    // Start menu on non-Win10 themes is removed.
     // No compositor → exit cleanly rather than panic in the layer-shell init.
     if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         return ExitCode::SUCCESS;

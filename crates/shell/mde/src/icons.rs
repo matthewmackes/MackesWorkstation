@@ -195,11 +195,6 @@ pub fn icon_any<'a, Message: 'a>(names: &[&str], size: u16) -> Element<'a, Messa
     Space::new(len, len).into()
 }
 
-/// Convenience: a single-name [`icon_any`].
-pub fn icon<'a, Message: 'a>(name: &str, size: u16) -> Element<'a, Message> {
-    icon_any(&[name], size)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

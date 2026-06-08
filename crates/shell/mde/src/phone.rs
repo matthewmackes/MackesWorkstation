@@ -17,7 +17,6 @@ use std::process::ExitCode;
 use iced::widget::{button as ibutton, container, scrollable, text, Column, Row, Space};
 use iced::{Element, Length, Padding, Task};
 
-use mde_ui::palette::Theme;
 use mde_ui::{font, group_box, metrics, palette};
 
 use crate::connect::{self, DeviceInfo};
@@ -65,13 +64,10 @@ enum Message {
     Refresh,
 }
 
-/// "Your Phone" under the Windows 10 era; "Mobile Devices" under Win2000/Carbon.
+/// E9.7 — the window title is the modern "Your Phone" under Carbon-only
+/// (modern identity); the old Win2000/Carbon "Mobile Devices" era branch is gone.
 fn window_title() -> String {
-    if palette::theme() == Theme::Windows10 {
-        "Your Phone".to_string()
-    } else {
-        "Mobile Devices".to_string()
-    }
+    "Your Phone".to_string()
 }
 
 pub fn run(_args: &[String]) -> ExitCode {

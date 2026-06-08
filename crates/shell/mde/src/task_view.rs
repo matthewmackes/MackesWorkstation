@@ -72,17 +72,14 @@ pub fn run(args: &[String]) -> ExitCode {
     // `--snap-assist <left|right>` opens the half-screen Snap-Assist picker for
     // that side (E4.7); the Win10 rc.xml fires it after a labwc edge-snap, and
     // it self-gates to the Windows 10 theme (E4.8).
+    // E9.7 — Snap Assist is universal under Carbon-only (modern identity); the
+    // old `theme != "windows10"` era guard is removed.
     let snap_assist = match args.first().map(String::as_str) {
-        Some("--snap-assist") => {
-            if crate::state::load().theme != "windows10" {
-                return ExitCode::SUCCESS; // Snap Assist is a Win10-era affordance.
-            }
-            match args.get(1).map(String::as_str) {
-                Some("left") => Some(Side::Left),
-                Some("right") => Some(Side::Right),
-                _ => return ExitCode::SUCCESS,
-            }
-        }
+        Some("--snap-assist") => match args.get(1).map(String::as_str) {
+            Some("left") => Some(Side::Left),
+            Some("right") => Some(Side::Right),
+            _ => return ExitCode::SUCCESS,
+        },
         _ => None,
     };
     // No compositor → nothing to show; exit cleanly rather than panic in the
@@ -324,7 +321,9 @@ fn band(state: &TaskView) -> Element<'_, Message> {
 /// switching is the labwc `W-C-Left/Right` binds (E4.6). No fake active state and
 /// no dead click: the chips are plain labels, not buttons.
 fn fixed_desktop_band<'a>(n: u32) -> Element<'a, Message> {
-    let mut row = Row::new().spacing(metrics::SPACING_04).align_y(Vertical::Center);
+    let mut row = Row::new()
+        .spacing(metrics::SPACING_04)
+        .align_y(Vertical::Center);
     for i in 1..=n {
         let label = text(format!("Desktop {i}"))
             .size(metrics::UI_PX)
@@ -367,7 +366,9 @@ fn desktop_band(workspaces: &[workspace::Workspace], can_create: bool) -> Elemen
     if workspaces.is_empty() {
         return Space::new(Length::Fill, Length::Shrink).into();
     }
-    let mut row = Row::new().spacing(metrics::SPACING_04).align_y(Vertical::Center);
+    let mut row = Row::new()
+        .spacing(metrics::SPACING_04)
+        .align_y(Vertical::Center);
     for w in workspaces {
         row = row.push(ws_chip(w));
     }
