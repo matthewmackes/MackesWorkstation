@@ -303,10 +303,26 @@ pub fn sidebar<'a>(
                 None,
                 None,
                 SideRowVariant::Dim,
-                Message::SelectView(View::Local),
+                // E10 — navigate the Local browser to the pin's real path
+                // (was a dead-end to View::Local / $HOME for every pin).
+                Message::LocalGoto(pin.path.clone()),
             ));
         }
     }
+
+    // E10 — Network: GVfs-mounted SMB/NFS shares (mount via `mde mount
+    // smb://…`), browsed through the Local browser at the GVfs FUSE dir.
+    let gvfs_dir = std::env::var("XDG_RUNTIME_DIR")
+        .map(|r| format!("{r}/gvfs"))
+        .unwrap_or_else(|_| "/run/user/gvfs".to_string());
+    local_col = local_col.push(side_row(
+        icons::MESH_HUB,
+        "Network",
+        None,
+        None,
+        SideRowVariant::Default,
+        Message::LocalGoto(gvfs_dir),
+    ));
 
     // E10 — Cloud Files: paired KDE-Connect devices.
     local_col = local_col.push(side_row(

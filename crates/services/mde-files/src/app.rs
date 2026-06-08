@@ -19,6 +19,9 @@ pub enum Message {
     SelectView(View),
     /// E10 — navigate the Local browser to the parent directory.
     LocalUp,
+    /// E10 — jump the Local browser to an absolute path (sidebar quick-access:
+    /// Home / XDG dirs / the GVfs network-mount dir for `mde mount`-ed shares).
+    LocalGoto(String),
     ToggleLocal,
     SetLayout(Layout),
     SearchChanged(String),
@@ -347,6 +350,12 @@ impl MdeFiles {
                     self.local_path = parent.to_string_lossy().into_owned();
                     self.selection.clear();
                 }
+            }
+            Message::LocalGoto(path) => {
+                // E10 — jump the Local browser to an absolute path.
+                self.local_path = path;
+                self.view = View::Local;
+                self.selection.clear();
             }
             Message::SelectView(v) => {
                 let is_local = matches!(v, View::Local);
@@ -1243,6 +1252,15 @@ mod tests {
         let _ = s.update(Message::OpenContextMenu("a.txt".into(), 0.0, 0.0));
         let _ = s.update(Message::ContextMenuItemClicked(ContextMenuItem::Open));
         assert!(!s.context_menu.is_open());
+    }
+
+    #[test]
+    fn local_goto_jumps_to_path_and_enters_local_view() {
+        let mut s = MdeFiles::default();
+        s.view = View::CloudDevices;
+        let _ = s.update(Message::LocalGoto("/tmp".into()));
+        assert_eq!(s.local_path, "/tmp");
+        assert!(matches!(s.view, View::Local));
     }
 
     #[test]
