@@ -1,55 +1,32 @@
-# DM-3 (v2.7, locked 2026-05-24) — regreet config for the MDE greeter.
+# /etc/greetd/regreet.toml — Mackes Desktop Environment greeter (ReGreet).
 #
-# Drops in at /etc/regreet/regreet.toml as %config(noreplace) so
-# operator edits survive package upgrades.
+# ReGreet reads this path by default (GREETD_CONFIG_DIR=/etc/greetd) and loads
+# its stylesheet from /etc/greetd/regreet.css. Both unknown keys AND a parse
+# error fall back to built-in defaults (ReGreet's load_toml is lenient), so a
+# bad edit can never block login.
 #
-# Locks realized here come from the DM 10-Q survey:
-#   - Type the username on every boot (no auto-fill)
-#   - Don't remember the last session either
-#   - Charcoal background (#1d1d1f)
-#   - Greeter header reads "Mackes Desktop Environment"
-#   - Session picker shows the MDE wayland session only
-#   - Three power controls visible (shutdown / reboot / suspend)
-#
-# Note on the session filter: regreet itself doesn't (yet) ship a
-# session-name allow-list. Per the DM-3 task body's fallback path,
-# we point `sessions_dir` at a private path that contains only
-# `mde.desktop` (DM-5's birthright step provisions that dir). The
-# system-wide /usr/share/wayland-sessions/ is intentionally bypassed
-# so a stray third-party `*.desktop` doesn't appear in the picker.
+# Schema note (2026-06-08): this matches the REAL ReGreet config struct. The
+# charcoal background, the MDE palette, and all widget styling live in the CSS
+# (regreet.css → tokens.css), NOT here — ReGreet has no `style`, `sessions_dir`,
+# `[background] color`, or `*_command` keys (the old DM-3 draft used those and
+# they were silently dropped). Edits survive `dnf upgrade` (%config(noreplace)).
+
+# Always prompt for a username and show the session picker — no auto-login
+# (the DM 10-Q Q4 lock: greetd always falls through to a prompt).
+skip_selection = false
 
 [appearance]
 greeting_msg = "Mackes Desktop Environment"
-# DM-6 — read the greeter's GTK CSS from the shared-tokens dir
-# so a single hex change in `data/css/tokens.css` ripples to the
-# greeter alongside the panel + Workbench. The greeter.css file
-# `@import`s tokens.css then overrides regreet-specific selectors.
-style = "/usr/share/mde/theme/greeter.css"
-# Read sessions exclusively from the MDE-curated dir. The mde-desktop
-# RPM's %post creates this dir and symlinks `mde.desktop` into it at
-# install time (SWAY-9.a — must be install-time, not a first-login
-# birthright step, or the pre-auth picker would have nothing to show);
-# nothing else lands there.
-sessions_dir = "/var/lib/mde/wayland-sessions"
 
-[background]
-# Charcoal — matches the Classic ChromeOS visual lock palette
-# (see project_chromeos_classic_visual_lock memory). The greeter
-# is the first surface a user sees; consistent palette from
-# boot-theater → greeter → desktop is part of the locked feel.
-style = "color"
-color = "#1d1d1f"
+[GTK]
+# Dark by default so the greeter reads as the IBM Carbon shell even in the
+# window between GTK init and the CSS loading.
+application_prefer_dark_theme = true
 
 [commands]
-# Three power controls — every regreet release uses the same
-# `reboot_command` / `poweroff_command` keys; suspend is a
-# bonus the picker exposes if `suspend_command` is set.
-reboot_command   = ["systemctl", "reboot"]
-poweroff_command = ["systemctl", "poweroff"]
+reboot = ["systemctl", "reboot"]
+poweroff = ["systemctl", "poweroff"]
 
 [widget.clock]
-# Show the clock at the top so the greeter doubles as a "wake up
-# and check the time" surface. ISO-style with day-of-week —
-# matches the breadcrumb clock segment from v6.0 design.
+# Day · ISO date · 24h time — matches the shell panel's clock segment.
 format = "%A · %Y-%m-%d · %H:%M"
-resolution = "5s"

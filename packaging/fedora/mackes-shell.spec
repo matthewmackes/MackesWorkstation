@@ -18,7 +18,7 @@
 
 Name:           mde-core
 Version:        10.0.0
-Release:        6%{?dist}
+Release:        7%{?dist}
 Summary:        Mackes Workstation (MDE) — native-Rust mesh desktop environment
 
 License:        GPL-3.0-or-later
@@ -27,6 +27,11 @@ Source0:        mackes-shell-%{version}.tar.gz
 # LizardFS mesh-storage binaries, built from the pinned tag 3.13.0-rc2 by
 # install-helpers/build-lizardfs.sh (or the lizardfs-build.yml CI job).
 Source1:        lizardfs-binaries.tar.gz
+# ReGreet (the Rust + GTK4 greetd greeter) — NOT packaged in Fedora, so it is
+# built once from its pinned tag by install-helpers/build-regreet.sh and bundled
+# the same way as the LizardFS set. Owned by mde-desktop; greetd + cage are
+# ordinary Fedora Requires. (DM-2.1, 2026-06-08.)
+Source2:        regreet-bin.tar.gz
 
 # Back-compat names (the platform was `mackes-shell` / `mde`; `dnf install mde`
 # keeps resolving here). `mackes-xfce-workstation` → the mde-desktop subpackage.
@@ -91,10 +96,17 @@ Requires:       mde-core = %{version}-%{release}
 # Workstation is a strict superset of Server (§12), so it pulls the headless
 # tier too.
 Requires:       mde-headless = %{version}-%{release}
-# The desktop stack (compositor, greeter, screenshot, terminal, fonts) is weak
-# so the role can come up but the operator can swap components.
+# The greeter is the login path — it must be present, so greetd + cage are HARD
+# requires (the bundled /usr/bin/regreet runs as `cage -s -- regreet` under
+# greetd; %post repoints the display-manager at it). Plymouth + its script
+# module back the MDE boot splash that %post activates.
+Requires:       greetd
+Requires:       cage
+Requires:       plymouth
+Requires:       plymouth-plugin-script
+# The rest of the desktop stack (compositor, screenshot, terminal, fonts) is
+# weak so the role can come up but the operator can swap components.
 Recommends:     labwc
-Recommends:     greetd
 Recommends:     grim
 Recommends:     foot
 Recommends:     ibm-plex-mono-fonts
@@ -246,6 +258,33 @@ install -d %{buildroot}%{_datadir}/themes
 cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
     %{buildroot}%{_datadir}/themes/
 
+# 8. Greeter (DM-2.1) — the bundled ReGreet binary + the greetd/regreet active
+#    configs. greetd's own config.toml is owned by the greetd package, so we do
+#    NOT %files it here; %post copies the MDE greeter config (the reference copy
+#    landed under %{_datadir}/mde/greetd by the `cp -a data/.` above) over it on
+#    a Workstation box. regreet.toml / regreet.css ARE MDE-owned (nothing else
+#    ships them). The greeter CSS @imports the already-shipped
+#    %{_datadir}/mde/css/tokens.css (owned by mde-core), so no extra token file.
+install -d %{buildroot}%{_bindir}
+tar -xzf %{SOURCE2} -C %{buildroot}%{_bindir}
+chmod 0755 %{buildroot}%{_bindir}/regreet
+install -d %{buildroot}%{_sysconfdir}/greetd
+install -m 0644 data/regreet/regreet.toml %{buildroot}%{_sysconfdir}/greetd/regreet.toml
+install -m 0644 data/css/greeter.css      %{buildroot}%{_sysconfdir}/greetd/regreet.css
+# Role-gate drop-in: greetd only starts on a Workstation-pinned box; on a
+# Lighthouse/Server box the ExecCondition exits non-zero so systemd SKIPS greetd
+# and the machine boots to a usable console (E1.5). MDE owns this drop-in, not
+# the greetd package's main unit, so there is no dual-ownership conflict.
+install -d %{buildroot}%{_unitdir}/greetd.service.d
+install -m 0644 data/systemd/greetd.service.d/role-gate.conf \
+    %{buildroot}%{_unitdir}/greetd.service.d/role-gate.conf
+
+# 9. Boot splash — the MDE Plymouth theme (script module: black field, white
+#    Material card, stacked Mackes DE logo). %post sets it default + rebuilds the
+#    initramfs so it shows on the next boot.
+install -d %{buildroot}%{_datadir}/plymouth/themes/mde
+cp -a data/plymouth/mde/. %{buildroot}%{_datadir}/plymouth/themes/mde/
+
 # ── mde-core: the Lighthouse base (dispatcher + control plane + bus) ─────────
 # Every role installs this. Only the role-agnostic binaries + the shared data +
 # the control-plane unit live here; mde-* GUI binaries are owned by mde-desktop
@@ -290,6 +329,14 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %{_datadir}/mde/skel
 %{_datadir}/wayland-sessions/mde.desktop
 %{_datadir}/themes/Win2000-MDE/
+# Greeter (DM-2.1): the bundled ReGreet binary, its MDE-owned configs, the
+# role-gate drop-in, and the Plymouth boot-splash theme.
+%{_bindir}/regreet
+%config(noreplace) %{_sysconfdir}/greetd/regreet.toml
+%config(noreplace) %{_sysconfdir}/greetd/regreet.css
+%dir %{_unitdir}/greetd.service.d
+%{_unitdir}/greetd.service.d/role-gate.conf
+%{_datadir}/plymouth/themes/mde/
 
 # Bug 3 (2026-06-06) — register + enable the per-user control-plane unit. The
 # post scriptlet applies the shipped enabling preset (Bug 6 is resolved, so the
@@ -300,7 +347,89 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %preun
 %systemd_user_preun mackesd.service
 
+# DM-2.1 (2026-06-08) — the platform OWNS the login + boot splash on a
+# Workstation box. greetd + cage + the bundled regreet replace whatever display
+# manager was enabled, and the MDE Plymouth theme replaces the boot splash. All
+# of it is role-gated (only rank >= 2 / Workstation) and reversible on erase.
+%post -n mde-desktop
+if /usr/bin/mackesd role-gate --min-rank 2 >/dev/null 2>&1; then
+    # (a) Curated session dir the per-user `mde setup` deploy expects.
+    install -d /var/lib/mde/wayland-sessions
+    ln -sf %{_datadir}/wayland-sessions/mde.desktop \
+        /var/lib/mde/wayland-sessions/mde.desktop
+
+    # (b) Point greetd at the MDE greeter (`cage -s -- regreet`). The greetd
+    #     package owns /etc/greetd/config.toml, so we overwrite its CONTENT from
+    #     our reference copy rather than %files-owning it — backing the stock
+    #     config up once so an erase can restore it.
+    if [ -f %{_sysconfdir}/greetd/config.toml ] && \
+       [ ! -f %{_sysconfdir}/greetd/config.toml.mde-orig ]; then
+        cp -a %{_sysconfdir}/greetd/config.toml \
+              %{_sysconfdir}/greetd/config.toml.mde-orig
+    fi
+    install -m 0644 %{_datadir}/mde/greetd/config.toml \
+        %{_sysconfdir}/greetd/config.toml
+
+    # (c) Swap the display manager: record + disable whatever DM is enabled, then
+    #     enable greetd (its [Install] Alias=display-manager.service). Idempotent
+    #     on upgrade — an already-greetd box just re-enables greetd.
+    if [ -L /etc/systemd/system/display-manager.service ]; then
+        cur_dm=$(basename "$(readlink -f /etc/systemd/system/display-manager.service)")
+        if [ "$cur_dm" != "greetd.service" ]; then
+            install -d /var/lib/mde
+            echo "$cur_dm" > /var/lib/mde/previous-dm
+            systemctl disable "$cur_dm" >/dev/null 2>&1 || :
+        fi
+    fi
+    rm -f /etc/systemd/system/display-manager.service
+    systemctl enable greetd.service >/dev/null 2>&1 || :
+    systemctl set-default graphical.target >/dev/null 2>&1 || :
+
+    # (d) Boot splash — record the current Plymouth theme, then activate the MDE
+    #     theme and rebuild the initramfs so it shows on the next boot.
+    if command -v plymouth-set-default-theme >/dev/null 2>&1; then
+        install -d /var/lib/mde
+        plymouth-set-default-theme > /var/lib/mde/previous-plymouth 2>/dev/null || :
+        plymouth-set-default-theme -R mde >/dev/null 2>&1 || :
+    fi
+fi
+
+%postun -n mde-desktop
+# On full erase ($1 == 0): hand the login + splash back. Disable greetd, restore
+# the stock greetd config, re-enable the displaced DM, and revert the splash.
+if [ $1 -eq 0 ]; then
+    systemctl disable greetd.service >/dev/null 2>&1 || :
+    rm -f /etc/systemd/system/display-manager.service
+    if [ -f %{_sysconfdir}/greetd/config.toml.mde-orig ]; then
+        mv -f %{_sysconfdir}/greetd/config.toml.mde-orig \
+              %{_sysconfdir}/greetd/config.toml
+    fi
+    if [ -s /var/lib/mde/previous-dm ]; then
+        systemctl enable "$(cat /var/lib/mde/previous-dm)" >/dev/null 2>&1 || :
+        rm -f /var/lib/mde/previous-dm
+    fi
+    if [ -s /var/lib/mde/previous-plymouth ] && \
+       command -v plymouth-set-default-theme >/dev/null 2>&1; then
+        plymouth-set-default-theme -R "$(cat /var/lib/mde/previous-plymouth)" \
+            >/dev/null 2>&1 || :
+        rm -f /var/lib/mde/previous-plymouth
+    fi
+fi
+
 %changelog
+* Mon Jun 08 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-7
+- add (DM-2.1): the platform now OWNS the login + boot splash on a Workstation
+  box. mde-desktop bundles ReGreet (the Rust+GTK4 greetd greeter, built by
+  install-helpers/build-regreet.sh, Source2) and hard-requires greetd + cage;
+  %post repoints the display-manager at `cage -s -- regreet` (recording +
+  disabling the displaced DM), installs the MDE greetd/regreet configs, and
+  activates the MDE Plymouth boot-splash theme (rebuilding the initramfs). All
+  role-gated to rank >= 2 via the greetd ExecCondition drop-in, and fully
+  reversible: %postun restores the prior DM, greetd config, and splash on erase.
+- fix: rewrote regreet.toml to ReGreet's real config schema (the DM-3 draft used
+  `style`/`sessions_dir`/`*_command`/`[background] color` keys ReGreet ignores);
+  the charcoal MDE palette is sourced from regreet.css → the shipped tokens.css.
+
 * Mon Jun 08 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-6
 - fix (E8.5): mde-headless %files used a bare %{_sbindir}/* glob, but Fedora 42
   merged /usr/sbin into /usr/bin so %{_sbindir} now resolves to /usr/bin — the
