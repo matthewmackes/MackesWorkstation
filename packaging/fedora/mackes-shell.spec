@@ -18,7 +18,7 @@
 
 Name:           mde-core
 Version:        10.0.0
-Release:        5%{?dist}
+Release:        6%{?dist}
 Summary:        Mackes Workstation (MDE) — native-Rust mesh desktop environment
 
 License:        GPL-3.0-or-later
@@ -268,7 +268,16 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 
 # ── mde-headless: LizardFS mesh storage (Server role) ───────────────────────
 %files -n mde-headless
-%{_sbindir}/*
+# Fedora 42 merged /usr/sbin into /usr/bin, so %{_sbindir} now resolves to
+# /usr/bin — a bare %{_sbindir}/* glob would sweep the WHOLE bindir and steal
+# mde-core's + mde-desktop's binaries (file conflicts that abort any multi-role
+# install). Own the LizardFS set (Source1's six binaries) explicitly instead.
+%{_sbindir}/lizardfs
+%{_sbindir}/lizardfs-admin
+%{_sbindir}/mfschunkserver
+%{_sbindir}/mfsmaster
+%{_sbindir}/mfsmetarestore
+%{_sbindir}/mfsmount
 
 # ── mde-desktop: the full IBM Carbon desktop (Workstation role) ──────────────
 # Every mde-* binary + the subcommand symlink farm EXCEPT the role-agnostic
@@ -292,6 +301,15 @@ cp -a crates/shell/mde/skel/.local/share/themes/Win2000-MDE \
 %systemd_user_preun mackesd.service
 
 %changelog
+* Mon Jun 08 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-6
+- fix (E8.5): mde-headless %files used a bare %{_sbindir}/* glob, but Fedora 42
+  merged /usr/sbin into /usr/bin so %{_sbindir} now resolves to /usr/bin — the
+  glob swept the entire bindir into mde-headless (stealing mde-core's mde /
+  mackesd / mde-bus and all of mde-desktop's mde-* GUI binaries), so any
+  multi-role install hit file conflicts and aborted. Own the six LizardFS
+  binaries (lizardfs, lizardfs-admin, mfs{chunkserver,master,metarestore,mount})
+  explicitly so the role superset chain installs cleanly.
+
 * Mon Jun 08 2026 Matthew Mackes <matthewmackes@gmail.com> - 10.0.0-5
 - packaging (E8.5 #1): split into the three role subpackages — mde-core
   (Lighthouse base: mde / mackesd / mde-bus + core utils + control-plane unit +
