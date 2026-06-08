@@ -997,13 +997,14 @@ _Depends: E0, E1, E2, E4, E5, E6_
     - [✓] "Copy diagnostics" puts the full four-section commissioning report (JSON) on the clipboard via `wl-copy`; "Save report" writes a timestamped JSON file under `~/.local/share/mde/birthright/`; each shows a footer confirmation. *(build_report/rows_json/status_str unit-tested; footer buttons gallery-verified)*
     - [✓] Reachable from `mde birthright`; palette roles only; degrades gracefully (a missing wl-copy / unwritable dir yields a footer error string, never a panic). *(19 birthright + 187 mde green; clippy/fmt clean)*
 
-- [ ] **E7.6b: E7 — birthright post-commissioning escalation (panel badge + toast)** *(split from E7.6, 2026-06-08)*
-  After the operator unchecks "show at startup", surface later regressions so a silently-lost subsystem doesn't go unnoticed.
+- [✓] **E7.6b: E7 — birthright post-commissioning escalation (panel badge + toast)** *(DONE 2026-06-08 — closes the E7 birthright epic)*
+  The panel gains a post-dismissal health watch. `start_health_watch` (a background thread mirroring `mesh_status::start`) polls `birthright::health_summary` every 30s **only when `birthright_show_at_startup == false`** (so the dashboard owns first-boot; the watch is the after-dismissal safety net) and writes a per-section roll-up to a shared `HealthHandle`. Each panel tick reads it through the pure `health_transitions(summary, &mut alerted)`: a section's green→red edge toasts once via `notify-send` (notifyd serves FDO `org.freedesktop.Notifications`), recovery re-arms it, and a stuck-red subsystem never re-toasts. A flat "!" `health_badge` (risk-coloured ASCII, no nerd-glyph tofu) shows in the tray while anything is non-green and re-opens `mde birthright` on click.
+  **Decision (§6):** the badge is plain ASCII "!" (not a nerd glyph) to guarantee no tofu (§2.4 covers SVG icons, not raw panel font chars). The watch reuses `birthright::health_summary` (the same probes the dashboard uses), so the panel + dashboard agree on what's green. The live green→red trigger is observable on the running desktop (uncheck show-at-startup, stop a service → badge + toast); the debounce/no-spam contract is unit-tested headlessly (`health_transitions_toast_once_per_edge_no_spam`).
   **As** an operator who dismissed the dashboard, **I want** to be told if something I'd confirmed later breaks, **so that** I don't silently lose a subsystem.
-  *Reuse:* `panel.rs` (health badge next to the mesh chip), `notifyd`/`mde toast` (escalation), birthright's `probe_*` (shared check logic). *Deps:* E7.6.
+  *Reuse:* `panel.rs` tray + tick, `birthright::health_summary` (shared probes), `notify-send` → `notifyd` (FDO). *Deps:* E7.6.
   **Acceptance** (runtime-observable):
-    - [ ] After the startup flag is unchecked, a regression of a previously-green subsystem raises a panel health badge (steady state) + a single debounced toast (per new failure) deep-linking to `mde birthright`; a flapping peer does not toast-spam.
-    - [ ] Reachable from the panel; palette roles only; degrades gracefully; no toast-spam (debounce verified).
+    - [✓] After the startup flag is unchecked, a regression of a previously-green subsystem raises a panel health badge (steady while non-green) + a single debounced toast per green→red edge deep-linking to `mde birthright`; a flapping peer does not toast-spam. *(health_transitions unit-tested: toast-once, recover-rearm, no-spam, Degraded counts; badge wired to Launch("mde birthright"))*
+    - [✓] Reachable from the panel; palette `STATUS_RISK` role only; degrades gracefully (no Bus / probe failure → rows Fail, watch never panics; badge is tofu-free ASCII). *(8 panel + 192 mde tests green; clippy/fmt/lint-gates clean; panel gallery no-regression)*
 
 ### E8 — Polish + Held RPM Release
 _Depends: E0-E7_

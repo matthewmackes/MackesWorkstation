@@ -5,7 +5,9 @@
 //! window's button shows pressed), a flexible spacer, a tray, and a clock well.
 //! Polls the foreign-toplevel list + the clock once a second.
 
+use std::collections::HashSet;
 use std::process::{Child, Command, ExitCode};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use iced::mouse::ScrollDelta;
@@ -51,6 +53,15 @@ struct Panel {
     /// its shared handle, `mesh_status` the snapshot copied each tick.
     mesh: crate::mesh_status::Handle,
     mesh_status: Option<crate::mesh_status::MeshStatus>,
+    /// Post-commissioning health watch (E7.6b): a background thread polls
+    /// `birthright::health_summary` once the operator has dismissed the
+    /// dashboard (`birthright_show_at_startup == false`); `health` is its shared
+    /// handle, `health_alerted` the set of sections we've already toasted (so a
+    /// stuck-red subsystem toasts once per green→red edge, never spams), and
+    /// `health_degraded` whether the tray badge shows.
+    health: HealthHandle,
+    health_alerted: HashSet<String>,
+    health_degraded: bool,
     /// Whether a laptop backlight exists (gates the brightness tray glyph).
     has_backlight: bool,
     /// Tick counter: the expensive subprocess polls run every 5th tick.
@@ -263,6 +274,7 @@ fn launch() -> Result<(), iced_layershell::Error> {
             tray: Some(crate::tray::start()),
             mesh: crate::mesh_status::start(),
             mesh_status: None,
+            health: start_health_watch(),
             wm: wlr::start(),
             has_backlight: backlight_dir().is_some(),
             clock_offset: utc_offset_secs(),
@@ -312,6 +324,21 @@ fn update(state: &mut Panel, message: Message) -> Task<Message> {
             // Mesh-status chip (PANEL-POLISH): copy the latest snapshot the
             // background poller wrote — a cheap shared-memory read.
             state.mesh_status = state.mesh.lock().ok().and_then(|g| *g);
+            // Post-commissioning health watch (E7.6b): a cheap shared-memory read
+            // of the background poller's latest summary. Toast once per green→red
+            // edge per section (debounced via `health_alerted`); show the tray
+            // badge while anything is non-green.
+            if let Some(summary) = state.health.lock().ok().and_then(|g| g.clone()) {
+                let (to_toast, degraded) = health_transitions(&summary, &mut state.health_alerted);
+                for section in &to_toast {
+                    emit_health_toast(section);
+                }
+                state.health_degraded = degraded;
+            } else {
+                // Watch inactive (dashboard still shows at startup) — no badge.
+                state.health_degraded = false;
+                state.health_alerted.clear();
+            }
             // The expensive indicators each fork a subprocess (date / wpctl /
             // nmcli). They only need ~minute precision and change rarely, so poll
             // them every 5th tick — cutting ~3 forks/sec to ~0.6/sec.
@@ -455,6 +482,11 @@ fn tray_glyphs(state: &Panel) -> Vec<Element<'_, Message>> {
     // The native network flyout (E15.3) is a universal Carbon surface (un-gated in
     // E9.7 slice 2a), so the tray opens it on every theme.
     v.push(glyph_button(net_glyph(state.net), Message::NetFlyout));
+    // Post-commissioning health badge (E7.6b) — only after the operator dismissed
+    // the dashboard and a subsystem regressed; clicking re-opens `mde birthright`.
+    if state.health_degraded {
+        v.push(health_badge());
+    }
     // Mesh-status chip (PANEL-POLISH, E5.5) — peer-count + online glyph; opens
     // the Workbench mesh view. Hidden until the first poll lands.
     if let Some(ms) = state.mesh_status {
@@ -898,6 +930,115 @@ fn glyph_button(g: char, msg: Message) -> Element<'static, Message> {
     .into()
 }
 
+// --- E7.6b: post-commissioning health watch -------------------------------
+
+/// Shared handle the health-watch thread writes and the panel tick reads. `None`
+/// = the watch is inactive (the dashboard still shows at startup, or the first
+/// probe hasn't landed).
+type HealthHandle = Arc<Mutex<Option<Vec<(String, crate::birthright::Status)>>>>;
+
+/// How often the health watch re-probes once active (slow — this is a safety net
+/// after dismissal, not a live dashboard).
+const HEALTH_WATCH_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Start the post-commissioning health watch (E7.6b). A background thread polls
+/// `birthright::health_summary` ONLY once the operator has unchecked "show at
+/// startup" (`birthright_show_at_startup == false`); until then it leaves the
+/// handle `None` so no badge/toast fires. Mirrors `mesh_status::start` — keeps
+/// the blocking Bus probe off the UI thread.
+#[must_use]
+fn start_health_watch() -> HealthHandle {
+    let handle: HealthHandle = Arc::new(Mutex::new(None));
+    let writer = handle.clone();
+    let _ = std::thread::Builder::new()
+        .name("mde-panel-health".into())
+        .spawn(move || loop {
+            if crate::state::load().birthright_show_at_startup {
+                // Dashboard still owns first-boot attestation — watch stays off.
+                if let Ok(mut g) = writer.lock() {
+                    *g = None;
+                }
+            } else {
+                let summary: Vec<(String, crate::birthright::Status)> =
+                    crate::birthright::health_summary()
+                        .into_iter()
+                        .map(|(s, st)| (s.to_string(), st))
+                        .collect();
+                if let Ok(mut g) = writer.lock() {
+                    *g = Some(summary);
+                }
+            }
+            std::thread::sleep(HEALTH_WATCH_INTERVAL);
+        });
+    handle
+}
+
+/// Pure debounce core (E7.6b): given the latest section summary and the set of
+/// already-alerted sections, return the sections that just regressed (green→red
+/// edge → toast once) and whether anything is currently non-green (badge). A
+/// section leaving the bad set re-arms it, so a later regression toasts again;
+/// a stuck-red subsystem never re-toasts. Pure over `(summary, alerted)` so the
+/// no-spam contract is unit-tested without a live transition.
+fn health_transitions(
+    summary: &[(String, crate::birthright::Status)],
+    alerted: &mut HashSet<String>,
+) -> (Vec<String>, bool) {
+    use crate::birthright::Status;
+    let mut to_toast = Vec::new();
+    let mut degraded = false;
+    for (section, st) in summary {
+        if matches!(st, Status::Fail | Status::Degraded) {
+            degraded = true;
+            // insert() is true only on a fresh entry → the green→red edge.
+            if alerted.insert(section.clone()) {
+                to_toast.push(section.clone());
+            }
+        } else {
+            alerted.remove(section);
+        }
+    }
+    (to_toast, degraded)
+}
+
+/// Fire a single desktop notification for a section that just regressed
+/// (green→red). Best-effort via `notify-send` (notifyd serves the FDO
+/// `org.freedesktop.Notifications` interface), so it lands in the toast + the
+/// Action Center history and deep-links the operator back to the dashboard.
+fn emit_health_toast(section: &str) {
+    let _ = Command::new("notify-send")
+        .args([
+            "-a",
+            "Mackes Workstation",
+            "Commissioning check",
+            &format!("{section} is degraded — run `mde birthright`"),
+        ])
+        .spawn();
+}
+
+/// The tray health badge (E7.6b): a flat "!" in the risk colour, shown only when
+/// a previously-commissioned subsystem is non-green. Clicking re-opens the
+/// dashboard. Plain ASCII (no nerd glyph) so it never renders as tofu.
+fn health_badge() -> Element<'static, Message> {
+    iced::widget::button(
+        text("!")
+            .font(mde_ui::font::ui_bold())
+            .size(metrics::PANEL_GLYPH_PX)
+            .color(palette::color(palette::STATUS_RISK)),
+    )
+    .on_press(Message::Launch("mde birthright".into()))
+    .padding(Padding {
+        top: 1.0,
+        right: 4.0,
+        bottom: 1.0,
+        left: 4.0,
+    })
+    .style(|_, _| iced::widget::button::Style {
+        background: None,
+        ..Default::default()
+    })
+    .into()
+}
+
 /// Mesh-status chip (PANEL-POLISH, E5.5): a flat glyph + peer-count button. The
 /// glyph reflects online state (connected hub vs disconnected); clicking opens
 /// the Workbench mesh view.
@@ -1029,8 +1170,8 @@ fn truncate(s: &str, n: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        format_clock, format_date, parse_utc_offset, root_menu_xml, should_write_root_menu,
-        GENERATED_MARKER,
+        format_clock, format_date, health_transitions, parse_utc_offset, root_menu_xml,
+        should_write_root_menu, HashSet, GENERATED_MARKER,
     };
 
     #[test]
@@ -1126,5 +1267,40 @@ mod tests {
         assert_eq!(format_date(1_709_164_800, 0), "2/29/2024");
         // Day-of-month rollover into a new year: 2025-12-31 23:59 +2m → 2026-01-01.
         assert_eq!(format_date(1_767_225_540 + 120, 0), "1/1/2026");
+    }
+
+    #[test]
+    fn health_transitions_toast_once_per_edge_no_spam() {
+        use crate::birthright::Status;
+        let s = |n: &str, st: Status| (n.to_string(), st);
+        let mut alerted = HashSet::new();
+
+        // First sight of a bad section → toast it; all-green sections never toast.
+        let summary = vec![s("Desktop", Status::Pass), s("Mesh", Status::Fail)];
+        let (toast, degraded) = health_transitions(&summary, &mut alerted);
+        assert_eq!(toast, vec!["Mesh".to_string()]);
+        assert!(degraded);
+
+        // Still bad next tick → already alerted → NO repeat toast (no spam).
+        let (toast, degraded) = health_transitions(&summary, &mut alerted);
+        assert!(toast.is_empty());
+        assert!(degraded);
+
+        // Recovers → no toast, not degraded, and re-armed.
+        let healed = vec![s("Desktop", Status::Pass), s("Mesh", Status::Pass)];
+        let (toast, degraded) = health_transitions(&healed, &mut alerted);
+        assert!(toast.is_empty());
+        assert!(!degraded);
+
+        // Regresses again → toasts again (the edge re-armed on recovery).
+        let (toast, _) = health_transitions(&summary, &mut alerted);
+        assert_eq!(toast, vec!["Mesh".to_string()]);
+
+        // Degraded (not just Fail) also counts as bad.
+        let mut a2 = HashSet::new();
+        let deg = vec![s("Voice", Status::Degraded)];
+        let (toast, degraded) = health_transitions(&deg, &mut a2);
+        assert_eq!(toast, vec!["Voice".to_string()]);
+        assert!(degraded);
     }
 }

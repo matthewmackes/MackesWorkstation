@@ -48,11 +48,11 @@ crates/services/mde-files/src/picker.rs:564
 crates/shell/mde/src/oobe.rs:1368
 crates/shell/mde/src/oobe.rs:1184
 crates/shell/mde/src/oobe.rs:1186
-crates/shell/mde/src/panel.rs:132
-crates/shell/mde/src/panel.rs:136
-crates/shell/mde/src/panel.rs:139
 crates/shell/mde/src/panel.rs:143
-crates/shell/mde/src/panel.rs:151
+crates/shell/mde/src/panel.rs:147
+crates/shell/mde/src/panel.rs:150
+crates/shell/mde/src/panel.rs:154
+crates/shell/mde/src/panel.rs:162
 crates/shell/mde/src/popup.rs:206
 crates/shell/mde/src/popup.rs:210
 crates/shell/mde/src/settings.rs:3407

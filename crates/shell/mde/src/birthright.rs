@@ -963,6 +963,21 @@ fn parse_voice(body: Option<String>, now: u64) -> Check {
     }
 }
 
+/// One-shot per-section health roll-up for the panel's post-commissioning watch
+/// (E7.6b). Reuses the section probes; the labels match the dashboard headers so
+/// a toast names the same section the operator sees in `mde birthright`. Blocks
+/// on the Bus RPCs, so the panel calls this from a background thread.
+#[must_use]
+pub fn health_summary() -> Vec<(&'static str, Status)> {
+    let live = probe_live();
+    vec![
+        ("Desktop", rollup(&probe_desktop())),
+        ("Mesh", rollup(&live.mesh.rows())),
+        ("Voice", live.voice.status),
+        ("Network", rollup(&live.network)),
+    ]
+}
+
 // --- report export (E7.6) ---------------------------------------------------
 
 /// Stable string for a status, for the exported report.
