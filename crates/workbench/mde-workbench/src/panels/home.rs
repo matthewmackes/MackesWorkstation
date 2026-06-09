@@ -21,15 +21,22 @@
 //!   caches (BUG-11 `~/.cache/mde/dnf-updates.count`,
 //!   `~/.local/share/mackes-shell/snapshots/`);
 //! - capability probes shell out to systemctl / dbus-send /
-//!   `mackesd nodes list --json` in parallel via `tokio::join!`;
+//!   `mackesd nodes list --json` / `mackesd meshfs-status --json`
+//!   and read the mesh Bus (`state/voice/status`) in parallel via
+//!   `tokio::join!`;
 //! - live refresh comes from a D-Bus signal subscription
 //!   (see `dbus_subscription`) bridging systemd1
 //!   PropertiesChanged + Nebula peer/transport signals +
 //!   Fleet revision signals into `Message::DbusEvent`.
 //!
-//! Capabilities without a settings panel (File Sharing v5.0.0, Phone
-//! Pairing v2.1, Voice & Video v4.1.0) render no button — the row
-//! shows the live status pill and description without a Configure jump.
+//! Every row carries a live status + an action: rows with a Workbench
+//! settings panel deep-link to it (Configure), and Voice & Video — whose
+//! config surface is the standalone `mde-voice-config` app — launches that
+//! via [`crate::Message::LaunchApp`]. All eleven capabilities are real
+//! (the former "Coming in vX" placeholders for File Sharing / phone
+//! pairing / Voice & Video were retired once their backends shipped:
+//! MeshFS chunkservers, the KDE Connect host, and the `mde-voice-hud`
+//! SIP agent respectively).
 
 use std::path::PathBuf;
 
@@ -72,10 +79,6 @@ pub enum CapabilityStatus {
     /// Yellow — capability ships in this version but is not
     /// currently running (operator action needed).
     SetupNeeded,
-    /// Gray — capability ships in a future version. `version` is
-    /// the SemVer string ("5.0.0", "2.1", "4.1.0") rendered as
-    /// "Coming in v{version}".
-    ComingSoon { version: &'static str },
     /// Red — capability shipped, ran, and is in an error state.
     /// `detail` carries an operator-readable one-liner that
     /// shows up as sub-status.
@@ -91,7 +94,7 @@ impl CapabilityStatus {
         match self {
             Self::Active => Icon::StatusOk,
             Self::SetupNeeded => Icon::StatusWarning,
-            Self::ComingSoon { .. } | Self::Unknown => Icon::StatusUnknown,
+            Self::Unknown => Icon::StatusUnknown,
             Self::Failed { .. } => Icon::StatusError,
         }
     }
@@ -100,7 +103,7 @@ impl CapabilityStatus {
         match self {
             Self::Active => Color::from_rgb(0.20, 0.80, 0.40),
             Self::SetupNeeded => Color::from_rgb(0.95, 0.70, 0.20),
-            Self::ComingSoon { .. } | Self::Unknown => Color::from_rgb(0.55, 0.55, 0.55),
+            Self::Unknown => Color::from_rgb(0.55, 0.55, 0.55),
             Self::Failed { .. } => Color::from_rgb(0.92, 0.32, 0.30),
         }
     }
@@ -109,7 +112,6 @@ impl CapabilityStatus {
         match self {
             Self::Active => "Active".into(),
             Self::SetupNeeded => "Setup needed".into(),
-            Self::ComingSoon { version } => format!("Coming in v{version}"),
             Self::Failed { .. } => "Failed".into(),
             Self::Unknown => "Unknown".into(),
         }
@@ -134,9 +136,15 @@ pub struct CapabilityRow {
     /// Optional secondary line under the description — e.g.
     /// "3 of 5 peers online" or "last sync 2 minutes ago".
     pub sub_status: Option<String>,
-    /// Where the Configure button takes the user. `None` =>
-    /// the capability has no settings panel yet; omit the button.
+    /// Where the Configure button takes the user — a Workbench panel
+    /// deep-link. `None` => no in-Workbench panel (the row may still
+    /// carry a [`Self::launch`] target instead).
     pub jump: Option<(Group, &'static str)>,
+    /// A standalone app to spawn when the capability is configured
+    /// outside the Workbench (e.g. Voice & Video → `mde-voice-config`).
+    /// Mutually exclusive with [`Self::jump`] in practice; when both are
+    /// `None` the row shows status only.
+    pub launch: Option<&'static str>,
 }
 
 // ---------------------------------------------------------------------------
@@ -581,13 +589,29 @@ fn nav_chip<'a>(
 /// Top-level async load. Fires every probe in parallel and
 /// builds the full capability list.
 pub async fn load_capabilities() -> (Vec<CapabilityRow>, bool) {
-    let (nebula, peers, ssh, rdp, vnc, services, fleet, notifications, mackesd_ok) = tokio::join!(
+    let (
+        nebula,
+        peers,
+        files,
+        ssh,
+        rdp,
+        vnc,
+        services,
+        phone,
+        voice,
+        fleet,
+        notifications,
+        mackesd_ok,
+    ) = tokio::join!(
         probe_nebula(),
         probe_peers(),
+        probe_files(),
         probe_systemd_unit("sshd.service"),
         probe_systemd_unit("xrdp.service"),
         probe_vnc(),
         probe_mesh_services(),
+        probe_phone(),
+        probe_voice(),
         probe_fleet_revision(),
         probe_notifications(),
         probe_mackesd_alive(),
@@ -595,13 +619,13 @@ pub async fn load_capabilities() -> (Vec<CapabilityRow>, bool) {
     let rows = vec![
         build_mesh_row(&nebula),
         build_peers_row(&peers),
-        build_files_row(),
+        build_files_row(&files),
         build_ssh_row(&ssh),
         build_rdp_row(&rdp),
         build_vnc_row(&vnc),
         build_services_row(&services),
-        build_phone_row(),
-        build_voice_row(),
+        build_phone_row(&phone),
+        build_voice_row(&voice),
         build_fleet_row(&fleet),
         build_notifications_row(&notifications),
     ];
@@ -851,6 +875,169 @@ async fn probe_notifications() -> ProbeOutcome {
     }
 }
 
+// --- File Sharing (MeshFS / LizardFS) --------------------------------------
+
+async fn probe_files() -> ProbeOutcome {
+    // Same source as the Mesh Storage panel: `mackesd meshfs-status --json`.
+    // `fetch_status` is a sync std::process::Command, so bounce it onto the
+    // executor with spawn_blocking. Err => mackesd absent/unreachable
+    // (Unknown); Ok with no peers => master up but no chunkservers online
+    // yet (SetupNeeded); Ok with peers => serving (Active).
+    let status = tokio::task::spawn_blocking(crate::panels::mesh_storage::fetch_status).await;
+    match status {
+        Ok(Ok(s)) => {
+            if s.peers.is_empty() {
+                ProbeOutcome::setup_needed(Some(
+                    "Mesh storage not active yet — no chunkservers online".into(),
+                ))
+            } else {
+                let n = s.peers.len();
+                ProbeOutcome::active(Some(format!(
+                    "{n} chunkserver{} · replication goal {}",
+                    if n == 1 { "" } else { "s" },
+                    s.goal,
+                )))
+            }
+        }
+        _ => ProbeOutcome::unknown(),
+    }
+}
+
+// --- Mesh peer (phone) — KDE Connect host ----------------------------------
+
+/// Session-bus well-known name the KDE Connect host owns while running.
+/// MUST match the name the KDC2 host registers + the surface the
+/// `connect` ("Connected Devices") panel reads.
+const KDC_BUS_NAME: &str = "dev.mackes.MDE.Connect";
+
+async fn probe_phone() -> ProbeOutcome {
+    // Reflect KDE Connect host presence honestly via the session bus —
+    // the host owns `dev.mackes.MDE.Connect` while running. Owned =>
+    // ready to pair (Active); not owned => host not up (SetupNeeded);
+    // dbus-send unavailable => Unknown.
+    match dbus_name_has_owner(KDC_BUS_NAME).await {
+        Some(true) => ProbeOutcome::active(Some(
+            "KDE Connect host running — pair a phone to mirror notifications, SMS & clipboard"
+                .into(),
+        )),
+        Some(false) => ProbeOutcome::setup_needed(Some(
+            "KDE Connect host not running — no phone paired yet".into(),
+        )),
+        None => ProbeOutcome::unknown(),
+    }
+}
+
+/// Ask the session bus' `org.freedesktop.DBus.NameHasOwner` whether
+/// `name` is currently owned. `None` when dbus-send is unavailable or
+/// the reply is unparseable.
+async fn dbus_name_has_owner(name: &str) -> Option<bool> {
+    let out = tokio::process::Command::new("dbus-send")
+        .args([
+            "--session",
+            "--print-reply",
+            "--type=method_call",
+            "--dest=org.freedesktop.DBus",
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus.NameHasOwner",
+            &format!("string:{name}"),
+        ])
+        .output()
+        .await
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout);
+    if s.contains("boolean true") {
+        Some(true)
+    } else if s.contains("boolean false") {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+// --- Voice & Video — SIP softphone agent -----------------------------------
+
+/// Bus topic the `mde-voice-hud --agent` publishes its retained status to.
+/// MUST match `mde_voice_hud::sip::VOICE_STATUS_TOPIC`.
+const VOICE_STATUS_TOPIC: &str = "state/voice/status";
+
+/// Reader-side staleness window — a heartbeat older than this means the
+/// agent stopped publishing (i.e. is not running). Mirrors the shell's
+/// `birthright::VOICE_STALE_SECS`.
+const VOICE_STALE_SECS: u64 = 45;
+
+async fn probe_voice() -> ProbeOutcome {
+    // Mirror the shell's birthright Voice probe: read the retained
+    // `state/voice/status` heartbeat off the mesh Bus. The Persist client
+    // spins its own current-thread runtime (rusqlite isn't Send), so read
+    // it via spawn_blocking to keep this future Send for the iced executor.
+    let body = tokio::task::spawn_blocking(read_voice_status)
+        .await
+        .ok()
+        .flatten();
+    parse_voice_outcome(body, now_unix())
+}
+
+/// Latest retained body on `state/voice/status`, or `None` when the topic
+/// is empty / the Bus is unavailable.
+fn read_voice_status() -> Option<String> {
+    let dir = mde_bus::default_data_dir()?;
+    let persist = mde_bus::persist::Persist::open(dir).ok()?;
+    let msgs = persist.list_since(VOICE_STATUS_TOPIC, None).ok()?;
+    msgs.last().and_then(|m| m.body.clone())
+}
+
+fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
+}
+
+/// Decode the voice agent's `{registered, listening, server, detail, ts}`
+/// heartbeat into a pill. A stale or absent heartbeat reads as
+/// "agent not running" (SetupNeeded); `registered + listening` is Active;
+/// anything in between is SetupNeeded with the agent's own detail string.
+fn parse_voice_outcome(body: Option<String>, now: u64) -> ProbeOutcome {
+    let Some(body) = body else {
+        return ProbeOutcome::setup_needed(Some(
+            "Voice agent not running — no SIP status on the Bus".into(),
+        ));
+    };
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) else {
+        return ProbeOutcome::unknown();
+    };
+    let ts = v.get("ts").and_then(serde_json::Value::as_u64).unwrap_or(0);
+    if now.saturating_sub(ts) > VOICE_STALE_SECS {
+        return ProbeOutcome::setup_needed(Some(
+            "Voice agent stopped publishing — not running".into(),
+        ));
+    }
+    let registered = v
+        .get("registered")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let listening = v
+        .get("listening")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let detail = v.get("detail").and_then(|x| x.as_str()).unwrap_or("");
+    let server = v.get("server").and_then(|x| x.as_str()).unwrap_or("");
+    if registered && listening {
+        ProbeOutcome::active(Some(format!(
+            "Registered · {server} — listening for inbound calls"
+        )))
+    } else if listening {
+        ProbeOutcome::setup_needed(Some(format!("Listening, but not registered ({detail})")))
+    } else if detail.is_empty() {
+        ProbeOutcome::setup_needed(Some("Not registered — add a SIP account".into()))
+    } else {
+        ProbeOutcome::setup_needed(Some(format!("Not registered ({detail})")))
+    }
+}
+
 // --- mackesd health --------------------------------------------------------
 
 async fn probe_mackesd_alive() -> bool {
@@ -969,6 +1156,7 @@ fn build_mesh_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::Network, "mesh_control")),
+        launch: None,
     }
 }
 
@@ -981,18 +1169,20 @@ fn build_peers_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::Network, "mesh_topology")),
+        launch: None,
     }
 }
 
-fn build_files_row() -> CapabilityRow {
+fn build_files_row(p: &ProbeOutcome) -> CapabilityRow {
     CapabilityRow {
         id: CapabilityId::Files,
         name: "File Sharing",
         description: "Every peer holds every file in your shared folders.",
         icon: Icon::Files,
-        status: CapabilityStatus::ComingSoon { version: "5.0.0" },
-        sub_status: None,
-        jump: None,
+        status: p.status.clone(),
+        sub_status: p.sub_status.clone(),
+        jump: Some((Group::Network, "mesh_storage")),
+        launch: None,
     }
 }
 
@@ -1005,6 +1195,7 @@ fn build_ssh_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::Network, "mesh_ssh")),
+        launch: None,
     }
 }
 
@@ -1017,6 +1208,7 @@ fn build_rdp_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::Network, "remote_desktop")),
+        launch: None,
     }
 }
 
@@ -1029,6 +1221,7 @@ fn build_vnc_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::Network, "remote_desktop")),
+        launch: None,
     }
 }
 
@@ -1041,30 +1234,36 @@ fn build_services_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::Network, "mesh_services")),
+        launch: None,
     }
 }
 
-fn build_phone_row() -> CapabilityRow {
+fn build_phone_row(p: &ProbeOutcome) -> CapabilityRow {
     CapabilityRow {
         id: CapabilityId::Phone,
         name: "Mesh peer (phone)",
         description: "Add a phone to your mesh to mirror notifications, SMS, and clipboard.",
         icon: Icon::Devices,
-        status: CapabilityStatus::ComingSoon { version: "2.1" },
-        sub_status: None,
-        jump: None,
+        status: p.status.clone(),
+        sub_status: p.sub_status.clone(),
+        jump: Some((Group::Devices, "connect")),
+        launch: None,
     }
 }
 
-fn build_voice_row() -> CapabilityRow {
+fn build_voice_row(p: &ProbeOutcome) -> CapabilityRow {
     CapabilityRow {
         id: CapabilityId::Voice,
         name: "Voice & Video",
         description: "Call any peer or any phone number from anywhere on the mesh.",
         icon: Icon::Sound,
-        status: CapabilityStatus::ComingSoon { version: "4.1.0" },
-        sub_status: None,
+        status: p.status.clone(),
+        sub_status: p.sub_status.clone(),
+        // No Workbench panel — voice/SIP config is the standalone
+        // `mde-voice-config` app (same surface the shell's birthright
+        // OpenVoice fix launches).
         jump: None,
+        launch: Some("mde-voice-config"),
     }
 }
 
@@ -1077,6 +1276,7 @@ fn build_fleet_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::Fleet, "playbooks")),
+        launch: None,
     }
 }
 
@@ -1089,6 +1289,7 @@ fn build_notifications_row(p: &ProbeOutcome) -> CapabilityRow {
         status: p.status.clone(),
         sub_status: p.sub_status.clone(),
         jump: Some((Group::System, "notifications")),
+        launch: None,
     }
 }
 
@@ -1099,13 +1300,13 @@ pub fn build_all_rows_with_unknown_status() -> Vec<CapabilityRow> {
     vec![
         build_mesh_row(&ProbeOutcome::unknown()),
         build_peers_row(&ProbeOutcome::unknown()),
-        build_files_row(),
+        build_files_row(&ProbeOutcome::unknown()),
         build_ssh_row(&ProbeOutcome::unknown()),
         build_rdp_row(&ProbeOutcome::unknown()),
         build_vnc_row(&ProbeOutcome::unknown()),
         build_services_row(&ProbeOutcome::unknown()),
-        build_phone_row(),
-        build_voice_row(),
+        build_phone_row(&ProbeOutcome::unknown()),
+        build_voice_row(&ProbeOutcome::unknown()),
         build_fleet_row(&ProbeOutcome::unknown()),
         build_notifications_row(&ProbeOutcome::unknown()),
     ]
@@ -1238,6 +1439,12 @@ fn jump_button<'a>(row_data: &'a CapabilityRow, palette: Palette) -> Element<'a,
             .padding(Padding::from([6u16, 14u16]))
             .style(style)
             .on_press(crate::Message::SelectPanel { group, panel })
+            .into()
+    } else if let Some(bin) = row_data.launch {
+        button(text("Set up  ▸").size(13))
+            .padding(Padding::from([6u16, 14u16]))
+            .style(style)
+            .on_press(crate::Message::LaunchApp(bin))
             .into()
     } else {
         column![].into()
@@ -1772,21 +1979,42 @@ mod tests {
     }
 
     #[test]
-    fn capability_status_coming_soon_carries_version() {
-        let s = CapabilityStatus::ComingSoon { version: "5.0.0" };
-        assert_eq!(s.label(), "Coming in v5.0.0");
-        assert_eq!(s.icon(), Icon::StatusUnknown);
-    }
-
-    #[test]
-    fn coming_soon_rows_have_no_jump_target() {
+    fn formerly_coming_soon_rows_are_now_actionable() {
+        // File Sharing / phone / Voice used to render a static
+        // "Coming in vX" pill with no action; they are now live rows.
+        // Files + phone deep-link to a Workbench panel; Voice launches
+        // the standalone mde-voice-config app.
         let rows = build_all_rows_with_unknown_status();
         let files = rows.iter().find(|r| r.id == CapabilityId::Files).unwrap();
         let phone = rows.iter().find(|r| r.id == CapabilityId::Phone).unwrap();
         let voice = rows.iter().find(|r| r.id == CapabilityId::Voice).unwrap();
-        assert!(files.jump.is_none());
-        assert!(phone.jump.is_none());
+        assert_eq!(files.jump, Some((Group::Network, "mesh_storage")));
+        assert!(files.launch.is_none());
+        assert_eq!(phone.jump, Some((Group::Devices, "connect")));
+        assert!(phone.launch.is_none());
         assert!(voice.jump.is_none());
+        assert_eq!(voice.launch, Some("mde-voice-config"));
+    }
+
+    #[test]
+    fn parse_voice_outcome_maps_agent_heartbeat() {
+        // Fresh registered+listening heartbeat => Active.
+        let body = r#"{"registered":true,"listening":true,"server":"sip.example:5060","detail":"","ts":1000}"#;
+        let out = parse_voice_outcome(Some(body.into()), 1010);
+        assert_eq!(out.status, CapabilityStatus::Active);
+        // Stale heartbeat (older than the window) => SetupNeeded.
+        let out = parse_voice_outcome(Some(body.into()), 1000 + VOICE_STALE_SECS + 1);
+        assert_eq!(out.status, CapabilityStatus::SetupNeeded);
+        // No body on the Bus => agent not running => SetupNeeded.
+        assert_eq!(
+            parse_voice_outcome(None, 0).status,
+            CapabilityStatus::SetupNeeded
+        );
+        // Garbage body => Unknown.
+        assert_eq!(
+            parse_voice_outcome(Some("not json".into()), 0).status,
+            CapabilityStatus::Unknown
+        );
     }
 
     #[test]
@@ -1827,6 +2055,14 @@ mod tests {
         assert_eq!(
             lookup(CapabilityId::Peers),
             Some((Group::Network, "mesh_topology"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Files),
+            Some((Group::Network, "mesh_storage"))
+        );
+        assert_eq!(
+            lookup(CapabilityId::Phone),
+            Some((Group::Devices, "connect"))
         );
         assert_eq!(
             lookup(CapabilityId::Ssh),
@@ -1912,6 +2148,7 @@ mod tests {
             status: CapabilityStatus::Active,
             sub_status: Some("3 of 7 peers online".into()),
             jump: None,
+            launch: None,
         };
         assert_eq!(extract_peer_count(&row), Some(7));
     }
@@ -1926,6 +2163,7 @@ mod tests {
             status: CapabilityStatus::Unknown,
             sub_status: None,
             jump: None,
+            launch: None,
         };
         assert_eq!(extract_peer_count(&row), None);
     }

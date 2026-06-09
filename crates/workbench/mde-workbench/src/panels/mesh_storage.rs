@@ -273,7 +273,7 @@ fn peer_row<'a>(
     .into()
 }
 
-fn fetch_status() -> Result<StorageStatus, String> {
+pub fn fetch_status() -> Result<StorageStatus, String> {
     let out = std::process::Command::new("mackesd")
         .args(["meshfs-status", "--json"])
         .output()

@@ -1312,3 +1312,78 @@ _Depends: E9.2 (Carbon substrate), E3 (mesh). Scope locks in memory `epic-ultima
   - **`mde-logout-dialog`** — reads the Material-indigo `tokens.css` (same vestigial GTK path E10.7 dropped from mde-files).
   - **`mde-popover/toasts.rs`** — builds an iced `Palette` from raw amber/green/red `Color::from_rgb` literals (also a §2.1 raw-value smell the float-form dodges the hex gate).
   **Scope:** re-base each onto the Carbon Gray-100 dark tokens + Blue accent (the E10.7 pattern — drop the `tokens.css`/Material values, build from Carbon constants, pin with a token test). Each is small + independent. Visual coherence = display bench. Not release-gating individually, but it closes the §1 Carbon-only lock across the platform.
+
+---
+
+## E11 — Mesh Decoupling: "Mackes Mesh" on Cosmic (+ MDE desktop EOL)
+
+Source of truth: [`docs/design/mesh-decoupling.md`](design/mesh-decoupling.md)
+(124-Q operator survey + directives, 2026-06-08). Pivot: the labwc/Win-era MDE
+desktop GUI is **EOL**; the mesh stack + its GUIs ship as **Mackes Mesh** —
+an add-on to **stock Fedora-Cosmic** or a standalone appliance. One
+feature-flagged codebase, **split into a new `mackes-mesh` repo**, boundary-gated
+against the dying shell. Order: spike identity → foundation → surfaces → EOL.
+
+- [ ] **E11.1: E11 — Carbon-on-Cosmic install spike (first de-risk, Q58–Q62/Q99)**
+  **As** the operator, **I want** an installer that lands the full Carbon look on
+  stock Fedora-Cosmic, **so that** the identity + distribution path is proven cheaply first.
+  **Acceptance:** installs + sets default a Carbon freedesktop **icon theme**, GTK/Qt theme,
+  IBM Plex fonts, cursor, and **Blue 60 Cosmic accent** via cosmic-config + gsettings/dconf;
+  default-on but **reversible** via Cosmic settings; verified on a Fedora-Cosmic VM.
+- [ ] **E11.2: E11 — Crate-dependency boundary gate (Q6/Q49)**
+  **As** a maintainer, **I want** CI to fail if a mesh/platform/workbench/services crate
+  depends on the `mde` shell, **so that** the decoupling stays honest.
+  **Acceptance:** a gate (run in CI + pre-commit) scans Cargo deps and fails on any mesh→shell
+  edge; current violations enumerated + driven to zero.
+- [ ] **E11.3: E11 — Bus→D-Bus bridge + native cosmic-applet (LEAD, Q14–Q20/Q57/Q71–Q74)**
+  **As** a Cosmic user, **I want** mesh status in the panel + actions that reach the Bus,
+  **so that** the mesh integrates natively.
+  **Acceptance:** a D-Bus bridge (`dev.mackes.MDE.*`, signals/methods/properties, auto-reconnect+cache)
+  maps the full Bus event set both directions; a **libcosmic cosmic-applet** (Carbon-styled) shows
+  peers/transport/storage/fleet + click-through to Workbench; loopback+same-user auth.
+- [ ] **E11.4: E11 — Notifications via Cosmic (Q21–Q26)**
+  **As** a user, **I want** mesh notifications in Cosmic's notification center with working actions,
+  **so that** I act without opening Workbench.
+  **Acceptance:** on a `cosmic` host `mde notifyd` is not run; mesh events deliver via the Cosmic path;
+  **action buttons round-trip to the Bus** (answer call, approve enrollment); DND defers to host; Persist log kept.
+- [ ] **E11.5: E11 — Workbench as the Cosmic control surface (Q27–Q33, Q44, Q68-dir)**
+  **As** the operator, **I want** Workbench to own all mesh config on Cosmic,
+  **so that** there is one pane of glass.
+  **Acceptance:** iced+Carbon toplevel + applet; desktop links removed, mesh settings folded in;
+  mesh/infra groups only; **first-run enrollment view**; a **dedicated KDE-Connect device pairing/enrollment interface**; .desktop + autostart applet.
+- [ ] **E11.6: E11 — mde-files as the full-parity default file manager (LEAD RISK, Q34–Q39/Q63–Q66)**
+  **As** a user, **I want** mde-files to be the default file manager,
+  **so that** the mesh + local files live in one native tool.
+  **Acceptance:** registers as default `inode/directory`; **native-Rust** ops at full general-FM parity
+  (trash/mounts/archives/properties/thumbnails/search); **native LizardFS client** + SMB + KDC Cloud-Files;
+  artifacts-as-a-view; Bus file events + notifications. *(Spike native parity + LizardFS before full-v1 commit.)*
+- [ ] **E11.7: E11 — Fleet sync = a Mackes "Automation Mesh" (Q107-dir/Q113–Q124)**
+  **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
+  **so that** the fleet self-heals with no fixed center.
+  **Acceptance:** each node runs `ansible-runner` (Podman-isolated) locally against a **declarative YAML baseline**
+  covering the full OS desired-state; revisions route **peer-to-peer over Nebula** (hop-relay via lighthouse);
+  **any** node's Workbench authors a revision; version-aware; **auto-heal to baseline with audit** + declared local exceptions.
+- [ ] **E11.8: E11 — Maximum-crypto security pinning (directive)**
+  **As** the operator, **I want** the strongest available crypto across the mesh,
+  **so that** the fabric is maximally secure.
+  **Acceptance:** Nebula cipher/curve, KDC TLS ciphers, and CA key strength pinned to the strongest supported
+  values, documented + asserted by a config test; enrollment uses max key complexity.
+- [ ] **E11.9: E11 — Carried-forward systems on Cosmic (Q100–Q108/Q117)**
+  **As** a user, **I want** birthright, debloat, drift, and the Maintain suite in Workbench,
+  **so that** node health/hygiene carry forward.
+  **Acceptance:** birthright = ongoing live health (mesh + Cosmic-integration rows, auto-remediate, push to fleet dashboard);
+  debloat (curated allowlist, snapshot+dnf-undo); drift (config-vs-baseline, auto-heal); full Maintain group renders + functions.
+- [ ] **E11.10: E11 — Voice/SIP + remote access on Cosmic (Q25/Q75–Q78/Q119)**
+  **As** a user, **I want** telephony + mesh remote access on Cosmic,
+  **so that** those mesh features survive the desktop EOL.
+  **Acceptance:** voice HUD as a layer-shell app (ring → notification + HUD, answer/decline); PipeWire-native auto-routed audio;
+  SIP config in Workbench; `tel:`/`sip:` handler + click-to-call; mesh RDP/VNC + SSH-across-mesh surfaced in Workbench.
+- [ ] **E11.11: E11 — Distribution: ISO + COPR + CI smoke (Q79–Q82/Q87/Q10)**
+  **As** a packager, **I want** a turnkey ISO and an add-on COPR with install CI,
+  **so that** both new and existing Cosmic users can install.
+  **Acceptance:** one RPM spec + install-time host/role chooser; signed COPR + downloadable signed RPMs; a Mackes-on-Cosmic ISO;
+  CI builds + tests + boots a Fedora-Cosmic VM to smoke-test install + applet/Workbench/mde-files launch.
+- [ ] **E11.12: E11 — MDE desktop EOL cutover + repo split + governance (Q48/Q51–Q54/Q83/Q85)**
+  **As** a maintainer, **I want** the desktop shell removed and the platform re-homed,
+  **so that** Mackes Mesh is the clean product.
+  **Acceptance:** salvage mesh-relevant surfaces (birthright/voice/mesh status), **delete desktop chrome** (panel/menu/OSD/action-center/Win-Settings/themes/window-mgmt/lock/greeter); `mackes-mesh` repo with history + the boundary gate; `AI_GOVERNANCE.md` **rewritten** for the Mesh-on-Cosmic identity (labwc/§1-shell locks retired).

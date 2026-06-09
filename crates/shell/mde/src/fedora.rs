@@ -135,16 +135,12 @@ pub fn is_installed(tool: &Tool) -> bool {
 /// Terminal font size for CLI tools: 150% of foot's 8pt default.
 pub const CLI_FONT_SIZE: u32 = 12;
 
-/// Launch a tool. CLI tools open in `foot` zoomed to 150% (12pt).
+/// Launch a tool. CLI/TUI tools open in a **maximized**, **root-capable** `foot`
+/// at 150% (12pt) — see [`crate::start_common::foot_admin`] for the why; GUI
+/// tools spawn directly.
 pub fn launch(tool: &Tool) -> std::io::Result<()> {
     if tool.terminal {
-        Command::new("foot")
-            .arg("-o")
-            .arg(format!("font=monospace:size={CLI_FONT_SIZE}"))
-            .arg("sh")
-            .arg("-c")
-            .arg(tool.command)
-            .spawn()?;
+        crate::start_common::foot_admin(tool.command).spawn()?;
     } else {
         Command::new("sh").arg("-c").arg(tool.command).spawn()?;
     }

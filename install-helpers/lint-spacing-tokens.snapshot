@@ -75,7 +75,7 @@ crates/workbench/mde-workbench/src/panels/fleet_settings.rs 6
 crates/workbench/mde-workbench/src/panels/fonts.rs 6
 crates/workbench/mde-workbench/src/panels/health_check.rs 11
 crates/workbench/mde-workbench/src/panels/help_index.rs 3
-crates/workbench/mde-workbench/src/panels/home.rs 15
+crates/workbench/mde-workbench/src/panels/home.rs 16
 crates/workbench/mde-workbench/src/panels/hub.rs 2
 crates/workbench/mde-workbench/src/panels/inventory.rs 12
 crates/workbench/mde-workbench/src/panels/keyboard.rs 2

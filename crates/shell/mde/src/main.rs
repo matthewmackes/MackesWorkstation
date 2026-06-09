@@ -46,6 +46,7 @@ mod nm;
 mod notifyd;
 mod oobe;
 mod open_uri;
+mod osd;
 mod outputs;
 mod packages;
 mod panel;
@@ -93,6 +94,7 @@ COMMANDS:
     browser-default [--icon|--set-default|--pin URL [--name T]|URL]   Default browser / pin a page / open
     browser-jumplist   Firefox taskbar jump list (New / Private window)
     net-flyout         Win10 network flyout (Wi-Fi list + Airplane toggle)
+    osd <kind> <act>   On-screen bar for media keys (volume|brightness|mic up|down|mute)
     connect [--list]   Print the KDE Connect device roster (the host runs in mackesd)
     phone              Your Phone / Mobile Devices — KDE Connect device window (E9)
 
@@ -225,6 +227,7 @@ fn main() -> ExitCode {
         "browser-default" => browser::run(rest),
         "browser-jumplist" => browser_jumplist::run(rest),
         "net-flyout" => net_flyout::run(rest),
+        "osd" => osd::run(rest),
         "connect" => connect::run(rest),
         "phone" => phone::run(rest),
         "mount" => mount::run(rest),
