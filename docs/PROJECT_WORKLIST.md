@@ -1451,11 +1451,20 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   an isolated XDG_CACHE_HOME); 6 unit tests green (URI encode, md5 name, scale 400×300→128×96, no
   up-scale, tEXt round-trip, needs_refresh), clippy/fmt clean. Deps (`image`/`png`/`md5`) already in
   the lockfile — fetch-free.
+  **Open-With / default-app resolution DONE (2026-06-09):** `src/desktop.rs` resolves a file's
+  handler the freedesktop way — `mime_for_path()` (built-in extension→MIME map), `default_app_id()`
+  (scans the `mimeapps.list` `[Default Applications]` chain, user `~/.config` overriding system),
+  `find_entry()`+`DesktopEntry::parse()` (the `[Desktop Entry]` group), and `command()` (expands the
+  `Exec` field codes `%f/%F/%u/%U/%%`, drops `%i/%c/%k/…`). Reachable via `mde-files --open-with
+  <file>`. Verified e2e against the **real system app db** (`.pdf`→Atril, `.html`→Firefox, correct
+  Exec); 5 unit tests green (parse, field-code expansion, user-overrides-system resolution, full
+  default_entry, extension map), clippy/fmt clean. *(Full shared-mime-info content sniffing + actual
+  process launch are follow-ups.)*
   **The headless native-parity surface is now complete** (trash/properties/mounts/search/archive/
-  file-ops/thumbnails). The remaining E11.6 work — GUI wiring (Delete/Properties/Open-with actions,
-  thumbnail *display* in the grid), the native LizardFS client, default `inode/directory`
-  registration, Bus file events — is the **env/spike-gated second half** needing the Cosmic desktop +
-  a running mackesd/mesh, not native-Rust-completable headlessly on this dev box.
+  file-ops/thumbnails/open-with). The remaining E11.6 work — GUI wiring (Delete/Properties/Open-with
+  actions, thumbnail *display* in the grid), the native LizardFS client, default `inode/directory`
+  registration, Bus file events, MIME content-sniffing, process launch — is the **env/spike-gated
+  second half** needing the Cosmic desktop + a running mackesd/mesh, not headless-completable here.
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.

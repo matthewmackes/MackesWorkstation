@@ -10,6 +10,7 @@ pub mod backend;
 #[cfg(feature = "dbus")]
 pub mod bus_backend;
 pub mod demo_data;
+pub mod desktop;
 pub mod fileops;
 pub mod grid;
 pub mod icons;

@@ -10,8 +10,9 @@
 //! `--properties <path>…` prints native file metadata, `--mounts` lists the
 //! This-PC volumes parsed from `/proc/mounts`, `--search <root> <query>`
 //! recursively finds matching entries, `--list-archive`/`--extract-archive`
-//! read + unpack tar/tar.gz archives, and `--copy`/`--move`/`--mkdir` are the
-//! native local file operations.
+//! read + unpack tar/tar.gz archives, `--copy`/`--move`/`--mkdir` are the
+//! native local file operations, `--thumbnail` generates a freedesktop
+//! thumbnail, and `--open-with <file>` resolves the default handler app.
 
 use std::process::ExitCode;
 
@@ -35,6 +36,7 @@ fn main() -> ExitCode {
         Some("--move") => return move_op(&args[1..]),
         Some("--mkdir") => return mkdir_op(&args[1..]),
         Some("--thumbnail") => return thumbnail_op(&args[1..]),
+        Some("--open-with") => return open_with_op(&args[1..]),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -197,6 +199,33 @@ fn search(args: &[String]) -> ExitCode {
         );
     }
     ExitCode::SUCCESS
+}
+
+/// `--open-with <file>` — resolve the file's MIME + its default handler app,
+/// printing the MIME, the `.desktop` id, and the launch command (does not launch).
+fn open_with_op(args: &[String]) -> ExitCode {
+    let Some(path) = args.first() else {
+        eprintln!("usage: mde-files --open-with <file>");
+        return ExitCode::FAILURE;
+    };
+    use mde_files::desktop;
+    let p = std::path::Path::new(path);
+    let Some(mime) = desktop::mime_for_path(p) else {
+        eprintln!("mde-files: unknown file type for {path}");
+        return ExitCode::FAILURE;
+    };
+    println!("mime: {mime}");
+    match desktop::default_entry(mime, &desktop::config_dirs(), &desktop::data_dirs()) {
+        Some(entry) => {
+            println!("app: {} ({})", entry.name, entry.id);
+            println!("exec: {}", entry.command(&[path]).join(" "));
+            ExitCode::SUCCESS
+        }
+        None => {
+            println!("app: (no default handler registered for {mime})");
+            ExitCode::SUCCESS
+        }
+    }
 }
 
 /// `--thumbnail <image> [--large]` — generate a freedesktop thumbnail, printing
