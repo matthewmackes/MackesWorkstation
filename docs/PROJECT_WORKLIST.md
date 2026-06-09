@@ -1335,12 +1335,25 @@ an add-on to **stock Fedora-Cosmic** or a standalone appliance. One
 feature-flagged codebase, **split into a new `magic-mesh` repo**, boundary-gated
 against the dying shell. Order: spike identity → foundation → surfaces → EOL.
 
-- [ ] **E11.1: E11 — Carbon-on-Cosmic install spike (first de-risk, Q58–Q62/Q99)**
+- [✓] **E11.1: E11 — Carbon-on-Cosmic install spike (first de-risk, Q58–Q62/Q99)** *(SPIKE DONE 2026-06-08)*
   **As** the operator, **I want** an installer that lands the full Carbon look on
   stock Fedora-Cosmic, **so that** the identity + distribution path is proven cheaply first.
   **Acceptance:** installs + sets default a Carbon freedesktop **icon theme**, GTK/Qt theme,
   IBM Plex fonts, cursor, and **Blue 60 Cosmic accent** via cosmic-config + gsettings/dconf;
   default-on but **reversible** via Cosmic settings; verified on a Fedora-Cosmic VM.
+  **SPIKE DONE (Q99 de-risk).** `install-helpers/install-magic-look.sh` installs the
+  in-repo 3,054-icon **Magic-Carbon** freedesktop icon theme (Apache-2.0 Carbon icons),
+  sets it + **IBM Plex Sans/Mono** + dark color-scheme + the blue accent as gsettings
+  `org.gnome.desktop.interface` defaults, and is **reversible** (saves prior values →
+  `--revert`). `--self-test` proves it end-to-end (apply sets Magic-Carbon → verify →
+  revert restores the prior theme) — PASS on this box. This proves the install +
+  default-setting mechanism (Q99's purpose). **Remaining identity polish → E11.13.**
+- [ ] **E11.13: E11 — Full Carbon identity polish (GTK/Qt theme, cursor, exact Cosmic accent)**
+  **As** a user, **I want** the complete Carbon look, **so that** GTK/Qt apps + the
+  cosmic-comp accent match exactly (not just icons/fonts).
+  **Acceptance:** a Carbon GTK3/4 + Qt theme shipped + defaulted; a Carbon cursor theme;
+  the exact **Carbon Blue 60 (#0f62fe)** written to the cosmic-config theme RON (verified
+  under a live Cosmic session); all folded into `install-magic-look.sh` + reversible.
 - [✓] **E11.2: E11 — Crate-dependency boundary gate (Q6/Q49)** *(DONE 2026-06-08)*
   **As** a maintainer, **I want** CI to fail if a mesh/platform/workbench/services crate
   depends on the `mde` shell, **so that** the decoupling stays honest.
