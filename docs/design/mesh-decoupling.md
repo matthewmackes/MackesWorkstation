@@ -318,10 +318,27 @@ path, and the Ansible dependency cutting against pure-Rust.
 
 ---
 
-## 5. Open follow-ups (not yet locked)
+## 5. Crypto posture (E11.8 — max-crypto directive)
 
-- **Security parameters** — pin the exact Nebula cipher/curve, KDC TLS ciphers,
-  and CA key strength for "maximum crypto" (E11 security-design task).
+Audit of the existing stack against the "highest available" directive:
+
+| Layer | Algorithm | Status |
+|---|---|---|
+| Mesh transport (secure path) | **AES-256-GCM** (KDC-TLS), ChaCha20-Poly1305 (DERP) | already maximal AEAD — pinned by existing tests |
+| Node identity / signing | **Ed25519** (`ed25519_dalek`) | already maximal |
+| CA backup at rest | **XChaCha20-Poly1305** | already maximal AEAD |
+| KDC device identity | RSA-2048 → **RSA-4096** | **bumped (E11.8)** — pinned by `keygen_pins_maximum_rsa_4096` |
+
+The one sub-maximum lever was the KDC identity key (RSA-2048, the KDE-Connect
+default); raised to **RSA-4096** — the strongest the KDE-Connect-compatible
+protocol interops with (the proto verifier accepts `RSA_PKCS1_2048_8192_SHA256`
+and peers pin by cert fingerprint, so a larger host key still pairs). **Caveat:**
+pure-Rust RSA-4096 keygen via the `rsa` crate takes **~85 s** on commodity
+hardware — a one-time, first-launch-only cost, but the KDC pairing flow (E11.5)
+**must** generate the identity off the UI thread with a progress indicator.
+
+## 6. Open follow-ups (not yet locked)
+
 - **Q80 vs Q10** — reconcile "signed RPM downloads (no repo)" with "RPM/COPR";
   likely a signed COPR + downloadable signed RPMs.
 - **`AI_GOVERNANCE.md` rewrite** (Q85) — ratify this pivot platform-wide; retire
@@ -331,7 +348,7 @@ path, and the Ansible dependency cutting against pure-Rust.
 
 ---
 
-## 6. Out of scope (this design)
+## 7. Out of scope (this design)
 
 - The MDE desktop shell (panel/menu/OSD/action-center/Win-era Settings/themes/
   window-mgmt/lock/greeter) — **EOL, deleted at cutover**.

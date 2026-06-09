@@ -1,4 +1,4 @@
-//! RSA-2048 keypair + self-signed identity-cert generation (host increment 3b).
+//! RSA-4096 keypair + self-signed identity-cert generation (host increment 3b).
 //!
 //! `mde-kdc-proto` deliberately ships NO RSA keygen — ring 0.17.x does not expose
 //! a stable RSA generator. The host owns it here with the pure-Rust `rsa` crate
@@ -21,9 +21,13 @@ use rand::rngs::OsRng;
 use rsa::pkcs8::EncodePrivateKey;
 use rsa::RsaPrivateKey;
 
-/// RSA modulus size in bits. Matches upstream KDE Connect's 2048-bit identity —
-/// lower would break stock-client interop; higher is wasteful for an identity key.
-pub const RSA_MODULUS_BITS: usize = 2048;
+/// RSA modulus size in bits. **E11.8 max-crypto: RSA-4096** — the strongest RSA
+/// the KDE-Connect-compatible protocol interops with. *Lower* would break
+/// stock-client interop, but *higher* does not (the proto verifier accepts
+/// `RSA_PKCS1_2048_8192_SHA256`, and peers pin by cert fingerprint, not key
+/// size). The earlier 2048 was chosen to avoid "waste"; the operator's
+/// maximum-crypto directive supersedes that.
+pub const RSA_MODULUS_BITS: usize = 4096;
 
 /// Errors keygen may surface. Stable `Display` tokens for audit-log entries.
 #[derive(Debug)]
@@ -50,7 +54,7 @@ impl std::fmt::Display for KeygenError {
 
 impl std::error::Error for KeygenError {}
 
-/// Generate a fresh RSA-2048 keypair and return its PKCS#8 DER encoding. Feed the
+/// Generate a fresh RSA-4096 keypair and return its PKCS#8 DER encoding. Feed the
 /// bytes into [`PairingKeyPair::from_pkcs8`](mde_kdc_proto::crypto::PairingKeyPair::from_pkcs8)
 /// to get a signable handle backed by ring.
 pub fn generate_pkcs8() -> Result<Vec<u8>, KeygenError> {
@@ -70,7 +74,7 @@ pub fn generate_pkcs8() -> Result<Vec<u8>, KeygenError> {
 /// fingerprint pinning at first pair, not a CA chain. Returns the cert as DER.
 ///
 /// rcgen 0.13 re-creates the keypair from our PKCS#8 (via a PEM round-trip, the
-/// more version-stable path), so the cert binds to the same RSA-2048 keypair the
+/// more version-stable path), so the cert binds to the same RSA-4096 keypair the
 /// handshake signs with.
 pub fn issue_identity_cert(pkcs8_der: &[u8], device_id: &str) -> Result<Vec<u8>, KeygenError> {
     use rcgen::{CertificateParams, DistinguishedName, DnType, KeyPair, PKCS_RSA_SHA256};
@@ -110,18 +114,49 @@ mod tests {
     use super::*;
     use mde_kdc_proto::crypto::{verify_signature, PairingKeyPair};
     use rsa::pkcs8::DecodePrivateKey;
+    use std::sync::OnceLock;
+
+    /// One shared production (RSA-4096) PKCS#8, generated once and reused — pure-Rust
+    /// 4096 keygen is slow (~a minute), so the cert/round-trip tests share a single
+    /// key rather than each paying for a fresh one. (Production keygen is also a
+    /// one-time, first-launch-only cost, see the module docs.)
+    fn shared_pkcs8() -> &'static [u8] {
+        static K: OnceLock<Vec<u8>> = OnceLock::new();
+        K.get_or_init(|| generate_pkcs8().expect("keygen succeeds"))
+            .as_slice()
+    }
+
+    #[test]
+    fn keygen_pins_maximum_rsa_4096() {
+        // E11.8 max-crypto: the KDC identity key must be RSA-4096 (the strongest RSA
+        // the KDE-Connect-compatible protocol interops with — the proto verifier
+        // accepts RSA_PKCS1_2048_8192_SHA256, and peers pin by cert fingerprint, so a
+        // larger host key still pairs).
+        assert_eq!(
+            RSA_MODULUS_BITS, 4096,
+            "max-crypto: KDC identity key must be RSA-4096"
+        );
+        // A 4096-bit PKCS#8 DER is ~2.3 KB (vs ~1.2 KB at 2048) — proves the generated
+        // key actually doubled, not just the constant.
+        let pkcs8 = shared_pkcs8();
+        assert!(
+            pkcs8.len() > 2000 && pkcs8.len() < 2700,
+            "RSA-4096 PKCS#8 DER ~2370 bytes; got {}",
+            pkcs8.len()
+        );
+    }
 
     #[test]
     fn generate_pkcs8_returns_loadable_keypair() {
-        // Round-trip: generate -> load into ring via PairingKeyPair::from_pkcs8 ->
+        // Round-trip: load the shared key into ring via PairingKeyPair::from_pkcs8 ->
         // sign -> verify against a public key derived from the same private. The
         // bridge between the rsa crate (keygen) and ring (sign/verify).
-        let pkcs8 = generate_pkcs8().expect("keygen succeeds");
-        let kp = PairingKeyPair::from_pkcs8(&pkcs8).expect("ring accepts our PKCS#8");
+        let pkcs8 = shared_pkcs8();
+        let kp = PairingKeyPair::from_pkcs8(pkcs8).expect("ring accepts our PKCS#8");
         let signature = kp.sign(b"hello").expect("sign succeeds");
         assert!(!signature.is_empty());
 
-        let private = RsaPrivateKey::from_pkcs8_der(&pkcs8).unwrap();
+        let private = RsaPrivateKey::from_pkcs8_der(pkcs8).unwrap();
         let public = private.to_public_key();
         let pub_der = rsa::pkcs1::EncodeRsaPublicKey::to_pkcs1_der(&public)
             .expect("public key to PKCS#1 DER");
@@ -131,25 +166,20 @@ mod tests {
     }
 
     #[test]
-    fn generate_pkcs8_returns_nontrivial_bytes() {
-        let pkcs8 = generate_pkcs8().unwrap();
-        assert!(
-            pkcs8.len() > 1000,
-            "PKCS#8 DER ~1200 bytes; got {}",
-            pkcs8.len()
-        );
-        assert!(
-            pkcs8.len() < 1500,
-            "PKCS#8 DER ~1200 bytes; got {}",
-            pkcs8.len()
-        );
-    }
-
-    #[test]
     fn two_consecutive_keygen_calls_produce_different_keys() {
+        // RNG-non-repeat is key-size-independent; generate fast 2048 keys here so the
+        // test stays cheap (production size is pinned by keygen_pins_maximum_rsa_4096).
+        let fast = || {
+            RsaPrivateKey::new(&mut OsRng, 2048)
+                .unwrap()
+                .to_pkcs8_der()
+                .unwrap()
+                .as_bytes()
+                .to_vec()
+        };
         assert_ne!(
-            generate_pkcs8().unwrap(),
-            generate_pkcs8().unwrap(),
+            fast(),
+            fast(),
             "RNG must not repeat across consecutive calls"
         );
     }
@@ -167,10 +197,9 @@ mod tests {
 
     #[test]
     fn issue_identity_cert_returns_nontrivial_der() {
-        let pkcs8 = generate_pkcs8().unwrap();
-        let cert_der = issue_identity_cert(&pkcs8, "device-abc-123").unwrap();
+        let cert_der = issue_identity_cert(shared_pkcs8(), "device-abc-123").unwrap();
         assert!(
-            cert_der.len() > 500 && cert_der.len() < 2000,
+            cert_der.len() > 500 && cert_der.len() < 2500,
             "cert DER unexpectedly sized: {}",
             cert_der.len()
         );
@@ -178,8 +207,7 @@ mod tests {
 
     #[test]
     fn issue_identity_cert_embeds_the_device_id_cn() {
-        let pkcs8 = generate_pkcs8().unwrap();
-        let cert_der = issue_identity_cert(&pkcs8, "device-abc-123").unwrap();
+        let cert_der = issue_identity_cert(shared_pkcs8(), "device-abc-123").unwrap();
         assert!(
             cert_der.windows(14).any(|w| w == b"device-abc-123"),
             "device-id CN not present in cert DER"
@@ -188,9 +216,9 @@ mod tests {
 
     #[test]
     fn issue_identity_cert_different_device_ids_produce_different_certs() {
-        let pkcs8 = generate_pkcs8().unwrap();
-        let c1 = issue_identity_cert(&pkcs8, "device-A").unwrap();
-        let c2 = issue_identity_cert(&pkcs8, "device-B").unwrap();
+        let pkcs8 = shared_pkcs8();
+        let c1 = issue_identity_cert(pkcs8, "device-A").unwrap();
+        let c2 = issue_identity_cert(pkcs8, "device-B").unwrap();
         assert_ne!(c1, c2, "different device-ids must produce different certs");
         assert!(c1.windows(8).any(|w| w == b"device-A"));
         assert!(c2.windows(8).any(|w| w == b"device-B"));

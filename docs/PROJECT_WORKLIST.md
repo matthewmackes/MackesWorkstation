@@ -1382,11 +1382,21 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   **Acceptance:** each node runs `ansible-runner` (Podman-isolated) locally against a **declarative YAML baseline**
   covering the full OS desired-state; revisions route **peer-to-peer over Nebula** (hop-relay via lighthouse);
   **any** node's Workbench authors a revision; version-aware; **auto-heal to baseline with audit** + declared local exceptions.
-- [ ] **E11.8: E11 — Maximum-crypto security pinning (directive)**
+- [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.
   **Acceptance:** Nebula cipher/curve, KDC TLS ciphers, and CA key strength pinned to the strongest supported
   values, documented + asserted by a config test; enrollment uses max key complexity.
+  **DONE.** Audit (design doc §5): the mesh fabric is already maximal — AES-256-GCM
+  (KDC-TLS secure path) / ChaCha20-Poly1305, **Ed25519** node identity, **XChaCha20-Poly1305**
+  CA backup — and already pinned by existing tests. The one sub-maximum lever, the KDC
+  device-identity key, was raised **RSA-2048 → RSA-4096** (`mde-kdc-host/keygen.rs`,
+  `RSA_MODULUS_BITS = 4096`) — the strongest RSA the KDE-Connect protocol interops with
+  (verifier accepts 2048-8192; peers pin by fingerprint). Pinned by a TDD test
+  (`keygen_pins_maximum_rsa_4096`, red at 2048 → green at 4096); all 8 keygen tests pass.
+  **Caveat (tracked into E11.5):** pure-Rust RSA-4096 keygen is ~85 s — a one-time
+  first-launch cost; the pairing flow must generate identity off the UI thread. Tests
+  share one key (OnceLock) so the suite isn't multi-minute.
 - [ ] **E11.9: E11 — Carried-forward systems on Cosmic (Q100–Q108/Q117)**
   **As** a user, **I want** birthright, debloat, drift, and the Maintain suite in Workbench,
   **so that** node health/hygiene carry forward.
