@@ -129,6 +129,47 @@ pub fn apply(playbook_yaml: &str, root: &Path) -> io::Result<ApplyReport> {
     )
 }
 
+/// Drift state of a node relative to its assigned baseline (Q108).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DriftStatus {
+    /// Already in the desired state — the apply changed nothing.
+    InSync,
+    /// The node had drifted; re-applying the baseline re-converged it (`changed > 0`).
+    Healed,
+    /// The apply could not converge the node (a task failed, or it was unreachable).
+    Failed,
+}
+
+impl DriftStatus {
+    /// Classify a completed [`ApplyReport`] into a drift outcome.
+    #[must_use]
+    pub const fn classify(report: &ApplyReport) -> Self {
+        if !report.converged() {
+            Self::Failed
+        } else if report.made_changes() {
+            Self::Healed
+        } else {
+            Self::InSync
+        }
+    }
+}
+
+/// Converge the local node to its `playbook_yaml` baseline; report the drift outcome.
+///
+/// Q108 auto-heal: re-applying the desired state heals any drift in place, and
+/// `changed > 0` is the signal that drift was present. The returned
+/// `(status, report)` pair is the audit record the caller persists.
+///
+/// # Errors
+/// Propagates [`apply`] errors (ansible-runner unavailable / produced no stats).
+pub fn heal_to_baseline(
+    playbook_yaml: &str,
+    root: &Path,
+) -> io::Result<(DriftStatus, ApplyReport)> {
+    let report = apply(playbook_yaml, root)?;
+    Ok((DriftStatus::classify(&report), report))
+}
+
 /// Read the newest `artifacts/<ident>/job_events/*` `playbook_on_stats` event
 /// under a private-data-dir `root`.
 fn latest_stats(root: &Path) -> Option<ApplyReport> {
@@ -204,6 +245,24 @@ mod tests {
         assert!(
             !r.made_changes(),
             "a no-op re-apply reports converged but unchanged"
+        );
+    }
+
+    #[test]
+    fn drift_classify_maps_apply_outcomes() {
+        let mk = |ok, changed, failures, unreachable| ApplyReport {
+            ok,
+            changed,
+            failures,
+            unreachable,
+        };
+        assert_eq!(DriftStatus::classify(&mk(2, 0, 0, 0)), DriftStatus::InSync);
+        assert_eq!(DriftStatus::classify(&mk(1, 1, 0, 0)), DriftStatus::Healed);
+        assert_eq!(DriftStatus::classify(&mk(0, 0, 1, 0)), DriftStatus::Failed);
+        assert_eq!(
+            DriftStatus::classify(&mk(0, 0, 0, 1)),
+            DriftStatus::Failed,
+            "an unreachable node is a failed heal, not in-sync"
         );
     }
 

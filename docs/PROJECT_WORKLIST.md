@@ -1395,18 +1395,22 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   **Acceptance:** each node runs `ansible-runner` (Podman-isolated) locally against a **declarative YAML baseline**
   covering the full OS desired-state; revisions route **peer-to-peer over Nebula** (hop-relay via lighthouse);
   **any** node's Workbench authors a revision; version-aware; **auto-heal to baseline with audit** + declared local exceptions.
-  **PROGRESS — local-apply primitive DONE (2026-06-09).** New `crates/mesh/magic-fleet`
+  **PROGRESS — local-apply + drift auto-heal DONE (2026-06-09).** New `crates/mesh/magic-fleet`
   crate: `apply(playbook, root)` lays out an ansible-runner private-data-dir (local
   `localhost` inventory), runs it via `ansible-runner` + `ansible-core`, and parses the
   `playbook_on_stats` event into `ApplyReport {ok,changed,failures,unreachable}` with
-  `converged()`/`made_changes()` (the idempotence signal the drift loop keys off).
-  Runtime-reachable via `magic-fleet apply <playbook.yml>`. **Verified end-to-end** (real
-  Ansible): apply #1 → changed=1 CONVERGED, re-apply #2 → changed=0 CONVERGED (idempotent).
-  6 unit tests green (stats parser grounded on a captured real event), clippy/fmt clean.
+  `converged()`/`made_changes()`. `heal_to_baseline()` re-applies the baseline and
+  classifies the outcome as `DriftStatus::{InSync,Healed,Failed}` (Q108 auto-heal +
+  audit-record shape). Runtime-reachable via `magic-fleet apply|heal <playbook.yml>`.
+  **Verified end-to-end** (real Ansible): apply → changed=1 CONVERGED then changed=0
+  (idempotent); heal #1 → drift=Healed (changed=1), heal #2 → drift=InSync (changed=0).
+  7 unit tests green (stats parser grounded on a captured real event), clippy/fmt clean.
   **REMAINING:** the declarative YAML desired-state DSL → playbook render (full-OS domains,
   Q121/Q123); **peer-to-peer revision routing over Nebula** (hop-relay); version-aware
-  revisions (Q115); the **drift auto-heal loop** + audit (Q108); Workbench authoring UI; and
-  declared local exceptions (Q124). (Toolchain installed: ansible-runner 2.4.2 + ansible-core 2.20.6.)
+  revisions (Q115); the **scheduled drift-watch daemon loop** that periodically calls
+  `heal_to_baseline` + persists the audit (the heal mechanism itself is done, Q108);
+  Workbench authoring UI; and declared local exceptions (Q124). (Toolchain: ansible-runner
+  2.4.2 + ansible-core 2.20.6.)
 - [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.
