@@ -27,6 +27,7 @@ RS=0;  has '\.rs$'                 && RS=1
 MODS=0; has '/(lib|mod)\.rs$'      && MODS=1
 CSS=0; has 'data/css/.*\.css$'     && CSS=1
 DESIGN=0; has '^docs/design/.*\.md$' && DESIGN=1
+CARGO=0; has 'crates/.*Cargo\.toml$' && CARGO=1
 
 failed=""
 run() {  # run <gate> only if it exists + is executable
@@ -60,6 +61,9 @@ fi
 
 # A design doc touched → the design-doc↔worklist sync gate.
 [ "$DESIGN" -eq 1 ] && run lint-design-doc-sync
+
+# A crate manifest touched → the E11 mesh↔shell boundary gate.
+[ "$CARGO" -eq 1 ] && run lint-mesh-boundary
 
 if [ -n "$failed" ]; then
     echo ""

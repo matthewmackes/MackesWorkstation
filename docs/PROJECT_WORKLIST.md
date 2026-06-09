@@ -1341,11 +1341,19 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   **Acceptance:** installs + sets default a Carbon freedesktop **icon theme**, GTK/Qt theme,
   IBM Plex fonts, cursor, and **Blue 60 Cosmic accent** via cosmic-config + gsettings/dconf;
   default-on but **reversible** via Cosmic settings; verified on a Fedora-Cosmic VM.
-- [ ] **E11.2: E11 — Crate-dependency boundary gate (Q6/Q49)**
+- [✓] **E11.2: E11 — Crate-dependency boundary gate (Q6/Q49)** *(DONE 2026-06-08)*
   **As** a maintainer, **I want** CI to fail if a mesh/platform/workbench/services crate
   depends on the `mde` shell, **so that** the decoupling stays honest.
   **Acceptance:** a gate (run in CI + pre-commit) scans Cargo deps and fails on any mesh→shell
   edge; current violations enumerated + driven to zero.
+  **DONE.** `install-helpers/lint-mesh-boundary.sh` fails if any crate under
+  `crates/{mesh,platform,workbench,services,kdc,applets}` has a Cargo path-dep into
+  `crates/shell/*` (shared crates under `crates/shared/*` are allowed). Wired into
+  `run-lint-gates.sh` (triggers when a `crates/**/Cargo.toml` is staged). The tree is
+  **already clean — 0 violations** (mesh never depended on the shell; the shell depends
+  on the mesh, not vice-versa), so the gate codifies + protects that. Ships with a
+  `--self-test` (verifies the clean tree passes AND a synthetic violation is caught) —
+  self-test + real run both green. Ports to the `magic-mesh` repo unchanged.
 - [ ] **E11.3: E11 — Bus→D-Bus bridge + native cosmic-applet (LEAD, Q14–Q20/Q57/Q71–Q74)**
   **As** a Cosmic user, **I want** mesh status in the panel + actions that reach the Bus,
   **so that** the mesh integrates natively.
