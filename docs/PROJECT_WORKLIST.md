@@ -6,6 +6,17 @@
 
 This is the **single durable tracker** for the build. In-session Task tools are a scratchpad; this file wins on any divergence. Drain it with `/ship` (autonomous, per CLAUDE.md §6); cut the held RPM with `/release` (operator-gated, E8). Lift new design-doc actions in via `/plan`.
 
+## ⚑ E11 PIVOT RECONCILIATION (2026-06-08) — read first
+
+The **E11 "Mackes Mesh" pivot** ([`design/mesh-decoupling.md`](design/mesh-decoupling.md), 124-Q survey) **EOLs the labwc/Win-era MDE desktop GUI** (hard cutover, fresh-install only) and re-homes the mesh + its GUIs as **Mackes Mesh on stock Fedora-Cosmic**. This reframes every pre-E11 open item. Backlog reconciled against the pivot:
+
+- **Active line → E11.1–E11.12** below. This is the only forward work. *(Most E11 tasks need a Fedora-Cosmic environment not present on this dev box; the env-feasible-now subset is **E11.2** boundary gate, **E11.8** max-crypto pinning, and the native-Rust logic of **E11.6/E11.7**.)*
+- **Carried forward into E11** (mesh features, now validated on Cosmic+Mesh): **HW-1** (KDE Connect), **HW-6** (LizardFS), **HW-7** (VoIP), and **E6.10** (Compute → folds into E11.9 / Workbench per Q69).
+- **SUPERSEDED by the EOL** (desktop surfaces being deleted — not silently deferred, explicitly retired by the pivot; Cosmic owns these): **HW-2** (BlueZ → Cosmic), **HW-3** (PAM unlock / argon2 PIN → Cosmic login), **HW-4** (Win10 "Windows Update" surface → updates now dnf/Workbench, Q79), **HW-5** (labwc compositor/session cutover + greeter → Cosmic), **RETIRE-PY.5** (native-Rust birthright *in mde-wizard/mde-installer* → OOBE moves to a Workbench first-run view, Q44; **and Q122's wrap-Ansible reverses the retire-Python thrust** at the platform level — birthright itself still carries forward via E11.9).
+- **RESHAPED by E11**: **HW-8** (per-role install from media → **E11.11** one-RPM + install-time chooser, ISO + COPR; the Lighthouse/Server/Workstation framing changes — "Workstation" = Cosmic).
+
+The superseded items stay listed below for provenance but are **closed by the pivot**, not open work. The RPM/§3-complete framing of the older epics is itself superseded by E11's distribution model (E11.11) + the desktop EOL (E11.12 / Q51).
+
 ## Status legend
 
 `[ ]` Open · `[>]` In Progress (carry `session=<id>` when a `/ship` session claims it) · `[✓]` Done · `[!]` Blocked / at-risk. **No `[~]` deferred; no silent deferrals.** A task is `[✓]` only when CLAUDE.md §3 holds (runtime-reachable, no stubs, no mockups).
