@@ -7,7 +7,8 @@
 //! Native file-ops parity (E11.6) is also reachable headlessly for scripting +
 //! the shell's delete path: `--trash <path>…`, `--list-trash`, `--restore
 //! <trash-name>…`, `--empty-trash` drive the freedesktop home trash directly,
-//! and `--properties <path>…` prints native file metadata.
+//! `--properties <path>…` prints native file metadata, and `--mounts` lists the
+//! This-PC volumes parsed from `/proc/mounts`.
 
 use std::process::ExitCode;
 
@@ -23,6 +24,7 @@ fn main() -> ExitCode {
         Some("--restore") => return restore_names(&args[1..]),
         Some("--empty-trash") => return empty_trash(),
         Some("--properties") => return properties(&args[1..]),
+        Some("--mounts") => return mounts(),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -166,6 +168,15 @@ fn properties(paths: &[String]) -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+/// `--mounts` — print the user-facing volumes (This PC), one per line.
+fn mounts() -> ExitCode {
+    print!(
+        "{}",
+        mde_files::mounts::report(&mde_files::mounts::user_volumes())
+    );
+    ExitCode::SUCCESS
 }
 
 /// `--empty-trash` — permanently delete everything in the trash.

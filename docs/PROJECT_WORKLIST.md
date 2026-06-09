@@ -1408,6 +1408,14 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   mode/links/uid/gid/mtime, with `permission_string()` (`rwxr-xr-x`), `mode_octal()`, IEC
   `human_size()`, and local-time stamps. Reachable via `mde-files --properties <path>…`. Verified
   e2e (file 0640, symlink+target, missing→exit 1); 7 unit tests green, clippy/fmt clean.
+  **Mounts DONE (2026-06-09):** `src/mounts.rs` parses `/proc/mounts` (octal-escape decoding) into
+  `MountPoint`s and filters to user volumes for This PC — keeps real disks + network (cifs/nfs/9p) +
+  FUSE mounts (the mesh LizardFS, sshfs Cloud-Files), drops kernel pseudo-fs incl. the `fusectl`
+  control fs (a real-`/proc/mounts` e2e caught the too-broad `fuse*` match → narrowed to `fuse.`/
+  `fuseblk`). `is_network()` flags remote volumes. Reachable via `mde-files --mounts`. Verified e2e on
+  the dev box (btrfs root/home, ext4 /boot, vfat ESP shown; fusectl excluded); 6 unit tests green
+  (fixture-driven, zero FS), clippy/fmt clean. *(Serves the E10/E11.6 "This PC lists real volumes
+  parsed from /proc/mounts" acceptance.)*
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.
