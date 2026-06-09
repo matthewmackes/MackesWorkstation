@@ -11,7 +11,30 @@ This is the **platform identity + architectural compass** for AI design partners
 It governs the *platform underneath* — mesh, Bus, storage, security, naming, the AI
 collaboration model. Read it after the root `CLAUDE.md`; consult the others on demand.
 
-> ## ⚑ MONOREPO RECONCILIATION (2026-06-03, E0) — read this first
+> ## ⚑ MAGIC MESH PIVOT (2026-06-08, E11) — read this FIRST, before the E0 banner below
+>
+> A 124-question operator survey + directives ([`design/mesh-decoupling.md`](design/mesh-decoupling.md))
+> **pivots the platform**. The labwc/Win-era **MDE desktop GUI is EOL'd** (hard cutover,
+> fresh-install only). The mesh substrate + its GUIs (Workbench, mde-files) re-home as
+> **"Magic Mesh"** — an add-on to **stock Fedora-Cosmic** (its own `magic-mesh` repo,
+> boundary-gated) or a standalone/headless appliance. The **mesh / Bus / storage /
+> security / trust / AI-collaboration substrate locks all STILL STAND** — that is exactly
+> the layer Magic Mesh carries forward. What this pivot **overrides** (newest wins):
+>
+> | Prior lock | E11 reality | Source |
+> |---|---|---|
+> | Brand = **Mackes** ("Mackes Workstation" / "MackesDE") | **Magic** ("Magic Mesh") — brand/display-only; technical IDs (`mde`, `mackesd`, `dev.mackes.MDE.*`, `~/.config/mde`) retained | Q8/Q97 |
+> | Compositor = **labwc**; the `mde` shell draws client areas + layer-shell | **Cosmic / `cosmic-comp`** owns the desktop (compositor, login, OSD, panel, window-mgmt); the MDE shell is **deleted** | Q51–Q55 |
+> | Visual language = **strict IBM Carbon shell** (the four-look collapse, E9) | **Carbon identity kept**, but applied as installer-set host defaults (icon theme, GTK/Qt/accent, Plex, plymouth) on Cosmic — there is no MDE shell to theme | Q58–Q62 |
+> | One **v10.0.0** desktop product, RPM held until §3-complete (E8) | **Magic Mesh** versions independently; ships as one RPM + install-time chooser, ISO + COPR (E11.11) | Q9–Q12 |
+> | Control surface = the MDE shell (panel/menu/Settings) | **Workbench** is the single control surface; mesh config folds in; mde-files is the default file manager | Q27–Q39 |
+> | Fleet = the MDE worklist's E6 Workbench model | **Magic "Automation Mesh"** — ansible-runner per node vs a YAML desired-state baseline, peer-to-peer over Nebula, no fixed controller | Q113–Q124 |
+>
+> The mesh/Bus/storage/security locks in the body below are the **load-bearing substrate
+> that survives** — read them as Magic Mesh's foundation. Tracked as epic **E11**; this
+> banner is the interim compass until the body is rewritten in the `magic-mesh` repo.
+
+> ## ⚑ MONOREPO RECONCILIATION (2026-06-03, E0) — read this after the E11 banner above
 >
 > This document was authored for the standalone **MDE** platform repo. It was
 > **imported into the `MackesWorkstation` successor monorepo** (which fuses MDE +

@@ -1425,7 +1425,14 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   **so that** both new and existing Cosmic users can install.
   **Acceptance:** one RPM spec + install-time host/role chooser; signed COPR + downloadable signed RPMs; a Magic-on-Cosmic ISO;
   CI builds + tests + boots a Fedora-Cosmic VM to smoke-test install + applet/Workbench/mde-files launch.
-- [ ] **E11.12: E11 — MDE desktop EOL cutover + repo split + governance (Q48/Q51–Q54/Q83/Q85)**
+- [>] **E11.12: E11 — MDE desktop EOL cutover + repo split + governance (Q48/Q51–Q54/Q83/Q85)**
   **As** a maintainer, **I want** the desktop shell removed and the platform re-homed,
   **so that** Magic Mesh is the clean product.
   **Acceptance:** salvage mesh-relevant surfaces (birthright/voice/mesh status), **delete desktop chrome** (panel/menu/OSD/action-center/Win-Settings/themes/window-mgmt/lock/greeter); `magic-mesh` repo with history + the boundary gate; `AI_GOVERNANCE.md` **rewritten** for the Mesh-on-Cosmic identity (labwc/§1-shell locks retired).
+  **PROGRESS (2026-06-08): governance reconciliation landed.** Added the "⚑ MAGIC MESH
+  PIVOT" banner atop `AI_GOVERNANCE.md` (supersedes the brand/compositor/visual/product/
+  control-surface/fleet locks, keeps the mesh substrate, points to the design doc) — the
+  repo's established reconciliation pattern (newest-wins) in lieu of a risky from-scratch
+  rewrite; the full body rewrite happens in the `magic-mesh` repo. **REMAINING (blocked):**
+  the desktop-chrome deletion + shell salvage is the hard cutover (a large, late-stage
+  E11 step), and the repo split needs the operator-created **`magic-mesh` GitHub repo**.
