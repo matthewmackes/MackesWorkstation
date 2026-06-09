@@ -15,6 +15,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use serde::Deserialize;
+
 /// Convergence summary parsed from an ansible-runner `playbook_on_stats` event.
 ///
 /// The PLAY RECAP totals, summed across hosts (a node applies to `localhost`, so
@@ -170,6 +172,159 @@ pub fn heal_to_baseline(
     Ok((DriftStatus::classify(&report), report))
 }
 
+/// `present` (the resource must exist) / `absent` (must not).
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum PresentAbsent {
+    /// The resource must exist / be installed.
+    #[default]
+    Present,
+    /// The resource must not exist / be removed.
+    Absent,
+}
+
+/// A systemd service's desired run-state.
+#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ServiceState {
+    /// The service must be running.
+    #[default]
+    Started,
+    /// The service must be stopped.
+    Stopped,
+}
+
+/// A package the node must have / not have.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct PackageReq {
+    /// Package name (dnf/rpm).
+    pub name: String,
+    /// Desired presence (default `present`).
+    #[serde(default)]
+    pub state: PresentAbsent,
+}
+
+/// A systemd service's desired enablement + run-state.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct ServiceReq {
+    /// systemd unit name.
+    pub name: String,
+    /// Enable at boot (default `true`).
+    #[serde(default = "yes")]
+    pub enabled: bool,
+    /// Desired run-state (default `started`).
+    #[serde(default)]
+    pub state: ServiceState,
+}
+
+/// A managed file: `content` placed at `path` when `present`, removed when `absent`.
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct FileReq {
+    /// Absolute destination path.
+    pub path: String,
+    /// File body, written when `present`.
+    #[serde(default)]
+    pub content: String,
+    /// Desired presence (default `present`).
+    #[serde(default)]
+    pub state: PresentAbsent,
+}
+
+const fn yes() -> bool {
+    true
+}
+
+/// A declarative desired-state baseline (Q121/Q123) — the YAML a fleet revision
+/// carries.
+///
+/// [`to_playbook`] renders it to an Ansible playbook that converges the node.
+/// Covers the most common OS domains; every section defaults empty (a baseline
+/// declares only what it manages), and new domains extend this without breaking
+/// older revisions.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct BaselineSpec {
+    /// Packages to install/remove.
+    pub packages: Vec<PackageReq>,
+    /// systemd services to enable/start/stop.
+    pub services: Vec<ServiceReq>,
+    /// Files to place/remove.
+    pub files: Vec<FileReq>,
+}
+
+impl BaselineSpec {
+    /// Parse a baseline from its YAML representation.
+    ///
+    /// # Errors
+    /// On malformed YAML or an unknown top-level field.
+    pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        serde_yaml::from_str(yaml)
+    }
+}
+
+/// Render a [`BaselineSpec`] into an Ansible playbook (one local play, `become`).
+///
+/// Uses the `ansible.builtin` modules, built as structured values and serialised
+/// via serde so resource names/content are correctly YAML-escaped.
+///
+/// # Errors
+/// On YAML serialisation failure (practically never for this fixed shape).
+pub fn to_playbook(spec: &BaselineSpec) -> Result<String, serde_yaml::Error> {
+    use serde_json::json;
+    let mut tasks: Vec<serde_json::Value> = Vec::new();
+    for p in &spec.packages {
+        let state = match p.state {
+            PresentAbsent::Present => "present",
+            PresentAbsent::Absent => "absent",
+        };
+        tasks.push(json!({
+            "name": format!("package {} -> {state}", p.name),
+            "ansible.builtin.package": { "name": p.name, "state": state },
+        }));
+    }
+    for s in &spec.services {
+        let state = match s.state {
+            ServiceState::Started => "started",
+            ServiceState::Stopped => "stopped",
+        };
+        tasks.push(json!({
+            "name": format!("service {} -> {state} (enabled={})", s.name, s.enabled),
+            "ansible.builtin.service": { "name": s.name, "state": state, "enabled": s.enabled },
+        }));
+    }
+    for f in &spec.files {
+        match f.state {
+            PresentAbsent::Present => tasks.push(json!({
+                "name": format!("file {} -> present", f.path),
+                "ansible.builtin.copy": { "dest": f.path, "content": f.content },
+            })),
+            PresentAbsent::Absent => tasks.push(json!({
+                "name": format!("file {} -> absent", f.path),
+                "ansible.builtin.file": { "path": f.path, "state": "absent" },
+            })),
+        }
+    }
+    let playbook = json!([{
+        "hosts": "local",
+        "become": true,
+        "gather_facts": false,
+        "tasks": tasks,
+    }]);
+    serde_yaml::to_string(&playbook)
+}
+
+/// Converge the node to a desired-state [`BaselineSpec`] (render → heal).
+///
+/// The full node-side fleet-sync path: a revision carries a `BaselineSpec`, the
+/// node renders it to a playbook and heals to it, reporting the drift outcome.
+///
+/// # Errors
+/// On render ([`to_playbook`]) or [`apply`] failure.
+pub fn converge(spec: &BaselineSpec, root: &Path) -> io::Result<(DriftStatus, ApplyReport)> {
+    let playbook = to_playbook(spec).map_err(io::Error::other)?;
+    heal_to_baseline(&playbook, root)
+}
+
 /// Read the newest `artifacts/<ident>/job_events/*` `playbook_on_stats` event
 /// under a private-data-dir `root`.
 fn latest_stats(root: &Path) -> Option<ApplyReport> {
@@ -264,6 +419,76 @@ mod tests {
             DriftStatus::Failed,
             "an unreachable node is a failed heal, not in-sync"
         );
+    }
+
+    #[test]
+    fn baseline_spec_parses_and_renders_to_a_playbook() {
+        let yaml = "
+packages:
+  - name: htop
+  - name: telnet
+    state: absent
+services:
+  - name: sshd
+    enabled: true
+    state: started
+files:
+  - path: /etc/motd
+    content: \"welcome\\n\"
+";
+        let spec = BaselineSpec::from_yaml(yaml).expect("baseline parses");
+        assert_eq!(spec.packages.len(), 2);
+        assert_eq!(spec.packages[0].state, PresentAbsent::Present); // default
+        assert_eq!(spec.packages[1].state, PresentAbsent::Absent);
+        assert!(spec.services[0].enabled);
+
+        let pb = to_playbook(&spec).expect("renders");
+        let v: serde_yaml::Value = serde_yaml::from_str(&pb).unwrap();
+        let play = &v[0];
+        assert_eq!(play["hosts"].as_str(), Some("local"));
+        assert_eq!(play["become"].as_bool(), Some(true));
+        let tasks = play["tasks"].as_sequence().unwrap();
+        assert_eq!(tasks.len(), 4, "2 packages + 1 service + 1 file");
+        assert_eq!(
+            tasks[0]["ansible.builtin.package"]["name"].as_str(),
+            Some("htop")
+        );
+        assert_eq!(
+            tasks[0]["ansible.builtin.package"]["state"].as_str(),
+            Some("present")
+        );
+        assert_eq!(
+            tasks[1]["ansible.builtin.package"]["state"].as_str(),
+            Some("absent")
+        );
+        assert_eq!(
+            tasks[2]["ansible.builtin.service"]["state"].as_str(),
+            Some("started")
+        );
+        assert_eq!(
+            tasks[2]["ansible.builtin.service"]["enabled"].as_bool(),
+            Some(true)
+        );
+        assert_eq!(
+            tasks[3]["ansible.builtin.copy"]["dest"].as_str(),
+            Some("/etc/motd")
+        );
+    }
+
+    #[test]
+    fn baseline_rejects_unknown_top_level_fields() {
+        // deny_unknown_fields stops a typo'd domain from silently no-op'ing.
+        assert!(BaselineSpec::from_yaml("widgets:\n  - name: x\n").is_err());
+    }
+
+    #[test]
+    fn file_absent_renders_a_remove_task() {
+        let spec =
+            BaselineSpec::from_yaml("files:\n  - path: /tmp/x\n    state: absent\n").unwrap();
+        let pb = to_playbook(&spec).unwrap();
+        assert!(pb.contains("ansible.builtin.file"));
+        assert!(pb.contains("absent"));
+        assert!(!pb.contains("ansible.builtin.copy"));
     }
 
     #[test]
