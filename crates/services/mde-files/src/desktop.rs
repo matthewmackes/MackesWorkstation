@@ -189,38 +189,6 @@ pub fn default_entry(
     find_entry(&id, data_dirs)
 }
 
-/// A small built-in extension → MIME map for the common types (a stand-in until
-/// shared-mime-info content sniffing lands). Lower-cased extension, no dot.
-#[must_use]
-pub fn mime_for_path(path: &Path) -> Option<&'static str> {
-    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
-    Some(match ext.as_str() {
-        "txt" | "text" | "log" | "md" => "text/plain",
-        "html" | "htm" => "text/html",
-        "pdf" => "application/pdf",
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "svg" => "image/svg+xml",
-        "webp" => "image/webp",
-        "mp3" => "audio/mpeg",
-        "flac" => "audio/flac",
-        "ogg" => "audio/ogg",
-        "wav" => "audio/x-wav",
-        "mp4" => "video/mp4",
-        "mkv" => "video/x-matroska",
-        "webm" => "video/webm",
-        "zip" => "application/zip",
-        "tar" => "application/x-tar",
-        "gz" | "tgz" => "application/gzip",
-        "json" => "application/json",
-        "xml" => "application/xml",
-        "sh" => "application/x-shellscript",
-        "rs" => "text/rust",
-        _ => return None,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,14 +286,5 @@ mod tests {
         let entry = default_entry("application/pdf", &[cfg], &[data]).unwrap();
         assert_eq!(entry.name, "Reader");
         assert_eq!(entry.command(&["/doc.pdf"]), vec!["reader", "/doc.pdf"]);
-    }
-
-    #[test]
-    fn mime_for_path_maps_common_extensions() {
-        assert_eq!(mime_for_path(Path::new("a/b/notes.MD")), Some("text/plain"));
-        assert_eq!(mime_for_path(Path::new("pic.png")), Some("image/png"));
-        assert_eq!(mime_for_path(Path::new("song.flac")), Some("audio/flac"));
-        assert_eq!(mime_for_path(Path::new("noext")), None);
-        assert_eq!(mime_for_path(Path::new("weird.xyz")), None);
     }
 }

@@ -17,6 +17,7 @@ pub mod grid;
 pub mod icons;
 #[cfg(feature = "dbus")]
 pub mod mesh_backend;
+pub mod mime;
 pub mod model;
 pub mod mounts;
 pub mod panels;

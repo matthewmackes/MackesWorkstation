@@ -226,7 +226,7 @@ fn open_with_op(args: &[String]) -> ExitCode {
     };
     use mde_files::desktop;
     let p = std::path::Path::new(path);
-    let Some(mime) = desktop::mime_for_path(p) else {
+    let Some(mime) = mde_files::mime::detect(p) else {
         eprintln!("mde-files: unknown file type for {path}");
         return ExitCode::FAILURE;
     };
