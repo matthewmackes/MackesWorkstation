@@ -1512,13 +1512,22 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   `converge`/`watch`/`elect`. Verified e2e: an nginx-excepted baseline renders 0 tasks → InSync,
   nginx never installed; mixed baseline drops only the named resources. 19 unit tests green,
   clippy/fmt clean.
-  **REMAINING (env-gated, not native-Rust-feasible on this box):** sysctl/firewall domains
-  (pending the `ansible.posix` collection); **peer-to-peer revision *routing* over Nebula**
-  (hop-relay — needs the mesh env; the revision data-model + election is the local half done); a
-  systemd timer/unit to drive `watch --once` (lands with packaging, E11.11); the Workbench
-  authoring UI (needs the Cosmic env). The full node-side desired-state engine — DSL across 6 OS
-  domains, render→apply, drift auto-heal+audit, version-aware election, local exceptions — is
-  complete and runtime-reachable via the `magic-fleet` CLI.
+  **sysctl + firewall domains DONE (2026-06-09):** with `ansible.posix` 2.2.0 installed,
+  `SysctlReq` (→ `ansible.posix.sysctl`, `sysctl_set:true` so the live value is set, `reload`
+  default true) and `FirewallReq` (→ `ansible.posix.firewalld`, service|port, present→enabled /
+  absent→disabled, `permanent`/`immediate` default true, optional zone; a rule naming neither
+  service nor port is skipped) join the DSL — **now the full 8-domain OS desired-state**. Also
+  extended `LocalExceptions` with sysctl/firewall lists so they too can be locally excepted. The
+  8 render loops were refactored into per-domain `*_task()` helpers (keeps `to_playbook` under the
+  100-line lint). Verified **e2e with a real converge**: a `vm.swappiness` baseline ran the
+  `ansible.posix.sysctl` task (Healed; value correctly unchanged). 20 unit tests green, clippy/fmt
+  clean.
+  **REMAINING (live-mesh-gated only):** **peer-to-peer revision *routing* over Nebula** (hop-relay
+  — needs the running mesh; the revision data-model + election is the local half, done); a systemd
+  timer/unit to drive `watch --once` (lands with packaging, E11.11); the Workbench authoring UI
+  (E11.5, on Cosmic). The full node-side desired-state engine — DSL across **all 8 OS domains**,
+  render→apply, drift auto-heal+audit, version-aware election, local exceptions — is complete and
+  runtime-reachable via the `magic-fleet` CLI.
 - [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.

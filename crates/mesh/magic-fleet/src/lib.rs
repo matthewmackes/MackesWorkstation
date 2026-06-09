@@ -303,14 +303,52 @@ pub struct CronReq {
     pub user: Option<String>,
 }
 
+/// A kernel `sysctl` parameter the node must hold (`ansible.posix.sysctl`).
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct SysctlReq {
+    /// Parameter name (e.g. `net.ipv4.ip_forward`).
+    pub name: String,
+    /// Desired value (e.g. `1`).
+    pub value: String,
+    /// Reload sysctl so the value takes effect immediately (default `true`).
+    #[serde(default = "yes")]
+    pub reload: bool,
+}
+
+/// A `firewalld` rule — a service or a port the node must allow / deny
+/// (`ansible.posix.firewalld`). Exactly one of `service` / `port` is set.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+pub struct FirewallReq {
+    /// A named firewalld service (e.g. `ssh`, `https`).
+    #[serde(default)]
+    pub service: Option<String>,
+    /// A port spec (e.g. `8080/tcp`) — used when `service` is unset.
+    #[serde(default)]
+    pub port: Option<String>,
+    /// `present` → the rule is enabled; `absent` → disabled (default `present`).
+    #[serde(default)]
+    pub state: PresentAbsent,
+    /// firewalld zone (the default zone when unset).
+    #[serde(default)]
+    pub zone: Option<String>,
+    /// Persist across reboots (default `true`).
+    #[serde(default = "yes")]
+    pub permanent: bool,
+    /// Apply to the running firewall now, not just on reload (default `true`).
+    #[serde(default = "yes")]
+    pub immediate: bool,
+}
+
 /// A declarative desired-state baseline (Q121/Q123) — the YAML a fleet revision
 /// carries.
 ///
 /// [`to_playbook`] renders it to an Ansible playbook that converges the node.
-/// Covers the common OS domains — packages, services, files, users, groups, and
-/// scheduled tasks (cron); every section defaults empty (a baseline declares only
-/// what it manages), and new domains extend this without breaking older revisions.
-/// (`sysctl` + firewall await the `ansible.posix` collection — a follow-up slice.)
+/// Covers the full common OS desired-state — packages, services, files, users,
+/// groups, scheduled tasks (cron), kernel `sysctl` params, and `firewall` rules;
+/// every section defaults empty (a baseline declares only what it manages), and
+/// new domains extend this without breaking older revisions. The `sysctl` +
+/// `firewall` domains render `ansible.posix.*` tasks, so a node applying them
+/// needs the `ansible.posix` collection installed.
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct BaselineSpec {
@@ -326,6 +364,10 @@ pub struct BaselineSpec {
     pub groups: Vec<GroupReq>,
     /// Scheduled tasks (crontab entries) to install/remove.
     pub cron: Vec<CronReq>,
+    /// Kernel `sysctl` parameters to set (needs `ansible.posix`).
+    pub sysctl: Vec<SysctlReq>,
+    /// Firewall (`firewalld`) rules to enable/disable (needs `ansible.posix`).
+    pub firewall: Vec<FirewallReq>,
 }
 
 impl BaselineSpec {
@@ -380,6 +422,22 @@ impl BaselineSpec {
                 .filter(|c| keep(&ex.cron, &c.name))
                 .cloned()
                 .collect(),
+            sysctl: self
+                .sysctl
+                .iter()
+                .filter(|s| keep(&ex.sysctl, &s.name))
+                .cloned()
+                .collect(),
+            firewall: self
+                .firewall
+                .iter()
+                .filter(|f| {
+                    // a firewall rule is identified by its service or its port.
+                    let id = f.service.as_deref().or(f.port.as_deref()).unwrap_or("");
+                    keep(&ex.firewall, id)
+                })
+                .cloned()
+                .collect(),
         }
     }
 }
@@ -407,6 +465,10 @@ pub struct LocalExceptions {
     pub groups: Vec<String>,
     /// Cron job names left unmanaged.
     pub cron: Vec<String>,
+    /// Sysctl parameter names left unmanaged.
+    pub sysctl: Vec<String>,
+    /// Firewall rule ids (service or port) left unmanaged.
+    pub firewall: Vec<String>,
 }
 
 impl LocalExceptions {
@@ -427,6 +489,8 @@ impl LocalExceptions {
             + self.users.len()
             + self.groups.len()
             + self.cron.len()
+            + self.sysctl.len()
+            + self.firewall.len()
     }
 
     /// Whether no exemption is declared (the filter is then a no-op).
@@ -512,96 +576,16 @@ pub fn elect_revision(revisions: &[Revision]) -> Option<&Revision> {
 pub fn to_playbook(spec: &BaselineSpec) -> Result<String, serde_yaml::Error> {
     use serde_json::json;
     let mut tasks: Vec<serde_json::Value> = Vec::new();
-    for p in &spec.packages {
-        let state = pa(p.state);
-        tasks.push(json!({
-            "name": format!("package {} -> {state}", p.name),
-            "ansible.builtin.package": { "name": p.name, "state": state },
-        }));
-    }
-    for s in &spec.services {
-        let state = match s.state {
-            ServiceState::Started => "started",
-            ServiceState::Stopped => "stopped",
-        };
-        tasks.push(json!({
-            "name": format!("service {} -> {state} (enabled={})", s.name, s.enabled),
-            "ansible.builtin.service": { "name": s.name, "state": state, "enabled": s.enabled },
-        }));
-    }
-    for f in &spec.files {
-        match f.state {
-            PresentAbsent::Present => tasks.push(json!({
-                "name": format!("file {} -> present", f.path),
-                "ansible.builtin.copy": { "dest": f.path, "content": f.content },
-            })),
-            PresentAbsent::Absent => tasks.push(json!({
-                "name": format!("file {} -> absent", f.path),
-                "ansible.builtin.file": { "path": f.path, "state": "absent" },
-            })),
-        }
-    }
+    tasks.extend(spec.packages.iter().map(package_task));
+    tasks.extend(spec.services.iter().map(service_task));
+    tasks.extend(spec.files.iter().map(file_task));
     // Groups render before users so a user's supplementary group already exists
     // when the user task references it (otherwise the apply fails).
-    for g in &spec.groups {
-        let state = pa(g.state);
-        let mut args = serde_json::Map::new();
-        args.insert("name".into(), json!(g.name));
-        args.insert("state".into(), json!(state));
-        if g.system {
-            args.insert("system".into(), json!(true));
-        }
-        tasks.push(json!({
-            "name": format!("group {} -> {state}", g.name),
-            "ansible.builtin.group": args,
-        }));
-    }
-    for u in &spec.users {
-        let state = pa(u.state);
-        let mut args = serde_json::Map::new();
-        args.insert("name".into(), json!(u.name));
-        args.insert("state".into(), json!(state));
-        if !u.groups.is_empty() {
-            args.insert("groups".into(), json!(u.groups.join(",")));
-            args.insert("append".into(), json!(true));
-        }
-        if let Some(shell) = &u.shell {
-            args.insert("shell".into(), json!(shell));
-        }
-        if u.system {
-            args.insert("system".into(), json!(true));
-        }
-        tasks.push(json!({
-            "name": format!("user {} -> {state}", u.name),
-            "ansible.builtin.user": args,
-        }));
-    }
-    for c in &spec.cron {
-        let state = pa(c.state);
-        let mut args = serde_json::Map::new();
-        args.insert("name".into(), json!(c.name));
-        args.insert("state".into(), json!(state));
-        // job + schedule are only meaningful when installing the entry.
-        if c.state == PresentAbsent::Present {
-            args.insert("job".into(), json!(c.job));
-            for (key, val) in [
-                ("minute", &c.minute),
-                ("hour", &c.hour),
-                ("weekday", &c.weekday),
-            ] {
-                if let Some(v) = val {
-                    args.insert(key.into(), json!(v));
-                }
-            }
-        }
-        if let Some(user) = &c.user {
-            args.insert("user".into(), json!(user));
-        }
-        tasks.push(json!({
-            "name": format!("cron {} -> {state}", c.name),
-            "ansible.builtin.cron": args,
-        }));
-    }
+    tasks.extend(spec.groups.iter().map(group_task));
+    tasks.extend(spec.users.iter().map(user_task));
+    tasks.extend(spec.cron.iter().map(cron_task));
+    tasks.extend(spec.sysctl.iter().map(sysctl_task));
+    tasks.extend(spec.firewall.iter().filter_map(firewall_task));
     let playbook = json!([{
         "hosts": "local",
         "become": true,
@@ -609,6 +593,143 @@ pub fn to_playbook(spec: &BaselineSpec) -> Result<String, serde_yaml::Error> {
         "tasks": tasks,
     }]);
     serde_yaml::to_string(&playbook)
+}
+
+fn package_task(p: &PackageReq) -> serde_json::Value {
+    let state = pa(p.state);
+    serde_json::json!({
+        "name": format!("package {} -> {state}", p.name),
+        "ansible.builtin.package": { "name": p.name, "state": state },
+    })
+}
+
+fn service_task(s: &ServiceReq) -> serde_json::Value {
+    let state = match s.state {
+        ServiceState::Started => "started",
+        ServiceState::Stopped => "stopped",
+    };
+    serde_json::json!({
+        "name": format!("service {} -> {state} (enabled={})", s.name, s.enabled),
+        "ansible.builtin.service": { "name": s.name, "state": state, "enabled": s.enabled },
+    })
+}
+
+fn file_task(f: &FileReq) -> serde_json::Value {
+    match f.state {
+        PresentAbsent::Present => serde_json::json!({
+            "name": format!("file {} -> present", f.path),
+            "ansible.builtin.copy": { "dest": f.path, "content": f.content },
+        }),
+        PresentAbsent::Absent => serde_json::json!({
+            "name": format!("file {} -> absent", f.path),
+            "ansible.builtin.file": { "path": f.path, "state": "absent" },
+        }),
+    }
+}
+
+fn group_task(g: &GroupReq) -> serde_json::Value {
+    let state = pa(g.state);
+    let mut args = serde_json::Map::new();
+    args.insert("name".into(), serde_json::json!(g.name));
+    args.insert("state".into(), serde_json::json!(state));
+    if g.system {
+        args.insert("system".into(), serde_json::json!(true));
+    }
+    serde_json::json!({
+        "name": format!("group {} -> {state}", g.name),
+        "ansible.builtin.group": args,
+    })
+}
+
+fn user_task(u: &UserReq) -> serde_json::Value {
+    let state = pa(u.state);
+    let mut args = serde_json::Map::new();
+    args.insert("name".into(), serde_json::json!(u.name));
+    args.insert("state".into(), serde_json::json!(state));
+    if !u.groups.is_empty() {
+        args.insert("groups".into(), serde_json::json!(u.groups.join(",")));
+        args.insert("append".into(), serde_json::json!(true));
+    }
+    if let Some(shell) = &u.shell {
+        args.insert("shell".into(), serde_json::json!(shell));
+    }
+    if u.system {
+        args.insert("system".into(), serde_json::json!(true));
+    }
+    serde_json::json!({
+        "name": format!("user {} -> {state}", u.name),
+        "ansible.builtin.user": args,
+    })
+}
+
+fn cron_task(c: &CronReq) -> serde_json::Value {
+    let state = pa(c.state);
+    let mut args = serde_json::Map::new();
+    args.insert("name".into(), serde_json::json!(c.name));
+    args.insert("state".into(), serde_json::json!(state));
+    // job + schedule are only meaningful when installing the entry.
+    if c.state == PresentAbsent::Present {
+        args.insert("job".into(), serde_json::json!(c.job));
+        for (key, val) in [
+            ("minute", &c.minute),
+            ("hour", &c.hour),
+            ("weekday", &c.weekday),
+        ] {
+            if let Some(v) = val {
+                args.insert(key.into(), serde_json::json!(v));
+            }
+        }
+    }
+    if let Some(user) = &c.user {
+        args.insert("user".into(), serde_json::json!(user));
+    }
+    serde_json::json!({
+        "name": format!("cron {} -> {state}", c.name),
+        "ansible.builtin.cron": args,
+    })
+}
+
+fn sysctl_task(s: &SysctlReq) -> serde_json::Value {
+    serde_json::json!({
+        "name": format!("sysctl {} = {}", s.name, s.value),
+        "ansible.posix.sysctl": {
+            "name": s.name,
+            "value": s.value,
+            "sysctl_set": true,   // actually set the live value, not just write conf
+            "reload": s.reload,
+            "state": "present",
+        },
+    })
+}
+
+/// Render a firewall rule, or `None` when it names neither a service nor a port
+/// (a malformed rule that has nothing to act on).
+fn firewall_task(f: &FirewallReq) -> Option<serde_json::Value> {
+    // firewalld speaks enabled/disabled; map present -> enabled.
+    let fw_state = match f.state {
+        PresentAbsent::Present => "enabled",
+        PresentAbsent::Absent => "disabled",
+    };
+    let mut args = serde_json::Map::new();
+    // exactly one of service / port identifies the rule; prefer service.
+    let target = if let Some(svc) = &f.service {
+        args.insert("service".into(), serde_json::json!(svc));
+        svc.clone()
+    } else {
+        let port = f.port.as_ref()?;
+        args.insert("port".into(), serde_json::json!(port));
+        port.clone()
+    };
+    args.insert("state".into(), serde_json::json!(fw_state));
+    args.insert("permanent".into(), serde_json::json!(f.permanent));
+    args.insert("immediate".into(), serde_json::json!(f.immediate));
+    if let Some(zone) = &f.zone {
+        args.insert("zone".into(), serde_json::json!(zone));
+    }
+    Some(serde_json::json!({
+        "name": format!("firewall {target} -> {fw_state}"),
+        "ansible.posix.firewalld": args,
+    }))
 }
 
 /// Converge the node to a desired-state [`BaselineSpec`] (render → heal).
@@ -1122,6 +1243,66 @@ spec:
         assert_eq!(second["at"].as_u64(), Some(200));
         assert_eq!(second["status"].as_str(), Some("insync"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn baseline_renders_sysctl_and_firewall() {
+        let yaml = "
+sysctl:
+  - name: net.ipv4.ip_forward
+    value: \"1\"
+  - name: vm.swappiness
+    value: \"10\"
+    reload: false
+firewall:
+  - service: ssh
+  - port: 8080/tcp
+    zone: public
+  - service: telnet
+    state: absent
+  - {}
+";
+        let spec = BaselineSpec::from_yaml(yaml).expect("baseline parses");
+        assert_eq!(spec.sysctl.len(), 2);
+        assert!(spec.sysctl[0].reload, "reload defaults true");
+        assert!(!spec.sysctl[1].reload);
+        assert_eq!(spec.firewall.len(), 4);
+
+        let pb = to_playbook(&spec).expect("renders");
+        let v: serde_yaml::Value = serde_yaml::from_str(&pb).unwrap();
+        let tasks = v[0]["tasks"].as_sequence().unwrap();
+        // 2 sysctl + 3 firewall (the empty {} rule names neither service nor
+        // port and is skipped).
+        assert_eq!(tasks.len(), 5);
+
+        let s0 = &tasks[0]["ansible.posix.sysctl"];
+        assert_eq!(s0["name"].as_str(), Some("net.ipv4.ip_forward"));
+        assert_eq!(s0["value"].as_str(), Some("1"));
+        assert_eq!(s0["sysctl_set"].as_bool(), Some(true));
+        assert_eq!(s0["reload"].as_bool(), Some(true));
+        assert_eq!(
+            tasks[1]["ansible.posix.sysctl"]["reload"].as_bool(),
+            Some(false)
+        );
+
+        let ssh = &tasks[2]["ansible.posix.firewalld"];
+        assert_eq!(ssh["service"].as_str(), Some("ssh"));
+        assert_eq!(ssh["state"].as_str(), Some("enabled"));
+        assert_eq!(ssh["permanent"].as_bool(), Some(true));
+        assert_eq!(ssh["immediate"].as_bool(), Some(true));
+
+        let port = &tasks[3]["ansible.posix.firewalld"];
+        assert_eq!(port["port"].as_str(), Some("8080/tcp"));
+        assert_eq!(port["zone"].as_str(), Some("public"));
+        assert!(port.get("service").is_none());
+
+        let telnet = &tasks[4]["ansible.posix.firewalld"];
+        assert_eq!(telnet["service"].as_str(), Some("telnet"));
+        assert_eq!(
+            telnet["state"].as_str(),
+            Some("disabled"),
+            "absent -> disabled"
+        );
     }
 
     #[test]
