@@ -1424,6 +1424,17 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   no hits (won't dump the tree). Reachable via `mde-files --search <root> <query>`. Verified e2e
   (case-insensitive matches across depths; no-args→exit 1); 8 new unit tests (all-depth match, empty,
   case sensitivity, depth+result caps, symlink-cycle termination, dir-name match) green, clippy/fmt clean.
+  **Archive list/extract DONE (2026-06-09):** `src/archive.rs` reads `.tar` + gzip `.tar.gz`/`.tgz`
+  (gzip detected by `1f 8b` magic, not extension) via the `tar`+`flate2` crates (already in the
+  workspace lockfile — fetch-free add): `list()` enumerates members (path/size/is_dir), `extract()`
+  unpacks into a dest with the `tar` crate's **path-traversal guard** (a `../…` member is skipped,
+  never written outside dest). Reachable via `mde-files --list-archive`/`--extract-archive`. Verified
+  e2e on a real `tar -czf` bundle (list tree+sizes, extract recreates content, missing→exit 1); 8 unit
+  tests green incl. a **hand-crafted raw USTAR** malicious archive proving the traversal guard (the
+  `tar::Builder` refuses to even create a `..` path, so the byte-level archive was needed). clippy/fmt
+  clean. **This completes the dep-light headless native-parity surface** (trash/properties/mounts/
+  search/archive); the remaining E11.6 work (GUI wiring, native LizardFS client, `inode/directory`
+  default registration, Bus file events, thumbnails) is the env/spike-gated second half.
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.

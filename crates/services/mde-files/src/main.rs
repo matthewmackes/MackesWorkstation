@@ -8,8 +8,9 @@
 //! the shell's delete path: `--trash <path>…`, `--list-trash`, `--restore
 //! <trash-name>…`, `--empty-trash` drive the freedesktop home trash directly,
 //! `--properties <path>…` prints native file metadata, `--mounts` lists the
-//! This-PC volumes parsed from `/proc/mounts`, and `--search <root> <query>`
-//! recursively finds matching entries.
+//! This-PC volumes parsed from `/proc/mounts`, `--search <root> <query>`
+//! recursively finds matching entries, and `--list-archive`/`--extract-archive`
+//! read + unpack tar/tar.gz archives.
 
 use std::process::ExitCode;
 
@@ -27,6 +28,8 @@ fn main() -> ExitCode {
         Some("--properties") => return properties(&args[1..]),
         Some("--mounts") => return mounts(),
         Some("--search") => return search(&args[1..]),
+        Some("--list-archive") => return list_archive(&args[1..]),
+        Some("--extract-archive") => return extract_archive(&args[1..]),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -189,6 +192,49 @@ fn search(args: &[String]) -> ExitCode {
         );
     }
     ExitCode::SUCCESS
+}
+
+/// `--list-archive <file>` — print a tar/tar.gz archive's members.
+fn list_archive(args: &[String]) -> ExitCode {
+    let Some(path) = args.first() else {
+        eprintln!("usage: mde-files --list-archive <archive.tar[.gz]>");
+        return ExitCode::FAILURE;
+    };
+    match mde_files::archive::list(std::path::Path::new(path)) {
+        Ok(entries) => {
+            for e in &entries {
+                println!(
+                    "{}\t{}{}",
+                    e.path.display(),
+                    e.size,
+                    if e.is_dir { "\t(dir)" } else { "" }
+                );
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("mde-files: cannot read {path}: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `--extract-archive <file> <dest>` — extract a tar/tar.gz archive into `dest`.
+fn extract_archive(args: &[String]) -> ExitCode {
+    let (Some(path), Some(dest)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: mde-files --extract-archive <archive.tar[.gz]> <dest-dir>");
+        return ExitCode::FAILURE;
+    };
+    match mde_files::archive::extract(std::path::Path::new(path), std::path::Path::new(dest)) {
+        Ok(n) => {
+            println!("extracted {n} member(s) to {dest}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("mde-files: cannot extract {path}: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// `--mounts` — print the user-facing volumes (This PC), one per line.

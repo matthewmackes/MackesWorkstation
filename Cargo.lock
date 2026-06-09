@@ -4661,12 +4661,14 @@ name = "mde-files"
 version = "10.0.0"
 dependencies = [
  "chrono",
+ "flate2",
  "iced 0.14.0",
  "mde-bus",
  "mde-iced-components",
  "mde-theme",
  "serde",
  "serde_json",
+ "tar",
  "tokio",
 ]
 
