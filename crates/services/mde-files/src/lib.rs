@@ -22,6 +22,7 @@ pub mod selection;
 pub mod send_to;
 pub mod smb;
 pub mod theme;
+pub mod trash;
 pub mod views;
 pub mod widgets;
 

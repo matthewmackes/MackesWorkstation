@@ -1383,12 +1383,26 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   **so that** there is one pane of glass.
   **Acceptance:** iced+Carbon toplevel + applet; desktop links removed, mesh settings folded in;
   mesh/infra groups only; **first-run enrollment view**; a **dedicated KDE-Connect device pairing/enrollment interface**; .desktop + autostart applet.
-- [ ] **E11.6: E11 — mde-files as the full-parity default file manager (LEAD RISK, Q34–Q39/Q63–Q66)**
+- [>] **E11.6: E11 — mde-files as the full-parity default file manager (LEAD RISK, Q34–Q39/Q63–Q66)**
   **As** a user, **I want** mde-files to be the default file manager,
   **so that** the mesh + local files live in one native tool.
   **Acceptance:** registers as default `inode/directory`; **native-Rust** ops at full general-FM parity
   (trash/mounts/archives/properties/thumbnails/search); **native LizardFS client** + SMB + KDC Cloud-Files;
   artifacts-as-a-view; Bus file events + notifications. *(Spike native parity + LizardFS before full-v1 commit.)*
+  **Native parity spike — Trash DONE (2026-06-09):** `crates/services/mde-files/src/trash.rs` is a
+  pure-`std` (+ `chrono` timestamp) implementation of the freedesktop **home-trash** spec — no
+  `gio`/`trash-cli` shell-out: `TrashDir::{home,with_root}`, `trash()` (writes `info/<name>.trashinfo`
+  first, then moves the file; cross-FS `EXDEV` copy+remove fallback; collision-safe unique names),
+  `list()`, `restore()` (refuses to clobber an existing target), `empty()`, with spec-faithful
+  percent-encoded `Path=` round-tripping (other FMs can read our records). Reachable headlessly via
+  `mde-files --trash|--list-trash|--restore|--empty-trash` (the established `--pick` short-circuit
+  pattern; main.rs now returns `ExitCode`). Verified e2e under an isolated `XDG_DATA_HOME`: trash →
+  list → restore → empty all correct. 8 unit tests green (round-trip, dir tree, collisions, clobber
+  guard, encode round-trip, parse), clippy/fmt clean (new files carry no warnings). `RealBackend`
+  confirmed the runtime default — `demo_data` is test/smoke scaffolding, not a mockup. **REMAINING
+  native parity (the spike continues):** properties, archive extract/create, mounts, thumbnails,
+  search backend; then the GUI wiring (Delete action/keybind → trash) + the LizardFS client; default
+  `inode/directory` registration; Bus file events. *(Larger GUI/LizardFS work is env/spike-gated.)*
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.
