@@ -1416,6 +1416,14 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   the dev box (btrfs root/home, ext4 /boot, vfat ESP shown; fusectl excluded); 6 unit tests green
   (fixture-driven, zero FS), clippy/fmt clean. *(Serves the E10/E11.6 "This PC lists real volumes
   parsed from /proc/mounts" acceptance.)*
+  **Recursive search backend DONE (2026-06-09):** the existing `search.rs` was only UI row-filtering
+  of an already-listed dir; added `search_tree(root, query, SearchOptions)` — an iterative
+  (explicit-stack, no deep recursion) filesystem walk reusing the locked trimmed/ASCII-case-insensitive
+  substring policy, with `max_results`/`max_depth` caps, **symlink-cycle-safe** (never descends a
+  symlink, so a self-referential link can't loop the walk), unreadable subdirs skipped. Empty query →
+  no hits (won't dump the tree). Reachable via `mde-files --search <root> <query>`. Verified e2e
+  (case-insensitive matches across depths; no-args→exit 1); 8 new unit tests (all-depth match, empty,
+  case sensitivity, depth+result caps, symlink-cycle termination, dir-name match) green, clippy/fmt clean.
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.

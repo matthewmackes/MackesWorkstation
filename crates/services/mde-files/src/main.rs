@@ -7,8 +7,9 @@
 //! Native file-ops parity (E11.6) is also reachable headlessly for scripting +
 //! the shell's delete path: `--trash <path>…`, `--list-trash`, `--restore
 //! <trash-name>…`, `--empty-trash` drive the freedesktop home trash directly,
-//! `--properties <path>…` prints native file metadata, and `--mounts` lists the
-//! This-PC volumes parsed from `/proc/mounts`.
+//! `--properties <path>…` prints native file metadata, `--mounts` lists the
+//! This-PC volumes parsed from `/proc/mounts`, and `--search <root> <query>`
+//! recursively finds matching entries.
 
 use std::process::ExitCode;
 
@@ -25,6 +26,7 @@ fn main() -> ExitCode {
         Some("--empty-trash") => return empty_trash(),
         Some("--properties") => return properties(&args[1..]),
         Some("--mounts") => return mounts(),
+        Some("--search") => return search(&args[1..]),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -168,6 +170,25 @@ fn properties(paths: &[String]) -> ExitCode {
     } else {
         ExitCode::SUCCESS
     }
+}
+
+/// `--search <root> <query>` — recursively find entries whose name matches
+/// `query` under `root`, printing `path` (with a trailing `/` for directories).
+fn search(args: &[String]) -> ExitCode {
+    let (Some(root), Some(query)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: mde-files --search <root> <query>");
+        return ExitCode::FAILURE;
+    };
+    let opts = mde_files::search::SearchOptions::default();
+    let hits = mde_files::search::search_tree(std::path::Path::new(root), query, &opts);
+    for hit in &hits {
+        println!(
+            "{}{}",
+            hit.path.display(),
+            if hit.is_dir { "/" } else { "" }
+        );
+    }
+    ExitCode::SUCCESS
 }
 
 /// `--mounts` — print the user-facing volumes (This PC), one per line.
