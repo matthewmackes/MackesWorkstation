@@ -1421,10 +1421,18 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   surviving transient tick failures (logs + retries, never dies on a blip). Verified e2e: an
   empty baseline → `InSync`, one JSONL audit line written, exit 0; bad flags rejected. 13 unit
   tests green, clippy/fmt clean. (Q108 auto-heal **with audit**.)
+  **Version-aware revisions DONE (2026-06-09, Q115):** `Revision` (monotonic `version` +
+  `author`/`at` + the `BaselineSpec` it pins; `deny_unknown_fields`, YAML round-trips for
+  gossip — `BaselineSpec` + all `Req` types gained `Serialize`). `supersedes()` = newest-wins
+  total order (version, then later `at`, then lexical `author` so every node elects the same
+  rev with no coordination); `elect_revision()` reduces a held set to the winner. CLI `magic-fleet
+  elect <revision.yml>...` reads the revisions a node holds, elects the winner, converges to it.
+  Verified e2e: v8 beats v3 regardless of arg order → converges InSync, exit 0. 16 unit tests
+  green, clippy/fmt clean.
   **REMAINING (the distributed/UI layer):** sysctl/firewall domains (pending `ansible.posix`);
-  **peer-to-peer revision routing over Nebula** (hop-relay); version-aware revisions (Q115); a
-  systemd timer/unit to drive `watch --once` (lands with packaging, E11.11); the Workbench
-  authoring UI; declared local exceptions (Q124).
+  **peer-to-peer revision *routing* over Nebula** (hop-relay — needs the mesh env; the revision
+  data-model + election above is the local half); a systemd timer/unit to drive `watch --once`
+  (lands with packaging, E11.11); the Workbench authoring UI; declared local exceptions (Q124).
 - [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.

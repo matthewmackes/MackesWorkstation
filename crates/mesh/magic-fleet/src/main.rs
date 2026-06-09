@@ -5,6 +5,7 @@
 //!   magic-fleet converge <baseline.yml>   render a desired-state baseline → apply + report drift
 //!   magic-fleet watch    <baseline.yml> [--interval=SECS] [--audit=PATH] [--once]
 //!                                         drift-watch daemon: converge on a timer, persist an audit log
+//!   magic-fleet elect    <revision.yml>...  pick the newest-wins revision and converge to it
 //!
 //! Exit 0 only when the node converged / the heal did not fail.
 
@@ -20,11 +21,14 @@ fn main() -> ExitCode {
     if args.get(1).map(String::as_str) == Some("watch") {
         return watch(&args[2..]);
     }
+    if args.get(1).map(String::as_str) == Some("elect") {
+        return elect(&args[2..]);
+    }
     let (Some(verb @ ("apply" | "heal" | "converge")), Some(path)) =
         (args.get(1).map(String::as_str), args.get(2))
     else {
         eprintln!(
-            "usage: magic-fleet <apply|heal> <playbook.yml> | converge <baseline.yml>\n       magic-fleet watch <baseline.yml> [--interval=SECS] [--audit=PATH] [--once]"
+            "usage: magic-fleet <apply|heal> <playbook.yml> | converge <baseline.yml>\n       magic-fleet watch <baseline.yml> [--interval=SECS] [--audit=PATH] [--once]\n       magic-fleet elect <revision.yml> [revision.yml ...]"
         );
         return ExitCode::FAILURE;
     };
@@ -65,6 +69,47 @@ fn main() -> ExitCode {
             }
         },
     }
+}
+
+/// `elect` — given the revision files a node currently holds, pick the winner
+/// (newest-wins, no fixed center) and converge the node to its baseline. This is
+/// the version-aware apply path: peers gossip revisions, the node elects one.
+fn elect(paths: &[String]) -> ExitCode {
+    if paths.is_empty() {
+        eprintln!("usage: magic-fleet elect <revision.yml> [revision.yml ...]");
+        return ExitCode::FAILURE;
+    }
+    let mut revisions = Vec::with_capacity(paths.len());
+    for p in paths {
+        let yaml = match std::fs::read_to_string(p) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("magic-fleet: cannot read {p}: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        match magic_fleet::Revision::from_yaml(&yaml) {
+            Ok(r) => revisions.push(r),
+            Err(e) => {
+                eprintln!("magic-fleet: invalid revision {p}: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    // elect_revision returns None only on an empty slice, ruled out above.
+    let Some(winner) = magic_fleet::elect_revision(&revisions) else {
+        eprintln!("magic-fleet: no revisions to elect");
+        return ExitCode::FAILURE;
+    };
+    println!(
+        "magic-fleet: elected revision v{} (author={}, at={}) from {} candidate(s)",
+        winner.version,
+        winner.author,
+        winner.at,
+        revisions.len()
+    );
+    let root = std::env::temp_dir().join(format!("magic-fleet-elect-{}", std::process::id()));
+    drift_exit("elect", magic_fleet::converge(&winner.spec, &root))
 }
 
 /// The drift-watch daemon: parse `watch` flags, then converge-on-a-timer,

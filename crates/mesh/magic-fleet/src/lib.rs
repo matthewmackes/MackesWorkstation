@@ -174,7 +174,7 @@ pub fn heal_to_baseline(
 }
 
 /// `present` (the resource must exist) / `absent` (must not).
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum PresentAbsent {
     /// The resource must exist / be installed.
@@ -185,7 +185,7 @@ pub enum PresentAbsent {
 }
 
 /// A systemd service's desired run-state.
-#[derive(Debug, Clone, Copy, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ServiceState {
     /// The service must be running.
@@ -196,7 +196,7 @@ pub enum ServiceState {
 }
 
 /// A package the node must have / not have.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct PackageReq {
     /// Package name (dnf/rpm).
     pub name: String,
@@ -206,7 +206,7 @@ pub struct PackageReq {
 }
 
 /// A systemd service's desired enablement + run-state.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct ServiceReq {
     /// systemd unit name.
     pub name: String,
@@ -219,7 +219,7 @@ pub struct ServiceReq {
 }
 
 /// A managed file: `content` placed at `path` when `present`, removed when `absent`.
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct FileReq {
     /// Absolute destination path.
     pub path: String,
@@ -244,7 +244,7 @@ const fn pa(state: PresentAbsent) -> &'static str {
 }
 
 /// A user account the node must have (`present`) or not (`absent`).
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct UserReq {
     /// Login name.
     pub name: String,
@@ -263,7 +263,7 @@ pub struct UserReq {
 }
 
 /// A group the node must have (`present`) or not (`absent`).
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct GroupReq {
     /// Group name.
     pub name: String,
@@ -279,7 +279,7 @@ pub struct GroupReq {
 ///
 /// Each unset schedule field falls through to Ansible's own `*` default, so a
 /// baseline declares only the fields it constrains.
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 pub struct CronReq {
     /// Unique job identifier (Ansible's `name`, written as a crontab comment).
     pub name: String,
@@ -311,7 +311,7 @@ pub struct CronReq {
 /// scheduled tasks (cron); every section defaults empty (a baseline declares only
 /// what it manages), and new domains extend this without breaking older revisions.
 /// (`sysctl` + firewall await the `ansible.posix` collection — a follow-up slice.)
-#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct BaselineSpec {
     /// Packages to install/remove.
@@ -336,6 +336,72 @@ impl BaselineSpec {
     pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
         serde_yaml::from_str(yaml)
     }
+}
+
+/// A versioned fleet revision (Q115) — a monotonic `version` plus the desired-state
+/// baseline it carries, stamped with the authoring node + time.
+///
+/// Revisions gossip peer-to-peer with no fixed center (Q113/Q116), so a node may
+/// hold several at once and must pick deterministically. [`supersedes`] defines
+/// "newest wins": higher `version` first, ties broken by later `at`, then by
+/// `author` for a total order every node agrees on.
+///
+/// [`supersedes`]: Revision::supersedes
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Revision {
+    /// Monotonic revision number; the fleet's notion of "newer".
+    pub version: u64,
+    /// Node id that authored this revision.
+    #[serde(default)]
+    pub author: String,
+    /// Authoring time, Unix seconds (the version tiebreak).
+    #[serde(default)]
+    pub at: u64,
+    /// The desired-state baseline this revision pins.
+    #[serde(default)]
+    pub spec: BaselineSpec,
+}
+
+impl Revision {
+    /// Parse a revision from its YAML representation.
+    ///
+    /// # Errors
+    /// On malformed YAML or an unknown field.
+    pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        serde_yaml::from_str(yaml)
+    }
+
+    /// Serialise the revision to YAML (for gossiping it to a peer).
+    ///
+    /// # Errors
+    /// On YAML serialisation failure (practically never for this shape).
+    pub fn to_yaml(&self) -> Result<String, serde_yaml::Error> {
+        serde_yaml::to_string(self)
+    }
+
+    /// Does this revision win over `other` under the fleet's total order?
+    ///
+    /// Higher `version` wins; equal versions break to the later `at`; an exact
+    /// tie breaks to the lexically greater `author` so every node elects the same
+    /// revision without coordination. A revision never supersedes an identical one.
+    #[must_use]
+    pub fn supersedes(&self, other: &Self) -> bool {
+        (self.version, self.at, self.author.as_str())
+            > (other.version, other.at, other.author.as_str())
+    }
+}
+
+/// Elect the winning revision from a set the node currently holds (the highest
+/// under [`Revision::supersedes`]), or `None` when the set is empty.
+///
+/// This is the "newest wins, no fixed center" selection a node runs before
+/// converging: gather the revisions gossiped from peers, pick one, apply it.
+#[must_use]
+pub fn elect_revision(revisions: &[Revision]) -> Option<&Revision> {
+    revisions
+        .iter()
+        .reduce(|win, r| if r.supersedes(win) { r } else { win })
 }
 
 /// Render a [`BaselineSpec`] into an Ansible playbook (one local play, `become`).
@@ -785,6 +851,63 @@ cron:
         // an absent cron entry needs no job/schedule.
         assert!(stale.get("job").is_none());
         assert!(stale.get("minute").is_none());
+    }
+
+    #[test]
+    fn revision_election_is_newest_wins_with_deterministic_tiebreaks() {
+        let rev = |version, at, author: &str| Revision {
+            version,
+            at,
+            author: author.to_string(),
+            spec: BaselineSpec::default(),
+        };
+        // Higher version wins outright.
+        assert!(rev(5, 0, "a").supersedes(&rev(4, 999, "z")));
+        // Equal version -> later `at` wins.
+        assert!(rev(5, 200, "a").supersedes(&rev(5, 100, "z")));
+        // Equal version + at -> lexically greater author wins (total order).
+        assert!(rev(5, 100, "z").supersedes(&rev(5, 100, "a")));
+        // A revision never supersedes its identical twin.
+        assert!(!rev(5, 100, "a").supersedes(&rev(5, 100, "a")));
+
+        // elect picks the winner regardless of input order.
+        let set = [
+            rev(2, 0, "a"),
+            rev(7, 0, "b"),
+            rev(7, 0, "a"),
+            rev(3, 0, "c"),
+        ];
+        let winner = elect_revision(&set).unwrap();
+        assert_eq!((winner.version, winner.author.as_str()), (7, "b"));
+        assert!(elect_revision(&[]).is_none());
+    }
+
+    #[test]
+    fn revision_round_trips_through_yaml_with_its_spec() {
+        let yaml = "
+version: 12
+author: node-7
+at: 1700000000
+spec:
+  packages:
+    - name: htop
+  services:
+    - name: sshd
+";
+        let rev = Revision::from_yaml(yaml).expect("revision parses");
+        assert_eq!(rev.version, 12);
+        assert_eq!(rev.author, "node-7");
+        assert_eq!(rev.spec.packages.len(), 1);
+
+        // serialise it back out and re-parse: same revision (gossip round-trip).
+        let out = rev.to_yaml().unwrap();
+        let again = Revision::from_yaml(&out).unwrap();
+        assert_eq!(rev, again);
+    }
+
+    #[test]
+    fn revision_rejects_unknown_fields() {
+        assert!(Revision::from_yaml("version: 1\nbogus: true\n").is_err());
     }
 
     #[test]
