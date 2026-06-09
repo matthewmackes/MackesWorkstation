@@ -1408,11 +1408,16 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   converge (baseline → render → apply) Healed→InSync. **10 unit tests** green (parser grounded
   on a captured real event; render parsed-back + asserted), clippy/fmt clean, passes the E11.2
   boundary gate. (Toolchain: ansible-runner 2.4.2 + ansible-core 2.20.6.)
-  **REMAINING (the distributed/UI layer):** broaden the DSL to the full-OS domains (users,
-  networking/firewall, sysctl, scheduled tasks, …); **peer-to-peer revision routing over
-  Nebula** (hop-relay); version-aware revisions (Q115); a **scheduled drift-watch daemon** that
-  periodically `converge`s + persists the audit; the Workbench authoring UI; declared local
-  exceptions (Q124).
+  **DSL broadened (2026-06-09):** added `users` (`ansible.builtin.user` — groups/shell/system),
+  `groups` (`ansible.builtin.group`), and `cron` (`ansible.builtin.cron` scheduled tasks) to
+  `BaselineSpec`; groups render before users so a supplementary group exists when referenced.
+  All three map to genuinely-installed `ansible.builtin` modules; render-locked by a new unit
+  test (11 total green, clippy/fmt clean). (`sysctl` + firewall await the `ansible.posix`
+  collection — not installed on this box — a follow-up slice.)
+  **REMAINING (the distributed/UI layer):** sysctl/firewall domains (pending `ansible.posix`);
+  **peer-to-peer revision routing over Nebula** (hop-relay); version-aware revisions (Q115); a
+  **scheduled drift-watch daemon** that periodically `converge`s + persists the audit; the
+  Workbench authoring UI; declared local exceptions (Q124).
 - [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.

@@ -234,13 +234,82 @@ const fn yes() -> bool {
     true
 }
 
+/// The Ansible `state:` string for a present/absent desire.
+const fn pa(state: PresentAbsent) -> &'static str {
+    match state {
+        PresentAbsent::Present => "present",
+        PresentAbsent::Absent => "absent",
+    }
+}
+
+/// A user account the node must have (`present`) or not (`absent`).
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+pub struct UserReq {
+    /// Login name.
+    pub name: String,
+    /// Desired presence (default `present`).
+    #[serde(default)]
+    pub state: PresentAbsent,
+    /// Supplementary groups (appended, not exclusive).
+    #[serde(default)]
+    pub groups: Vec<String>,
+    /// Login shell, when the baseline pins one.
+    #[serde(default)]
+    pub shell: Option<String>,
+    /// Create as a system account (UID below the login range).
+    #[serde(default)]
+    pub system: bool,
+}
+
+/// A group the node must have (`present`) or not (`absent`).
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+pub struct GroupReq {
+    /// Group name.
+    pub name: String,
+    /// Desired presence (default `present`).
+    #[serde(default)]
+    pub state: PresentAbsent,
+    /// Create as a system group.
+    #[serde(default)]
+    pub system: bool,
+}
+
+/// A scheduled task (a crontab entry, keyed by `name`).
+///
+/// Each unset schedule field falls through to Ansible's own `*` default, so a
+/// baseline declares only the fields it constrains.
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
+pub struct CronReq {
+    /// Unique job identifier (Ansible's `name`, written as a crontab comment).
+    pub name: String,
+    /// Command to run (required when `present`).
+    #[serde(default)]
+    pub job: String,
+    /// Desired presence (default `present`).
+    #[serde(default)]
+    pub state: PresentAbsent,
+    /// Minute field (`*` when unset).
+    #[serde(default)]
+    pub minute: Option<String>,
+    /// Hour field (`*` when unset).
+    #[serde(default)]
+    pub hour: Option<String>,
+    /// Day-of-week field (`*` when unset).
+    #[serde(default)]
+    pub weekday: Option<String>,
+    /// Crontab owner (root's crontab when unset).
+    #[serde(default)]
+    pub user: Option<String>,
+}
+
 /// A declarative desired-state baseline (Q121/Q123) — the YAML a fleet revision
 /// carries.
 ///
 /// [`to_playbook`] renders it to an Ansible playbook that converges the node.
-/// Covers the most common OS domains; every section defaults empty (a baseline
-/// declares only what it manages), and new domains extend this without breaking
-/// older revisions.
+/// Covers the common OS domains — packages, services, files, users, groups, and
+/// scheduled tasks (cron); every section defaults empty (a baseline declares only
+/// what it manages), and new domains extend this without breaking older revisions.
+/// (`sysctl` + firewall await the `ansible.posix` collection — a follow-up slice.)
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 #[serde(default, deny_unknown_fields)]
 pub struct BaselineSpec {
@@ -250,6 +319,12 @@ pub struct BaselineSpec {
     pub services: Vec<ServiceReq>,
     /// Files to place/remove.
     pub files: Vec<FileReq>,
+    /// User accounts to create/remove.
+    pub users: Vec<UserReq>,
+    /// Groups to create/remove.
+    pub groups: Vec<GroupReq>,
+    /// Scheduled tasks (crontab entries) to install/remove.
+    pub cron: Vec<CronReq>,
 }
 
 impl BaselineSpec {
@@ -273,10 +348,7 @@ pub fn to_playbook(spec: &BaselineSpec) -> Result<String, serde_yaml::Error> {
     use serde_json::json;
     let mut tasks: Vec<serde_json::Value> = Vec::new();
     for p in &spec.packages {
-        let state = match p.state {
-            PresentAbsent::Present => "present",
-            PresentAbsent::Absent => "absent",
-        };
+        let state = pa(p.state);
         tasks.push(json!({
             "name": format!("package {} -> {state}", p.name),
             "ansible.builtin.package": { "name": p.name, "state": state },
@@ -303,6 +375,67 @@ pub fn to_playbook(spec: &BaselineSpec) -> Result<String, serde_yaml::Error> {
                 "ansible.builtin.file": { "path": f.path, "state": "absent" },
             })),
         }
+    }
+    // Groups render before users so a user's supplementary group already exists
+    // when the user task references it (otherwise the apply fails).
+    for g in &spec.groups {
+        let state = pa(g.state);
+        let mut args = serde_json::Map::new();
+        args.insert("name".into(), json!(g.name));
+        args.insert("state".into(), json!(state));
+        if g.system {
+            args.insert("system".into(), json!(true));
+        }
+        tasks.push(json!({
+            "name": format!("group {} -> {state}", g.name),
+            "ansible.builtin.group": args,
+        }));
+    }
+    for u in &spec.users {
+        let state = pa(u.state);
+        let mut args = serde_json::Map::new();
+        args.insert("name".into(), json!(u.name));
+        args.insert("state".into(), json!(state));
+        if !u.groups.is_empty() {
+            args.insert("groups".into(), json!(u.groups.join(",")));
+            args.insert("append".into(), json!(true));
+        }
+        if let Some(shell) = &u.shell {
+            args.insert("shell".into(), json!(shell));
+        }
+        if u.system {
+            args.insert("system".into(), json!(true));
+        }
+        tasks.push(json!({
+            "name": format!("user {} -> {state}", u.name),
+            "ansible.builtin.user": args,
+        }));
+    }
+    for c in &spec.cron {
+        let state = pa(c.state);
+        let mut args = serde_json::Map::new();
+        args.insert("name".into(), json!(c.name));
+        args.insert("state".into(), json!(state));
+        // job + schedule are only meaningful when installing the entry.
+        if c.state == PresentAbsent::Present {
+            args.insert("job".into(), json!(c.job));
+            for (key, val) in [
+                ("minute", &c.minute),
+                ("hour", &c.hour),
+                ("weekday", &c.weekday),
+            ] {
+                if let Some(v) = val {
+                    args.insert(key.into(), json!(v));
+                }
+            }
+        }
+        if let Some(user) = &c.user {
+            args.insert("user".into(), json!(user));
+        }
+        tasks.push(json!({
+            "name": format!("cron {} -> {state}", c.name),
+            "ansible.builtin.cron": args,
+        }));
     }
     let playbook = json!([{
         "hosts": "local",
@@ -489,6 +622,76 @@ files:
         assert!(pb.contains("ansible.builtin.file"));
         assert!(pb.contains("absent"));
         assert!(!pb.contains("ansible.builtin.copy"));
+    }
+
+    #[test]
+    fn baseline_renders_users_groups_and_cron() {
+        let yaml = "
+groups:
+  - name: developers
+    system: true
+users:
+  - name: deploy
+    groups: [developers, wheel]
+    shell: /bin/bash
+    system: true
+  - name: olduser
+    state: absent
+cron:
+  - name: nightly-heal
+    job: magic-fleet converge /etc/magic/baseline.yml
+    minute: \"0\"
+    hour: \"3\"
+  - name: stale-job
+    state: absent
+";
+        let spec = BaselineSpec::from_yaml(yaml).expect("baseline parses");
+        assert_eq!(spec.groups.len(), 1);
+        assert_eq!(spec.users.len(), 2);
+        assert_eq!(spec.cron.len(), 2);
+        assert_eq!(spec.users[0].groups, vec!["developers", "wheel"]);
+        assert_eq!(spec.users[1].state, PresentAbsent::Absent);
+
+        let pb = to_playbook(&spec).expect("renders");
+        let v: serde_yaml::Value = serde_yaml::from_str(&pb).unwrap();
+        let tasks = v[0]["tasks"].as_sequence().unwrap();
+        // 1 group + 2 users + 2 cron = 5 (no packages/services/files here).
+        assert_eq!(tasks.len(), 5);
+
+        let group = &tasks[0]["ansible.builtin.group"];
+        assert_eq!(group["name"].as_str(), Some("developers"));
+        assert_eq!(group["system"].as_bool(), Some(true));
+
+        let deploy = &tasks[1]["ansible.builtin.user"];
+        assert_eq!(deploy["name"].as_str(), Some("deploy"));
+        assert_eq!(deploy["state"].as_str(), Some("present"));
+        assert_eq!(deploy["groups"].as_str(), Some("developers,wheel"));
+        assert_eq!(deploy["append"].as_bool(), Some(true));
+        assert_eq!(deploy["shell"].as_str(), Some("/bin/bash"));
+        assert_eq!(deploy["system"].as_bool(), Some(true));
+
+        let removed = &tasks[2]["ansible.builtin.user"];
+        assert_eq!(removed["state"].as_str(), Some("absent"));
+        // an absent user carries no group/shell churn.
+        assert!(removed.get("groups").is_none());
+        assert!(removed.get("shell").is_none());
+
+        let nightly = &tasks[3]["ansible.builtin.cron"];
+        assert_eq!(nightly["name"].as_str(), Some("nightly-heal"));
+        assert_eq!(
+            nightly["job"].as_str(),
+            Some("magic-fleet converge /etc/magic/baseline.yml")
+        );
+        assert_eq!(nightly["minute"].as_str(), Some("0"));
+        assert_eq!(nightly["hour"].as_str(), Some("3"));
+        // an unset schedule field falls through to Ansible's own `*` default.
+        assert!(nightly.get("weekday").is_none());
+
+        let stale = &tasks[4]["ansible.builtin.cron"];
+        assert_eq!(stale["state"].as_str(), Some("absent"));
+        // an absent cron entry needs no job/schedule.
+        assert!(stale.get("job").is_none());
+        assert!(stale.get("minute").is_none());
     }
 
     #[test]
