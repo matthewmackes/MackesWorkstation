@@ -128,7 +128,7 @@ impl TrashDir {
         )?;
 
         let dest = self.files_dir().join(&trash_name);
-        if let Err(e) = move_path(&original, &dest) {
+        if let Err(e) = crate::fileops::move_path(&original, &dest) {
             // Roll back the info file so a failed move leaves no dangling record.
             let _ = std::fs::remove_file(&info_path);
             return Err(e);
@@ -186,7 +186,7 @@ impl TrashDir {
         if let Some(parent) = item.original_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        move_path(&from, &item.original_path)?;
+        crate::fileops::move_path(&from, &item.original_path)?;
         std::fs::remove_file(self.info_path(&item.trash_name))?;
         Ok(())
     }
@@ -227,39 +227,6 @@ impl TrashDir {
             .find(|n| !taken(n))
             .unwrap_or_else(|| base.to_string())
     }
-}
-
-/// Move a path, falling back to copy+remove when `rename` fails across
-/// filesystems (`EXDEV`) — the trash may live on a different mount than `src`.
-fn move_path(from: &Path, to: &Path) -> io::Result<()> {
-    match std::fs::rename(from, to) {
-        Ok(()) => Ok(()),
-        Err(_) => {
-            if from.is_dir() {
-                copy_dir_recursive(from, to)?;
-                std::fs::remove_dir_all(from)?;
-            } else {
-                std::fs::copy(from, to)?;
-                std::fs::remove_file(from)?;
-            }
-            Ok(())
-        }
-    }
-}
-
-fn copy_dir_recursive(from: &Path, to: &Path) -> io::Result<()> {
-    std::fs::create_dir_all(to)?;
-    for entry in std::fs::read_dir(from)? {
-        let entry = entry?;
-        let src = entry.path();
-        let dst = to.join(entry.file_name());
-        if src.is_dir() {
-            copy_dir_recursive(&src, &dst)?;
-        } else {
-            std::fs::copy(&src, &dst)?;
-        }
-    }
-    Ok(())
 }
 
 /// Parse a `.trashinfo` body into a [`TrashedItem`]; `None` when it lacks a

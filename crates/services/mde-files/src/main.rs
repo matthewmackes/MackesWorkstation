@@ -9,8 +9,9 @@
 //! <trash-name>…`, `--empty-trash` drive the freedesktop home trash directly,
 //! `--properties <path>…` prints native file metadata, `--mounts` lists the
 //! This-PC volumes parsed from `/proc/mounts`, `--search <root> <query>`
-//! recursively finds matching entries, and `--list-archive`/`--extract-archive`
-//! read + unpack tar/tar.gz archives.
+//! recursively finds matching entries, `--list-archive`/`--extract-archive`
+//! read + unpack tar/tar.gz archives, and `--copy`/`--move`/`--mkdir` are the
+//! native local file operations.
 
 use std::process::ExitCode;
 
@@ -30,6 +31,9 @@ fn main() -> ExitCode {
         Some("--search") => return search(&args[1..]),
         Some("--list-archive") => return list_archive(&args[1..]),
         Some("--extract-archive") => return extract_archive(&args[1..]),
+        Some("--copy") => return copy_op(&args[1..]),
+        Some("--move") => return move_op(&args[1..]),
+        Some("--mkdir") => return mkdir_op(&args[1..]),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -192,6 +196,60 @@ fn search(args: &[String]) -> ExitCode {
         );
     }
     ExitCode::SUCCESS
+}
+
+/// `--copy <src> <dst>` — copy a file or directory tree.
+fn copy_op(args: &[String]) -> ExitCode {
+    let (Some(src), Some(dst)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: mde-files --copy <src> <dst>");
+        return ExitCode::FAILURE;
+    };
+    match mde_files::fileops::copy(std::path::Path::new(src), std::path::Path::new(dst)) {
+        Ok(()) => {
+            println!("copied {src} -> {dst}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("mde-files: cannot copy {src}: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `--move <src> <dst>` — move/rename a file or directory.
+fn move_op(args: &[String]) -> ExitCode {
+    let (Some(src), Some(dst)) = (args.first(), args.get(1)) else {
+        eprintln!("usage: mde-files --move <src> <dst>");
+        return ExitCode::FAILURE;
+    };
+    match mde_files::fileops::move_path(std::path::Path::new(src), std::path::Path::new(dst)) {
+        Ok(()) => {
+            println!("moved {src} -> {dst}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("mde-files: cannot move {src}: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// `--mkdir <path>` — create a directory (and parents).
+fn mkdir_op(args: &[String]) -> ExitCode {
+    let Some(path) = args.first() else {
+        eprintln!("usage: mde-files --mkdir <path>");
+        return ExitCode::FAILURE;
+    };
+    match mde_files::fileops::make_dir(std::path::Path::new(path)) {
+        Ok(()) => {
+            println!("created {path}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("mde-files: cannot mkdir {path}: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// `--list-archive <file>` — print a tar/tar.gz archive's members.

@@ -1432,9 +1432,18 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   e2e on a real `tar -czf` bundle (list tree+sizes, extract recreates content, missing→exit 1); 8 unit
   tests green incl. a **hand-crafted raw USTAR** malicious archive proving the traversal guard (the
   `tar::Builder` refuses to even create a `..` path, so the byte-level archive was needed). clippy/fmt
-  clean. **This completes the dep-light headless native-parity surface** (trash/properties/mounts/
-  search/archive); the remaining E11.6 work (GUI wiring, native LizardFS client, `inode/directory`
-  default registration, Bus file events, thumbnails) is the env/spike-gated second half.
+  clean.
+  **Local file-ops DONE (2026-06-09):** `src/fileops.rs` — native `copy()` (file or recursive tree,
+  creates parents), `move_path()` (rename + cross-FS EXDEV copy+remove fallback), `make_dir()`
+  (idempotent), `remove()` (hard delete: file/empty-dir/tree). **Reuse (§2.7):** promoted trash.rs's
+  private `move_path`/`copy_dir_recursive` here and refactored `trash.rs` to call `fileops::move_path`
+  (its 8 tests still green — refactor-safe). Reachable via `mde-files --copy|--move|--mkdir`. Verified
+  e2e (mkdir nested, copy-tree keeps source, move relocates, bad-usage→exit 1); 6 unit tests green,
+  clippy/fmt clean.
+  **This completes the dep-light headless native-parity surface** (trash/properties/mounts/search/
+  archive/file-ops); the remaining E11.6 work (GUI wiring, native LizardFS client, `inode/directory`
+  default registration, Bus file events, thumbnail *display*) is the env/spike-gated second half.
+  *(Thumbnail generation — decode/downscale/cache — is still headless-feasible; queued next.)*
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.
