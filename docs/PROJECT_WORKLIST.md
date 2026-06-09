@@ -1389,12 +1389,24 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   **Acceptance:** registers as default `inode/directory`; **native-Rust** ops at full general-FM parity
   (trash/mounts/archives/properties/thumbnails/search); **native LizardFS client** + SMB + KDC Cloud-Files;
   artifacts-as-a-view; Bus file events + notifications. *(Spike native parity + LizardFS before full-v1 commit.)*
-- [ ] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
+- [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.
   **Acceptance:** each node runs `ansible-runner` (Podman-isolated) locally against a **declarative YAML baseline**
   covering the full OS desired-state; revisions route **peer-to-peer over Nebula** (hop-relay via lighthouse);
   **any** node's Workbench authors a revision; version-aware; **auto-heal to baseline with audit** + declared local exceptions.
+  **PROGRESS — local-apply primitive DONE (2026-06-09).** New `crates/mesh/magic-fleet`
+  crate: `apply(playbook, root)` lays out an ansible-runner private-data-dir (local
+  `localhost` inventory), runs it via `ansible-runner` + `ansible-core`, and parses the
+  `playbook_on_stats` event into `ApplyReport {ok,changed,failures,unreachable}` with
+  `converged()`/`made_changes()` (the idempotence signal the drift loop keys off).
+  Runtime-reachable via `magic-fleet apply <playbook.yml>`. **Verified end-to-end** (real
+  Ansible): apply #1 → changed=1 CONVERGED, re-apply #2 → changed=0 CONVERGED (idempotent).
+  6 unit tests green (stats parser grounded on a captured real event), clippy/fmt clean.
+  **REMAINING:** the declarative YAML desired-state DSL → playbook render (full-OS domains,
+  Q121/Q123); **peer-to-peer revision routing over Nebula** (hop-relay); version-aware
+  revisions (Q115); the **drift auto-heal loop** + audit (Q108); Workbench authoring UI; and
+  declared local exceptions (Q124). (Toolchain installed: ansible-runner 2.4.2 + ansible-core 2.20.6.)
 - [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.
