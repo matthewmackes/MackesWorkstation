@@ -336,6 +336,104 @@ impl BaselineSpec {
     pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
         serde_yaml::from_str(yaml)
     }
+
+    /// Return a copy of this baseline with every resource named in `ex` dropped
+    /// (Q124): the node converges to the fleet baseline *except* its locally-owned
+    /// resources. An empty exception set returns an identical baseline.
+    #[must_use]
+    pub fn without_exceptions(&self, ex: &LocalExceptions) -> Self {
+        let keep = |list: &[String], id: &str| !list.iter().any(|e| e == id);
+        Self {
+            packages: self
+                .packages
+                .iter()
+                .filter(|p| keep(&ex.packages, &p.name))
+                .cloned()
+                .collect(),
+            services: self
+                .services
+                .iter()
+                .filter(|s| keep(&ex.services, &s.name))
+                .cloned()
+                .collect(),
+            files: self
+                .files
+                .iter()
+                .filter(|f| keep(&ex.files, &f.path))
+                .cloned()
+                .collect(),
+            users: self
+                .users
+                .iter()
+                .filter(|u| keep(&ex.users, &u.name))
+                .cloned()
+                .collect(),
+            groups: self
+                .groups
+                .iter()
+                .filter(|g| keep(&ex.groups, &g.name))
+                .cloned()
+                .collect(),
+            cron: self
+                .cron
+                .iter()
+                .filter(|c| keep(&ex.cron, &c.name))
+                .cloned()
+                .collect(),
+        }
+    }
+}
+
+/// A node's locally-declared exceptions to the fleet baseline (Q124): resources a
+/// node opts out of fleet management for, by identifier (package/service/user/
+/// group name, file path, or cron job name).
+///
+/// [`BaselineSpec::without_exceptions`] filters a baseline through this before the
+/// node converges, so a fleet-wide revision can still leave a node's locally-owned
+/// resources untouched — no fixed center, but a node keeps the last word over
+/// itself.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(default, deny_unknown_fields)]
+pub struct LocalExceptions {
+    /// Package names left unmanaged on this node.
+    pub packages: Vec<String>,
+    /// Service unit names left unmanaged.
+    pub services: Vec<String>,
+    /// File paths left unmanaged.
+    pub files: Vec<String>,
+    /// User names left unmanaged.
+    pub users: Vec<String>,
+    /// Group names left unmanaged.
+    pub groups: Vec<String>,
+    /// Cron job names left unmanaged.
+    pub cron: Vec<String>,
+}
+
+impl LocalExceptions {
+    /// Parse a node's exceptions from YAML.
+    ///
+    /// # Errors
+    /// On malformed YAML or an unknown field.
+    pub fn from_yaml(yaml: &str) -> Result<Self, serde_yaml::Error> {
+        serde_yaml::from_str(yaml)
+    }
+
+    /// Total number of declared exemptions across all domains.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.packages.len()
+            + self.services.len()
+            + self.files.len()
+            + self.users.len()
+            + self.groups.len()
+            + self.cron.len()
+    }
+
+    /// Whether no exemption is declared (the filter is then a no-op).
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 /// A versioned fleet revision (Q115) — a monotonic `version` plus the desired-state
@@ -880,6 +978,69 @@ cron:
         let winner = elect_revision(&set).unwrap();
         assert_eq!((winner.version, winner.author.as_str()), (7, "b"));
         assert!(elect_revision(&[]).is_none());
+    }
+
+    #[test]
+    fn local_exceptions_drop_only_the_named_resources() {
+        let spec = BaselineSpec::from_yaml(
+            "
+packages:
+  - name: htop
+  - name: nginx
+services:
+  - name: sshd
+  - name: nginx
+files:
+  - path: /etc/motd
+groups:
+  - name: developers
+users:
+  - name: deploy
+cron:
+  - name: nightly-heal
+    job: x
+  - name: local-backup
+    job: y
+",
+        )
+        .unwrap();
+        let ex = LocalExceptions::from_yaml(
+            "
+packages: [nginx]
+services: [nginx]
+cron: [local-backup]
+",
+        )
+        .unwrap();
+        assert_eq!(ex.len(), 3);
+        assert!(!ex.is_empty());
+
+        let filtered = spec.without_exceptions(&ex);
+        // nginx package + service dropped; sshd + htop kept.
+        assert_eq!(filtered.packages.len(), 1);
+        assert_eq!(filtered.packages[0].name, "htop");
+        assert_eq!(filtered.services.len(), 1);
+        assert_eq!(filtered.services[0].name, "sshd");
+        // the node-local cron job is exempt; the fleet one stays.
+        assert_eq!(filtered.cron.len(), 1);
+        assert_eq!(filtered.cron[0].name, "nightly-heal");
+        // untouched domains pass through whole.
+        assert_eq!(filtered.files.len(), 1);
+        assert_eq!(filtered.groups.len(), 1);
+        assert_eq!(filtered.users.len(), 1);
+    }
+
+    #[test]
+    fn empty_exceptions_are_a_no_op() {
+        let spec = BaselineSpec::from_yaml("packages:\n  - name: htop\n  - name: vim\n").unwrap();
+        let ex = LocalExceptions::default();
+        assert!(ex.is_empty());
+        assert_eq!(spec.without_exceptions(&ex), spec);
+    }
+
+    #[test]
+    fn local_exceptions_reject_unknown_fields() {
+        assert!(LocalExceptions::from_yaml("widgets: [x]\n").is_err());
     }
 
     #[test]

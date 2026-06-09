@@ -1429,10 +1429,20 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   elect <revision.yml>...` reads the revisions a node holds, elects the winner, converges to it.
   Verified e2e: v8 beats v3 regardless of arg order → converges InSync, exit 0. 16 unit tests
   green, clippy/fmt clean.
-  **REMAINING (the distributed/UI layer):** sysctl/firewall domains (pending `ansible.posix`);
-  **peer-to-peer revision *routing* over Nebula** (hop-relay — needs the mesh env; the revision
-  data-model + election above is the local half); a systemd timer/unit to drive `watch --once`
-  (lands with packaging, E11.11); the Workbench authoring UI; declared local exceptions (Q124).
+  **Declared local exceptions DONE (2026-06-09, Q124):** `LocalExceptions` (per-domain lists of
+  resource ids a node opts out of fleet management for; `deny_unknown_fields`) +
+  `BaselineSpec::without_exceptions()` filters the baseline before convergence — no fixed center,
+  but a node keeps the last word over its own resources. Wired as `--except=PATH` on
+  `converge`/`watch`/`elect`. Verified e2e: an nginx-excepted baseline renders 0 tasks → InSync,
+  nginx never installed; mixed baseline drops only the named resources. 19 unit tests green,
+  clippy/fmt clean.
+  **REMAINING (env-gated, not native-Rust-feasible on this box):** sysctl/firewall domains
+  (pending the `ansible.posix` collection); **peer-to-peer revision *routing* over Nebula**
+  (hop-relay — needs the mesh env; the revision data-model + election is the local half done); a
+  systemd timer/unit to drive `watch --once` (lands with packaging, E11.11); the Workbench
+  authoring UI (needs the Cosmic env). The full node-side desired-state engine — DSL across 6 OS
+  domains, render→apply, drift auto-heal+audit, version-aware election, local exceptions — is
+  complete and runtime-reachable via the `magic-fleet` CLI.
 - [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.

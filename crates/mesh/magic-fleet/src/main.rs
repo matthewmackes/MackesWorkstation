@@ -7,6 +7,9 @@
 //!                                         drift-watch daemon: converge on a timer, persist an audit log
 //!   magic-fleet elect    <revision.yml>...  pick the newest-wins revision and converge to it
 //!
+//! `converge`/`watch`/`elect` accept `--except=PATH` — a node's locally-declared
+//! exceptions (Q124), filtered out of the baseline before it applies.
+//!
 //! Exit 0 only when the node converged / the heal did not fail.
 
 use std::io;
@@ -14,7 +17,7 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use magic_fleet::{ApplyReport, AuditRecord, DriftStatus};
+use magic_fleet::{ApplyReport, AuditRecord, BaselineSpec, DriftStatus};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
@@ -62,7 +65,10 @@ fn main() -> ExitCode {
         "heal" => drift_exit(verb, magic_fleet::heal_to_baseline(&yaml, &root)),
         // "converge" — the only remaining verb the let-else admits.
         _ => match magic_fleet::BaselineSpec::from_yaml(&yaml) {
-            Ok(spec) => drift_exit(verb, magic_fleet::converge(&spec, &root)),
+            Ok(spec) => match with_exceptions(spec, &args[3..]) {
+                Ok(spec) => drift_exit(verb, magic_fleet::converge(&spec, &root)),
+                Err(code) => code,
+            },
             Err(e) => {
                 eprintln!("magic-fleet: invalid baseline: {e}");
                 ExitCode::FAILURE
@@ -71,12 +77,43 @@ fn main() -> ExitCode {
     }
 }
 
+/// Apply a `--except=PATH` flag (when present in `flags`) to `spec`, returning the
+/// baseline filtered through the node's locally-declared exceptions (Q124). No
+/// `--except` flag returns `spec` unchanged; an unreadable/invalid file errors out
+/// with a failure exit code.
+fn with_exceptions(spec: BaselineSpec, flags: &[String]) -> Result<BaselineSpec, ExitCode> {
+    for a in flags {
+        let Some(p) = a.strip_prefix("--except=") else {
+            continue;
+        };
+        let yaml = std::fs::read_to_string(p).map_err(|e| {
+            eprintln!("magic-fleet: cannot read {p}: {e}");
+            ExitCode::FAILURE
+        })?;
+        let ex = magic_fleet::LocalExceptions::from_yaml(&yaml).map_err(|e| {
+            eprintln!("magic-fleet: invalid exceptions {p}: {e}");
+            ExitCode::FAILURE
+        })?;
+        if !ex.is_empty() {
+            eprintln!(
+                "magic-fleet: applying {} local exception(s) from {p}",
+                ex.len()
+            );
+        }
+        return Ok(spec.without_exceptions(&ex));
+    }
+    Ok(spec)
+}
+
 /// `elect` — given the revision files a node currently holds, pick the winner
 /// (newest-wins, no fixed center) and converge the node to its baseline. This is
 /// the version-aware apply path: peers gossip revisions, the node elects one.
-fn elect(paths: &[String]) -> ExitCode {
+fn elect(args: &[String]) -> ExitCode {
+    // Revision paths are the bare args; `--except=PATH` (the node's local
+    // exceptions) is a flag applied to the elected winner before converging.
+    let paths: Vec<&String> = args.iter().filter(|a| !a.starts_with("--")).collect();
     if paths.is_empty() {
-        eprintln!("usage: magic-fleet elect <revision.yml> [revision.yml ...]");
+        eprintln!("usage: magic-fleet elect <revision.yml> [revision.yml ...] [--except=PATH]");
         return ExitCode::FAILURE;
     }
     let mut revisions = Vec::with_capacity(paths.len());
@@ -108,8 +145,12 @@ fn elect(paths: &[String]) -> ExitCode {
         winner.at,
         revisions.len()
     );
+    let spec = match with_exceptions(winner.spec.clone(), args) {
+        Ok(s) => s,
+        Err(code) => return code,
+    };
     let root = std::env::temp_dir().join(format!("magic-fleet-elect-{}", std::process::id()));
-    drift_exit("elect", magic_fleet::converge(&winner.spec, &root))
+    drift_exit("elect", magic_fleet::converge(&spec, &root))
 }
 
 /// The drift-watch daemon: parse `watch` flags, then converge-on-a-timer,
@@ -133,6 +174,8 @@ fn watch(args: &[String]) -> ExitCode {
             audit = Some(v.to_string());
         } else if a == "--once" {
             once = true;
+        } else if a.starts_with("--except=") {
+            // handled below via with_exceptions(spec, args)
         } else if a.starts_with("--") {
             eprintln!("magic-fleet: unknown watch flag {a:?}");
             return ExitCode::FAILURE;
@@ -145,7 +188,7 @@ fn watch(args: &[String]) -> ExitCode {
     }
     let Some(path) = baseline else {
         eprintln!(
-            "usage: magic-fleet watch <baseline.yml> [--interval=SECS] [--audit=PATH] [--once]"
+            "usage: magic-fleet watch <baseline.yml> [--interval=SECS] [--audit=PATH] [--except=PATH] [--once]"
         );
         return ExitCode::FAILURE;
     };
@@ -162,6 +205,10 @@ fn watch(args: &[String]) -> ExitCode {
             eprintln!("magic-fleet: invalid baseline: {e}");
             return ExitCode::FAILURE;
         }
+    };
+    let spec = match with_exceptions(spec, args) {
+        Ok(s) => s,
+        Err(code) => return code,
     };
     let audit_log = audit.unwrap_or_else(default_audit_path);
     let root = std::env::temp_dir().join(format!("magic-fleet-watch-{}", std::process::id()));
