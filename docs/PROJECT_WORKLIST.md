@@ -8,7 +8,7 @@ This is the **single durable tracker** for the build. In-session Task tools are 
 
 ## ⚑ E11 PIVOT RECONCILIATION (2026-06-08) — read first
 
-The **E11 "Mackes Mesh" pivot** ([`design/mesh-decoupling.md`](design/mesh-decoupling.md), 124-Q survey) **EOLs the labwc/Win-era MDE desktop GUI** (hard cutover, fresh-install only) and re-homes the mesh + its GUIs as **Mackes Mesh on stock Fedora-Cosmic**. This reframes every pre-E11 open item. Backlog reconciled against the pivot:
+The **E11 "Magic Mesh" pivot** ([`design/mesh-decoupling.md`](design/mesh-decoupling.md), 124-Q survey) **EOLs the labwc/Win-era MDE desktop GUI** (hard cutover, fresh-install only) and re-homes the mesh + its GUIs as **Magic Mesh on stock Fedora-Cosmic**. This reframes every pre-E11 open item. Backlog reconciled against the pivot:
 
 - **Active line → E11.1–E11.12** below. This is the only forward work. *(Most E11 tasks need a Fedora-Cosmic environment not present on this dev box; the env-feasible-now subset is **E11.2** boundary gate, **E11.8** max-crypto pinning, and the native-Rust logic of **E11.6/E11.7**.)*
 - **Carried forward into E11** (mesh features, now validated on Cosmic+Mesh): **HW-1** (KDE Connect), **HW-6** (LizardFS), **HW-7** (VoIP), and **E6.10** (Compute → folds into E11.9 / Workbench per Q69).
@@ -1326,13 +1326,13 @@ _Depends: E9.2 (Carbon substrate), E3 (mesh). Scope locks in memory `epic-ultima
 
 ---
 
-## E11 — Mesh Decoupling: "Mackes Mesh" on Cosmic (+ MDE desktop EOL)
+## E11 — Mesh Decoupling: "Magic Mesh" on Cosmic (+ MDE desktop EOL)
 
 Source of truth: [`docs/design/mesh-decoupling.md`](design/mesh-decoupling.md)
 (124-Q operator survey + directives, 2026-06-08). Pivot: the labwc/Win-era MDE
-desktop GUI is **EOL**; the mesh stack + its GUIs ship as **Mackes Mesh** —
+desktop GUI is **EOL**; the mesh stack + its GUIs ship as **Magic Mesh** —
 an add-on to **stock Fedora-Cosmic** or a standalone appliance. One
-feature-flagged codebase, **split into a new `mackes-mesh` repo**, boundary-gated
+feature-flagged codebase, **split into a new `magic-mesh` repo**, boundary-gated
 against the dying shell. Order: spike identity → foundation → surfaces → EOL.
 
 - [ ] **E11.1: E11 — Carbon-on-Cosmic install spike (first de-risk, Q58–Q62/Q99)**
@@ -1368,7 +1368,7 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   **Acceptance:** registers as default `inode/directory`; **native-Rust** ops at full general-FM parity
   (trash/mounts/archives/properties/thumbnails/search); **native LizardFS client** + SMB + KDC Cloud-Files;
   artifacts-as-a-view; Bus file events + notifications. *(Spike native parity + LizardFS before full-v1 commit.)*
-- [ ] **E11.7: E11 — Fleet sync = a Mackes "Automation Mesh" (Q107-dir/Q113–Q124)**
+- [ ] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.
   **Acceptance:** each node runs `ansible-runner` (Podman-isolated) locally against a **declarative YAML baseline**
@@ -1392,9 +1392,9 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
 - [ ] **E11.11: E11 — Distribution: ISO + COPR + CI smoke (Q79–Q82/Q87/Q10)**
   **As** a packager, **I want** a turnkey ISO and an add-on COPR with install CI,
   **so that** both new and existing Cosmic users can install.
-  **Acceptance:** one RPM spec + install-time host/role chooser; signed COPR + downloadable signed RPMs; a Mackes-on-Cosmic ISO;
+  **Acceptance:** one RPM spec + install-time host/role chooser; signed COPR + downloadable signed RPMs; a Magic-on-Cosmic ISO;
   CI builds + tests + boots a Fedora-Cosmic VM to smoke-test install + applet/Workbench/mde-files launch.
 - [ ] **E11.12: E11 — MDE desktop EOL cutover + repo split + governance (Q48/Q51–Q54/Q83/Q85)**
   **As** a maintainer, **I want** the desktop shell removed and the platform re-homed,
-  **so that** Mackes Mesh is the clean product.
-  **Acceptance:** salvage mesh-relevant surfaces (birthright/voice/mesh status), **delete desktop chrome** (panel/menu/OSD/action-center/Win-Settings/themes/window-mgmt/lock/greeter); `mackes-mesh` repo with history + the boundary gate; `AI_GOVERNANCE.md` **rewritten** for the Mesh-on-Cosmic identity (labwc/§1-shell locks retired).
+  **so that** Magic Mesh is the clean product.
+  **Acceptance:** salvage mesh-relevant surfaces (birthright/voice/mesh status), **delete desktop chrome** (panel/menu/OSD/action-center/Win-Settings/themes/window-mgmt/lock/greeter); `magic-mesh` repo with history + the boundary gate; `AI_GOVERNANCE.md` **rewritten** for the Mesh-on-Cosmic identity (labwc/§1-shell locks retired).

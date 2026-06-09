@@ -1,19 +1,24 @@
-# Mesh Decoupling — "Mackes Mesh" on Cosmic (and standalone)
+# Mesh Decoupling — "Magic Mesh" on Cosmic (and standalone)
 
 > **Status:** LOCKED via a 124-question operator survey + directives, 2026-06-08.
-> Captures the pivot from the integrated **MackesWorkstation** desktop to a
-> **separable mesh platform ("Mackes Mesh")** that runs as an add-on to the
+> Captures the pivot from the integrated **MDE** desktop to a
+> **separable mesh platform ("Magic Mesh")** that runs as an add-on to the
 > **Cosmic** desktop or standalone — and the **EOL of the MDE desktop GUI**.
 > This doc is the source of truth for the new **E11+** epic line. Where it
 > conflicts with older locks, **this wins** (CLAUDE.md "newest wins"); the
 > `AI_GOVERNANCE.md` rewrite (Q85) ratifies it platform-wide.
+>
+> **Brand (operator decision, 2026-06-08):** the platform is **Magic** ("Magic
+> Mesh"). The rebrand is **brand/display-only** — internal technical identifiers
+> (`mde`, `mackesd`, `dev.mackes.MDE.*`, `~/.config/mde`, existing crate names)
+> are **retained**; only product/brand names + user-visible text become "Magic".
 
 ---
 
 ## 0. The decision in one paragraph
 
 The labwc/Win-era **MDE desktop GUI is EOL** (hard cutover, fresh-install only).
-The platform becomes **Mackes Mesh** — the mesh/infra stack (mackesd, the ntfy
+The platform becomes **Magic Mesh** — the mesh/infra stack (mackesd, the ntfy
 Bus, Nebula, LizardFS, KDC, fleet, compute, voice, CA) plus its **GUIs
 (Workbench, mde-files)** — installed as an **add-on on stock Fedora-Cosmic** or
 as a **self-contained minimal-GUI appliance**, and manageable **headless**.
@@ -21,7 +26,7 @@ as a **self-contained minimal-GUI appliance**, and manageable **headless**.
 file manager; a **D-Bus bridge + native cosmic-applet** connect the Bus to
 Cosmic; notifications route through Cosmic's daemon; and a **full Carbon visual
 identity** (icons/theme/fonts/accent/wallpaper/boot) is applied on install. One
-feature-flagged codebase, **split into its own `mackes-mesh` repo**, guarded by
+feature-flagged codebase, **split into its own `magic-mesh` repo**, guarded by
 a hard crate-dependency boundary gate against the dying shell.
 
 ---
@@ -42,7 +47,7 @@ a hard crate-dependency boundary gate against the dying shell.
 ### Product & packaging (Q8–Q13)
 | # | Lock |
 |---|---|
-| Q8 | Name: **Mackes Mesh**. |
+| Q8 | Name: **Magic Mesh**. |
 | Q9 | **One RPM + install-time host/role chooser**. |
 | Q10 | Add-on install path: **RPM / COPR on Fedora-Cosmic**. |
 | Q11 | Standalone = **self-contained minimal-Workbench GUI appliance**. |
@@ -74,7 +79,7 @@ a hard crate-dependency boundary gate against the dying shell.
 | # | Lock |
 |---|---|
 | Q27 | Workbench stays on **iced**, **Carbon always**. |
-| Q28 | Theming: **Carbon always** (Mackes identity holds on any host). |
+| Q28 | Theming: **Carbon always** (Magic identity holds on any host). |
 | Q29 | Form: **toplevel app + the cosmic-applet**. |
 | Q30 | **Remove desktop settings links; fold mesh settings in**. |
 | Q31 | **Mesh/infra groups only** (drop LookAndFeel/Apps-via-dnf/datetime). |
@@ -108,7 +113,7 @@ a hard crate-dependency boundary gate against the dying shell.
 | # | Lock |
 |---|---|
 | Q46 | Config namespace stays **`~/.config/mde`**. |
-| Q47 | **Full Mackes branding** on Cosmic. |
+| Q47 | **Full Magic branding** on Cosmic. |
 | Q48 | MDE **dogfoods then EOLs** (transitional host only). |
 | Q49 | Boundary gate at **crate-dependency level**. |
 | Q50 | **Lead risk: mde-files as a full-parity default.** |
@@ -137,8 +142,8 @@ a hard crate-dependency boundary gate against the dying shell.
 | Q61 | Installer **writes cosmic-config + gsettings/dconf defaults** at install. |
 | Q62 | Carbon is **default-on but reversible**. |
 | Q109 | Branding reaches **boot → lock → apps → notifications**. |
-| Q110 | **Mackes plymouth boot theme**. |
-| Q111 | **Mackes Carbon wallpaper + lock background**. |
+| Q110 | **Magic plymouth boot theme**. |
+| Q111 | **Magic Carbon wallpaper + lock background**. |
 | Q112 | **Full runtime identity** (notifications/applet/Workbench/About). |
 
 ### Mesh services (Q67–Q70, Q75–Q78, Q119)
@@ -176,18 +181,18 @@ a hard crate-dependency boundary gate against the dying shell.
 ### Repo / governance / roadmap (Q83–Q86, Q96–Q98)
 | # | Lock |
 |---|---|
-| Q83 | **Split Mackes Mesh into its own `mackes-mesh` repo**. |
+| Q83 | **Split Magic Mesh into its own `magic-mesh` repo**. |
 | Q84 | **Go public after the pivot lands** (operator-gated flip). |
 | Q85 | **Rewrite `AI_GOVERNANCE.md`** for the Mesh-on-Cosmic identity. |
 | Q86/Q96 | **New E11+ epic line**, led by **E11 = boundary gate + Bus bridge + cosmic-applet**. |
-| Q97 | Repo `mackes-mesh`, product **Mackes Mesh**. |
+| Q97 | Repo `magic-mesh`, product **Magic Mesh**. |
 | Q98 | Done = **runs fully on stock Fedora-Cosmic with the crate-dep gate green** (zero shell deps), all surfaces functional. |
 
 ### First-boot / input (Q88–Q90)
 | # | Lock |
 |---|---|
 | Q88 | **Workbench first-run wizard** (enroll + Carbon defaults + tour). |
-| Q89 | **No Mackes keybinds** (pure stock). |
+| Q89 | **No Magic keybinds** (pure stock). |
 | Q90 | **Enable Cosmic tiling-by-default** — the one deliberate exception to stock config. |
 
 ### Data / security (Q91–Q94, +Directive)
@@ -231,8 +236,8 @@ a hard crate-dependency boundary gate against the dying shell.
 
 ## 2. Resulting architecture
 
-- **Mackes Mesh = services + GUIs**, one feature-flagged codebase in a new
-  `mackes-mesh` repo. Install-time flag selects `cosmic` / `headless` (the
+- **Magic Mesh = services + GUIs**, one feature-flagged codebase in a new
+  `magic-mesh` repo. Install-time flag selects `cosmic` / `headless` (the
   `mde` desktop host is transitional, removed at EOL).
 - **mackesd** (per-machine system service) supervises the **ntfy Bus** (loopback),
   **Nebula** (always-on system tunnel, max crypto), **LizardFS** (auto-mounted),
@@ -256,7 +261,7 @@ a hard crate-dependency boundary gate against the dying shell.
 - **Distribution:** turnkey ISO **and** add-on (signed RPM/COPR); dnf updates +
   Workbench trigger; CI install-smoke on Fedora-Cosmic.
 
-### 2a. Fleet sync = a Mackes "Automation Mesh"
+### 2a. Fleet sync = a Magic "Automation Mesh"
 
 Ref: Red Hat **Ansible Automation Mesh**
 (<https://www.redhat.com/en/technologies/management/ansible/automation-mesh>).
@@ -288,7 +293,7 @@ push, and it reuses Nebula we already run rather than standing up receptor.
 
 ## 3. Acceptance (the "decoupled" bar, Q98)
 
-- [ ] Mackes Mesh installs + runs on **stock Fedora-Cosmic** with the
+- [ ] Magic Mesh installs + runs on **stock Fedora-Cosmic** with the
   **crate-dependency boundary gate green** (no mesh crate depends on the `mde`
   shell).
 - [ ] Workbench, the cosmic-applet, mde-files (default handler), notifications,
@@ -322,7 +327,7 @@ path, and the Ansible dependency cutting against pure-Rust.
 - **`AI_GOVERNANCE.md` rewrite** (Q85) — ratify this pivot platform-wide; retire
   the labwc/§1-Carbon-shell locks.
 - **Repo split mechanics** (Q83) — history, CI, and the boundary gate move to
-  `mackes-mesh`.
+  `magic-mesh`.
 
 ---
 
