@@ -6,7 +6,8 @@
 //!
 //! Native file-ops parity (E11.6) is also reachable headlessly for scripting +
 //! the shell's delete path: `--trash <path>…`, `--list-trash`, `--restore
-//! <trash-name>…`, `--empty-trash` drive the freedesktop home trash directly.
+//! <trash-name>…`, `--empty-trash` drive the freedesktop home trash directly,
+//! and `--properties <path>…` prints native file metadata.
 
 use std::process::ExitCode;
 
@@ -21,6 +22,7 @@ fn main() -> ExitCode {
         Some("--list-trash") => return list_trash(),
         Some("--restore") => return restore_names(&args[1..]),
         Some("--empty-trash") => return empty_trash(),
+        Some("--properties") => return properties(&args[1..]),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -129,6 +131,32 @@ fn restore_names(names: &[String]) -> ExitCode {
             },
             None => {
                 eprintln!("mde-files: no trashed item named {name}");
+                failed = true;
+            }
+        }
+    }
+    if failed {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+/// `--properties <path>…` — print each path's native file properties.
+fn properties(paths: &[String]) -> ExitCode {
+    if paths.is_empty() {
+        eprintln!("usage: mde-files --properties <path> [path ...]");
+        return ExitCode::FAILURE;
+    }
+    let mut failed = false;
+    for (i, p) in paths.iter().enumerate() {
+        if i > 0 {
+            println!();
+        }
+        match mde_files::properties::FileProperties::of(std::path::Path::new(p)) {
+            Ok(props) => print!("{}", mde_files::properties::report(&props)),
+            Err(e) => {
+                eprintln!("mde-files: cannot stat {p}: {e}");
                 failed = true;
             }
         }

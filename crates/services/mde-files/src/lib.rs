@@ -17,6 +17,7 @@ pub mod model;
 pub mod panels;
 pub mod picker;
 pub mod prefs;
+pub mod properties;
 pub mod search;
 pub mod selection;
 pub mod send_to;

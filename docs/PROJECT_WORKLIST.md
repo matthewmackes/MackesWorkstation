@@ -1403,6 +1403,11 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   native parity (the spike continues):** properties, archive extract/create, mounts, thumbnails,
   search backend; then the GUI wiring (Delete action/keybind → trash) + the LizardFS client; default
   `inode/directory` registration; Bus file events. *(Larger GUI/LizardFS work is env/spike-gated.)*
+  **Properties DONE (2026-06-09):** `src/properties.rs` — `FileProperties::of()` stats a path via
+  `symlink_metadata` (a symlink reports as a *link* + its target, never dereferenced): kind/size/
+  mode/links/uid/gid/mtime, with `permission_string()` (`rwxr-xr-x`), `mode_octal()`, IEC
+  `human_size()`, and local-time stamps. Reachable via `mde-files --properties <path>…`. Verified
+  e2e (file 0640, symlink+target, missing→exit 1); 7 unit tests green, clippy/fmt clean.
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.
