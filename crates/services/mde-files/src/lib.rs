@@ -7,6 +7,7 @@ pub mod a11y_labels;
 pub mod app;
 pub mod archive;
 pub mod backend;
+pub mod bookmarks;
 #[cfg(feature = "dbus")]
 pub mod bus_backend;
 pub mod demo_data;

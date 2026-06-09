@@ -37,6 +37,7 @@ fn main() -> ExitCode {
         Some("--mkdir") => return mkdir_op(&args[1..]),
         Some("--thumbnail") => return thumbnail_op(&args[1..]),
         Some("--open-with") => return open_with_op(&args[1..]),
+        Some("--bookmarks") => return bookmarks_op(),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -196,6 +197,21 @@ fn search(args: &[String]) -> ExitCode {
             "{}{}",
             hit.path.display(),
             if hit.is_dir { "/" } else { "" }
+        );
+    }
+    ExitCode::SUCCESS
+}
+
+/// `--bookmarks` — print the user's GTK sidebar bookmarks (saved places).
+fn bookmarks_op() -> ExitCode {
+    for bm in mde_files::bookmarks::user_bookmarks() {
+        println!(
+            "{}\t{}{}",
+            bm.label,
+            bm.uri,
+            bm.path
+                .map(|p| format!("\t{}", p.display()))
+                .unwrap_or_default()
         );
     }
     ExitCode::SUCCESS
