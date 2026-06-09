@@ -1079,7 +1079,7 @@ _Depends: E0-E7_
 ### HW — Hardware / Interactive Bench (post-release, release-gated — NOT task blockers)
 _Depends: feature code complete_
 
-- [ ] **HW-1: KDE Connect real-phone round-trip (notifications/messages/photos/calls bidirectional)**
+- [!] **HW-1: KDE Connect real-phone round-trip (notifications/messages/photos/calls bidirectional)** — **CARRIED FORWARD to E11 (2026-06-09 reconcile):** the mesh KDE-Connect feature carries into Magic Mesh on Cosmic (banner §14); this is a **post-release HW round-trip** (release-gated bench item, not a task blocker), validated once real hardware is in the loop per [[bench-gates-lifted]].
   **As** the operator, **I want** a real paired phone to exchange notifications, SMS, photos and call events both ways over the finished inbound listener (3b.2e), **so that** the Win10 "Your Phone" surface is proven against actual hardware, not loopback.
   *Reuse:* crates/kdc/mde-kdc-host + mde-kdc-proto (as-is/adapt, §9). *Deps:* E2.1.
   **Acceptance** (runtime-observable):
@@ -1088,7 +1088,7 @@ _Depends: feature code complete_
     - [ ] A photo pushed from the phone lands in the Photos pane and opens; a desktop file shared to the phone arrives in its share sheet.
     - [ ] An incoming phone call raises the call HUD and a "decline/mute" action from the desktop takes effect on the phone; mutual-TLS fingerprint pin holds (no fallback to unpinned).
 
-- [ ] **HW-2: BlueZ pairing on real hardware**
+- [✓] **HW-2: BlueZ pairing on real hardware** — **SUPERSEDED/CLOSED by E11 pivot (2026-06-09 reconcile):** BlueZ → Cosmic; the desktop Settings Bluetooth pane is retired. **Not built — retained below for provenance** (banner §15).
   **As** the operator, **I want** to power, discover, pair, connect and remove a real Bluetooth peripheral from the Settings Bluetooth pane, **so that** the BlueZ-via-zbus wiring is confirmed on bench radios.
   *Reuse:* mde-applets Settings Bluetooth pane (adapt, §9) over BlueZ zbus. *Deps:* none.
   **Acceptance** (runtime-observable):
@@ -1096,7 +1096,7 @@ _Depends: feature code complete_
     - [ ] A live scan lists a nearby device; selecting it completes pairing (PIN/confirm prompt where required) and it shows Connected.
     - [ ] An input or audio device routes through after connect (keystrokes register / audio plays), and Remove unpairs it so it disappears from the paired list.
 
-- [ ] **HW-3: PAM unlock + argon2 PIN on real hardware**
+- [✓] **HW-3: PAM unlock + argon2 PIN on real hardware** — **SUPERSEDED/CLOSED by E11 pivot (2026-06-09 reconcile):** unlock/login → Cosmic; the labwc lock face is retired. **Not built — retained for provenance** (banner §15).
   **As** the operator, **I want** `mde lock` (Win+L) to unlock with both an argon2 PIN and a PAM password on real keyboards, **so that** the lock face is proven against the live auth stack, not a stub.
   *Reuse:* mde lock layer-shell lock face + argon2 (`~/.config/mde/pin.hash`), PAM (§10). *Deps:* none.
   **Acceptance** (runtime-observable):
@@ -1104,7 +1104,7 @@ _Depends: feature code complete_
     - [ ] A correct argon2 PIN unlocks and returns to the exact prior session; a wrong PIN is rejected and re-prompts.
     - [ ] Switching to password and entering the real account password unlocks via PAM; an incorrect password is rejected by PAM with no panic.
 
-- [ ] **HW-4: dnf live-streaming Windows Update on real hardware**
+- [✓] **HW-4: dnf live-streaming Windows Update on real hardware** — **SUPERSEDED/CLOSED by E11 pivot (2026-06-09 reconcile):** the Win10 "Windows Update" surface is retired; updates now flow via dnf/Workbench (Q79). **Not built — retained for provenance** (banner §15).
   **As** the operator, **I want** the Win10 "Windows Update" surface to drive a real dnf transaction with live-streamed progress, **so that** package output is confirmed flowing to the UI on actual repos/network.
   *Reuse:* Settings/Update surface over dnf (§10). *Deps:* none.
   **Acceptance** (runtime-observable):
@@ -1112,7 +1112,7 @@ _Depends: feature code complete_
     - [ ] Starting an update streams per-package download/install lines into the UI in real time (not a single end-of-run dump).
     - [ ] A completed transaction shows success state and the installed version is reflected on a follow-up check; a network drop mid-stream surfaces an honest error, never a hang.
 
-- [ ] **HW-5: Compositor/session cutover + greeter: all 3 roles boot -> greeter -> usable session on bench hardware** [!]
+- [✓] **HW-5: Compositor/session cutover + greeter: all 3 roles boot -> greeter -> usable session on bench hardware** — **SUPERSEDED/CLOSED by E11 pivot (2026-06-09 reconcile):** the labwc compositor/session cutover + greeter are retired; Cosmic owns the session. **Not built — retained for provenance** (banner §15).
   **As** the operator, **I want** each deployment role to boot through its greeter into a usable session on real GPUs, **so that** the labwc/session cutover (a standing real-HW risk) is validated per role.
   *Reuse:* mde-session (launch labwc) + greetd/regreet/cage; LightDM-gtk win10() theme (as-is/adapt, §10/§12). *Deps:* E1.5.
   **Acceptance** (runtime-observable):
@@ -1121,7 +1121,7 @@ _Depends: feature code complete_
     - [ ] Lighthouse boots with enrollment-CA/Bus/Nebula only — no greeter, no desktop — and accepts an enrollment.
     - [ ] Logout/restart/shutdown from the session returns cleanly to greeter or powers down without a stuck compositor.
 
-- [ ] **HW-6: LizardFS mesh-storage across a multi-peer fleet (replication + offline degrade)**
+- [!] **HW-6: LizardFS mesh-storage across a multi-peer fleet (replication + offline degrade)** — **CARRIED FORWARD to E11 (2026-06-09 reconcile):** mesh storage carries into Magic Mesh on Cosmic (banner §14); a **post-release multi-peer HW round-trip** (release-gated bench item), validated on real nodes per [[bench-gates-lifted]].
   **As** the operator, **I want** mesh XDG dirs replicated across a multi-peer LizardFS fleet and to confirm graceful degrade when peers drop, **so that** topology-aware replication and offline behavior are proven on real nodes.
   *Reuse:* mackesd meshfs worker (LizardFS FUSE) + LizardFS master/chunk (§11/§12). *Deps:* E3.1.
   **Acceptance** (runtime-observable):
@@ -1129,7 +1129,7 @@ _Depends: feature code complete_
     - [ ] Killing a chunk peer leaves the file readable from a surviving replica; rejoining the peer re-replicates and the goal count is restored.
     - [ ] With all peers offline the mount serves cached state and surfaces degrade gracefully with no mesh / no peers (cached state, Bus timeouts, never panic).
 
-- [ ] **HW-7: VoIP real outbound/inbound call via Vitelity**
+- [!] **HW-7: VoIP real outbound/inbound call via Vitelity** — **CARRIED FORWARD to E11 (2026-06-09 reconcile):** telephony carries into Magic Mesh on Cosmic (banner §14, surfaced via E11.10); a **post-release PSTN HW round-trip** (release-gated bench item) over the real Vitelity trunk per [[bench-gates-lifted]].
   **As** the operator, **I want** to place and receive a real PSTN call through the Vitelity trunk from the Phone/Calls app, **so that** the kamailio/rtpengine softphone path is proven end-to-end with two-way audio.
   *Reuse:* mde-voice-hud Phone/Calls app + mde-voice-config (kamailio/rtpengine) (adapt/as-is, §9). *Deps:* none.
   **Acceptance** (runtime-observable):
@@ -1137,7 +1137,7 @@ _Depends: feature code complete_
     - [ ] An inbound call to the DID raises the call HUD toast; answering connects two-way audio and hangup tears down the session cleanly.
     - [ ] The completed call lands in the call-history list with correct direction and duration; a registration loss surfaces an honest "not registered" state, never a silent dead dialer.
 
-- [ ] **HW-8: Deployment-role install from media for each role (Lighthouse/Server/Workstation)**
+- [!] **HW-8: Deployment-role install from media for each role (Lighthouse/Server/Workstation)** — **RESHAPED into E11.11 (2026-06-09 reconcile):** the per-role install becomes the one-RPM + install-time chooser + ISO/COPR of **E11.11** ("Workstation" = Cosmic; banner §16) — tracked there; the **post-release bare-metal install** is a release-gated bench item.
   **As** the operator, **I want** to install from real media and pick each deployment role at the role chooser, **so that** the one-RPM role-chooser provisions the correct worker subset and surfaces per role on bare hardware.
   *Reuse:* mde-installer + deployment-role chooser (adapt, §9/§12). *Deps:* none.
   **Acceptance** (runtime-observable):
@@ -1189,7 +1189,7 @@ _Depends: surfaced by the E0.11 audit (2026-06-03). These are v1.x→v2.0.0 tran
     - [✓] Mesh XDG dirs (`~/Documents` etc.) are served by the LizardFS mount (E3), not the GVFS FUSE path. *(Substrate is LizardFS; the GVFS path no longer exists. Live multi-node mount = E3.2 post-release bench.)*
     - [✓] Degrades gracefully with no mesh / no peers (local shadow answers reads). *(No worker to fail; LizardFS local-shadow behavior is E3's, bench-proven E3.1.)*
 
-- [ ] **RETIRE-PY.5: RETIRE-PY — Native Rust Birthright apply/rollback (replaces `python3 -m mackes.birthright` in mde-wizard + mde-installer)**
+- [✓] **RETIRE-PY.5: RETIRE-PY — Native Rust Birthright apply/rollback (replaces `python3 -m mackes.birthright` in mde-wizard + mde-installer)** — **SUPERSEDED/CLOSED by E11 pivot (2026-06-09 reconcile):** the mde-wizard/mde-installer birthright is retired (OOBE → a Workbench first-run view, Q44; Q122's wrap-Ansible reverses the retire-Python thrust at the platform level). Birthright-the-feature **carries forward via E11.9**. **This native-port item not built — retained for provenance** (banner §15).
   **Scope finding (2026-06-05):** NOT a bounded port — `birthright.py` is **2947 lines** + `birthright_rollback.py` 590, a full first-run provisioning framework (themes/fonts/apps/panel-layout/plymouth/dnf-update/third-party-repos/remote-desktop/display-manager/gluster-bootstrap/netdata/uid-normalize + more), much of it targeting **retired stacks** (xfconf/sway/gluster/x11vnc) that need v10 re-architecting (labwc/LizardFS), not a faithful port. This is **E7-scale** — execute as part of **E7.2 (OOBE Birthright merge)**, a feature epic, not a single loop commit.
   **As** a new user, **I want** first-run Birthright steps applied by native Rust, **so that** OOBE and install need no Python runtime.
   *Reuse:* `mde-wizard/src/pages/apply.rs` + `mde-installer/.../mde-install.rs` (today build `python3 -m mackes.birthright [apply|rollback]`). *Deps:* converges with **E7.2** (OOBE Birthright merge).
