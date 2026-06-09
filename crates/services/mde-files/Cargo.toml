@@ -29,6 +29,12 @@ chrono     = "0.4"
 # a fetch-free add. `tar` does its own path-traversal guarding on unpack.
 tar        = "0.4"
 flate2     = "1"
+# E11.6 native parity — freedesktop thumbnail generation. `image` is already
+# pulled transitively (iced 0.14 -> image 0.25 -> png 0.18); `md5` (URI cache
+# naming) is in the lockfile too. Fetch-free.
+image      = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
+png        = "0.18"
+md5        = "0.7"
 # mackesd-IPC opt-in deps. Behind the `dbus` feature so the headless
 # crate (DemoBackend only) keeps a minimal dep graph. zbus was dropped
 # at E0.3.2 when the last D-Bus client (Fleet.Files) moved to the Bus.

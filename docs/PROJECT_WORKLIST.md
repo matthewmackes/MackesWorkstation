@@ -1441,9 +1441,21 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   e2e (mkdir nested, copy-tree keeps source, move relocates, bad-usage→exit 1); 6 unit tests green,
   clippy/fmt clean.
   **This completes the dep-light headless native-parity surface** (trash/properties/mounts/search/
-  archive/file-ops); the remaining E11.6 work (GUI wiring, native LizardFS client, `inode/directory`
-  default registration, Bus file events, thumbnail *display*) is the env/spike-gated second half.
-  *(Thumbnail generation — decode/downscale/cache — is still headless-feasible; queued next.)*
+  archive/file-ops).
+  **Thumbnail generation DONE (2026-06-09):** `src/thumbnails.rs` — freedesktop-spec thumbnail cache:
+  decode (`image` 0.25) → Lanczos3 downscale to the 128/256 box (aspect-preserving, **never
+  up-scaled**) → write `$XDG_CACHE_HOME/thumbnails/{normal,large}/<md5(file-URI)>.png` (`md5` crate)
+  with the mandated `Thumb::URI`+`Thumb::MTime` tEXt chunks (`png` 0.18), 0600, atomic temp+rename.
+  `needs_refresh()` is the staleness check (regenerate when source MTime ≠ recorded). Reachable via
+  `mde-files --thumbnail <img> [--large]`. Verified e2e (640×480 → normal+large at the md5 path under
+  an isolated XDG_CACHE_HOME); 6 unit tests green (URI encode, md5 name, scale 400×300→128×96, no
+  up-scale, tEXt round-trip, needs_refresh), clippy/fmt clean. Deps (`image`/`png`/`md5`) already in
+  the lockfile — fetch-free.
+  **The headless native-parity surface is now complete** (trash/properties/mounts/search/archive/
+  file-ops/thumbnails). The remaining E11.6 work — GUI wiring (Delete/Properties/Open-with actions,
+  thumbnail *display* in the grid), the native LizardFS client, default `inode/directory`
+  registration, Bus file events — is the **env/spike-gated second half** needing the Cosmic desktop +
+  a running mackesd/mesh, not native-Rust-completable headlessly on this dev box.
 - [>] **E11.7: E11 — Fleet sync = a Magic "Automation Mesh" (Q107-dir/Q113–Q124)**
   **As** a fleet operator, **I want** nodes to converge their full OS desired-state from any node,
   **so that** the fleet self-heals with no fixed center.

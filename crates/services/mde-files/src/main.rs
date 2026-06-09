@@ -34,6 +34,7 @@ fn main() -> ExitCode {
         Some("--copy") => return copy_op(&args[1..]),
         Some("--move") => return move_op(&args[1..]),
         Some("--mkdir") => return mkdir_op(&args[1..]),
+        Some("--thumbnail") => return thumbnail_op(&args[1..]),
         _ => {}
     }
     if args.iter().any(|a| a == "--pick") {
@@ -196,6 +197,30 @@ fn search(args: &[String]) -> ExitCode {
         );
     }
     ExitCode::SUCCESS
+}
+
+/// `--thumbnail <image> [--large]` — generate a freedesktop thumbnail, printing
+/// the cache path it wrote.
+fn thumbnail_op(args: &[String]) -> ExitCode {
+    let Some(path) = args.iter().find(|a| !a.starts_with("--")) else {
+        eprintln!("usage: mde-files --thumbnail <image> [--large]");
+        return ExitCode::FAILURE;
+    };
+    let size = if args.iter().any(|a| a == "--large") {
+        mde_files::thumbnails::ThumbSize::Large
+    } else {
+        mde_files::thumbnails::ThumbSize::Normal
+    };
+    match mde_files::thumbnails::generate(std::path::Path::new(path), size) {
+        Ok(dest) => {
+            println!("{}", dest.display());
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("mde-files: cannot thumbnail {path}: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 /// `--copy <src> <dst>` — copy a file or directory tree.
