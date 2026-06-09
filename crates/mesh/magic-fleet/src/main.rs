@@ -3,20 +3,29 @@
 //!   magic-fleet apply    <playbook.yml>   apply a desired-state playbook locally
 //!   magic-fleet heal     <playbook.yml>   re-apply + report drift (InSync/Healed/Failed)
 //!   magic-fleet converge <baseline.yml>   render a desired-state baseline → apply + report drift
+//!   magic-fleet watch    <baseline.yml> [--interval=SECS] [--audit=PATH] [--once]
+//!                                         drift-watch daemon: converge on a timer, persist an audit log
 //!
 //! Exit 0 only when the node converged / the heal did not fail.
 
 use std::io;
+use std::path::Path;
 use std::process::ExitCode;
+use std::time::Duration;
 
-use magic_fleet::{ApplyReport, DriftStatus};
+use magic_fleet::{ApplyReport, AuditRecord, DriftStatus};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("watch") {
+        return watch(&args[2..]);
+    }
     let (Some(verb @ ("apply" | "heal" | "converge")), Some(path)) =
         (args.get(1).map(String::as_str), args.get(2))
     else {
-        eprintln!("usage: magic-fleet <apply|heal> <playbook.yml> | converge <baseline.yml>");
+        eprintln!(
+            "usage: magic-fleet <apply|heal> <playbook.yml> | converge <baseline.yml>\n       magic-fleet watch <baseline.yml> [--interval=SECS] [--audit=PATH] [--once]"
+        );
         return ExitCode::FAILURE;
     };
     let yaml = match std::fs::read_to_string(path) {
@@ -56,6 +65,113 @@ fn main() -> ExitCode {
             }
         },
     }
+}
+
+/// The drift-watch daemon: parse `watch` flags, then converge-on-a-timer,
+/// persisting one audit-log line per tick. `--once` runs a single tick (the
+/// daemon's single-shot mode, and how a scheduler/timer unit drives it).
+fn watch(args: &[String]) -> ExitCode {
+    let mut baseline: Option<&str> = None;
+    let mut interval_secs: u64 = 900; // 15 min default cadence.
+    let mut audit: Option<String> = None;
+    let mut once = false;
+    for a in args {
+        if let Some(v) = a.strip_prefix("--interval=") {
+            match v.parse::<u64>() {
+                Ok(n) if n > 0 => interval_secs = n,
+                _ => {
+                    eprintln!("magic-fleet: --interval must be a positive integer (got {v:?})");
+                    return ExitCode::FAILURE;
+                }
+            }
+        } else if let Some(v) = a.strip_prefix("--audit=") {
+            audit = Some(v.to_string());
+        } else if a == "--once" {
+            once = true;
+        } else if a.starts_with("--") {
+            eprintln!("magic-fleet: unknown watch flag {a:?}");
+            return ExitCode::FAILURE;
+        } else if baseline.is_none() {
+            baseline = Some(a);
+        } else {
+            eprintln!("magic-fleet: unexpected extra argument {a:?}");
+            return ExitCode::FAILURE;
+        }
+    }
+    let Some(path) = baseline else {
+        eprintln!(
+            "usage: magic-fleet watch <baseline.yml> [--interval=SECS] [--audit=PATH] [--once]"
+        );
+        return ExitCode::FAILURE;
+    };
+    let yaml = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("magic-fleet: cannot read {path}: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let spec = match magic_fleet::BaselineSpec::from_yaml(&yaml) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("magic-fleet: invalid baseline: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let audit_log = audit.unwrap_or_else(default_audit_path);
+    let root = std::env::temp_dir().join(format!("magic-fleet-watch-{}", std::process::id()));
+    println!(
+        "magic-fleet: drift-watch on {path}, audit -> {audit_log}{}",
+        if once {
+            " (single tick)".to_string()
+        } else {
+            format!(", every {interval_secs}s")
+        }
+    );
+    loop {
+        let last = match magic_fleet::drift_watch_tick(&spec, &root, Path::new(&audit_log)) {
+            Ok(rec) => {
+                report_tick(&rec);
+                rec.status
+            }
+            Err(e) => {
+                eprintln!("magic-fleet: drift-watch tick failed: {e}");
+                if once {
+                    return ExitCode::FAILURE;
+                }
+                // A transient tick failure (e.g. ansible-runner blip) must not kill
+                // the daemon — log, wait the interval, and retry.
+                std::thread::sleep(Duration::from_secs(interval_secs));
+                continue;
+            }
+        };
+        if once {
+            return exit_for(last != DriftStatus::Failed);
+        }
+        std::thread::sleep(Duration::from_secs(interval_secs));
+    }
+}
+
+/// Print one drift-watch tick's persisted record.
+fn report_tick(rec: &AuditRecord) {
+    println!(
+        "magic-fleet: at={} drift={:?} ok={} changed={} failures={} unreachable={}",
+        rec.at, rec.status, rec.ok, rec.changed, rec.failures, rec.unreachable
+    );
+}
+
+/// The default audit-log path: `$HOME/.local/state/magic-fleet/drift-audit.jsonl`,
+/// falling back to a temp-dir path when `HOME` is unset.
+fn default_audit_path() -> String {
+    std::env::var("HOME").map_or_else(
+        |_| {
+            std::env::temp_dir()
+                .join("magic-fleet-drift-audit.jsonl")
+                .display()
+                .to_string()
+        },
+        |home| format!("{home}/.local/state/magic-fleet/drift-audit.jsonl"),
+    )
 }
 
 /// Print a drift outcome and map it to an exit code (failure only on a failed heal).

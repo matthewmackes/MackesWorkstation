@@ -15,7 +15,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Convergence summary parsed from an ansible-runner `playbook_on_stats` event.
 ///
@@ -132,7 +132,8 @@ pub fn apply(playbook_yaml: &str, root: &Path) -> io::Result<ApplyReport> {
 }
 
 /// Drift state of a node relative to its assigned baseline (Q108).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum DriftStatus {
     /// Already in the desired state — the apply changed nothing.
     InSync,
@@ -458,6 +459,98 @@ pub fn converge(spec: &BaselineSpec, root: &Path) -> io::Result<(DriftStatus, Ap
     heal_to_baseline(&playbook, root)
 }
 
+/// One persisted line of the drift-watch audit trail (Q108: auto-heal **with
+/// audit**). Serialises to a single JSON object — the audit log is JSONL, one
+/// record per converge, append-only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct AuditRecord {
+    /// Wall-clock time of the converge, Unix seconds.
+    pub at: u64,
+    /// The drift outcome (`insync` / `healed` / `failed`).
+    pub status: DriftStatus,
+    /// Tasks already in the desired state.
+    pub ok: u32,
+    /// Tasks the converge changed (drift that was healed).
+    pub changed: u32,
+    /// Tasks that failed.
+    pub failures: u32,
+    /// Hosts that were unreachable.
+    pub unreachable: u32,
+}
+
+impl AuditRecord {
+    /// Build a record from a converge outcome stamped at `at` (Unix seconds).
+    #[must_use]
+    pub const fn new(at: u64, status: DriftStatus, report: &ApplyReport) -> Self {
+        Self {
+            at,
+            status,
+            ok: report.ok,
+            changed: report.changed,
+            failures: report.failures,
+            unreachable: report.unreachable,
+        }
+    }
+
+    /// The record as one JSONL line (trailing newline included).
+    ///
+    /// # Errors
+    /// On JSON serialisation failure (practically never for this fixed shape).
+    pub fn to_jsonl(&self) -> Result<String, serde_json::Error> {
+        Ok(format!("{}\n", serde_json::to_string(self)?))
+    }
+}
+
+/// Current wall-clock time in Unix seconds (0 if the clock predates the epoch).
+#[must_use]
+pub fn now_unix() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs())
+}
+
+/// Append an [`AuditRecord`] as a JSONL line to the audit log at `log_path`,
+/// creating the file (and parent dirs) if absent.
+///
+/// # Errors
+/// On a serialisation failure or any filesystem error creating/opening/writing
+/// the log.
+pub fn append_audit(log_path: &Path, record: &AuditRecord) -> io::Result<()> {
+    use std::io::Write;
+    if let Some(parent) = log_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    let line = record.to_jsonl().map_err(io::Error::other)?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(log_path)?;
+    f.write_all(line.as_bytes())
+}
+
+/// One drift-watch tick: converge the node to `spec`, stamp the outcome, and
+/// append it to the audit log. Returns the persisted record so a caller (or the
+/// `watch` loop) can react to the drift status.
+///
+/// This is the unit the scheduled drift-watch daemon repeats; running it once is
+/// the daemon's single-shot mode.
+///
+/// # Errors
+/// Propagates [`converge`] errors (render / ansible-runner) and
+/// [`append_audit`] filesystem errors.
+pub fn drift_watch_tick(
+    spec: &BaselineSpec,
+    root: &Path,
+    audit_log: &Path,
+) -> io::Result<AuditRecord> {
+    let (status, report) = converge(spec, root)?;
+    let record = AuditRecord::new(now_unix(), status, &report);
+    append_audit(audit_log, &record)?;
+    Ok(record)
+}
+
 /// Read the newest `artifacts/<ident>/job_events/*` `playbook_on_stats` event
 /// under a private-data-dir `root`.
 fn latest_stats(root: &Path) -> Option<ApplyReport> {
@@ -692,6 +785,59 @@ cron:
         // an absent cron entry needs no job/schedule.
         assert!(stale.get("job").is_none());
         assert!(stale.get("minute").is_none());
+    }
+
+    #[test]
+    fn audit_record_serialises_to_one_jsonl_line() {
+        let report = ApplyReport {
+            ok: 4,
+            changed: 2,
+            failures: 0,
+            unreachable: 0,
+        };
+        let rec = AuditRecord::new(1_700_000_000, DriftStatus::Healed, &report);
+        let line = rec.to_jsonl().unwrap();
+        assert!(line.ends_with('\n'));
+        assert_eq!(line.matches('\n').count(), 1, "exactly one line");
+        // status renders lowercase (the JSONL is grep-friendly).
+        let v: serde_json::Value = serde_json::from_str(line.trim()).unwrap();
+        assert_eq!(v["at"].as_u64(), Some(1_700_000_000));
+        assert_eq!(v["status"].as_str(), Some("healed"));
+        assert_eq!(v["changed"].as_u64(), Some(2));
+        assert_eq!(v["ok"].as_u64(), Some(4));
+    }
+
+    #[test]
+    fn append_audit_creates_dirs_and_appends_jsonl() {
+        let dir = std::env::temp_dir().join(format!("magic-fleet-audit-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        // nested path that does not exist yet — append_audit must create it.
+        let log = dir.join("nested").join("drift-audit.jsonl");
+        let mk = |at, status, changed| {
+            AuditRecord::new(
+                at,
+                status,
+                &ApplyReport {
+                    ok: 1,
+                    changed,
+                    failures: 0,
+                    unreachable: 0,
+                },
+            )
+        };
+        append_audit(&log, &mk(100, DriftStatus::Healed, 1)).unwrap();
+        append_audit(&log, &mk(200, DriftStatus::InSync, 0)).unwrap();
+
+        let body = std::fs::read_to_string(&log).unwrap();
+        let lines: Vec<&str> = body.lines().collect();
+        assert_eq!(lines.len(), 2, "append, not overwrite");
+        let first: serde_json::Value = serde_json::from_str(lines[0]).unwrap();
+        let second: serde_json::Value = serde_json::from_str(lines[1]).unwrap();
+        assert_eq!(first["at"].as_u64(), Some(100));
+        assert_eq!(first["status"].as_str(), Some("healed"));
+        assert_eq!(second["at"].as_u64(), Some(200));
+        assert_eq!(second["status"].as_str(), Some("insync"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

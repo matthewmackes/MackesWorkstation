@@ -1414,10 +1414,17 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   All three map to genuinely-installed `ansible.builtin` modules; render-locked by a new unit
   test (11 total green, clippy/fmt clean). (`sysctl` + firewall await the `ansible.posix`
   collection — not installed on this box — a follow-up slice.)
+  **Drift-watch daemon + audit DONE (2026-06-09):** `AuditRecord` (serialisable, JSONL),
+  `append_audit()` (append-only, creates parent dirs), `now_unix()`, and `drift_watch_tick()`
+  (converge → stamp → append) in the lib; a `magic-fleet watch <baseline.yml>
+  [--interval=SECS] [--audit=PATH] [--once]` CLI loops the tick on a timer (default 900s),
+  surviving transient tick failures (logs + retries, never dies on a blip). Verified e2e: an
+  empty baseline → `InSync`, one JSONL audit line written, exit 0; bad flags rejected. 13 unit
+  tests green, clippy/fmt clean. (Q108 auto-heal **with audit**.)
   **REMAINING (the distributed/UI layer):** sysctl/firewall domains (pending `ansible.posix`);
   **peer-to-peer revision routing over Nebula** (hop-relay); version-aware revisions (Q115); a
-  **scheduled drift-watch daemon** that periodically `converge`s + persists the audit; the
-  Workbench authoring UI; declared local exceptions (Q124).
+  systemd timer/unit to drive `watch --once` (lands with packaging, E11.11); the Workbench
+  authoring UI; declared local exceptions (Q124).
 - [✓] **E11.8: E11 — Maximum-crypto security pinning (directive)** *(DONE 2026-06-08)*
   **As** the operator, **I want** the strongest available crypto across the mesh,
   **so that** the fabric is maximally secure.
