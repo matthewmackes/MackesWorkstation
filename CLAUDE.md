@@ -1,5 +1,17 @@
 # Mackes Workstation — Claude Workspace Instructions
 
+> ## ⚑ EOL — this repo is the ARCHIVE. Forward work lives in `magic-mesh`.
+> The **E11 "Magic Mesh" pivot** end-of-lifed the labwc/Win-era MDE desktop. On
+> **2026-06-09** the mesh substrate + its Carbon GUIs were split into a fresh
+> repo, **`github.com/matthewmackes/magic-mesh`** (the 20-crate dependency-closed
+> salvage set; `cargo check --workspace` green standalone; governance rewritten
+> for Mesh-on-Cosmic). **MackesWorkstation is preserved as the frozen archive of
+> the full desktop era** — its desktop chrome is its historical value, not a bug
+> to fix. **Do not start new feature work here; do it in `magic-mesh`.** The only
+> open items left against this tree are the birthright/mesh_status re-home onto
+> Cosmic (folds into magic-mesh's E11.9). Everything below predates the pivot and
+> describes the archived desktop — read it as history, not a live spec.
+
 - **Project:** the **successor monorepo** that fuses three now-archived repos into one
   native-Rust operating environment: **MDE** *(MackesDE for Workgroups, the mesh
   platform)*, **MDE-Retro** *(the Windows-10 / IBM-Carbon shell)*, and

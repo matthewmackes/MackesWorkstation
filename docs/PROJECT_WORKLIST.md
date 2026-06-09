@@ -1566,6 +1566,25 @@ against the dying shell. Order: spike identity → foundation → surfaces → E
   PIVOT" banner atop `AI_GOVERNANCE.md` (supersedes the brand/compositor/visual/product/
   control-surface/fleet locks, keeps the mesh substrate, points to the design doc) — the
   repo's established reconciliation pattern (newest-wins) in lieu of a risky from-scratch
-  rewrite; the full body rewrite happens in the `magic-mesh` repo. **REMAINING (blocked):**
-  the desktop-chrome deletion + shell salvage is the hard cutover (a large, late-stage
-  E11 step), and the repo split needs the operator-created **`magic-mesh` GitHub repo**.
+  rewrite; the full body rewrite happens in the `magic-mesh` repo.
+  **CUTOVER EXECUTED (2026-06-09, operator-authorized — "cut over now", fresh repo):**
+  • **`magic-mesh` repo created + pushed:** `github.com/matthewmackes/magic-mesh` (private),
+    fresh history, 697 files. The **20-crate salvage set** (platform/mesh/services/workbench/
+    shared/kdc — Bus, role, mackesd, Nebula/transport/config/types, magic-fleet, mde-files,
+    voice HUD/config, music+musicd, workbench, the Carbon look stack, the KDC host) was
+    **dependency-verified independent** of the desktop shell + mde-ui, copied with a fresh
+    workspace manifest, and **`cargo check --workspace` is green standalone**. One adaptation:
+    mackesd's `async-services` is now a default feature (in the monorepo the daemon's worker
+    pool only built via the deleted `mde-session`'s feature unification — a latent fragility,
+    now fixed).
+  • **Salvage:** `birthright.rs` (1464L, iced-0.13/mde-ui-bound) + `mesh_status.rs` preserved
+    under `salvage/from-mde-binary/` with a re-home README → **E11.9** (port into Workbench).
+  • **Governance rewritten:** `magic-mesh/AI_GOVERNANCE.md` is a genuine Mesh-on-Cosmic rewrite
+    (mesh/Bus/max-crypto/Carbon/no-fixed-center/boundary locks kept; shell/compositor/era-theme/
+    desktop-surface locks retired). README + boundary gate carried.
+  • **"Delete desktop chrome":** satisfied by the chrome being **absent from the go-forward
+    magic-mesh**. Per the operator's "fresh repo" choice, **MackesWorkstation stays as the
+    frozen archive** of the full desktop era (its chrome is its historical value — not gutted).
+    This repo is now **EOL** (see the EOL banner in CLAUDE.md); forward dev happens in magic-mesh.
+  **REMAINING:** birthright/mesh_status re-home onto Cosmic (folds into **E11.9**); the boundary
+  gate + lint suite + CI want adapting to the magic-mesh tree (E11.2/E11.11 in the new repo).
